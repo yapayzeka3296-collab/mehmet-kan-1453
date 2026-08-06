@@ -22,7 +22,7 @@ export function SiteHeader() {
       <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3 lg:px-8">
         <div className="flex min-w-0 items-center gap-8">
           <Logo />
-          <nav className="hidden min-w-0 items-center gap-5 xl:flex">
+          <nav className="hidden min-w-0 items-center gap-4 2xl:flex">
             {NAV.map((item) => (
               <Link
                 key={item.to}
@@ -61,7 +61,7 @@ export function SiteHeader() {
           <button
             aria-label="Menü"
             onClick={() => setOpen((v) => !v)}
-            className="rounded-md border border-border p-2 xl:hidden"
+            className="rounded-md border border-border p-2 2xl:hidden"
           >
             {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
@@ -69,7 +69,7 @@ export function SiteHeader() {
       </div>
 
       {open && (
-        <nav className="border-t border-border bg-navy-deep px-4 py-3 xl:hidden">
+        <nav className="border-t border-border bg-navy-deep px-4 py-3 2xl:hidden">
           <ul className="grid gap-1">
             {NAV.map((item) => (
               <li key={item.to}>
