@@ -316,8 +316,12 @@ function Admin() {
                 {SIGNUPS.map((v, i) => (
                   <div key={i} className="flex h-full min-w-0 flex-1 flex-col justify-end gap-2">
                     <div
-                      className="w-full shrink-0 rounded-t bg-[image:var(--gradient-gold)]"
-                      style={{ height: `${(v / 1200) * 100}%`, minHeight: "4px" }}
+                      className="w-full shrink-0 rounded-t"
+                      style={{
+                        height: `${(v / 1200) * 100}%`,
+                        minHeight: "4px",
+                        backgroundImage: "var(--gradient-gold)",
+                      }}
                     />
 
                     <span className="text-center text-[10px] text-muted-foreground">{MONTHS[i]}</span>
@@ -341,7 +345,8 @@ function Admin() {
                     </div>
                     <div className="mt-1.5 h-1.5 rounded-full bg-muted">
                       <div
-                        className="h-full rounded-full bg-[image:var(--gradient-gold)]"
+                        className="h-full rounded-full"
+                        style={{ backgroundImage: "var(--gradient-gold)" }}
                         style={{ width: `${d.pct}%` }}
                       />
                     </div>
