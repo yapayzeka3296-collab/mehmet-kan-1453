@@ -312,7 +312,7 @@ function Admin() {
                   Son 6 Ay
                 </span>
               </header>
-              <div className="mt-6 flex h-48 items-end gap-3">
+              <div className="mt-6 flex h-48 items-stretch gap-3">
                 {SIGNUPS.map((v, i) => (
                   <div key={i} className="flex h-full min-w-0 flex-1 flex-col justify-end gap-2">
                     <div
