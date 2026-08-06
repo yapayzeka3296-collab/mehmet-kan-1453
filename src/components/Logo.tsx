@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-export default function Logo() {
+export function Logo() {
   return (
     <Link to="/" className="flex items-center gap-3">
       <div>
@@ -24,3 +24,5 @@ export default function Logo() {
     </Link>
   );
 }
+
+export default Logo;
