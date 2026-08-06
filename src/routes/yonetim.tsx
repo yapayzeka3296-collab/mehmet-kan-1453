@@ -346,9 +346,12 @@ function Admin() {
                     <div className="mt-1.5 h-1.5 rounded-full bg-muted">
                       <div
                         className="h-full rounded-full"
-                        style={{ backgroundImage: "var(--gradient-gold)" }}
-                        style={{ width: `${d.pct}%` }}
+                        style={{
+                          width: `${d.pct}%`,
+                          backgroundImage: "var(--gradient-gold)",
+                        }}
                       />
+
                     </div>
                   </li>
                 ))}
