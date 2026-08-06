@@ -10,7 +10,6 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as GirisRouteImport } from './routes/giris'
 import { Route as GokyuzuHaritasiRouteImport } from './routes/gokyuzu-haritasi'
 import { Route as GuvenlikAyarlariRouteImport } from './routes/guvenlik-ayarlari'
@@ -27,15 +26,11 @@ import { Route as SertifikaDogrulaRouteImport } from './routes/sertifika-dogrula
 import { Route as SertifikalarimRouteImport } from './routes/sertifikalarim'
 import { Route as SifremiUnuttumRouteImport } from './routes/sifremi-unuttum'
 import { Route as SiparislerimRouteImport } from './routes/siparislerim'
+import { Route as YonetimRouteImport } from './routes/yonetim'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GirisRoute = GirisRouteImport.update({
@@ -118,10 +113,14 @@ const SiparislerimRoute = SiparislerimRouteImport.update({
   path: '/siparislerim',
   getParentRoute: () => rootRouteImport,
 } as any)
+const YonetimRoute = YonetimRouteImport.update({
+  id: '/yonetim',
+  path: '/yonetim',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
   '/giris': typeof GirisRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
   '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
@@ -138,10 +137,10 @@ export interface FileRoutesByFullPath {
   '/sertifikalarim': typeof SertifikalarimRoute
   '/sifremi-unuttum': typeof SifremiUnuttumRoute
   '/siparislerim': typeof SiparislerimRoute
+  '/yonetim': typeof YonetimRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
   '/giris': typeof GirisRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
   '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
@@ -158,11 +157,11 @@ export interface FileRoutesByTo {
   '/sertifikalarim': typeof SertifikalarimRoute
   '/sifremi-unuttum': typeof SifremiUnuttumRoute
   '/siparislerim': typeof SiparislerimRoute
+  '/yonetim': typeof YonetimRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
   '/giris': typeof GirisRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
   '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
@@ -179,12 +178,12 @@ export interface FileRoutesById {
   '/sertifikalarim': typeof SertifikalarimRoute
   '/sifremi-unuttum': typeof SifremiUnuttumRoute
   '/siparislerim': typeof SiparislerimRoute
+  '/yonetim': typeof YonetimRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/admin'
     | '/giris'
     | '/gokyuzu-haritasi'
     | '/guvenlik-ayarlari'
@@ -201,10 +200,10 @@ export interface FileRouteTypes {
     | '/sertifikalarim'
     | '/sifremi-unuttum'
     | '/siparislerim'
+    | '/yonetim'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/admin'
     | '/giris'
     | '/gokyuzu-haritasi'
     | '/guvenlik-ayarlari'
@@ -221,10 +220,10 @@ export interface FileRouteTypes {
     | '/sertifikalarim'
     | '/sifremi-unuttum'
     | '/siparislerim'
+    | '/yonetim'
   id:
     | '__root__'
     | '/'
-    | '/admin'
     | '/giris'
     | '/gokyuzu-haritasi'
     | '/guvenlik-ayarlari'
@@ -241,11 +240,11 @@ export interface FileRouteTypes {
     | '/sertifikalarim'
     | '/sifremi-unuttum'
     | '/siparislerim'
+    | '/yonetim'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AdminRoute: typeof AdminRoute
   GirisRoute: typeof GirisRoute
   GokyuzuHaritasiRoute: typeof GokyuzuHaritasiRoute
   GuvenlikAyarlariRoute: typeof GuvenlikAyarlariRoute
@@ -262,6 +261,7 @@ export interface RootRouteChildren {
   SertifikalarimRoute: typeof SertifikalarimRoute
   SifremiUnuttumRoute: typeof SifremiUnuttumRoute
   SiparislerimRoute: typeof SiparislerimRoute
+  YonetimRoute: typeof YonetimRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -271,13 +271,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/giris': {
@@ -392,12 +385,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SiparislerimRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/yonetim': {
+      id: '/yonetim'
+      path: '/yonetim'
+      fullPath: '/yonetim'
+      preLoaderRoute: typeof YonetimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AdminRoute: AdminRoute,
   GirisRoute: GirisRoute,
   GokyuzuHaritasiRoute: GokyuzuHaritasiRoute,
   GuvenlikAyarlariRoute: GuvenlikAyarlariRoute,
@@ -414,7 +413,18 @@ const rootRouteChildren: RootRouteChildren = {
   SertifikalarimRoute: SertifikalarimRoute,
   SifremiUnuttumRoute: SifremiUnuttumRoute,
   SiparislerimRoute: SiparislerimRoute,
+  YonetimRoute: YonetimRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
