@@ -212,7 +212,7 @@ function Admin() {
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-xs text-muted-foreground">{k.label}</p>
-                  <p className="truncate font-display text-2xl">{k.value}</p>
+                  <p className="font-display text-xl">{k.value}</p>
                   <p className="text-[11px] text-success">↑ {k.delta} önceki aya göre</p>
                 </div>
               </div>
@@ -314,7 +314,7 @@ function Admin() {
               </header>
               <div className="mt-6 flex h-48 items-end gap-3">
                 {SIGNUPS.map((v, i) => (
-                  <div key={i} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                  <div key={i} className="flex h-full min-w-0 flex-1 flex-col justify-end gap-2">
                     <div
                       className="w-full rounded-t bg-[image:var(--gradient-gold)]"
                       style={{ height: `${(v / 1200) * 100}%` }}
