@@ -1,18 +1,26 @@
 import { Link } from "@tanstack/react-router";
-import { Sparkles } from "lucide-react";
 
-export function Logo({ subtitle = "GÖKYÜZÜNDE SANA ÖZEL BİR YER" }: { subtitle?: string }) {
+export default function Logo() {
   return (
-    <Link to="/" className="flex shrink-0 items-center gap-2">
-      <Sparkles className="h-7 w-7 text-gold" />
-      <span className="leading-none">
-        <span className="font-display text-lg font-bold tracking-wide sm:text-xl">
-          MY SKY<span className="text-gold">PARCEL</span>
-        </span>
-        <span className="mt-1 block text-[8px] tracking-[0.2em] text-muted-foreground">
-          {subtitle}
-        </span>
-      </span>
+    <Link to="/" className="flex items-center gap-3">
+      <div>
+        <h1 className="text-3xl font-bold tracking-wide">
+          <span className="text-white">MY SKY</span>
+          <span className="text-yellow-400">PARCEL</span>
+        </h1>
+
+        <p className="text-[11px] uppercase tracking-[4px] text-gray-300">
+          GÖKYÜZÜNDE SANA ÖZEL BİR YER
+        </p>
+
+        <p className="text-[12px] font-semibold text-yellow-400">
+          Geleceğin Dijital Dünyası
+        </p>
+
+        <p className="text-[11px] uppercase tracking-[3px] text-white">
+          81 İL • 81 MİLYON PARSEL
+        </p>
+      </div>
     </Link>
   );
 }
