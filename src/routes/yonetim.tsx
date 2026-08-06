@@ -319,7 +319,7 @@ function Admin() {
                       className="w-full rounded-t bg-[image:var(--gradient-gold)]"
                       style={{ height: `${(v / 1200) * 100}%` }}
                     />
-                    <span className="text-[10px] text-muted-foreground">{MONTHS[i]}</span>
+                    <span className="text-center text-[10px] text-muted-foreground">{MONTHS[i]}</span>
                   </div>
                 ))}
               </div>
