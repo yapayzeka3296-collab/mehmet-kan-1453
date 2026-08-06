@@ -22,7 +22,7 @@ import {
   Wallet,
 } from "lucide-react";
 
-export const Route = createFileRoute("/admin")({
+export const Route = createFileRoute("/yonetim")({
   head: () => ({
     meta: [
       { title: "Yönetim Paneli — MySkyParcel" },
