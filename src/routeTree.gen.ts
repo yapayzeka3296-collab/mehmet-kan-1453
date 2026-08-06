@@ -10,33 +10,258 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as GirisRouteImport } from './routes/giris'
+import { Route as GokyuzuHaritasiRouteImport } from './routes/gokyuzu-haritasi'
+import { Route as GuvenlikAyarlariRouteImport } from './routes/guvenlik-ayarlari'
+import { Route as HakkimizdaRouteImport } from './routes/hakkimizda'
+import { Route as IletisimRouteImport } from './routes/iletisim'
+import { Route as KayitOlRouteImport } from './routes/kayit-ol'
+import { Route as NasilCalisirRouteImport } from './routes/nasil-calisir'
+import { Route as PaketlerRouteImport } from './routes/paketler'
+import { Route as PanelimRouteImport } from './routes/panelim'
+import { Route as ParselSatinAlRouteImport } from './routes/parsel-satin-al'
+import { Route as ParsellerimRouteImport } from './routes/parsellerim'
+import { Route as ProfilimRouteImport } from './routes/profilim'
+import { Route as SertifikaDogrulaRouteImport } from './routes/sertifika-dogrula'
+import { Route as SertifikalarimRouteImport } from './routes/sertifikalarim'
+import { Route as SifremiUnuttumRouteImport } from './routes/sifremi-unuttum'
+import { Route as SiparislerimRouteImport } from './routes/siparislerim'
+import { Route as YonetimRouteImport } from './routes/yonetim'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GirisRoute = GirisRouteImport.update({
+  id: '/giris',
+  path: '/giris',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GokyuzuHaritasiRoute = GokyuzuHaritasiRouteImport.update({
+  id: '/gokyuzu-haritasi',
+  path: '/gokyuzu-haritasi',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuvenlikAyarlariRoute = GuvenlikAyarlariRouteImport.update({
+  id: '/guvenlik-ayarlari',
+  path: '/guvenlik-ayarlari',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HakkimizdaRoute = HakkimizdaRouteImport.update({
+  id: '/hakkimizda',
+  path: '/hakkimizda',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IletisimRoute = IletisimRouteImport.update({
+  id: '/iletisim',
+  path: '/iletisim',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KayitOlRoute = KayitOlRouteImport.update({
+  id: '/kayit-ol',
+  path: '/kayit-ol',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NasilCalisirRoute = NasilCalisirRouteImport.update({
+  id: '/nasil-calisir',
+  path: '/nasil-calisir',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaketlerRoute = PaketlerRouteImport.update({
+  id: '/paketler',
+  path: '/paketler',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PanelimRoute = PanelimRouteImport.update({
+  id: '/panelim',
+  path: '/panelim',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParselSatinAlRoute = ParselSatinAlRouteImport.update({
+  id: '/parsel-satin-al',
+  path: '/parsel-satin-al',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParsellerimRoute = ParsellerimRouteImport.update({
+  id: '/parsellerim',
+  path: '/parsellerim',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfilimRoute = ProfilimRouteImport.update({
+  id: '/profilim',
+  path: '/profilim',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SertifikaDogrulaRoute = SertifikaDogrulaRouteImport.update({
+  id: '/sertifika-dogrula',
+  path: '/sertifika-dogrula',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SertifikalarimRoute = SertifikalarimRouteImport.update({
+  id: '/sertifikalarim',
+  path: '/sertifikalarim',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SifremiUnuttumRoute = SifremiUnuttumRouteImport.update({
+  id: '/sifremi-unuttum',
+  path: '/sifremi-unuttum',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SiparislerimRoute = SiparislerimRouteImport.update({
+  id: '/siparislerim',
+  path: '/siparislerim',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const YonetimRoute = YonetimRouteImport.update({
+  id: '/yonetim',
+  path: '/yonetim',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/giris': typeof GirisRoute
+  '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
+  '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
+  '/hakkimizda': typeof HakkimizdaRoute
+  '/iletisim': typeof IletisimRoute
+  '/kayit-ol': typeof KayitOlRoute
+  '/nasil-calisir': typeof NasilCalisirRoute
+  '/paketler': typeof PaketlerRoute
+  '/panelim': typeof PanelimRoute
+  '/parsel-satin-al': typeof ParselSatinAlRoute
+  '/parsellerim': typeof ParsellerimRoute
+  '/profilim': typeof ProfilimRoute
+  '/sertifika-dogrula': typeof SertifikaDogrulaRoute
+  '/sertifikalarim': typeof SertifikalarimRoute
+  '/sifremi-unuttum': typeof SifremiUnuttumRoute
+  '/siparislerim': typeof SiparislerimRoute
+  '/yonetim': typeof YonetimRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/giris': typeof GirisRoute
+  '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
+  '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
+  '/hakkimizda': typeof HakkimizdaRoute
+  '/iletisim': typeof IletisimRoute
+  '/kayit-ol': typeof KayitOlRoute
+  '/nasil-calisir': typeof NasilCalisirRoute
+  '/paketler': typeof PaketlerRoute
+  '/panelim': typeof PanelimRoute
+  '/parsel-satin-al': typeof ParselSatinAlRoute
+  '/parsellerim': typeof ParsellerimRoute
+  '/profilim': typeof ProfilimRoute
+  '/sertifika-dogrula': typeof SertifikaDogrulaRoute
+  '/sertifikalarim': typeof SertifikalarimRoute
+  '/sifremi-unuttum': typeof SifremiUnuttumRoute
+  '/siparislerim': typeof SiparislerimRoute
+  '/yonetim': typeof YonetimRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/giris': typeof GirisRoute
+  '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
+  '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
+  '/hakkimizda': typeof HakkimizdaRoute
+  '/iletisim': typeof IletisimRoute
+  '/kayit-ol': typeof KayitOlRoute
+  '/nasil-calisir': typeof NasilCalisirRoute
+  '/paketler': typeof PaketlerRoute
+  '/panelim': typeof PanelimRoute
+  '/parsel-satin-al': typeof ParselSatinAlRoute
+  '/parsellerim': typeof ParsellerimRoute
+  '/profilim': typeof ProfilimRoute
+  '/sertifika-dogrula': typeof SertifikaDogrulaRoute
+  '/sertifikalarim': typeof SertifikalarimRoute
+  '/sifremi-unuttum': typeof SifremiUnuttumRoute
+  '/siparislerim': typeof SiparislerimRoute
+  '/yonetim': typeof YonetimRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/giris'
+    | '/gokyuzu-haritasi'
+    | '/guvenlik-ayarlari'
+    | '/hakkimizda'
+    | '/iletisim'
+    | '/kayit-ol'
+    | '/nasil-calisir'
+    | '/paketler'
+    | '/panelim'
+    | '/parsel-satin-al'
+    | '/parsellerim'
+    | '/profilim'
+    | '/sertifika-dogrula'
+    | '/sertifikalarim'
+    | '/sifremi-unuttum'
+    | '/siparislerim'
+    | '/yonetim'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/giris'
+    | '/gokyuzu-haritasi'
+    | '/guvenlik-ayarlari'
+    | '/hakkimizda'
+    | '/iletisim'
+    | '/kayit-ol'
+    | '/nasil-calisir'
+    | '/paketler'
+    | '/panelim'
+    | '/parsel-satin-al'
+    | '/parsellerim'
+    | '/profilim'
+    | '/sertifika-dogrula'
+    | '/sertifikalarim'
+    | '/sifremi-unuttum'
+    | '/siparislerim'
+    | '/yonetim'
+  id:
+    | '__root__'
+    | '/'
+    | '/giris'
+    | '/gokyuzu-haritasi'
+    | '/guvenlik-ayarlari'
+    | '/hakkimizda'
+    | '/iletisim'
+    | '/kayit-ol'
+    | '/nasil-calisir'
+    | '/paketler'
+    | '/panelim'
+    | '/parsel-satin-al'
+    | '/parsellerim'
+    | '/profilim'
+    | '/sertifika-dogrula'
+    | '/sertifikalarim'
+    | '/sifremi-unuttum'
+    | '/siparislerim'
+    | '/yonetim'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  GirisRoute: typeof GirisRoute
+  GokyuzuHaritasiRoute: typeof GokyuzuHaritasiRoute
+  GuvenlikAyarlariRoute: typeof GuvenlikAyarlariRoute
+  HakkimizdaRoute: typeof HakkimizdaRoute
+  IletisimRoute: typeof IletisimRoute
+  KayitOlRoute: typeof KayitOlRoute
+  NasilCalisirRoute: typeof NasilCalisirRoute
+  PaketlerRoute: typeof PaketlerRoute
+  PanelimRoute: typeof PanelimRoute
+  ParselSatinAlRoute: typeof ParselSatinAlRoute
+  ParsellerimRoute: typeof ParsellerimRoute
+  ProfilimRoute: typeof ProfilimRoute
+  SertifikaDogrulaRoute: typeof SertifikaDogrulaRoute
+  SertifikalarimRoute: typeof SertifikalarimRoute
+  SifremiUnuttumRoute: typeof SifremiUnuttumRoute
+  SiparislerimRoute: typeof SiparislerimRoute
+  YonetimRoute: typeof YonetimRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,22 +273,148 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/giris': {
+      id: '/giris'
+      path: '/giris'
+      fullPath: '/giris'
+      preLoaderRoute: typeof GirisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gokyuzu-haritasi': {
+      id: '/gokyuzu-haritasi'
+      path: '/gokyuzu-haritasi'
+      fullPath: '/gokyuzu-haritasi'
+      preLoaderRoute: typeof GokyuzuHaritasiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guvenlik-ayarlari': {
+      id: '/guvenlik-ayarlari'
+      path: '/guvenlik-ayarlari'
+      fullPath: '/guvenlik-ayarlari'
+      preLoaderRoute: typeof GuvenlikAyarlariRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hakkimizda': {
+      id: '/hakkimizda'
+      path: '/hakkimizda'
+      fullPath: '/hakkimizda'
+      preLoaderRoute: typeof HakkimizdaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/iletisim': {
+      id: '/iletisim'
+      path: '/iletisim'
+      fullPath: '/iletisim'
+      preLoaderRoute: typeof IletisimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kayit-ol': {
+      id: '/kayit-ol'
+      path: '/kayit-ol'
+      fullPath: '/kayit-ol'
+      preLoaderRoute: typeof KayitOlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nasil-calisir': {
+      id: '/nasil-calisir'
+      path: '/nasil-calisir'
+      fullPath: '/nasil-calisir'
+      preLoaderRoute: typeof NasilCalisirRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/paketler': {
+      id: '/paketler'
+      path: '/paketler'
+      fullPath: '/paketler'
+      preLoaderRoute: typeof PaketlerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/panelim': {
+      id: '/panelim'
+      path: '/panelim'
+      fullPath: '/panelim'
+      preLoaderRoute: typeof PanelimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parsel-satin-al': {
+      id: '/parsel-satin-al'
+      path: '/parsel-satin-al'
+      fullPath: '/parsel-satin-al'
+      preLoaderRoute: typeof ParselSatinAlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parsellerim': {
+      id: '/parsellerim'
+      path: '/parsellerim'
+      fullPath: '/parsellerim'
+      preLoaderRoute: typeof ParsellerimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profilim': {
+      id: '/profilim'
+      path: '/profilim'
+      fullPath: '/profilim'
+      preLoaderRoute: typeof ProfilimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sertifika-dogrula': {
+      id: '/sertifika-dogrula'
+      path: '/sertifika-dogrula'
+      fullPath: '/sertifika-dogrula'
+      preLoaderRoute: typeof SertifikaDogrulaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sertifikalarim': {
+      id: '/sertifikalarim'
+      path: '/sertifikalarim'
+      fullPath: '/sertifikalarim'
+      preLoaderRoute: typeof SertifikalarimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sifremi-unuttum': {
+      id: '/sifremi-unuttum'
+      path: '/sifremi-unuttum'
+      fullPath: '/sifremi-unuttum'
+      preLoaderRoute: typeof SifremiUnuttumRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/siparislerim': {
+      id: '/siparislerim'
+      path: '/siparislerim'
+      fullPath: '/siparislerim'
+      preLoaderRoute: typeof SiparislerimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/yonetim': {
+      id: '/yonetim'
+      path: '/yonetim'
+      fullPath: '/yonetim'
+      preLoaderRoute: typeof YonetimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  GirisRoute: GirisRoute,
+  GokyuzuHaritasiRoute: GokyuzuHaritasiRoute,
+  GuvenlikAyarlariRoute: GuvenlikAyarlariRoute,
+  HakkimizdaRoute: HakkimizdaRoute,
+  IletisimRoute: IletisimRoute,
+  KayitOlRoute: KayitOlRoute,
+  NasilCalisirRoute: NasilCalisirRoute,
+  PaketlerRoute: PaketlerRoute,
+  PanelimRoute: PanelimRoute,
+  ParselSatinAlRoute: ParselSatinAlRoute,
+  ParsellerimRoute: ParsellerimRoute,
+  ProfilimRoute: ProfilimRoute,
+  SertifikaDogrulaRoute: SertifikaDogrulaRoute,
+  SertifikalarimRoute: SertifikalarimRoute,
+  SifremiUnuttumRoute: SifremiUnuttumRoute,
+  SiparislerimRoute: SiparislerimRoute,
+  YonetimRoute: YonetimRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
