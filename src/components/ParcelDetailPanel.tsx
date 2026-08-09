@@ -14,12 +14,20 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
       setMessage('Lütfen önce giriş yapın');
       return;
     }
+    if (!supabaseBrowser) {
+      setMessage('Supabase yapılandırması eksik. Lütfen daha sonra tekrar deneyin.');
+      return;
+    }
 
     setLoading(true);
     try {
-      // get access token from supabase client
       const { data } = await supabaseBrowser.auth.getSession();
-      const token = (data as any)?.session?.access_token;
+      const token = data.session?.access_token;
+      if (!token) {
+        setMessage('Oturumunuz bulunamadı. Lütfen tekrar giriş yapın.');
+        return;
+      }
+
       const res = await fetch('/_start/purchase', {
         method: 'POST',
         headers: {
