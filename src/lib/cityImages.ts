@@ -1,4 +1,6 @@
-export const CITY_IMAGES: Record<string, string> = {
+export type CityImageCode = "IST" | "ANK" | "IZM" | "BUR" | "ANT" | "KAY" | "GZT";
+
+export const CITY_IMAGES: Record<CityImageCode, string> = {
   IST: "/images/cities/istanbul.webp",
   ANK: "/images/cities/ankara.webp",
   IZM: "/images/cities/izmir.webp",
