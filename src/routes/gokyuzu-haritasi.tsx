@@ -10,6 +10,8 @@ import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import type { Parcel } from "@/types/parcel";
 
+type SkyMapParcel = Parcel & { grid_x?: number; grid_y?: number };
+
 export const Route = createFileRoute("/gokyuzu-haritasi")({
   head: () => ({
     meta: [
@@ -32,19 +34,9 @@ const PILOT_CITIES = [
   { code: "GZT", slug: "gaziantep", name: "Gaziantep" },
 ] as const;
 
-const TIER_PRICE = { digital: 199, elite: 499, premium: 999 } as const;
-
-function tierFromParcelCode(parcelNumber: string) {
-  const match = parcelNumber.match(/(?:^|-)P(\d+)(?:-|$)/i);
-  const row = Math.max(1, Math.min(10, Number(match?.[1] ?? 1)));
-  if (row <= 5) return "digital" as const;
-  if (row <= 8) return "elite" as const;
-  return "premium" as const;
-}
-
 function Harita() {
   const [selectedCity, setSelectedCity] = useState("GZT");
-  const [parcels, setParcels] = useState<Parcel[]>([]);
+  const [parcels, setParcels] = useState<SkyMapParcel[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,18 +69,13 @@ function Harita() {
 
         const { data, error: parcelError } = await supabaseBrowser
           .from("parcels")
-          .select("id, parcel_number, status, owner_id, price, city_id, latitude, longitude, created_at, updated_at, grid_x, grid_y")
+          .select("id, parcel_number, status, owner_id, price, city_id, latitude, longitude, created_at, updated_at, tier, grid_x, grid_y")
           .eq("city_id", cityRow.id)
           .order("parcel_number")
           .limit(1000);
         if (parcelError) throw parcelError;
 
-        const normalized = ((data ?? []) as Array<Parcel & { grid_x?: number; grid_y?: number }>).map((parcel) => {
-          const tier = tierFromParcelCode(parcel.parcel_number);
-          return { ...parcel, tier, tier_price: TIER_PRICE[tier] } as Parcel;
-        });
-
-        if (mounted) setParcels(normalized);
+        if (mounted) setParcels((data ?? []) as SkyMapParcel[]);
       } catch (err) {
         console.error("Error loading pilot city parcels", err);
         if (mounted) setError("Şehrin gerçek parselleri yüklenemedi. Supabase bağlantısını kontrol edin.");
@@ -170,7 +157,7 @@ function Harita() {
               <ParcelDetailPanel
                 parcel={selectedParcel}
                 onClose={() => setSelectedId(null)}
-                onReserved={(parcel) => setParcels((previous) => previous.map((item) => (item.id === parcel.id ? parcel : item)))}
+                onReserved={(parcel) => setParcels((previous) => previous.map((item) => (item.id === parcel.id ? { ...item, ...parcel } : item)))}
               />
             ) : (
               <div className="panel min-h-[260px] p-5">
