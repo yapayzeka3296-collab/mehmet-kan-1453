@@ -33,12 +33,6 @@ const PILOT_CITIES = [
   { code: "GZT", name: "Gaziantep" },
 ];
 
-const TIER_LABEL: Record<Parcel["tier"], string> = {
-  digital: "Dijital · 199 TL",
-  elite: "Elit · 499 TL",
-  premium: "Premium · 999 TL",
-};
-
 function Harita() {
   const [selectedCity, setSelectedCity] = useState("GZT");
   const [parcels, setParcels] = useState<Parcel[]>([]);
@@ -84,9 +78,7 @@ function Harita() {
 
         if (parcelError) throw parcelError;
 
-        if (mounted) {
-          setParcels((data as Parcel[]) ?? []);
-        }
+        if (mounted) setParcels((data as Parcel[]) ?? []);
       } catch (err) {
         console.error("Error loading pilot city parcels", err);
         if (mounted) setError("Şehrin parselleri yüklenemedi. Supabase migration'larının uygulandığından emin olun.");
@@ -187,5 +179,3 @@ function Harita() {
     </div>
   );
 }
-
-void TIER_LABEL;
