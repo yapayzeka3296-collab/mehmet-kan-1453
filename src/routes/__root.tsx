@@ -1,4 +1,3 @@
-import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -117,9 +116,9 @@ function RootShell({ children }: { children: ReactNode }) {
       <head>
         <HeadContent />
         <meta
-  name="google-site-verification"
-  content="FnBKvdIxURn7yQQY7YNxhbM-sxPfNEjJfG4gmZKh0ec"
-/>
+          name="google-site-verification"
+          content="FnBKvdIxURn7yQQY7YNxhbM-sxPfNEjJfG4gmZKh0ec"
+        />
       </head>
       <body>
         {children}
