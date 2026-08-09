@@ -29,10 +29,6 @@ ALTER TABLE public.parcels
   ADD COLUMN IF NOT EXISTS sector_number smallint,
   ADD COLUMN IF NOT EXISTS local_parcel_number integer;
 
--- Existing pilot data contains 1,000 deterministic parcels per pilot city.
--- Map those existing records into the first parcel of each deterministic
--- sector while leaving the remaining 999 parcel slots available for future
--- generation. No ownership/status data is changed here.
 WITH ranked AS (
   SELECT
     id,
@@ -72,9 +68,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS parcels_city_hierarchy_uidx
 CREATE INDEX IF NOT EXISTS parcels_city_hierarchy_idx
   ON public.parcels(city_id, layer_number, sector_number);
 
--- Public map projection: deliberately excludes owner_id and other private
--- ownership fields. Browser clients should read this projection, not the
--- base parcels table.
 CREATE OR REPLACE VIEW public.parcel_map_public AS
 SELECT
   p.id,
@@ -99,8 +92,6 @@ LEFT JOIN public.cities c ON c.id = p.city_id;
 
 GRANT SELECT ON public.parcel_map_public TO anon, authenticated;
 
--- Base parcel rows are private. Owners can read their own records; browser
--- clients cannot insert/update/delete ownership or reservation state.
 ALTER TABLE public.parcels ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS public_read_parcels ON public.parcels;
@@ -109,6 +100,7 @@ DROP POLICY IF EXISTS user_select_own ON public.parcels;
 DROP POLICY IF EXISTS insert_parcels ON public.parcels;
 DROP POLICY IF EXISTS update_own_parcel ON public.parcels;
 DROP POLICY IF EXISTS prevent_change_owner ON public.parcels;
+DROP POLICY IF EXISTS parcels_select_own ON public.parcels;
 
 CREATE POLICY parcels_select_own
 ON public.parcels
@@ -119,8 +111,6 @@ USING (owner_id = auth.uid());
 -- No INSERT/UPDATE/DELETE policies are intentionally provided for anon or
 -- authenticated roles. Reservation/ownership mutations remain server-only.
 
--- Certificate verification is intentionally exposed through a narrow,
--- read-only SECURITY DEFINER function instead of exposing certificate rows.
 CREATE OR REPLACE FUNCTION public.verify_certificate(p_certificate_number text)
 RETURNS TABLE (
   certificate_number text,
@@ -155,8 +145,6 @@ $$;
 REVOKE ALL ON FUNCTION public.verify_certificate(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.verify_certificate(text) TO anon, authenticated;
 
--- Certificate requests must belong to the authenticated user and to a parcel
--- currently owned by that user. The requested tier must match the parcel tier.
 DROP POLICY IF EXISTS certificate_requests_insert_own ON public.certificate_requests;
 CREATE POLICY certificate_requests_insert_own
 ON public.certificate_requests
@@ -169,6 +157,7 @@ WITH CHECK (
     FROM public.parcels p
     WHERE p.id = parcel_id
       AND p.owner_id = auth.uid()
+      AND p.status = 'sold'
       AND p.tier = certificate_requests.tier
   )
 );
