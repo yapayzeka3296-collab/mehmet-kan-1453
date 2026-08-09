@@ -28,7 +28,7 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
         return;
       }
 
-      const res = await fetch('/_start/purchase', {
+      const res = await fetch('/purchase', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
