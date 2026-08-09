@@ -31,10 +31,10 @@ const SKY_PARCEL_MODEL = {
 } as const;
 
 const HERO_CITY = {
-  name: "GAZİANTEP",
-  slug: "gaziantep",
+  name: "İSTANBUL",
+  slug: "istanbul",
   district: "MERKEZ",
-  image: CITY_IMAGES.GZT,
+  image: CITY_IMAGES.IST,
 } as const;
 
 const STATS = [
@@ -47,9 +47,9 @@ const STATS = [
 ];
 
 const CERTIFICATE_PACKAGES = [
-  { id: "digital", name: "DİJİTAL SERTİFİKA", price: 199, img: certDigital, features: ["Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"] },
-  { id: "premium", name: "PREMIUM SERTİFİKA", price: 499, img: certPremium, features: ["Özel tasarım sertifika", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"] },
-  { id: "framed", name: "ÇERÇEVELİ BASKI", price: 999, img: certFramed, features: ["Özel tasarım sertifika", "Çerçeveli baskı (A4)", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama"] },
+  { id: "digital", name: "DİJİTAL", price: 199, img: certDigital, features: ["Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"] },
+  { id: "elite", name: "ELİT", price: 499, img: certPremium, features: ["Özel tasarım sertifika", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"] },
+  { id: "premium", name: "PREMİUM", price: 999, img: certFramed, features: ["Özel tasarım sertifika", "Çerçeveli baskı (A4)", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama"] },
 ] as const;
 
 const POPULAR_CITIES = [
@@ -82,7 +82,7 @@ function Index() {
       <SiteHeader />
       <main>
         <section className="relative overflow-hidden">
-          <img src={heroCity} alt={`${HERO_CITY.name} şehir manzarası`} width={1920} height={1088} className="absolute inset-0 h-full w-full object-cover opacity-60" />
+          <img src={HERO_CITY.image} alt={`${HERO_CITY.name} şehir manzarası`} width={1920} height={1088} className="absolute inset-0 h-full w-full object-cover opacity-60" />
           <div className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/40" />
           <img src={globe} alt="" aria-hidden width={1024} height={1024} className="pointer-events-none absolute -top-24 right-[18%] hidden h-[130%] opacity-50 mix-blend-screen xl:block" />
           <div className="relative mx-auto grid max-w-[1600px] gap-10 px-4 py-14 xl:grid-cols-[1.05fr_0.75fr] xl:px-8 xl:py-20">
@@ -125,7 +125,7 @@ function Index() {
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">{CERTIFICATE_PACKAGES.map((p) => <article key={p.id} className="panel flex min-w-0 flex-col p-6"><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2"><div className="min-w-0"><h3 className="font-display text-lg">{p.name}</h3><ul className="mt-4 space-y-2 text-xs">{p.features.map((f)=><li key={f} className="flex items-start gap-2 text-muted-foreground"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold"/><span>{f}</span></li>)}</ul></div><img src={p.img} alt={p.name} loading="lazy" width={900} height={800} className="h-40 w-full rounded-lg object-contain"/></div><p className="mt-6 font-display text-3xl text-gold">{p.price.toLocaleString("tr-TR")} <span className="text-base">TL</span></p><Link to="/paketler" className="btn-gold mt-4 inline-flex items-center justify-center rounded-md px-5 py-2.5 text-[11px]">HEMEN İNCELE</Link></article>)}</div><div className="grid content-start gap-6"><div className="panel p-6"><h3 className="font-display text-base">SERTİFİKA DOĞRULA</h3><p className="mt-2 text-xs text-muted-foreground">Parsel kodunuzu girerek sertifikanızın geçerliliğini kontrol edebilirsiniz.</p><div className="mt-4 flex flex-col gap-2 sm:flex-row"><input aria-label="Parsel kodu" placeholder="Parsel kodunuzu girin (Örn: GZT-K05-S042-P07)" className="min-w-0 w-full rounded-md border border-input bg-background/60 px-3 py-2 text-[11px] outline-none focus:border-gold"/><Link to="/sertifika-dogrula" aria-label="Sertifika doğrulama sayfasına git" className="btn-gold inline-flex w-full shrink-0 items-center justify-center rounded-md px-4 py-2 text-[11px] sm:w-auto">DOĞRULA</Link></div></div><div className="panel p-6"><h3 className="font-display text-base">GÜVENLİ ALIŞVERİŞ</h3><p className="mt-2 text-xs text-muted-foreground">256 Bit SSL ile korunur. Tüm ödemeleriniz güvenli altyapı ile gerçekleştirilmektedir.</p></div></div>
         </section>
 
-        <section className="mx-auto max-w-[1600px] px-4 pb-8 lg:px-8"><div className="panel grid gap-6 p-6 lg:grid-cols-[auto_1fr_auto] lg:items-center"><h3 className="font-display text-base tracking-[0.08em]">POPÜLER ŞEHİRLER</h3><ul className="flex flex-wrap justify-center gap-5">{POPULAR_CITIES.map((city)=><li key={city.code} className="min-w-[72px] text-center"><div className="mx-auto grid h-14 w-14 overflow-hidden place-items-center rounded-full border border-gold/60 bg-navy"><img src={city.image} alt="" loading="lazy" width={128} height={128} className="h-full w-full object-cover" /></div><p className="mt-2 text-[10px] tracking-[0.08em] text-muted-foreground">{city.name}</p></li>)}</ul><Link to="/gokyuzu-haritasi" className="inline-flex items-center justify-center gap-2 rounded-md border border-gold/60 px-5 py-2.5 text-[11px] tracking-[0.08em] text-gold">TÜM ŞEHİRLER <ArrowRight className="h-4 w-4"/></Link></div></section>
+        <section className="mx-auto max-w-[1600px] px-4 pb-8 lg:px-8"><div className="panel grid gap-6 p-6 lg:grid-cols-[auto_1fr_auto] lg:items-center"><h3 className="font-display text-base tracking-[0.08em]">POPÜLER ŞEHİRLER</h3><ul className="flex flex-wrap justify-center gap-5">{POPULAR_CITIES.map(c=><li key={c.code} className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-gold/60 bg-navy overflow-hidden"><img src={c.image} alt="" loading="lazy" width={96} height={96} className="h-full w-full object-cover opacity-75"/></div><p className="mt-2 text-[10px] tracking-[0.08em] text-muted-foreground">{c.name}</p></li>)}</ul><Link to="/gokyuzu-haritasi" className="inline-flex items-center justify-center gap-2 rounded-md border border-gold/60 px-5 py-2.5 text-[11px] tracking-[0.08em] text-gold">TÜM ŞEHİRLER <ArrowRight className="h-4 w-4"/></Link></div></section>
         <TrustBar />
       </main>
       <SiteFooter />
