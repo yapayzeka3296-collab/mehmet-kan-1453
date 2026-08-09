@@ -3,7 +3,7 @@ import { MapPin, Search } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
-import { SkyParcelDome } from "@/components/SkyParcelDome";
+import { SkyParcelDomeV2 } from "@/components/SkyParcelDomeV2";
 import { ParcelDetailPanel } from "@/components/ParcelDetailPanel";
 import { CITY_IMAGES, CITY_IMAGE_FALLBACK } from "@/lib/cityImages";
 import { useEffect, useMemo, useState } from "react";
@@ -41,60 +41,32 @@ function Harita() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const selectedParcel = useMemo(() => parcels.find((parcel) => parcel.id === selectedId) ?? null, [parcels, selectedId]);
   const selectedCityMeta = PILOT_CITIES.find((city) => city.code === selectedCity) ?? PILOT_CITIES[6];
   const selectedCityImage = CITY_IMAGES[selectedCity] ?? CITY_IMAGE_FALLBACK;
 
   useEffect(() => {
     let mounted = true;
-
     async function loadParcels() {
-      if (!supabaseBrowser) {
-        setError("Supabase yapılandırması eksik");
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-      setSelectedId(null);
-
+      if (!supabaseBrowser) { setError("Supabase yapılandırması eksik"); setLoading(false); return; }
+      setLoading(true); setError(null); setSelectedId(null);
       try {
-        const { data: city, error: cityError } = await supabaseBrowser
-          .from("cities")
-          .select("id,name,slug")
-          .eq("slug", selectedCityMeta.slug)
-          .single();
-
+        const { data: city, error: cityError } = await supabaseBrowser.from("cities").select("id,name,slug").eq("slug", selectedCityMeta.slug).single();
         if (cityError) throw cityError;
-
-        const { data, error: parcelError } = await supabaseBrowser
-          .from("parcels")
-          .select("id, parcel_number, status, owner_id, price, city_id, latitude, longitude, created_at, updated_at, grid_x, grid_y")
-          .eq("city_id", city.id)
-          .order("parcel_number")
-          .limit(1000);
-
+        const { data, error: parcelError } = await supabaseBrowser.from("parcels").select("id, parcel_number, status, owner_id, price, city_id, latitude, longitude, created_at, updated_at, grid_x, grid_y").eq("city_id", city.id).order("parcel_number").limit(1000);
         if (parcelError) throw parcelError;
-
         const normalized = ((data ?? []) as Array<Parcel & { grid_x?: number; grid_y?: number }>).map((parcel) => {
           const numericCode = Number(parcel.parcel_number.split("-").pop() ?? 0);
           const tier = TIER_BY_NUMBER(numericCode);
           return { ...parcel, tier, tier_price: TIER_PRICE[tier] } as Parcel;
         });
-
         if (mounted) setParcels(normalized);
       } catch (err) {
         console.error("Error loading pilot city parcels", err);
         if (mounted) setError("Şehrin gerçek parselleri yüklenemedi. Supabase bağlantısını kontrol edin.");
-      } finally {
-        if (mounted) setLoading(false);
-      }
+      } finally { if (mounted) setLoading(false); }
     }
-
-    void loadParcels();
-    return () => { mounted = false; };
+    void loadParcels(); return () => { mounted = false; };
   }, [selectedCityMeta.slug]);
 
   return (
@@ -112,20 +84,12 @@ function Harita() {
               <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <input placeholder="Pilot şehir ara..." className="min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none" aria-label="Pilot şehir ara" />
             </div>
-
             <div>
               <p className="mb-2 text-xs text-muted-foreground">Pilot şehirler · 1.000 parsel</p>
               <ul className="grid gap-1">
-                {PILOT_CITIES.map((city) => (
-                  <li key={city.code}>
-                    <button type="button" onClick={() => setSelectedCity(city.code)} className={`flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm ${selectedCity === city.code ? "border border-gold/50 bg-accent text-gold" : "hover:bg-accent hover:text-gold"}`}>
-                      <MapPin className="h-4 w-4 shrink-0" />{city.name}
-                    </button>
-                  </li>
-                ))}
+                {PILOT_CITIES.map((city) => <li key={city.code}><button type="button" onClick={() => setSelectedCity(city.code)} className={`flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm ${selectedCity === city.code ? "border border-gold/50 bg-accent text-gold" : "hover:bg-accent hover:text-gold"}`}><MapPin className="h-4 w-4 shrink-0" />{city.name}</button></li>)}
               </ul>
             </div>
-
             <div className="rounded-md border border-gold/20 bg-background/30 p-3 text-xs">
               <p className="font-semibold text-gold">PARSEL STATÜLERİ</p>
               <p className="mt-2 text-muted-foreground">%50 Dijital · 199 TL</p>
@@ -136,22 +100,25 @@ function Harita() {
 
           <div className="panel relative min-h-[600px] overflow-hidden p-4 sm:p-6">
             <img key={selectedCityImage} src={selectedCityImage} alt={`${selectedCityMeta.name} şehir manzarası`} loading="eager" width={1536} height={864} onError={(event) => { if (event.currentTarget.src.endsWith(CITY_IMAGE_FALLBACK)) return; event.currentTarget.src = CITY_IMAGE_FALLBACK; }} className="absolute inset-0 h-full w-full object-cover opacity-32 transition-all duration-700 scale-[1.02]" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/55 via-background/15 to-background/65" />
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(24,78,145,0.14),transparent_58%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/45 via-transparent to-background/40" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_22%,rgba(24,78,145,0.10),transparent_48%)]" />
 
             <div className="relative z-10">
-              {loading && <p className="text-center text-sm text-muted-foreground">Gerçek parseller yükleniyor...</p>}
-              {error && <p className="text-center text-sm text-red-300">{error}</p>}
-              {!loading && !error && parcels.length === 0 && <p className="text-center text-sm text-muted-foreground">Bu pilot şehirde henüz parsel bulunamadı.</p>}
-              {!error && <SkyParcelDome parcels={parcels} selectedId={selectedId} onSelect={setSelectedId} />}
+              <div className="mb-1 flex items-center justify-center gap-3 text-center">
+                <span className="hidden h-px w-16 bg-gold/60 sm:block" />
+                <div>
+                  <h2 className="font-display text-2xl font-semibold tracking-[0.08em] sm:text-3xl">{selectedCityMeta.name.toUpperCase()} GÖKYÜZÜ</h2>
+                  <p className="mt-1 text-xs tracking-[0.12em] text-muted-foreground">1.000 ADET SEMBOLİK GÖKYÜZÜ PARSELİ</p>
+                </div>
+                <span className="hidden h-px w-16 bg-gold/60 sm:block" />
+              </div>
+              {loading && <p className="py-10 text-center text-sm text-muted-foreground">Gerçek parseller yükleniyor...</p>}
+              {error && <p className="py-10 text-center text-sm text-red-300">{error}</p>}
+              {!loading && !error && parcels.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Bu pilot şehirde henüz parsel bulunamadı.</p>}
+              {!error && <SkyParcelDomeV2 parcels={parcels} selectedId={selectedId} onSelect={setSelectedId} />}
             </div>
 
             {selectedParcel && <ParcelDetailPanel parcel={selectedParcel} onClose={() => setSelectedId(null)} onReserved={(parcel) => setParcels((prev) => prev.map((item) => item.id === parcel.id ? parcel : item))} />}
-
-            <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-md bg-navy-deep/90 px-4 py-2 text-center shadow-lg shadow-black/30">
-              <p className="text-sm font-semibold text-gold">{selectedCityMeta.name}</p>
-              <p className="text-[10px] text-muted-foreground">{parcels.length.toLocaleString("tr-TR")} gerçek parsel · sürükleyerek döndür · dokunarak seç</p>
-            </div>
           </div>
         </div>
       </main>
