@@ -1,17 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { supabaseBrowser } from '@/lib/supabaseBrowser';
+import React, { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function KayitForm() {
-  const { signUp, loading, error } = useAuth();
+  const { signUp, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [message, setMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (error) setMessage(error);
-  }, [error]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -19,8 +14,12 @@ export default function KayitForm() {
     if (!email || !password) return setMessage('Lütfen e-posta ve şifre girin');
     if (password !== confirm) return setMessage('Şifreler eşleşmiyor');
 
-    await signUp(email, password);
-    if (!error) setMessage('Kayıt başarılı. Lütfen e-postanızı kontrol edin.');
+    const res = await signUp(email, password);
+    if (res.success) {
+      setMessage('Kayıt başarılı. Lütfen e-postanızı kontrol edin.');
+    } else {
+      setMessage(res.error);
+    }
   }
 
   return (
