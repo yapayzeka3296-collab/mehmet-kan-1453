@@ -3,99 +3,127 @@ import type { MouseEvent, PointerEvent, WheelEvent } from "react";
 import type { Parcel, ParcelTier } from "@/types/parcel";
 
 type Props = { parcels: Parcel[]; selectedId: string | null; onSelect: (id: string) => void };
-type Point3 = { x: number; y: number; z: number };
-type ProjectedParcel = { parcel: Parcel; points: Point3[]; center: Point3; depth: number; sector: number; row: number };
-type LayoutParcel = { parcel: Parcel; sector: number; row: number };
+type P3 = { x: number; y: number; z: number };
+type Cell = { parcel: Parcel; sector: number; row: number; depth: number; center: P3; points: P3[] };
+type LayoutCell = { parcel: Parcel; sector: number; row: number };
 type DomeState = { yaw: number; pitch: number; zoom: number; dragging: boolean; moved: boolean; lastX: number; lastY: number; velocityX: number; velocityY: number };
 
-const GRID = "rgba(122,181,239,0.62)";
-const FILL: Record<ParcelTier, string> = {
-  digital: "rgba(77,166,255,0.58)",
-  elite: "rgba(163,104,235,0.62)",
-  premium: "rgba(232,173,63,0.68)",
-};
-const SELECTED: Record<ParcelTier, string> = {
-  digital: "rgba(77,166,255,0.96)",
-  elite: "rgba(180,115,255,0.96)",
-  premium: "rgba(255,202,75,0.98)",
-};
-const GLOW: Record<ParcelTier, string> = {
-  digital: "rgba(77,166,255,0.95)",
-  elite: "rgba(180,115,255,0.95)",
-  premium: "rgba(255,202,75,0.98)",
-};
+const GRID = "rgba(135,205,255,0.72)";
+const FILL: Record<ParcelTier, string> = { digital: "rgba(77,166,255,0.52)", elite: "rgba(163,104,235,0.56)", premium: "rgba(232,173,63,0.60)" };
+const SELECTED: Record<ParcelTier, string> = { digital: "rgba(77,166,255,0.96)", elite: "rgba(180,115,255,0.96)", premium: "rgba(255,202,75,0.98)" };
+const GLOW: Record<ParcelTier, string> = { digital: "rgba(77,166,255,0.98)", elite: "rgba(180,115,255,0.98)", premium: "rgba(255,202,75,1)" };
 
-function spherePoint(theta: number, phi: number): Point3 {
-  const s = Math.sin(phi);
-  return { x: s * Math.cos(theta), y: Math.cos(phi), z: s * Math.sin(theta) };
+const SECTORS = 100;
+const ROWS = 10;
+const VISIBLE_CELLS = 66;
+const PHI_MIN = 0.035;
+const PHI_MAX = Math.PI * 0.49;
+
+function spherePoint(theta: number, phi: number): P3 {
+  const sinPhi = Math.sin(phi);
+  return { x: sinPhi * Math.cos(theta), y: Math.cos(phi), z: sinPhi * Math.sin(theta) };
 }
 
-function rotatePoint(p: Point3, yaw: number, pitch: number): Point3 {
+function rotatePoint(p: P3, yaw: number, pitch: number): P3 {
   const cy = Math.cos(yaw), sy = Math.sin(yaw);
-  const x1 = p.x * cy - p.z * sy;
-  const z1 = p.x * sy + p.z * cy;
+  const x = p.x * cy - p.z * sy;
+  const z = p.x * sy + p.z * cy;
   const cp = Math.cos(pitch), sp = Math.sin(pitch);
-  return { x: x1, y: p.y * cp - z1 * sp, z: p.y * sp + z1 * cp };
+  return { x, y: p.y * cp - z * sp, z: p.y * sp + z * cp };
 }
 
 function parcelSort(a: Parcel, b: Parcel) {
-  const an = Number((a.parcel_number.match(/(\d+)$/) ?? ["0", "0"])[1]);
-  const bn = Number((b.parcel_number.match(/(\d+)$/) ?? ["0", "0"])[1]);
-  return an - bn || a.parcel_number.localeCompare(b.parcel_number);
+  return a.parcel_number.localeCompare(b.parcel_number, undefined, { numeric: true });
 }
 
-function buildLayout(parcels: Parcel[]): LayoutParcel[] {
-  // 100 sectors × 10 rows. The commercial 50/30/20 rule is represented
-  // spatially as 5 Digital rows, 3 Elite rows and 2 Premium rows.
+function buildLayout(parcels: Parcel[]): LayoutCell[] {
+  // Exactly 10 visual latitude bands: 5 Digital, 3 Elite, 2 Premium.
+  // Each band contains up to 100 real Supabase parcels (one per sector).
   const groups: Record<ParcelTier, Parcel[]> = { digital: [], elite: [], premium: [] };
   for (const parcel of parcels) groups[parcel.tier ?? "digital"].push(parcel);
   for (const group of Object.values(groups)) group.sort(parcelSort);
 
-  const result: LayoutParcel[] = [];
+  const result: LayoutCell[] = [];
   let rowOffset = 0;
   for (const tier of ["digital", "elite", "premium"] as const) {
     const rowCount = tier === "digital" ? 5 : tier === "elite" ? 3 : 2;
-    groups[tier].forEach((parcel, index) => {
-      const row = rowOffset + Math.floor(index / 100);
-      const sector = index % 100;
-      if (row < rowOffset + rowCount) result.push({ parcel, sector, row });
-    });
+    const group = groups[tier];
+    for (let index = 0; index < Math.min(group.length, rowCount * SECTORS); index++) {
+      result.push({ parcel: group[index], sector: index % SECTORS, row: rowOffset + Math.floor(index / SECTORS) });
+    }
     rowOffset += rowCount;
   }
   return result;
 }
 
+function project(p: P3, radius: number, cx: number, cy: number): P3 {
+  return { x: cx + p.x * radius, y: cy - p.y * radius, z: p.z };
+}
+
 export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const stateRef = useRef<DomeState>({ yaw: 0, pitch: 0.16, zoom: 1, dragging: false, moved: false, lastX: 0, lastY: 0, velocityX: 0, velocityY: 0 });
-  const selectedIdRef = useRef(selectedId);
-  const hitRef = useRef<ProjectedParcel[]>([]);
-  const layoutRef = useRef<LayoutParcel[]>([]);
+  const stateRef = useRef<DomeState>({ yaw: 0, pitch: 0.10, zoom: 1, dragging: false, moved: false, lastX: 0, lastY: 0, velocityX: 0, velocityY: 0 });
+  const selectedRef = useRef(selectedId);
+  const layoutRef = useRef<LayoutCell[]>([]);
+  const hitRef = useRef<Cell[]>([]);
   const layout = useMemo(() => buildLayout(parcels), [parcels]);
 
-  useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
+  useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
   useEffect(() => { layoutRef.current = layout; }, [layout]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    let frame = 0;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    let raf = 0;
     let width = 0;
     let height = 0;
     let dpr = 1;
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
       width = Math.max(320, rect.width);
       height = Math.max(380, rect.height);
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
-    const project = (p: Point3, r: number, cx: number, cy: number): Point3 => ({ x: cx + p.x * r, y: cy - p.y * r, z: p.z });
+
+    const drawDomeGrid = (radius: number, cx: number, cy: number, yaw: number, pitch: number) => {
+      ctx.strokeStyle = GRID;
+      ctx.lineWidth = 0.8;
+      // Ten curved latitude bands.
+      for (let row = 0; row <= ROWS; row++) {
+        const phi = PHI_MIN + (PHI_MAX - PHI_MIN) * (row / ROWS);
+        ctx.beginPath();
+        let drawing = false;
+        for (let i = 0; i <= 160; i++) {
+          const theta = -Math.PI + (2 * Math.PI * i) / 160;
+          const p = rotatePoint(spherePoint(theta, phi), yaw, pitch);
+          if (p.z <= 0.005) { drawing = false; continue; }
+          const q = project(p, radius, cx, cy);
+          if (!drawing) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
+          drawing = true;
+        }
+        ctx.stroke();
+      }
+      // Curved meridians, dense enough to make the cell geometry obvious.
+      for (let sector = 0; sector < SECTORS; sector += 5) {
+        const theta = -Math.PI + (2 * Math.PI * sector) / SECTORS;
+        ctx.beginPath();
+        let drawing = false;
+        for (let i = 0; i <= 70; i++) {
+          const phi = PHI_MIN + (PHI_MAX - PHI_MIN) * (i / 70);
+          const p = rotatePoint(spherePoint(theta, phi), yaw, pitch);
+          if (p.z <= 0.005) { drawing = false; continue; }
+          const q = project(p, radius, cx, cy);
+          if (!drawing) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
+          drawing = true;
+        }
+        ctx.stroke();
+      }
+    };
 
     const draw = () => {
       const s = stateRef.current;
@@ -107,134 +135,92 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
         if (Math.abs(s.velocityX) < 0.00002) s.velocityX = 0;
         if (Math.abs(s.velocityY) < 0.00002) s.velocityY = 0;
       }
-      s.pitch = Math.max(-0.68, Math.min(0.68, s.pitch));
+      s.pitch = Math.max(-0.72, Math.min(0.72, s.pitch));
 
-      const radius = Math.min(width * 0.43, height * 0.47) * s.zoom;
+      const radius = Math.min(width * 0.46, height * 0.50) * s.zoom;
       const cx = width / 2;
-      const cy = height * 0.39;
+      const cy = height * 0.43;
       ctx.clearRect(0, 0, width, height);
 
-      const halo = ctx.createRadialGradient(cx, cy, radius * 0.2, cx, cy, radius * 1.35);
-      halo.addColorStop(0, "rgba(65,145,240,0.05)");
-      halo.addColorStop(0.62, "rgba(65,145,240,0.14)");
+      // Airy blue atmosphere; transparent toward the city side.
+      const halo = ctx.createRadialGradient(cx, cy - radius * 0.28, radius * 0.05, cx, cy, radius * 1.30);
+      halo.addColorStop(0, "rgba(55,145,240,0.10)");
+      halo.addColorStop(0.58, "rgba(35,105,190,0.10)");
       halo.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = halo;
-      ctx.beginPath(); ctx.ellipse(cx, cy, radius * 1.18, radius * 0.92, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, radius * 1.12, radius * 0.88, 0, Math.PI, Math.PI * 2);
+      ctx.fill();
 
-      const domeFill = ctx.createRadialGradient(cx - radius * 0.25, cy - radius * 0.35, radius * 0.05, cx, cy, radius * 1.1);
-      domeFill.addColorStop(0, "rgba(40,130,230,0.13)");
-      domeFill.addColorStop(0.72, "rgba(7,50,105,0.10)");
-      domeFill.addColorStop(1, "rgba(0,20,50,0)");
-      ctx.fillStyle = domeFill;
-      ctx.beginPath(); ctx.arc(cx, cy, radius, Math.PI, 0); ctx.closePath(); ctx.fill();
+      drawDomeGrid(radius, cx, cy, s.yaw, s.pitch);
 
-      ctx.strokeStyle = GRID;
-      ctx.lineWidth = 0.75;
-      for (let i = 0; i <= 10; i++) {
-        const phi = 0.08 + (Math.PI / 2 - 0.08) * (i / 10);
-        ctx.beginPath();
-        let started = false;
-        for (let j = 0; j <= 96; j++) {
-          const theta = -Math.PI + (2 * Math.PI * j) / 96;
-          const p = rotatePoint(spherePoint(theta, phi), s.yaw, s.pitch);
-          if (p.z <= 0.015) { started = false; continue; }
-          const q = project(p, radius, cx, cy);
-          if (!started) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
-          started = true;
-        }
-        ctx.stroke();
-      }
-      for (let i = 0; i < 32; i++) {
-        const theta = -Math.PI + (2 * Math.PI * i) / 32;
-        ctx.beginPath();
-        let started = false;
-        for (let j = 0; j <= 48; j++) {
-          const phi = 0.08 + (Math.PI / 2 - 0.08) * (j / 48);
-          const p = rotatePoint(spherePoint(theta, phi), s.yaw, s.pitch);
-          if (p.z <= 0.015) { started = false; continue; }
-          const q = project(p, radius, cx, cy);
-          if (!started) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
-          started = true;
-        }
-        ctx.stroke();
-      }
-
-      const candidates: ProjectedParcel[] = [];
-      const sectorCount = 100;
-      const rowCount = 10;
-      const phiMin = 0.08;
-      const phiMax = Math.PI / 2 - 0.025;
+      const candidates: Cell[] = [];
       for (const item of layoutRef.current) {
-        const theta0 = -Math.PI + (2 * Math.PI * item.sector) / sectorCount;
-        const theta1 = -Math.PI + (2 * Math.PI * (item.sector + 1)) / sectorCount;
-        const phi0 = phiMin + (phiMax - phiMin) * (item.row / rowCount);
-        const phi1 = phiMin + (phiMax - phiMin) * ((item.row + 1) / rowCount);
+        const theta0 = -Math.PI + (2 * Math.PI * item.sector) / SECTORS;
+        const theta1 = -Math.PI + (2 * Math.PI * (item.sector + 1)) / SECTORS;
+        const phi0 = PHI_MIN + (PHI_MAX - PHI_MIN) * (item.row / ROWS);
+        const phi1 = PHI_MIN + (PHI_MAX - PHI_MIN) * ((item.row + 1) / ROWS);
         const center = rotatePoint(spherePoint((theta0 + theta1) / 2, (phi0 + phi1) / 2), s.yaw, s.pitch);
-        if (center.z <= 0.01) continue;
-        const corners = [
-          rotatePoint(spherePoint(theta0, phi0), s.yaw, s.pitch),
-          rotatePoint(spherePoint(theta1, phi0), s.yaw, s.pitch),
-          rotatePoint(spherePoint(theta1, phi1), s.yaw, s.pitch),
-          rotatePoint(spherePoint(theta0, phi1), s.yaw, s.pitch),
+        if (center.z <= 0.025) continue;
+        const rawCorners = [
+          spherePoint(theta0, phi0), spherePoint(theta1, phi0),
+          spherePoint(theta1, phi1), spherePoint(theta0, phi1),
         ];
-        candidates.push({ parcel: item.parcel, sector: item.sector, row: item.row, depth: center.z, center: project(center, radius, cx, cy), points: corners.map((p) => project(p, radius, cx, cy)) });
+        const points = rawCorners.map((p) => project(rotatePoint(p, s.yaw, s.pitch), radius, cx, cy));
+        const projectedCenter = project(center, radius, cx, cy);
+        candidates.push({ parcel: item.parcel, sector: item.sector, row: item.row, depth: center.z, center: projectedCenter, points });
       }
 
-      // 64 visible cells = inside the requested 60–70 range.
-      // This set is recomputed every animation frame, so rotating the dome
-      // reveals other real Supabase parcels instead of moving a fixed layer.
+      // The viewport is always 66 cells (when enough real data exists), chosen
+      // by 3D front-face depth. Rotating changes the selected cells naturally.
       candidates.sort((a, b) => b.depth - a.depth);
-      const visible = candidates.slice(0, 64).sort((a, b) => a.depth - b.depth);
+      const visible = candidates.slice(0, VISIBLE_CELLS).sort((a, b) => a.depth - b.depth);
       hitRef.current = visible;
 
-      for (const item of visible) {
-        const selected = item.parcel.id === selectedIdRef.current;
-        const tier = item.parcel.tier;
-        const alpha = Math.max(0.30, Math.min(0.80, 0.30 + item.depth * 0.50));
+      for (const cell of visible) {
+        const tier = cell.parcel.tier ?? "digital";
+        const selected = cell.parcel.id === selectedRef.current;
+        const alpha = Math.max(0.34, Math.min(0.78, 0.34 + cell.depth * 0.44));
         ctx.beginPath();
-        item.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+        cell.points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
         ctx.closePath();
         ctx.fillStyle = selected ? SELECTED[tier] : FILL[tier].replace(/0\.\d+\)$/, `${alpha.toFixed(2)})`);
         ctx.fill();
-        ctx.lineWidth = selected ? 1.8 : 0.9;
-        ctx.strokeStyle = selected ? GLOW[tier] : `rgba(170,215,255,${Math.max(0.52, item.depth * 0.84)})`;
+        ctx.lineWidth = selected ? 2 : 1.05;
+        ctx.strokeStyle = selected ? GLOW[tier] : "rgba(175,220,255,0.82)";
         ctx.stroke();
 
+        // Sector label only; full parcel code is intentionally shown on selection.
         ctx.font = "600 9px Inter, system-ui, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillStyle = selected ? "#ffffff" : "rgba(235,247,255,0.90)";
-        ctx.fillText(`S${String(item.sector + 1).padStart(3, "0")}`, item.center.x, item.center.y);
+        ctx.fillStyle = selected ? "#fff" : "rgba(235,247,255,0.92)";
+        ctx.fillText(`S${String(cell.sector + 1).padStart(3, "0")}`, cell.center.x, cell.center.y);
 
         if (selected) {
           ctx.save();
           ctx.shadowColor = GLOW[tier];
           ctx.shadowBlur = 18;
           ctx.strokeStyle = GLOW[tier];
-          ctx.lineWidth = 2.2;
-          ctx.beginPath();
-          item.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-          ctx.closePath();
+          ctx.lineWidth = 2.4;
           ctx.stroke();
           ctx.fillStyle = GLOW[tier];
+          const sx = cell.center.x, sy = cell.center.y - 11;
           ctx.beginPath();
-          const sx = item.center.x;
-          const sy = item.center.y - 10;
           for (let i = 0; i < 10; i++) {
-            const angle = -Math.PI / 2 + (i * Math.PI) / 5;
-            const r = i % 2 === 0 ? 5 : 2.1;
-            const px = sx + Math.cos(angle) * r;
-            const py = sy + Math.sin(angle) * r;
-            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            const a = -Math.PI / 2 + i * Math.PI / 5;
+            const r = i % 2 === 0 ? 5 : 2.2;
+            const x = sx + Math.cos(a) * r, y = sy + Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
           }
           ctx.closePath(); ctx.fill();
           ctx.restore();
 
-          const label = item.parcel.parcel_number;
+          const label = cell.parcel.parcel_number;
           ctx.font = "600 12px Inter, system-ui, sans-serif";
           const labelWidth = ctx.measureText(label).width + 24;
-          const boxX = Math.min(width - labelWidth - 12, Math.max(12, item.center.x + 16));
-          const boxY = Math.max(12, item.center.y - 48);
+          const boxX = Math.min(width - labelWidth - 12, Math.max(12, cell.center.x + 16));
+          const boxY = Math.max(12, cell.center.y - 50);
           ctx.fillStyle = "rgba(3,12,27,0.95)";
           ctx.strokeStyle = GLOW[tier];
           ctx.lineWidth = 1;
@@ -243,32 +229,28 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
         }
       }
 
-      // Soft blue upper outline only. No yellow baseline.
+      // Soft blue upper boundary; intentionally no yellow baseline.
       ctx.save();
-      ctx.lineWidth = 1.15;
-      ctx.strokeStyle = "rgba(112,190,255,0.48)";
-      ctx.shadowColor = "rgba(72,160,255,0.30)";
-      ctx.shadowBlur = 10;
+      ctx.strokeStyle = "rgba(112,190,255,0.38)";
+      ctx.lineWidth = 1.1;
+      ctx.shadowColor = "rgba(72,160,255,0.24)";
+      ctx.shadowBlur = 8;
       ctx.beginPath(); ctx.arc(cx, cy, radius, Math.PI, 0); ctx.stroke();
       ctx.restore();
 
-      frame = requestAnimationFrame(draw);
+      raf = requestAnimationFrame(draw);
     };
 
     resize();
     window.addEventListener("resize", resize);
-    frame = requestAnimationFrame(draw);
-    return () => { cancelAnimationFrame(frame); window.removeEventListener("resize", resize); };
+    raf = requestAnimationFrame(draw);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); };
   }, []);
 
   const pointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
     const s = stateRef.current;
-    s.dragging = true;
-    s.moved = false;
-    s.velocityX = 0;
-    s.velocityY = 0;
-    s.lastX = event.clientX;
-    s.lastY = event.clientY;
+    s.dragging = true; s.moved = false; s.velocityX = 0; s.velocityY = 0;
+    s.lastX = event.clientX; s.lastY = event.clientY;
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
@@ -279,12 +261,12 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
     const dx = event.clientX - s.lastX;
     const dy = event.clientY - s.lastY;
     if (Math.abs(dx) + Math.abs(dy) > 2) s.moved = true;
+    // Screen drag follows the dome: right drag rotates the visible dome right.
     s.yaw += dx * 0.008;
-    s.pitch = Math.max(-0.68, Math.min(0.68, s.pitch + dy * 0.006));
-    s.velocityX = dx * 0.0014;
-    s.velocityY = dy * 0.0009;
-    s.lastX = event.clientX;
-    s.lastY = event.clientY;
+    s.pitch = Math.max(-0.72, Math.min(0.72, s.pitch + dy * 0.006));
+    s.velocityX = dx * 0.0012;
+    s.velocityY = dy * 0.0008;
+    s.lastX = event.clientX; s.lastY = event.clientY;
   };
 
   const pointerUp = (event: PointerEvent<HTMLCanvasElement>) => {
@@ -297,26 +279,23 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    let closest: ProjectedParcel | null = null;
+    let closest: Cell | null = null;
     let best = Infinity;
-    for (const item of hitRef.current) {
-      const d = Math.hypot(x - item.center.x, y - item.center.y);
-      if (d < best && d < 30) { best = d; closest = item; }
+    for (const cell of hitRef.current) {
+      const d = Math.hypot(x - cell.center.x, y - cell.center.y);
+      if (d < best && d < 34) { best = d; closest = cell; }
     }
     if (closest) onSelect(closest.parcel.id);
   };
 
   const wheel = (event: WheelEvent<HTMLCanvasElement>) => {
     event.preventDefault();
-    stateRef.current.zoom = Math.max(0.82, Math.min(1.16, stateRef.current.zoom - event.deltaY * 0.0007));
+    stateRef.current.zoom = Math.max(0.86, Math.min(1.12, stateRef.current.zoom - event.deltaY * 0.0007));
   };
 
   const reset = () => {
-    stateRef.current.yaw = 0;
-    stateRef.current.pitch = 0.16;
-    stateRef.current.zoom = 1;
-    stateRef.current.velocityX = 0;
-    stateRef.current.velocityY = 0;
+    stateRef.current.yaw = 0; stateRef.current.pitch = 0.10; stateRef.current.zoom = 1;
+    stateRef.current.velocityX = 0; stateRef.current.velocityY = 0;
   };
 
   return (
