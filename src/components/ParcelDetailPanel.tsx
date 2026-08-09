@@ -3,6 +3,12 @@ import type { Parcel } from '@/types/parcel';
 import { useAuth } from '@/hooks/useAuth';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 
+const TIER_LABELS = {
+  digital: 'Dijital',
+  elite: 'Elit',
+  premium: 'Premium',
+} as const;
+
 export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Parcel; onClose: () => void; onReserved?: (p: Parcel) => void }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -40,7 +46,7 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
       const json = await res.json().catch(() => ({}));
 
       if (res.status === 202) {
-        setMessage('Rezervasyon başarılı!');
+        setMessage('Rezervasyon başarılı! Ödeme adımına geçebilirsiniz.');
         onReserved?.(json.parcel as Parcel);
       } else if (res.status === 401) {
         setMessage('Oturumunuz bulunamadı. Lütfen tekrar giriş yapın.');
@@ -63,29 +69,41 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
     }
   }
 
+  const tierLabel = TIER_LABELS[parcel.tier];
+  const canRequestCertificate = Boolean(user) && parcel.status === 'sold' && parcel.owner_id === user?.id;
+
   return (
     <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-auto bg-background p-6 shadow-lg md:relative md:w-auto md:max-w-none">
-      <div className="flex items-start justify-between">
-        <h3 className="font-display text-lg font-bold">{parcel.parcel_number}</h3>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs text-muted-foreground">{parcel.city_name ?? 'MySkyParcel'} · seçili parsel</p>
+          <h3 className="mt-1 font-display text-lg font-bold">{parcel.parcel_number}</h3>
+        </div>
         <button onClick={onClose} aria-label="Kapat" className="text-sm text-muted-foreground">
           Kapat
         </button>
       </div>
 
-      <dl className="mt-4 space-y-3 text-sm">
-        <div>
-          <dt className="text-xs text-muted-foreground">Durum</dt>
-          <dd className="mt-1">{parcel.status}</dd>
+      <dl className="mt-5 space-y-3 text-sm">
+        <div className="flex items-center justify-between gap-4">
+          <dt className="text-xs text-muted-foreground">Statü</dt>
+          <dd className="font-semibold">{tierLabel}</dd>
         </div>
-        <div>
+        <div className="flex items-center justify-between gap-4">
+          <dt className="text-xs text-muted-foreground">Parsel durumu</dt>
+          <dd className="capitalize">{parcel.status}</dd>
+        </div>
+        <div className="flex items-center justify-between gap-4">
           <dt className="text-xs text-muted-foreground">Fiyat</dt>
-          <dd className="mt-1">{parcel.price}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground">Koordinatlar</dt>
-          <dd className="mt-1">{parcel.latitude}, {parcel.longitude}</dd>
+          <dd className="font-semibold">{parcel.tier_price.toLocaleString('tr-TR')} TL</dd>
         </div>
       </dl>
+
+      <div className="mt-5 rounded-md border border-gold/20 bg-background/30 p-4 text-xs text-muted-foreground">
+        <p>Parsel kodu kalıcıdır ve sahiplik değişse bile değişmez.</p>
+        <p className="mt-2">Sertifika otomatik verilmez. Satın alma tamamlandıktan sonra uygun statü için “Sertifika Talep Et” kullanılabilir.</p>
+        {canRequestCertificate && <p className="mt-2 text-gold">Bu parsel için sertifika talebi oluşturabilirsiniz.</p>}
+      </div>
 
       <div className="mt-6">
         <button
@@ -95,7 +113,7 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
         >
           {loading ? 'Rezervasyon yapılıyor...' : parcel.status === 'available' ? 'PARSELİ REZERVE ET' : 'REZERVE EDİLEMEZ'}
         </button>
-        {message && <p className="mt-3 text-sm text-center text-muted-foreground">{message}</p>}
+        {message && <p className="mt-3 text-center text-sm text-muted-foreground">{message}</p>}
       </div>
     </aside>
   );
