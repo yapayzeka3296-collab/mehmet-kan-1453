@@ -7,13 +7,15 @@ type User = {
   email?: string | null;
 };
 
+type AuthResult = { success: true; user?: User } | { success: false; error: string };
+
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
   error: string | null;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<AuthResult>;
+  signUp: (email: string, password: string) => Promise<AuthResult>;
+  signOut: () => Promise<AuthResult>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -63,41 +65,102 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  async function signIn(email: string, password: string) {
+  async function signIn(email: string, password: string): Promise<AuthResult> {
     setLoading(true);
     setError(null);
+    if (!supabaseBrowser) {
+      const msg = 'Supabase yapılandırması eksik';
+      setError(msg);
+      setLoading(false);
+      return { success: false, error: msg };
+    }
+
     try {
-      const { error } = await supabaseBrowser.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      const { data, error } = await supabaseBrowser.auth.signInWithPassword({ email, password });
+      if (error) {
+        const msg = error.message ?? 'Giriş sırasında bir hata oluştu';
+        setError(msg);
+        return { success: false, error: msg };
+      }
+
+      const sessionUser = (data as any)?.user ?? (data as any)?.session?.user ?? null;
+      if (sessionUser) {
+        const u = { id: sessionUser.id, email: sessionUser.email } as User;
+        setUser(u);
+        return { success: true, user: u };
+      }
+
+      const msg = 'Giriş başarısız';
+      setError(msg);
+      return { success: false, error: msg };
     } catch (err: any) {
-      setError(err.message ?? 'Giriş sırasında bir hata oluştu');
+      const msg = err?.message ?? 'Giriş sırasında bir hata oluştu';
+      setError(msg);
+      return { success: false, error: msg };
     } finally {
       setLoading(false);
     }
   }
 
-  async function signUp(email: string, password: string) {
+  async function signUp(email: string, password: string): Promise<AuthResult> {
     setLoading(true);
     setError(null);
+    if (!supabaseBrowser) {
+      const msg = 'Supabase yapılandırması eksik';
+      setError(msg);
+      setLoading(false);
+      return { success: false, error: msg };
+    }
+
     try {
-      const { error } = await supabaseBrowser.auth.signUp({ email, password });
-      if (error) throw error;
+      const { data, error } = await supabaseBrowser.auth.signUp({ email, password });
+      if (error) {
+        const msg = error.message ?? 'Kayıt sırasında bir hata oluştu';
+        setError(msg);
+        return { success: false, error: msg };
+      }
+
+      const sessionUser = (data as any)?.user ?? (data as any)?.session?.user ?? null;
+      if (sessionUser) {
+        const u = { id: sessionUser.id, email: sessionUser.email } as User;
+        setUser(u);
+        return { success: true, user: u };
+      }
+
+      // signUp may require email confirmation; treat as success but without session
+      return { success: true };
     } catch (err: any) {
-      setError(err.message ?? 'Kayıt sırasında bir hata oluştu');
+      const msg = err?.message ?? 'Kayıt sırasında bir hata oluştu';
+      setError(msg);
+      return { success: false, error: msg };
     } finally {
       setLoading(false);
     }
   }
 
-  async function signOut() {
+  async function signOut(): Promise<AuthResult> {
     setLoading(true);
     setError(null);
+    if (!supabaseBrowser) {
+      const msg = 'Supabase yapılandırması eksik';
+      setError(msg);
+      setLoading(false);
+      return { success: false, error: msg };
+    }
+
     try {
       const { error } = await supabaseBrowser.auth.signOut();
-      if (error) throw error;
+      if (error) {
+        const msg = error.message ?? 'Çıkış sırasında bir hata oluştu';
+        setError(msg);
+        return { success: false, error: msg };
+      }
       setUser(null);
+      return { success: true };
     } catch (err: any) {
-      setError(err.message ?? 'Çıkış sırasında bir hata oluştu');
+      const msg = err?.message ?? 'Çıkış sırasında bir hata oluştu';
+      setError(msg);
+      return { success: false, error: msg };
     } finally {
       setLoading(false);
     }
