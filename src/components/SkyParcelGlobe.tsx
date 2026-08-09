@@ -105,14 +105,6 @@ function angularDistance(a: number, b: number) {
   return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 }
 
-/**
- * Distribute a bounded number of real parcel cells over the visible dome.
- * The previous version selected the closest sectors to one longitude, which
- * could visually collapse into a central block. This version deliberately
- * samples a wide spherical arc on every row and staggers the samples between
- * rows. The cells remain the real Supabase parcel records and their polygons
- * are still projected from their true 3D coordinates.
- */
 function selectVisibleCells(candidates: Cell[], yaw: number): Cell[] {
   const result: Cell[] = [];
   const facingTheta = Math.PI / 2 - yaw;
@@ -122,9 +114,6 @@ function selectVisibleCells(candidates: Cell[], yaw: number): Cell[] {
     const rowCandidates = candidates.filter((cell) => cell.row === row);
     if (rowCandidates.length === 0 || quota === 0) continue;
 
-    // Use most of the front-facing hemisphere. Near the pole we keep a
-    // narrower arc because the spherical surface naturally converges there.
-    // Lower rows cover a wider arc so the parcel field follows the dome width.
     const halfSpan = Math.min(1.48, 0.78 + row * 0.078);
     const rowOffset = row % 2 === 0 ? 0 : 0.018;
     const targets = Array.from({ length: quota }, (_, index) => {
@@ -185,13 +174,13 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
     };
 
     const drawHemisphere = (radius: number, cx: number, cy: number, yaw: number, pitch: number) => {
-      const halo = ctx.createRadialGradient(cx, cy - radius * 0.45, radius * 0.08, cx, cy, radius * 1.1);
-      halo.addColorStop(0, "rgba(46,139,255,0.12)");
-      halo.addColorStop(0.62, "rgba(29,104,198,0.08)");
+      const halo = ctx.createRadialGradient(cx, cy - radius * 0.62, radius * 0.04, cx, cy, radius * 1.08);
+      halo.addColorStop(0, "rgba(46,139,255,0.055)");
+      halo.addColorStop(0.58, "rgba(29,104,198,0.035)");
       halo.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = halo;
       ctx.beginPath();
-      ctx.ellipse(cx, cy, radius, radius * 0.98, 0, Math.PI, Math.PI * 2);
+      ctx.ellipse(cx, cy, radius, radius * 0.98, 0, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.strokeStyle = GRID;
@@ -237,9 +226,11 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
       }
       s.pitch = Math.max(-0.65, Math.min(0.65, s.pitch));
 
-      const radius = Math.min(width * 0.48, height * 0.62) * s.zoom;
+      // Keep the dome in the upper sky area. The smaller vertical radius and
+      // raised center leave the city skyline unobstructed beneath it.
+      const radius = Math.min(width * 0.48, height * 0.46) * s.zoom;
       const cx = width * 0.50;
-      const cy = height * 0.64;
+      const cy = height * 0.38;
       ctx.clearRect(0, 0, width, height);
       drawHemisphere(radius, cx, cy, s.yaw, s.pitch);
 
@@ -260,15 +251,7 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
         const center = project(center3, radius, cx, cy);
         if (center.x < -radius || center.x > width + radius || center.y < -radius || center.y > height + radius) continue;
 
-        candidates.push({
-          parcel: item.parcel,
-          sector: item.sector,
-          row: item.row,
-          depth: center3.z,
-          center,
-          points: corners,
-          tier: rowTier(item.row),
-        });
+        candidates.push({ parcel: item.parcel, sector: item.sector, row: item.row, depth: center3.z, center, points: corners, tier: rowTier(item.row) });
       }
 
       const visible = selectVisibleCells(candidates, s.yaw).sort((a, b) => a.depth - b.depth);
@@ -329,10 +312,10 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
       ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, radius, Math.PI, 0);
-      ctx.strokeStyle = "rgba(92,181,255,0.34)";
-      ctx.lineWidth = 1.1;
-      ctx.shadowColor = "rgba(71,163,255,0.22)";
-      ctx.shadowBlur = 10;
+      ctx.strokeStyle = "rgba(92,181,255,0.24)";
+      ctx.lineWidth = 1.0;
+      ctx.shadowColor = "rgba(71,163,255,0.16)";
+      ctx.shadowBlur = 8;
       ctx.stroke();
       ctx.restore();
 
@@ -418,9 +401,14 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
         onClick={click}
         onWheel={wheel}
         aria-label="MySkyParcel dijital gökyüzü kubbesi. Sürükleyerek döndürün ve parsele tıklayarak kodunu görün."
-        style={{ touchAction: "none" }}
       />
-      <button type="button" onClick={reset} className="absolute bottom-3 right-3 rounded-full border border-gold/30 bg-navy-deep/85 px-3 py-2 text-xs text-gold shadow-lg backdrop-blur-md hover:bg-navy-deep">Sıfırla</button>
+      <button
+        type="button"
+        onClick={reset}
+        className="absolute right-3 top-3 rounded-xl border border-amber-400/30 bg-slate-950/70 px-4 py-2 text-xs font-medium text-amber-300 backdrop-blur-sm transition hover:bg-slate-900/85"
+      >
+        ↻ SIFIRLA
+      </button>
     </div>
   );
 }
