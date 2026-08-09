@@ -49,7 +49,7 @@ function KayitOl() {
       return;
     }
 
-    const res = await signUp(email.trim(), password);
+    const res = await signUp(email.trim(), password, name.trim());
     if (res.success) {
       setSuccess(true);
       setMessage("Kayıt başarılı. Lütfen e-postanızı kontrol edin.");
