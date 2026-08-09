@@ -18,10 +18,7 @@ type ProjectedParcel = {
   center: ScreenPoint;
   depth: number;
   tier: Tier;
-  row: number;
-  sector: number;
 };
-
 type DomeState = {
   yaw: number;
   pitch: number;
@@ -35,103 +32,77 @@ type DomeState = {
 };
 
 const TAU = Math.PI * 2;
-const SECTOR_COUNT = 100;
-const ROW_COUNT = 10;
-const INITIAL_VISIBLE_SECTORS = 6;
-const MAX_INITIAL_PARCELS = INITIAL_VISIBLE_SECTORS * ROW_COUNT;
+const SECTORS = 100;
+const ROWS = 10;
+const VISIBLE_SECTORS = 6;
+const STEP = TAU / SECTORS;
 
 const TIER_COLORS: Record<Tier, string> = {
-  digital: "#55b9ff",
+  digital: "#58bfff",
   elite: "#ad82ff",
   premium: "#f2bd55",
 };
 
-const TIER_GLOW: Record<Tier, string> = {
-  digital: "rgba(85,185,255,0.72)",
-  elite: "rgba(173,130,255,0.72)",
-  premium: "rgba(242,189,85,0.78)",
-};
-
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+const wrap = (value: number) => ((value % SECTORS) + SECTORS) % SECTORS;
 
-function wrapSector(value: number) {
-  return ((value % SECTOR_COUNT) + SECTOR_COUNT) % SECTOR_COUNT;
-}
-
-function parseSector(parcel: Parcel) {
+function sectorOf(parcel: Parcel) {
   const match = parcel.parcel_number.match(/(?:^|-)S(\d+)(?:-|$)/i);
-  return clamp(Number(match?.[1] ?? 1), 1, SECTOR_COUNT);
+  return clamp(Number(match?.[1] ?? 1), 1, SECTORS);
 }
 
-function parseParcelRow(parcel: Parcel) {
+function rowOf(parcel: Parcel) {
   const match = parcel.parcel_number.match(/(?:^|-)P(\d+)(?:-|$)/i);
-  return clamp(Number(match?.[1] ?? 1) - 1, 0, ROW_COUNT - 1);
+  return clamp(Number(match?.[1] ?? 1) - 1, 0, ROWS - 1);
 }
 
 function tierForRow(row: number): Tier {
-  // P01-P05 = Digital (top 50%), P06-P08 = Elit (middle 30%), P09-P10 = Premium (bottom 20%).
   if (row < 5) return "digital";
   if (row < 8) return "elite";
   return "premium";
 }
 
-function latLonPoint(latitude: number, longitude: number): Point3 {
-  const lat = (latitude * Math.PI) / 180;
-  const lon = (longitude * Math.PI) / 180;
+function spherePoint(latitudeDeg: number, longitudeRad: number): Point3 {
+  const latitude = (latitudeDeg * Math.PI) / 180;
   return {
-    x: Math.cos(lat) * Math.cos(lon),
-    y: Math.sin(lat),
-    z: Math.cos(lat) * Math.sin(lon),
+    x: Math.cos(latitude) * Math.cos(longitudeRad),
+    y: Math.sin(latitude),
+    z: Math.cos(latitude) * Math.sin(longitudeRad),
   };
 }
 
-function rotatePoint(point: Point3, yaw: number, pitch: number): Point3 {
-  const cy = Math.cos(yaw);
-  const sy = Math.sin(yaw);
-  const x = point.x * cy - point.z * sy;
-  const z = point.x * sy + point.z * cy;
-
-  // Positive pitch raises the front of the dome. This makes upward drag feel natural.
+function pitchPoint(point: Point3, pitch: number): Point3 {
   const cp = Math.cos(pitch);
   const sp = Math.sin(pitch);
   return {
-    x,
-    y: point.y * cp + z * sp,
-    z: -point.y * sp + z * cp,
+    x: point.x,
+    y: point.y * cp + point.z * sp,
+    z: -point.y * sp + point.z * cp,
   };
 }
 
 function project(point: Point3, radius: number, cx: number, cy: number): ScreenPoint {
-  return {
-    x: cx + point.x * radius,
-    y: cy - point.y * radius,
-    z: point.z,
-  };
+  return { x: cx + point.x * radius, y: cy - point.y * radius, z: point.z };
 }
 
 function pointInPolygon(x: number, y: number, polygon: ScreenPoint[]) {
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].x;
-    const yi = polygon[i].y;
-    const xj = polygon[j].x;
-    const yj = polygon[j].y;
-    const intersects = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
-    if (intersects) inside = !inside;
+    const a = polygon[i];
+    const b = polygon[j];
+    if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
   }
   return inside;
 }
 
-function sectorDistance(a: number, b: number) {
-  const raw = Math.abs(a - b);
-  return Math.min(raw, SECTOR_COUNT - raw);
-}
-
 export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const hitRef = useRef<ProjectedParcel[]>([]);
+  const selectedIdRef = useRef(selectedId);
+  const parcelsRef = useRef(parcels);
+  const onSelectRef = useRef(onSelect);
   const stateRef = useRef<DomeState>({
-    // Center the reference view on the first six real sectors.
-    yaw: ((3.5 / SECTOR_COUNT) * TAU) - Math.PI / 2,
+    yaw: 0,
     pitch: 0.02,
     zoom: 1,
     dragging: false,
@@ -141,9 +112,6 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
     velocityX: 0,
     velocityY: 0,
   });
-  const selectedIdRef = useRef(selectedId);
-  const parcelsRef = useRef(parcels);
-  const onSelectRef = useRef(onSelect);
 
   useEffect(() => {
     selectedIdRef.current = selectedId;
@@ -172,156 +140,103 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
-    const drawDomeAtmosphere = (cx: number, cy: number, radius: number) => {
-      const fill = ctx.createRadialGradient(cx, cy - radius * 0.28, radius * 0.05, cx, cy, radius * 1.05);
-      fill.addColorStop(0, "rgba(58,145,230,0.10)");
-      fill.addColorStop(0.52, "rgba(21,91,157,0.045)");
-      fill.addColorStop(0.84, "rgba(11,54,99,0.018)");
-      fill.addColorStop(1, "rgba(5,27,53,0)");
-      ctx.fillStyle = fill;
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, Math.PI, TAU);
-      ctx.lineTo(cx - radius, cy);
-      ctx.closePath();
-      ctx.fill();
-    };
-
-    const drawAtmosphericRim = (cx: number, cy: number, radius: number, yaw: number, pitch: number) => {
-      ctx.save();
-      ctx.lineWidth = 1.7;
-      ctx.shadowColor = "rgba(84,181,255,0.36)";
-      ctx.shadowBlur = 9;
-
-      // Only the curved upper silhouette is drawn. The lower edge intentionally fades away.
-      ctx.beginPath();
-      let started = false;
-      for (let i = 0; i <= 90; i += 2) {
-        const longitude = (-90 + i) * (Math.PI / 180);
-        const p = rotatePoint(latLonPoint(0, longitude * (180 / Math.PI)), yaw, pitch);
-        if (p.z < -0.04) {
-          started = false;
-          continue;
-        }
-        const q = project(p, radius, cx, cy);
-        const fade = clamp((q.y - (cy - radius * 0.05)) / (radius * 0.95), 0, 1);
-        ctx.strokeStyle = `rgba(92,190,255,${0.62 * (1 - fade) + 0.04})`;
-        if (!started) {
-          ctx.moveTo(q.x, q.y);
-          started = true;
-        } else {
-          ctx.lineTo(q.x, q.y);
-        }
-      }
-      ctx.stroke();
-      ctx.restore();
-    };
-
     const draw = () => {
       const state = stateRef.current;
-
       if (!state.dragging) {
         state.yaw += state.velocityX;
         state.pitch += state.velocityY;
         state.velocityX *= 0.92;
         state.velocityY *= 0.92;
       }
-      state.pitch = clamp(state.pitch, -0.52, 0.52);
-
-      const radius = Math.min(width * 0.46, height * 0.78) * state.zoom;
-      const cx = width / 2;
-      // The dome is deliberately high so the city remains the dominant background.
-      const cy = height * 0.72;
+      state.pitch = clamp(state.pitch, -0.48, 0.48);
 
       ctx.clearRect(0, 0, width, height);
 
-      drawDomeAtmosphere(cx, cy, radius);
+      // High floating placement: the dome sits in the sky instead of on the city.
+      const radius = Math.min(width * 0.47, height * 0.82) * state.zoom;
+      const cx = width / 2;
+      const cy = height * 0.74;
 
-      // Subtle digital atmosphere particles above the city, not a solid dome panel.
-      for (let i = 0; i < 20; i += 1) {
-        const angle = i * 2.47;
-        const distance = radius * (0.72 + ((i * 17) % 22) / 100);
-        const x = cx + Math.cos(angle) * distance;
-        const y = cy - Math.abs(Math.sin(angle)) * distance * 0.54 - radius * 0.04;
-        ctx.fillStyle = i % 5 === 0 ? "rgba(242,189,85,0.46)" : "rgba(150,211,255,0.34)";
-        ctx.beginPath();
-        ctx.arc(x, y, 0.7 + (i % 2) * 0.35, 0, TAU);
-        ctx.fill();
-      }
+      // Extremely light atmospheric fill. It must never become an opaque panel over the city.
+      const atmosphere = ctx.createRadialGradient(cx, cy - radius * 0.42, radius * 0.08, cx, cy, radius * 1.04);
+      atmosphere.addColorStop(0, "rgba(56,145,231,0.10)");
+      atmosphere.addColorStop(0.52, "rgba(20,86,150,0.045)");
+      atmosphere.addColorStop(0.86, "rgba(8,45,82,0.015)");
+      atmosphere.addColorStop(1, "rgba(5,25,48,0)");
+      ctx.fillStyle = atmosphere;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, Math.PI, TAU);
+      ctx.lineTo(cx - radius, cy);
+      ctx.closePath();
+      ctx.fill();
 
-      const sectorById = new Map<number, Map<number, Parcel>>();
+      const bySector = new Map<number, Map<number, Parcel>>();
       for (const parcel of parcelsRef.current) {
-        const sector = parseSector(parcel);
-        const row = parseParcelRow(parcel);
-        if (!sectorById.has(sector)) sectorById.set(sector, new Map());
-        sectorById.get(sector)!.set(row, parcel);
+        const sector = sectorOf(parcel);
+        const row = rowOf(parcel);
+        if (!bySector.has(sector)) bySector.set(sector, new Map());
+        bySector.get(sector)!.set(row, parcel);
       }
 
-      const centerSector = wrapSector(Math.round((state.yaw / TAU) * SECTOR_COUNT) + 1);
-      const visibleSectorNumbers = Array.from({ length: SECTOR_COUNT }, (_, index) => index + 1)
-        .sort((a, b) => sectorDistance(a, centerSector) - sectorDistance(b, centerSector))
-        .slice(0, INITIAL_VISIBLE_SECTORS);
-
-      const projected: ProjectedParcel[] = [];
-      const longitudeStep = TAU / SECTOR_COUNT;
+      // Exactly six adjacent real sectors are in the initial viewport. As yaw changes,
+      // this six-sector window advances through all 100 sectors without changing geometry.
+      const startSector = wrap(Math.floor(state.yaw / STEP)) + 1;
+      const visibleSectors = Array.from({ length: VISIBLE_SECTORS }, (_, index) => wrap(startSector - 1 + index) + 1);
       const latitudeTop = 84;
       const latitudeBottom = 6;
-      const rowStep = (latitudeTop - latitudeBottom) / ROW_COUNT;
+      const latitudeStep = (latitudeTop - latitudeBottom) / ROWS;
+      const visibleCenterOffset = ((VISIBLE_SECTORS - 1) / 2) * STEP;
+      const projected: ProjectedParcel[] = [];
 
-      // Six sectors x ten rows = exactly 60 parcels in the initial viewport.
-      for (const sector of visibleSectorNumbers) {
-        const parcelRows = sectorById.get(sector);
-        if (!parcelRows) continue;
-        const centerLongitude = ((sector - 1) * longitudeStep) - state.yaw;
-        const lon0 = centerLongitude - longitudeStep / 2;
-        const lon1 = centerLongitude + longitudeStep / 2;
+      for (const sector of visibleSectors) {
+        const rows = bySector.get(sector);
+        if (!rows) continue;
 
-        for (let row = 0; row < ROW_COUNT; row += 1) {
-          const parcel = parcelRows.get(row);
+        // The six-sector window is centered in the dome, so sector cells follow the curved surface.
+        const longitude = (sector - 1) * STEP - state.yaw - visibleCenterOffset;
+        const lon0 = longitude - STEP / 2;
+        const lon1 = longitude + STEP / 2;
+
+        for (let row = 0; row < ROWS; row += 1) {
+          const parcel = rows.get(row);
           if (!parcel) continue;
-
-          const lat0 = latitudeTop - row * rowStep;
-          const lat1 = latitudeTop - (row + 1) * rowStep;
-          const corners = [
-            latLonPoint(lat0, (lon0 * 180) / Math.PI),
-            latLonPoint(lat0, (lon1 * 180) / Math.PI),
-            latLonPoint(lat1, (lon1 * 180) / Math.PI),
-            latLonPoint(lat1, (lon0 * 180) / Math.PI),
-          ].map((point) => rotatePoint(point, 0, state.pitch));
-
-          // The longitude already includes yaw, so pitch is the only camera rotation left here.
-          const center = rotatePoint(latLonPoint((lat0 + lat1) / 2, (centerLongitude * 180) / Math.PI), 0, state.pitch);
+          const lat0 = latitudeTop - row * latitudeStep;
+          const lat1 = latitudeTop - (row + 1) * latitudeStep;
+          const points = [
+            spherePoint(lat0, lon0),
+            spherePoint(lat0, lon1),
+            spherePoint(lat1, lon1),
+            spherePoint(lat1, lon0),
+          ].map((point) => pitchPoint(point, state.pitch));
+          const center = pitchPoint(spherePoint((lat0 + lat1) / 2, longitude), state.pitch);
           projected.push({
             parcel,
-            points: corners.map((point) => project(point, radius, cx, cy)),
+            points: points.map((point) => project(point, radius, cx, cy)),
             center: project(center, radius, cx, cy),
             depth: center.z,
             tier: tierForRow(row),
-            row,
-            sector,
           });
         }
       }
 
       projected.sort((a, b) => a.depth - b.depth);
+      hitRef.current = projected;
 
-      // Clear and redraw grid lines from the same spherical geometry so the cells stay locked to the dome.
+      // Spherical latitude lines and meridian lines stay locked to the same dome geometry.
       ctx.save();
-      ctx.lineWidth = 0.75;
-      ctx.strokeStyle = "rgba(91,174,238,0.34)";
-      for (let row = 0; row <= ROW_COUNT; row += 1) {
-        const latitude = latitudeTop - row * rowStep;
+      ctx.lineWidth = 0.85;
+      ctx.strokeStyle = "rgba(89,176,239,0.38)";
+
+      for (let row = 0; row <= ROWS; row += 1) {
+        const latitude = latitudeTop - row * latitudeStep;
+        const startLongitude = (visibleSectors[0] - 1) * STEP - state.yaw - visibleCenterOffset - STEP / 2;
+        const endLongitude = (visibleSectors[VISIBLE_SECTORS - 1] - 1) * STEP - state.yaw - visibleCenterOffset + STEP / 2;
         ctx.beginPath();
         let started = false;
-        for (let step = 0; step <= 80; step += 2) {
-          const longitude = -Math.PI / 2 + (Math.PI * step) / 80;
-          const point = rotatePoint(latLonPoint(latitude, (longitude * 180) / Math.PI), state.yaw, state.pitch);
-          if (point.z < -0.12) {
-            started = false;
-            continue;
-          }
+        for (let i = 0; i <= 48; i += 1) {
+          const longitude = startLongitude + ((endLongitude - startLongitude) * i) / 48;
+          const point = pitchPoint(spherePoint(latitude, longitude), state.pitch);
           const q = project(point, radius, cx, cy);
-          const opacity = row >= 8 ? 0.22 : 0.34;
-          ctx.strokeStyle = `rgba(91,174,238,${opacity})`;
           if (!started) {
             ctx.moveTo(q.x, q.y);
             started = true;
@@ -329,19 +244,17 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
             ctx.lineTo(q.x, q.y);
           }
         }
+        ctx.globalAlpha = row >= 8 ? 0.62 : 1;
         ctx.stroke();
       }
-      for (let index = -6; index <= 6; index += 1) {
-        const longitude = index * longitudeStep - state.yaw;
+
+      for (let index = 0; index <= VISIBLE_SECTORS; index += 1) {
+        const longitude = (visibleSectors[0] - 1) * STEP - state.yaw - visibleCenterOffset - STEP / 2 + index * STEP;
         ctx.beginPath();
         let started = false;
-        for (let step = 0; step <= 72; step += 2) {
-          const latitude = latitudeBottom + ((latitudeTop - latitudeBottom) * step) / 72;
-          const point = rotatePoint(latLonPoint(latitude, (longitude * 180) / Math.PI), 0, state.pitch);
-          if (point.z < -0.10) {
-            started = false;
-            continue;
-          }
+        for (let i = 0; i <= 44; i += 1) {
+          const latitude = latitudeBottom + ((latitudeTop - latitudeBottom) * i) / 44;
+          const point = pitchPoint(spherePoint(latitude, longitude), state.pitch);
           const q = project(point, radius, cx, cy);
           if (!started) {
             ctx.moveTo(q.x, q.y);
@@ -357,57 +270,62 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
       for (const item of projected) {
         const selected = item.parcel.id === selectedIdRef.current;
         const color = TIER_COLORS[item.tier];
-        const depthAlpha = clamp(0.22 + item.depth * 0.48, 0.12, 0.66);
-        const polygon = item.points;
+        const row = rowOf(item.parcel);
+        const bottomFade = 1 - Math.max(0, row - 7) * 0.16;
+        const depthAlpha = clamp(0.22 + item.depth * 0.42, 0.10, 0.66) * bottomFade;
 
         ctx.beginPath();
-        polygon.forEach((point, index) => {
-          if (index === 0) ctx.moveTo(point.x, point.y);
-          else ctx.lineTo(point.x, point.y);
-        });
+        item.points.forEach((point, index) => index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y));
         ctx.closePath();
-        ctx.fillStyle = selected ? `${color}44` : `rgba(4,22,42,${Math.max(0.18, depthAlpha * 0.44).toFixed(2)})`;
+        ctx.fillStyle = selected ? `${color}55` : `rgba(5,24,45,${Math.max(0.12, depthAlpha * 0.42).toFixed(2)})`;
         ctx.fill();
-
-        ctx.lineWidth = selected ? 2.1 : 1.15;
-        ctx.strokeStyle = selected ? color : `${color}${Math.round(depthAlpha * 255).toString(16).padStart(2, "0")}`;
+        ctx.lineWidth = selected ? 2.25 : 1.2;
+        ctx.strokeStyle = selected ? color : `${color}${Math.round(clamp(depthAlpha, 0.16, 0.82) * 255).toString(16).padStart(2, "0")}`;
         ctx.stroke();
 
-        const labelFont = clamp(width / 120, 7, 10);
-        ctx.font = `700 ${labelFont}px Inter, system-ui, sans-serif`;
+        const fontSize = clamp(width / 118, 7, 10);
+        ctx.font = `700 ${fontSize}px Inter, system-ui, sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillStyle = selected ? "#fff8df" : "rgba(234,247,255,0.92)";
-        ctx.fillText(`S${String(item.sector).padStart(3, "0")}`, item.center.x, item.center.y);
+        ctx.fillStyle = selected ? "#fff8dc" : "rgba(237,248,255,0.94)";
+        ctx.fillText(`S${String(sectorOf(item.parcel)).padStart(3, "0")}`, item.center.x, item.center.y);
 
         if (selected) {
           ctx.save();
-          ctx.shadowColor = TIER_GLOW[item.tier];
-          ctx.shadowBlur = 18;
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 20;
           ctx.strokeStyle = color;
-          ctx.lineWidth = 2.5;
+          ctx.lineWidth = 2.7;
           ctx.beginPath();
-          polygon.forEach((point, index) => index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y));
+          item.points.forEach((point, index) => index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y));
           ctx.closePath();
           ctx.stroke();
           ctx.restore();
 
-          // Small star in the selected parcel.
+          // Star marker inside the selected parcel.
           ctx.save();
           ctx.translate(item.center.x, item.center.y);
-          ctx.rotate(Math.PI / 4);
           ctx.fillStyle = "#fff7cf";
-          ctx.fillRect(-3.5, -3.5, 7, 7);
+          ctx.beginPath();
+          for (let i = 0; i < 10; i += 1) {
+            const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+            const radiusStar = i % 2 === 0 ? 6 : 2.4;
+            const x = Math.cos(angle) * radiusStar;
+            const y = Math.sin(angle) * radiusStar;
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.fill();
           ctx.restore();
 
           const code = item.parcel.parcel_number;
           ctx.font = "700 11px Inter, system-ui, sans-serif";
           const boxWidth = ctx.measureText(code).width + 24;
-          const boxX = clamp(item.center.x + 16, 10, width - boxWidth - 10);
-          const boxY = clamp(item.center.y - 42, 8, height - 38);
-          ctx.fillStyle = "rgba(3,13,29,0.96)";
+          const boxX = clamp(item.center.x + 16, 8, width - boxWidth - 8);
+          const boxY = clamp(item.center.y - 43, 8, height - 36);
+          ctx.fillStyle = "rgba(3,14,30,0.96)";
           ctx.strokeStyle = color;
-          ctx.lineWidth = 1.1;
+          ctx.lineWidth = 1.2;
           ctx.beginPath();
           ctx.roundRect(boxX, boxY, boxWidth, 28, 7);
           ctx.fill();
@@ -419,7 +337,20 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
         }
       }
 
-      drawAtmosphericRim(cx, cy, radius, state.yaw, state.pitch);
+      // Soft outer dome arc: blue atmosphere above, transparent disappearance below. No yellow baseline.
+      ctx.save();
+      ctx.lineWidth = 1.55;
+      ctx.shadowColor = "rgba(76,174,255,0.32)";
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, radius, radius * 0.98, 0, Math.PI, TAU);
+      const rim = ctx.createLinearGradient(0, cy - radius, 0, cy);
+      rim.addColorStop(0, "rgba(115,203,255,0.62)");
+      rim.addColorStop(0.58, "rgba(78,171,241,0.28)");
+      rim.addColorStop(1, "rgba(78,171,241,0.02)");
+      ctx.strokeStyle = rim;
+      ctx.stroke();
+      ctx.restore();
 
       frame = requestAnimationFrame(draw);
     };
@@ -447,16 +378,15 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
   const pointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
     const state = stateRef.current;
     if (!state.dragging) return;
-
     const dx = event.clientX - state.lastX;
     const dy = event.clientY - state.lastY;
     if (Math.abs(dx) + Math.abs(dy) > 4) state.moved = true;
 
-    // Natural direction: drag right -> dome moves right; drag left -> dome moves left.
+    // Correct natural direction: right drag -> right, left drag -> left.
     state.yaw += dx * 0.008;
-    // Natural vertical direction: drag up -> view rises; drag down -> view lowers.
+    // Correct natural vertical direction: up drag -> view rises, down drag -> view lowers.
     state.pitch += -dy * 0.0058;
-    state.pitch = clamp(state.pitch, -0.52, 0.52);
+    state.pitch = clamp(state.pitch, -0.48, 0.48);
     state.velocityX = dx * 0.0012;
     state.velocityY = -dy * 0.0007;
     state.lastX = event.clientX;
@@ -468,39 +398,23 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
     } catch {
-      // Pointer capture may already have been released by the browser.
+      // Pointer capture may already be released.
     }
   };
 
   const click = (event: MouseEvent<HTMLCanvasElement>) => {
     const state = stateRef.current;
     if (state.moved) return;
-
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const items = (event.currentTarget.dataset.hit ? [] : []) as ProjectedParcel[];
-    void items;
 
-    // Hit-test the currently visible 60 cells from their rendered geometry.
-    // The renderer stores them indirectly, so approximate with the sector/row grid around the pointer.
-    // A second, lightweight projection is not needed: the canvas click is forwarded through the
-    // same visible geometry by sampling the nearest label center from the cached hit list below.
-    const cached = (canvasRef.current as HTMLCanvasElement & { __skyHit?: ProjectedParcel[] }).__skyHit ?? [];
-    let best: ProjectedParcel | null = null;
-    let bestDistance = Infinity;
-    for (const item of cached) {
-      if (pointInPolygon(x, y, item.points)) {
-        if (!best || item.depth > best.depth) best = item;
-        continue;
-      }
-      const distance = Math.hypot(x - item.center.x, y - item.center.y);
-      if (distance < bestDistance && distance < 24) {
-        bestDistance = distance;
-        best = item;
-      }
+    let selected: ProjectedParcel | null = null;
+    for (const item of hitRef.current) {
+      if (!pointInPolygon(x, y, item.points)) continue;
+      if (!selected || item.depth > selected.depth) selected = item;
     }
-    if (best) onSelectRef.current(best.parcel.id);
+    if (selected) onSelectRef.current(selected.parcel.id);
   };
 
   const wheel = (event: WheelEvent<HTMLCanvasElement>) => {
@@ -509,7 +423,7 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
   };
 
   const reset = () => {
-    stateRef.current.yaw = ((3.5 / SECTOR_COUNT) * TAU) - Math.PI / 2;
+    stateRef.current.yaw = 0;
     stateRef.current.pitch = 0.02;
     stateRef.current.zoom = 1;
     stateRef.current.velocityX = 0;
@@ -529,11 +443,9 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
 
       <div className="relative -mt-1">
         <canvas
-          ref={(node) => {
-            canvasRef.current = node;
-          }}
+          ref={canvasRef}
           className="block h-[430px] w-full touch-none cursor-grab active:cursor-grabbing sm:h-[520px]"
-          aria-label="Havada duran interaktif dijital gökyüzü kubbesi"
+          aria-label={`${cityName} için havada duran interaktif dijital gökyüzü kubbesi`}
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
           onPointerUp={pointerUp}
