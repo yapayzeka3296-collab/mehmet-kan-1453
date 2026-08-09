@@ -2,17 +2,11 @@ import { useEffect, useRef } from "react";
 import type { MouseEvent, PointerEvent, WheelEvent } from "react";
 import type { Parcel } from "@/types/parcel";
 
-type GridParcel = Parcel & { grid_x?: number; grid_y?: number };
-type Props = {
-  parcels: GridParcel[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  cityName: string;
-};
+type Props = { parcels: Parcel[]; selectedId: string | null; onSelect: (id: string) => void; cityName: string };
 type Point3 = { x: number; y: number; z: number };
 type ScreenPoint = { x: number; y: number; z: number };
 type Tier = "digital" | "elite" | "premium";
-type ProjectedParcel = { parcel: GridParcel; points: ScreenPoint[]; center: ScreenPoint; depth: number; tier: Tier };
+type ProjectedParcel = { parcel: Parcel; points: ScreenPoint[]; center: ScreenPoint; depth: number; tier: Tier };
 type DomeState = { yaw: number; pitch: number; zoom: number; dragging: boolean; moved: boolean; lastX: number; lastY: number; velocityX: number; velocityY: number };
 
 const TAU = Math.PI * 2;
@@ -24,18 +18,22 @@ const TIER_COLORS: Record<Tier, string> = { digital: "#58bfff", elite: "#ad82ff"
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const wrap = (value: number) => ((value % SECTORS) + SECTORS) % SECTORS;
 
-function sectorOf(parcel: GridParcel) {
-  // Supabase's real 1,000-row pilot grid is 100 sectors x 10 parcels.
-  // grid_x 0..99 maps to S001..S100.
-  return clamp(Number(parcel.grid_x ?? 0) + 1, 1, SECTORS);
+function numericParcelNumber(parcel: Parcel) {
+  const match = parcel.parcel_number.match(/(\d+)$/);
+  return clamp(Number(match?.[1] ?? 1), 1, 1000);
 }
 
-function rowOf(parcel: GridParcel) {
-  // grid_y 0..9 maps to P01..P10.
-  return clamp(Number(parcel.grid_y ?? 0), 0, ROWS - 1);
+function sectorOf(parcel: Parcel) {
+  // The current Supabase pilot rows are numbered 0001..1000.
+  // The dome presents them as 100 sectors x 10 parcels: 0001-0010 = S001, etc.
+  return Math.floor((numericParcelNumber(parcel) - 1) / ROWS) + 1;
 }
 
-function tierOf(parcel: GridParcel, row: number): Tier {
+function rowOf(parcel: Parcel) {
+  return (numericParcelNumber(parcel) - 1) % ROWS;
+}
+
+function tierOf(parcel: Parcel, row: number): Tier {
   if (parcel.tier === "digital" || parcel.tier === "elite" || parcel.tier === "premium") return parcel.tier;
   if (row < 5) return "digital";
   if (row < 8) return "elite";
@@ -112,10 +110,11 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
       state.pitch = clamp(state.pitch, -0.48, 0.48);
       ctx.clearRect(0, 0, width, height);
 
-      // Floating dome: its base sits above the city horizon and has no hard bottom line.
       const radius = Math.min(width * 0.47, height * 0.82) * state.zoom;
       const cx = width / 2;
       const cy = height * 0.74;
+
+      // Very light transparent atmosphere; the city remains visible through the dome.
       const atmosphere = ctx.createRadialGradient(cx, cy - radius * 0.42, radius * 0.08, cx, cy, radius * 1.04);
       atmosphere.addColorStop(0, "rgba(56,145,231,0.10)");
       atmosphere.addColorStop(0.52, "rgba(20,86,150,0.045)");
@@ -128,7 +127,7 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
       ctx.closePath();
       ctx.fill();
 
-      const bySector = new Map<number, Map<number, GridParcel>>();
+      const bySector = new Map<number, Map<number, Parcel>>();
       for (const parcel of parcelsRef.current) {
         const sector = sectorOf(parcel);
         const row = rowOf(parcel);
@@ -136,8 +135,8 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
         bySector.get(sector)!.set(row, parcel);
       }
 
-      // Initial view = 6 sectors x 10 parcels = 60 real Supabase rows.
-      // Rotation advances this window through all 100 real sectors.
+      // Maximum 60 parcels in the first view: 6 real sectors x 10 real parcel rows.
+      // Rotating the dome advances the six-sector window through all 100 sectors.
       const startSector = wrap(Math.floor(state.yaw / STEP)) + 1;
       const visibleSectors = Array.from({ length: VISIBLE_SECTORS }, (_, index) => wrap(startSector - 1 + index) + 1);
       const latitudeTop = 84;
@@ -167,7 +166,7 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
       projected.sort((a, b) => a.depth - b.depth);
       hitRef.current = projected;
 
-      // Curved latitude/meridian lines: the parcel geometry follows these same spherical coordinates.
+      // Curved latitude/meridian lines use the same spherical coordinates as the parcel cells.
       ctx.save();
       ctx.lineWidth = 0.85;
       ctx.strokeStyle = "rgba(89,176,239,0.38)";
@@ -248,7 +247,7 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
           ctx.fill();
           ctx.restore();
 
-          // The real immutable Supabase parcel_number is shown, not a fabricated code.
+          // Always show the real Supabase parcel_number, never a fabricated database code.
           const code = item.parcel.parcel_number;
           ctx.font = "700 11px Inter, system-ui, sans-serif";
           const boxWidth = ctx.measureText(code).width + 24;
@@ -268,7 +267,7 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, cityName }: Props
         }
       }
 
-      // Only the upper atmospheric silhouette is visible. There is deliberately no yellow bottom line.
+      // Soft blue upper silhouette. The lower edge fades into the city and has no yellow line.
       ctx.save();
       ctx.lineWidth = 1.55;
       ctx.shadowColor = "rgba(76,174,255,0.32)";
