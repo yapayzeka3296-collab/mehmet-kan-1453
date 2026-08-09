@@ -143,14 +143,20 @@ function Harita() {
 
           <div className="panel relative min-h-[600px] overflow-hidden p-4 sm:p-6">
             <img
+              key={selectedCityImage}
               src={selectedCityImage}
               alt={`${selectedCityName} şehir manzarası`}
-              loading="lazy"
+              loading="eager"
               width={1536}
               height={864}
-              className="absolute inset-x-0 bottom-0 h-1/2 w-full object-cover opacity-35 transition-opacity duration-500"
+              onError={(event) => {
+                if (event.currentTarget.src.endsWith(CITY_IMAGE_FALLBACK)) return;
+                event.currentTarget.src = CITY_IMAGE_FALLBACK;
+              }}
+              className="absolute inset-0 h-full w-full object-cover opacity-32 transition-all duration-700 scale-[1.02]"
             />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-background/90 via-background/35 to-transparent" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/65 via-background/30 to-background/90" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(24,78,145,0.18),transparent_58%)]" />
 
             <div className="relative z-10">
               {loading && <p className="text-center text-sm text-muted-foreground">Parseller yükleniyor...</p>}
@@ -172,7 +178,7 @@ function Harita() {
               />
             )}
 
-            <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-md bg-navy-deep/90 px-4 py-2 text-center">
+            <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-md bg-navy-deep/90 px-4 py-2 text-center shadow-lg shadow-black/30">
               <p className="text-sm font-semibold text-gold">{selectedCityName}</p>
               <p className="text-[10px] text-muted-foreground">
                 {parcels.length.toLocaleString("tr-TR")} parsel · sürükleyerek döndür · dokunarak seç
