@@ -106,13 +106,12 @@ function angularDistance(a: number, b: number) {
 }
 
 /**
- * Choose a distributed viewport on the spherical surface.
- *
- * Do not take the nearest 66 cells to the facing longitude: that creates a
- * rectangular block in the centre of the dome. Instead, every parcel row gets
- * a quota and those parcels are sampled across a broad visible angular arc.
- * The actual parcel polygons are still projected from their true 3D spherical
- * coordinates, so the visible selection follows the dome curvature.
+ * Distribute a bounded number of real parcel cells over the visible dome.
+ * The previous version selected the closest sectors to one longitude, which
+ * could visually collapse into a central block. This version deliberately
+ * samples a wide spherical arc on every row and staggers the samples between
+ * rows. The cells remain the real Supabase parcel records and their polygons
+ * are still projected from their true 3D coordinates.
  */
 function selectVisibleCells(candidates: Cell[], yaw: number): Cell[] {
   const result: Cell[] = [];
@@ -123,12 +122,15 @@ function selectVisibleCells(candidates: Cell[], yaw: number): Cell[] {
     const rowCandidates = candidates.filter((cell) => cell.row === row);
     if (rowCandidates.length === 0 || quota === 0) continue;
 
-    // Broadens toward the lower rows so the selected parcels visually follow
-    // the dome instead of forming a narrow vertical column.
-    const halfSpan = Math.min(1.46, 0.86 + row * 0.067);
-    const targets = Array.from({ length: quota }, (_, index) =>
-      facingTheta - halfSpan + ((index + 0.5) / quota) * halfSpan * 2,
-    );
+    // Use most of the front-facing hemisphere. Near the pole we keep a
+    // narrower arc because the spherical surface naturally converges there.
+    // Lower rows cover a wider arc so the parcel field follows the dome width.
+    const halfSpan = Math.min(1.48, 0.78 + row * 0.078);
+    const rowOffset = row % 2 === 0 ? 0 : 0.018;
+    const targets = Array.from({ length: quota }, (_, index) => {
+      const t = quota === 1 ? 0.5 : index / (quota - 1);
+      return facingTheta - halfSpan + t * halfSpan * 2 + rowOffset;
+    });
 
     const remaining = new Set(rowCandidates);
     for (const target of targets) {
@@ -247,7 +249,6 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
         const theta1 = -Math.PI + (2 * Math.PI * (item.sector + 1)) / SECTORS;
         const phi0 = PHI_MIN + (PHI_MAX - PHI_MIN) * (item.row / ROWS);
         const phi1 = PHI_MIN + (PHI_MAX - PHI_MIN) * ((item.row + 1) / ROWS);
-
         const center3 = rotatePoint(spherePoint((theta0 + theta1) / 2, (phi0 + phi1) / 2), s.yaw, s.pitch);
         if (center3.z <= 0.015) continue;
 
