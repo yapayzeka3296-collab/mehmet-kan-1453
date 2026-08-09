@@ -10,10 +10,12 @@ type DomeState = { yaw: number; pitch: number; zoom: number; dragging: boolean; 
 
 const SECTORS = 100;
 const ROWS = 10;
-const VISIBLE_CELLS = 66;
+// Previous visible count was 66. Reduce it by ~20% while keeping the full
+// Supabase layout intact so rotation can reveal the remaining real parcels.
+const VISIBLE_CELLS = 53;
 const PHI_MIN = 0.05;
 const PHI_MAX = Math.PI * 0.50;
-const ROW_VISIBLE_COUNTS = [3, 4, 5, 6, 7, 8, 10, 10, 7, 6];
+const ROW_VISIBLE_COUNTS = [2, 3, 4, 5, 6, 6, 8, 8, 6, 5];
 
 const GRID = "rgba(151,214,255,0.82)";
 const FILL: Record<ParcelTier, string> = {
@@ -59,6 +61,9 @@ function parseParcelCode(code: string) {
 }
 
 function rowTier(row: number): ParcelTier {
+  // P01-P02: digital, P03-P04: elite, P05-P10: digital/elite/premium layout
+  // is normalized below so the bottom two rows are always Premium and the
+  // middle two rows are Elite, matching the agreed dome visual hierarchy.
   if (row >= 8) return "premium";
   if (row >= 6) return "elite";
   return "digital";
@@ -105,9 +110,14 @@ function angularDistance(a: number, b: number) {
   return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 }
 
+/**
+ * Select a distributed front-facing sample from the real Supabase parcels.
+ * The complete layout remains in memory; only the current viewport is capped.
+ * Row quotas intentionally span the dome instead of creating a central block.
+ */
 function selectVisibleCells(candidates: Cell[], yaw: number): Cell[] {
   const result: Cell[] = [];
-  const facingTheta = Math.PI / 2 - yaw;
+  const facingTheta = Math.PI / 2 + yaw;
 
   for (let row = 0; row < ROWS; row++) {
     const quota = ROW_VISIBLE_COUNTS[row] ?? 0;
@@ -115,7 +125,7 @@ function selectVisibleCells(candidates: Cell[], yaw: number): Cell[] {
     if (rowCandidates.length === 0 || quota === 0) continue;
 
     const halfSpan = Math.min(1.48, 0.78 + row * 0.078);
-    const rowOffset = row % 2 === 0 ? 0 : 0.018;
+    const rowOffset = row % 2 === 0 ? -0.018 : 0.018;
     const targets = Array.from({ length: quota }, (_, index) => {
       const t = quota === 1 ? 0.5 : index / (quota - 1);
       return facingTheta - halfSpan + t * halfSpan * 2 + rowOffset;
@@ -175,8 +185,8 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
 
     const drawHemisphere = (radius: number, cx: number, cy: number, yaw: number, pitch: number) => {
       const halo = ctx.createRadialGradient(cx, cy - radius * 0.62, radius * 0.04, cx, cy, radius * 1.08);
-      halo.addColorStop(0, "rgba(46,139,255,0.055)");
-      halo.addColorStop(0.58, "rgba(29,104,198,0.035)");
+      halo.addColorStop(0, "rgba(46,139,255,0.045)");
+      halo.addColorStop(0.58, "rgba(29,104,198,0.028)");
       halo.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = halo;
       ctx.beginPath();
@@ -224,13 +234,15 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
         if (Math.abs(s.velocityX) < 0.00002) s.velocityX = 0;
         if (Math.abs(s.velocityY) < 0.00002) s.velocityY = 0;
       }
-      s.pitch = Math.max(-0.65, Math.min(0.65, s.pitch));
+      // Vertical dragging changes the viewing angle only. The dome itself is
+      // fixed in the sky and never translates upward/downward on the page.
+      s.pitch = Math.max(-0.42, Math.min(0.42, s.pitch));
 
-      // Keep the dome in the upper sky area. The smaller vertical radius and
-      // raised center leave the city skyline unobstructed beneath it.
       const radius = Math.min(width * 0.48, height * 0.46) * s.zoom;
       const cx = width * 0.50;
-      const cy = height * 0.38;
+      // Anchor the dome to the top of its city-image area. This keeps its
+      // skyline position stable across mobile/tablet aspect ratios.
+      const cy = Math.min(height - radius - 18, radius + 14);
       ctx.clearRect(0, 0, width, height);
       drawHemisphere(radius, cx, cy, s.yaw, s.pitch);
 
@@ -276,6 +288,8 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
           ctx.lineWidth = 2.5;
           ctx.stroke();
 
+          // Selection marker is positioned from the projected parcel center,
+          // so it follows the spherical geometry while the dome rotates.
           const sx = cell.center.x, sy = cell.center.y;
           ctx.fillStyle = "#fff4bf";
           ctx.beginPath();
@@ -290,31 +304,28 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
           ctx.fill();
           ctx.restore();
 
+          // The real parcel code is drawn directly over the selected parcel,
+          // with no label box. Its position is the projected 3D cell center.
           const label = String(cell.parcel.parcel_number ?? "");
-          ctx.font = "600 12px Inter, system-ui, sans-serif";
-          const labelWidth = ctx.measureText(label).width + 26;
-          const boxX = Math.min(width - labelWidth - 14, Math.max(14, cell.center.x + 18));
-          const boxY = Math.max(14, cell.center.y - 54);
-          ctx.fillStyle = "rgba(3,12,27,0.96)";
-          ctx.strokeStyle = GLOW[cell.tier];
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.roundRect(boxX, boxY, labelWidth, 32, 8);
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = "#fff";
-          ctx.textAlign = "left";
+          ctx.save();
+          ctx.font = "600 11px Inter, system-ui, sans-serif";
+          ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(label, boxX + 13, boxY + 16);
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = "rgba(3,12,27,0.72)";
+          ctx.strokeText(label, sx, sy + 18);
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText(label, sx, sy + 18);
+          ctx.restore();
         }
       }
 
       ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, radius, Math.PI, 0);
-      ctx.strokeStyle = "rgba(92,181,255,0.24)";
+      ctx.strokeStyle = "rgba(92,181,255,0.20)";
       ctx.lineWidth = 1.0;
-      ctx.shadowColor = "rgba(71,163,255,0.16)";
+      ctx.shadowColor = "rgba(71,163,255,0.12)";
       ctx.shadowBlur = 8;
       ctx.stroke();
       ctx.restore();
@@ -346,10 +357,16 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
     const dx = event.clientX - s.lastX;
     const dy = event.clientY - s.lastY;
     if (Math.abs(dx) + Math.abs(dy) > 2) s.moved = true;
-    s.yaw += dx * 0.0075;
-    s.pitch = Math.max(-0.65, Math.min(0.65, s.pitch - dy * 0.0055));
-    s.velocityX = dx * 0.0011;
-    s.velocityY = -dy * 0.00075;
+
+    // Invert yaw input so dragging right visually rotates the dome to the
+    // right, and dragging left rotates it to the left.
+    s.yaw -= dx * 0.0075;
+    // Vertical gesture changes only the camera/perspective angle; cy is fixed,
+    // so the dome never slides up/down on the page. Dragging downward reveals
+    // more of the upper hemisphere/parcels through pitch rotation.
+    s.pitch = Math.max(-0.42, Math.min(0.42, s.pitch - dy * 0.0050));
+    s.velocityX = -dx * 0.0011;
+    s.velocityY = -dy * 0.00065;
     s.lastX = event.clientX;
     s.lastY = event.clientY;
   };
