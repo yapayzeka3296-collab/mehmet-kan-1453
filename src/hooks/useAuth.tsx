@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function init() {
       try {
-        const { data } = await client.auth.getSession();
+        const { data } = await client!.auth.getSession();
         const sessionUser = data.session?.user ?? null;
         if (mounted && sessionUser) setUser(toUser(sessionUser));
       } catch (err) {
