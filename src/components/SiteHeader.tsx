@@ -18,8 +18,8 @@ export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
 
-  // Mobil/tablet menü açıkken sayfanın arka planda kaymasını tamamen durdurur.
   useEffect(() => {
     if (!open) return;
 
@@ -31,6 +31,28 @@ export function SiteHeader() {
       if (event.key === "Escape") {
         event.preventDefault();
         setOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab" || !drawerRef.current) return;
+
+      const focusable = Array.from(
+        drawerRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => !element.hasAttribute("aria-hidden"));
+
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
 
@@ -43,22 +65,24 @@ export function SiteHeader() {
     };
   }, [open]);
 
+  const closeMenu = () => setOpen(false);
+
   return (
-    <header className="sticky top-0 z-40 h-[80px] w-full border-b border-[#1E293B] bg-[#050B1A]/90 backdrop-blur-md shadow-lg shadow-black/20">
+    <header className="sticky top-0 z-40 h-[80px] w-full border-b border-[#1E293B] bg-[#050B1A]/90 shadow-lg shadow-black/20 backdrop-blur-md">
       <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex shrink-0 items-center">
           <Logo />
         </div>
 
-        {/* Desktop: xl ve üzeri. 1024px civarında hamburger kullanılarak taşma önlenir. */}
-        <nav aria-label="Ana navigasyon" className="hidden xl:flex items-center gap-3 2xl:gap-5">
+        <nav aria-label="Ana navigasyon" className="hidden items-center gap-3 xl:flex 2xl:gap-5">
           {NAV_LINKS.map((item) => (
             <Link
               key={item.to}
               to={item.to}
               className="relative whitespace-nowrap text-xs font-medium text-slate-300 transition-colors duration-200 hover:text-[#D4AF37] 2xl:text-sm"
               activeProps={{
-                className: "text-[#D4AF37] after:absolute after:bottom-[-6px] after:left-0 after:h-[2px] after:w-full after:bg-[#D4AF37]",
+                className:
+                  "text-[#D4AF37] after:absolute after:bottom-[-6px] after:left-0 after:h-[2px] after:w-full after:bg-[#D4AF37]",
               }}
             >
               {item.label}
@@ -66,7 +90,7 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="hidden xl:flex items-center gap-3 2xl:gap-4">
+        <div className="hidden items-center gap-3 xl:flex 2xl:gap-4">
           <button
             type="button"
             aria-label="Sepet (henüz etkin değil)"
@@ -91,7 +115,6 @@ export function SiteHeader() {
           </Link>
         </div>
 
-        {/* Tablet & mobile: hamburger menü 1280px altına kadar kullanılır. */}
         <div className="flex items-center gap-2 xl:hidden">
           <button
             type="button"
@@ -117,30 +140,33 @@ export function SiteHeader() {
       </div>
 
       <div
-        className={`fixed inset-0 z-50 bg-black/70 backdrop-blur-sm xl:hidden transition-opacity duration-300 ${
-          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        className={`fixed inset-0 z-50 bg-black/70 backdrop-blur-sm transition-opacity duration-300 xl:hidden ${
+          open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
-        onClick={() => setOpen(false)}
+        onClick={closeMenu}
         aria-hidden="true"
       />
 
       <aside
+        ref={drawerRef}
         id="mobile-navigation"
         role="dialog"
         aria-modal="true"
         aria-label="Site menüsü"
-        className={`fixed top-0 right-0 z-50 h-screen w-[280px] sm:w-[320px] bg-[#050B1A] border-l border-[#1E293B] p-6 flex flex-col justify-between overflow-y-auto transform transition-transform duration-300 ease-in-out xl:hidden ${
-          open ? "translate-x-0" : "translate-x-full"
+        aria-hidden={!open}
+        className={`fixed top-0 right-0 z-50 flex h-screen w-[min(320px,calc(100vw-24px))] flex-col justify-between overflow-y-auto border-l border-[#1E293B] bg-[#050B1A] p-6 transform transition-transform duration-300 ease-in-out xl:hidden ${
+          open ? "translate-x-0" : "pointer-events-none translate-x-full"
         }`}
       >
         <div>
-          <div className="flex items-center justify-between pb-6 border-b border-[#1E293B]">
+          <div className="flex items-center justify-between border-b border-[#1E293B] pb-6">
             <span className="text-lg font-bold text-white">Menü</span>
             <button
               ref={closeButtonRef}
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={closeMenu}
               aria-label="Menüyü kapat"
+              tabIndex={open ? 0 : -1}
               className="p-1 text-slate-400 hover:text-white"
             >
               <X className="h-6 w-6" />
@@ -152,10 +178,11 @@ export function SiteHeader() {
               <Link
                 key={item.to}
                 to={item.to}
-                onClick={() => setOpen(false)}
+                onClick={closeMenu}
+                tabIndex={open ? 0 : -1}
                 className="text-base font-medium text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]"
                 activeProps={{
-                  className: "text-[#D4AF37] font-semibold",
+                  className: "font-semibold text-[#D4AF37]",
                 }}
               >
                 {item.label}
@@ -164,10 +191,11 @@ export function SiteHeader() {
           </nav>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-[#1E293B] flex flex-col gap-3">
+        <div className="mt-8 flex flex-col gap-3 border-t border-[#1E293B] pt-6">
           <Link
             to="/giris"
-            onClick={() => setOpen(false)}
+            onClick={closeMenu}
+            tabIndex={open ? 0 : -1}
             className="w-full rounded-lg border border-slate-700 py-2.5 text-center text-sm font-medium text-slate-200 transition-colors duration-200 hover:border-[#D4AF37] hover:text-[#D4AF37]"
           >
             Giriş Yap
@@ -175,7 +203,8 @@ export function SiteHeader() {
 
           <Link
             to="/kayit-ol"
-            onClick={() => setOpen(false)}
+            onClick={closeMenu}
+            tabIndex={open ? 0 : -1}
             className="w-full rounded-lg bg-[#D4AF37] py-2.5 text-center text-sm font-semibold text-black transition-colors duration-200 hover:bg-[#c29f2e]"
           >
             Üye Ol
