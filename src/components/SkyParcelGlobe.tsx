@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef } from "react";
-import type { MouseEvent, PointerEvent, WheelEvent } from "react";
 import type { Parcel, ParcelTier } from "@/types/parcel";
 
 type Props = { parcels: Parcel[]; selectedId: string | null; onSelect: (id: string) => void };
@@ -61,10 +60,10 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
       raf = requestAnimationFrame(draw);
     };
     resize(); window.addEventListener("resize", resize); raf = requestAnimationFrame(draw);
-    const onPointerDown = (event: PointerEvent<HTMLCanvasElement>) => { const rect = canvas.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top; const s = stateRef.current; s.dragging = true; s.moved = false; s.lastX = x; s.lastY = y; s.velocityX = 0; s.velocityY = 0; canvas.setPointerCapture(event.pointerId); };
-    const onPointerMove = (event: PointerEvent<HTMLCanvasElement>) => { const s = stateRef.current; if (!s.dragging) return; const rect = canvas.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top; const dx = x - s.lastX; const dy = y - s.lastY; if (Math.abs(dx) + Math.abs(dy) > 2) s.moved = true; s.yaw += dx * 0.008; s.pitch += dy * 0.006; s.velocityX = dx * 0.0025; s.velocityY = dy * 0.002; s.lastX = x; s.lastY = y; };
-    const onPointerUp = (event: PointerEvent<HTMLCanvasElement>) => { const s = stateRef.current; if (!s.dragging) return; s.dragging = false; if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId); if (s.moved) return; const rect = canvas.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top; const hit = hitRef.current.slice().reverse().find((cell) => pointInPolygon(x, y, cell.points)); if (hit) onSelect(hit.parcel.id); };
-    const onWheel = (event: WheelEvent<HTMLCanvasElement>) => { event.preventDefault(); stateRef.current.zoom = Math.max(0.82, Math.min(1.22, stateRef.current.zoom + (event.deltaY > 0 ? -0.04 : 0.04))); };
+    const onPointerDown = (event: globalThis.PointerEvent) => { const rect = canvas.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top; const s = stateRef.current; s.dragging = true; s.moved = false; s.lastX = x; s.lastY = y; s.velocityX = 0; s.velocityY = 0; canvas.setPointerCapture(event.pointerId); };
+    const onPointerMove = (event: globalThis.PointerEvent) => { const s = stateRef.current; if (!s.dragging) return; const rect = canvas.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top; const dx = x - s.lastX; const dy = y - s.lastY; if (Math.abs(dx) + Math.abs(dy) > 2) s.moved = true; s.yaw += dx * 0.008; s.pitch += dy * 0.006; s.velocityX = dx * 0.0025; s.velocityY = dy * 0.002; s.lastX = x; s.lastY = y; };
+    const onPointerUp = (event: globalThis.PointerEvent) => { const s = stateRef.current; if (!s.dragging) return; s.dragging = false; if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId); if (s.moved) return; const rect = canvas.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top; const hit = hitRef.current.slice().reverse().find((cell) => pointInPolygon(x, y, cell.points)); if (hit) onSelect(hit.parcel.id); };
+    const onWheel = (event: globalThis.WheelEvent) => { event.preventDefault(); stateRef.current.zoom = Math.max(0.82, Math.min(1.22, stateRef.current.zoom + (event.deltaY > 0 ? -0.04 : 0.04))); };
     canvas.addEventListener("pointerdown", onPointerDown); canvas.addEventListener("pointermove", onPointerMove); canvas.addEventListener("pointerup", onPointerUp); canvas.addEventListener("wheel", onWheel, { passive: false });
     return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); canvas.removeEventListener("pointerdown", onPointerDown); canvas.removeEventListener("pointermove", onPointerMove); canvas.removeEventListener("pointerup", onPointerUp); canvas.removeEventListener("wheel", onWheel); };
   }, [onSelect]);
