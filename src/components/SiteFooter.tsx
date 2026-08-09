@@ -1,31 +1,32 @@
 import { Facebook, Instagram, Linkedin, Twitter, Youtube } from "lucide-react";
 
 const LEGAL = ["KVKK", "GİZLİLİK POLİTİKASI", "KULLANIM ŞARTLARI", "ÇEREZ POLİTİKASI"];
+const CURRENT_YEAR = new Date().getFullYear();
 
 export function SiteFooter() {
   return (
     <footer className="border-t border-border bg-navy-deep">
       <div className="mx-auto grid max-w-[1600px] gap-5 px-4 py-6 text-xs text-muted-foreground lg:grid-cols-[auto_1fr_auto] lg:items-center lg:px-8">
-        <p>© 2024 MySkyParcel Türkiye | Tüm hakları saklıdır.</p>
-        <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 lg:justify-center">
+        <p>© {CURRENT_YEAR} MySkyParcel Türkiye | Tüm hakları saklıdır.</p>
+        <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 lg:justify-center" aria-label="Hukuki sayfalar">
           {LEGAL.map((l) => (
             <li key={l}>
-              <a href="#" className="tracking-[0.06em] text-gold/90 hover:text-gold">
+              <span className="tracking-[0.06em] text-gold/70" title="Bu hukuki sayfa henüz repository'de tanımlı değil">
                 {l}
-              </a>
+              </span>
             </li>
           ))}
         </ul>
-        <ul className="flex items-center gap-3 lg:justify-end">
+        <ul className="flex items-center gap-3 lg:justify-end" aria-label="Sosyal medya">
           {[Facebook, Instagram, Twitter, Youtube, Linkedin].map((Icon, i) => (
             <li key={i}>
-              <a
-                href="#"
-                aria-label="Sosyal medya"
-                className="grid h-8 w-8 place-items-center rounded-full border border-gold/50 text-gold transition-colors hover:bg-gold hover:text-primary-foreground"
+              <span
+                aria-label="Sosyal medya bağlantısı henüz tanımlı değil"
+                title="Sosyal medya bağlantısı henüz tanımlı değil"
+                className="grid h-8 w-8 place-items-center rounded-full border border-gold/50 text-gold/70"
               >
-                <Icon className="h-3.5 w-3.5" />
-              </a>
+                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
             </li>
           ))}
         </ul>
