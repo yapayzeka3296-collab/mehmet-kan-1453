@@ -1,17 +1,19 @@
 export async function getSupabaseClient(): Promise<any | null> {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  const url =
+    (import.meta.env.VITE_SUPABASE_URL as string | undefined) ??
+    'https://agfxwddvobkhwbbrdzpt.supabase.co';
+  const anonKey =
+    (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ??
+    (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ??
+    'sb_publishable_R9oNzobOHmh1xbwztofFew_3xz5DZAu';
 
   if (!url || !anonKey) {
-    // Not configured for client-side Supabase in this environment.
-    console.warn('VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY missing; supabase client disabled');
+    console.warn('Supabase configuration missing; client disabled');
     return null;
   }
 
   try {
     const mod = await import('@supabase/supabase-js');
-    // createClient exists on the module
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     const client = (mod as any).createClient(url, anonKey);
     return client;
   } catch (err) {
