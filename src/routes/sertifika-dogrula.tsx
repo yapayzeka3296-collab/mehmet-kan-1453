@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { FormEvent, useState } from "react";
+import type { FormEvent } from "react";
+import { useState } from "react";
 import { QrCode, Search, ShieldCheck } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -120,7 +121,7 @@ function Dogrula() {
                   <div><dt className="text-xs text-muted-foreground">Sertifika</dt><dd className="mt-1 font-medium">{result.certificate_number}</dd></div>
                   <div><dt className="text-xs text-muted-foreground">Parsel</dt><dd className="mt-1 font-medium">{result.parcel_number}</dd></div>
                   <div><dt className="text-xs text-muted-foreground">Şehir</dt><dd className="mt-1 font-medium">{result.city_name ?? result.city_code ?? "—"}</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">Sertifika</dt><dd className="mt-1 font-medium">{TIER_LABELS[result.tier]}</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">Paket</dt><dd className="mt-1 font-medium">{TIER_LABELS[result.tier]}</dd></div>
                   <div><dt className="text-xs text-muted-foreground">Durum</dt><dd className="mt-1 font-medium">Geçerli</dd></div>
                   <div><dt className="text-xs text-muted-foreground">Düzenlenme</dt><dd className="mt-1 font-medium">{result.issued_at ? new Date(result.issued_at).toLocaleDateString("tr-TR") : "—"}</dd></div>
                 </dl>
