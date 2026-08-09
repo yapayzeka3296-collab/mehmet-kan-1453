@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Boxes, Check, Globe, Headphones, Layers, Lock, MapPin, Play, ShieldCheck, Sparkles } from "lucide-react";
-import heroCity from "@/assets/hero-city.jpg";
 import globe from "@/assets/globe.png";
 import certDigital from "@/assets/cert-digital.jpg";
 import certPremium from "@/assets/cert-premium.jpg";
