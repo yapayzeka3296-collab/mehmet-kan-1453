@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 
@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     init();
 
-    const { data: listener } = supabaseBrowser.auth.onAuthStateChange((event, session) => {
+    const { data: listener } = supabaseBrowser.auth.onAuthStateChange((_event, session) => {
       const sUser = (session as any)?.user ?? null;
       if (sUser) {
         setUser({ id: sUser.id, email: sUser.email });
@@ -127,7 +127,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: true, user: u };
       }
 
-      // signUp may require email confirmation; treat as success but without session
       return { success: true };
     } catch (err: any) {
       const msg = err?.message ?? 'Kayıt sırasında bir hata oluştu';
