@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function GirisForm() {
-  const { signIn, loading, error } = useAuth();
+  const { signIn, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -11,9 +11,15 @@ export default function GirisForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
-    await signIn(email, password);
-    if (error) setMessage(error);
-    else setMessage('Giriş başarılı (yönlendiriliyor)');
+
+    const res = await signIn(email, password);
+
+    if (res.success) {
+      setMessage('Giriş başarılı (yönlendiriliyor)');
+      // TODO: redirect or further navigation can be triggered here
+    } else {
+      setMessage(res.error ?? 'Giriş sırasında bir hata oluştu');
+    }
   }
 
   return (
