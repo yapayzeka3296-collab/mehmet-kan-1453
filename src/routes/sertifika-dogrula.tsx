@@ -8,6 +8,9 @@ import { SECURITY_TRUST, TrustBar } from "@/components/TrustBar";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 export const Route = createFileRoute("/sertifika-dogrula")({
+  validateSearch: (search) => ({
+    code: typeof search.code === "string" ? search.code : "",
+  }),
   head: () => ({
     meta: [
       { title: "Sertifika Doğrula — MySkyParcel" },
@@ -33,7 +36,8 @@ const TIER_LABELS = { digital: "Dijital", elite: "Elit", premium: "Premium" } as
 const CERTIFICATE_PATTERN = /^[A-Z0-9-]{4,80}$/i;
 
 function Dogrula() {
-  const [code, setCode] = useState("");
+  const { code: initialCode } = Route.useSearch();
+  const [code, setCode] = useState(initialCode);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -93,7 +97,7 @@ function Dogrula() {
           <form onSubmit={handleSubmit} noValidate>
             <label className="text-xs text-muted-foreground" htmlFor="kod">Sertifika Numarası</label>
             <div className="mt-2 flex items-center gap-3 rounded-md border border-input bg-background/50 px-3 focus-within:border-gold">
-              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               <input
                 id="kod"
                 value={code}
@@ -116,7 +120,7 @@ function Dogrula() {
             {message && <div className="rounded-md border border-red-300/20 bg-red-500/5 p-4 text-sm text-red-200">{message}</div>}
             {result && (
               <div className="rounded-md border border-gold/30 bg-gold/5 p-5">
-                <div className="flex items-center gap-2 text-sm font-semibold text-gold"><ShieldCheck className="h-5 w-5" /> SERTİFİKA DOĞRULANDI</div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-gold"><ShieldCheck className="h-5 w-5" aria-hidden="true" /> SERTİFİKA DOĞRULANDI</div>
                 <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                   <div><dt className="text-xs text-muted-foreground">Sertifika</dt><dd className="mt-1 font-medium">{result.certificate_number}</dd></div>
                   <div><dt className="text-xs text-muted-foreground">Parsel</dt><dd className="mt-1 font-medium">{result.parcel_number}</dd></div>
@@ -130,7 +134,7 @@ function Dogrula() {
           </div>
 
           <div className="mt-8 flex items-start gap-4 rounded-md border border-border bg-background/40 p-5">
-            <QrCode className="h-8 w-8 shrink-0 text-gold" />
+            <QrCode className="h-8 w-8 shrink-0 text-gold" aria-hidden="true" />
             <p className="min-w-0 text-sm text-muted-foreground">Sertifikanızın üzerindeki QR kodu okutarak da doğrulama yapabilirsiniz. QR kodunuz doğrulama sayfasındaki sertifika numarasını açmalıdır.</p>
           </div>
         </div>
