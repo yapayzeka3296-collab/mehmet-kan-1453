@@ -4,8 +4,8 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
 import { SkyParcelGlobe } from "@/components/SkyParcelGlobe";
-import { ParcelDetailPanel } from "@/components/ParcelDetailPanel";
 import { CITY_IMAGES, CITY_IMAGE_FALLBACK } from "@/lib/cityImages";
+import type { CityImageCode } from "@/lib/cityImages";
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import type { Parcel } from "@/types/parcel";
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/gokyuzu-haritasi")({
   component: Harita,
 });
 
-const PILOT_CITIES = [
+const PILOT_CITIES: ReadonlyArray<{ code: CityImageCode; slug: string; name: string }> = [
   { code: "IST", slug: "istanbul", name: "İstanbul" },
   { code: "ANK", slug: "ankara", name: "Ankara" },
   { code: "IZM", slug: "izmir", name: "İzmir" },
@@ -30,20 +30,22 @@ const PILOT_CITIES = [
   { code: "ANT", slug: "antalya", name: "Antalya" },
   { code: "KAY", slug: "kayseri", name: "Kayseri" },
   { code: "GZT", slug: "gaziantep", name: "Gaziantep" },
-] as const;
+];
 
 const TIER_BY_NUMBER = (number: number) => number <= 500 ? "digital" : number <= 800 ? "elite" : "premium";
 const TIER_PRICE = { digital: 199, elite: 499, premium: 999 } as const;
 
+type Tier = keyof typeof TIER_PRICE;
+
 function Harita() {
-  const [selectedCity, setSelectedCity] = useState("GZT");
+  const [selectedCity, setSelectedCity] = useState<CityImageCode>("GZT");
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const selectedParcel = useMemo(() => parcels.find((parcel) => parcel.id === selectedId) ?? null, [parcels, selectedId]);
-  const selectedCityMeta = PILOT_CITIES.find((city) => city.code === selectedCity) ?? PILOT_CITIES[6];
+  const selectedCityMeta = PILOT_CITIES.find((city) => city.code === selectedCity) ?? PILOT_CITIES[PILOT_CITIES.length - 1];
   const selectedCityImage = CITY_IMAGES[selectedCity] ?? CITY_IMAGE_FALLBACK;
 
   useEffect(() => {
@@ -78,7 +80,7 @@ function Harita() {
 
         const normalized = ((data ?? []) as Array<Parcel & { grid_x?: number; grid_y?: number }>).map((parcel) => {
           const numericCode = Number(parcel.parcel_number.split("-").pop() ?? 0);
-          const tier = TIER_BY_NUMBER(numericCode);
+          const tier = TIER_BY_NUMBER(numericCode) as Tier;
           return { ...parcel, tier, tier_price: TIER_PRICE[tier] } as Parcel;
         });
         if (mounted) setParcels(normalized);
