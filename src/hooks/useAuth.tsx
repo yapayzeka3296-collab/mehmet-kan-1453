@@ -14,7 +14,7 @@ type AuthContextValue = {
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<AuthResult>;
-  signUp: (email: string, password: string) => Promise<AuthResult>;
+  signUp: (email: string, password: string, name?: string) => Promise<AuthResult>;
   signOut: () => Promise<AuthResult>;
 };
 
@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function signUp(email: string, password: string): Promise<AuthResult> {
+  async function signUp(email: string, password: string, name?: string): Promise<AuthResult> {
     setLoading(true);
     setError(null);
     if (!supabaseBrowser) {
@@ -113,7 +113,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { data, error } = await supabaseBrowser.auth.signUp({ email, password });
+      const { data, error } = await supabaseBrowser.auth.signUp({
+        email,
+        password,
+        options: name?.trim()
+          ? { data: { full_name: name.trim() } }
+          : undefined,
+      });
       if (error) {
         const msg = error.message ?? 'Kayıt sırasında bir hata oluştu';
         setError(msg);
