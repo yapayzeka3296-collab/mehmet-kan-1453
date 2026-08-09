@@ -1,53 +1,133 @@
-import { useEffect, useRef } from "react";
-import type { MouseEvent, PointerEvent, WheelEvent } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Parcel } from "@/types/parcel";
 
-type Props={parcels:Parcel[];selectedId:string|null;onSelect:(id:string)=>void};
-type P={x:number;y:number;z:number};
-type Hit={parcel:Parcel;points:P[];center:P;depth:number;sector:number};
-type State={yaw:number;pitch:number;zoom:number;dragging:boolean;moved:boolean;lastX:number;lastY:number;vx:number;vy:number};
-const C={digital:"#4da3ff",elite:"#b68cff",premium:"#e8ad3f"} as const;
-const n=(p:Parcel)=>Number(p.parcel_number.split("-").pop()||1);
-const sec=(p:Parcel)=>Math.max(1,Math.min(100,Math.ceil(n(p)/10)));
-const row=(p:Parcel)=>(n(p)-1)%10;
-const tier=(p:Parcel)=>p.tier==="elite"||p.tier==="premium"?p.tier:"digital";
-function rot(p:P,y:number,pi:number):P{const cy=Math.cos(y),sy=Math.sin(y),cp=Math.cos(pi),sp=Math.sin(pi);const x=p.x*cy-p.z*sy,z=p.x*sy+p.z*cy;return{x,y:p.y*cp-z*sp,z:p.y*sp+z*cp};}
-function pt(lon:number,e:number):P{const a=lon*Math.PI/180,r=e*Math.PI/180,c=Math.cos(r);return{x:c*Math.sin(a),y:Math.sin(r),z:c*Math.cos(a)};}
-function star(ctx:CanvasRenderingContext2D,x:number,y:number,r:number){ctx.beginPath();for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*.38:r,px=x+Math.cos(a)*rr,py=y+Math.sin(a)*rr;i?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.closePath();ctx.fill();}
-export function SkyParcelDomeReference({parcels,selectedId,onSelect}:Props){
- const canvasRef=useRef<HTMLCanvasElement>(null),sel=useRef(selectedId),data=useRef(parcels),hits=useRef<Hit[]>([]);
- const sref=useRef<State>({yaw:0,pitch:.02,zoom:1,dragging:false,moved:false,lastX:0,lastY:0,vx:0,vy:0});
- useEffect(()=>{sel.current=selectedId;data.current=parcels},[selectedId,parcels]);
- useEffect(()=>{const canvas=canvasRef.current,ctx=canvas?.getContext("2d");if(!canvas||!ctx)return;let raf=0,w=0,h=0,dpr=1;
-  const resize=()=>{const r=canvas.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);w=Math.max(320,r.width);h=Math.max(430,r.height);canvas.width=w*dpr;canvas.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)};
-  const proj=(p:P,r:number,cx:number,cy:number)=>({x:cx+p.x*r,y:cy-p.y*r,z:p.z});
-  const draw=()=>{const s=sref.current;if(!s.dragging){s.yaw+=s.vx;s.pitch+=s.vy;s.vx*=.94;s.vy*=.94}s.pitch=Math.max(-.34,Math.min(.38,s.pitch));const r=Math.min(w*.47,h*.39)*s.zoom,cx=w/2,base=h*.64;ctx.clearRect(0,0,w,h);
-   const halo=ctx.createRadialGradient(cx,base-r*.88,r*.04,cx,base-r*.36,r*1.18);halo.addColorStop(0,"rgba(48,143,255,.12)");halo.addColorStop(.62,"rgba(48,143,255,.04)");halo.addColorStop(1,"rgba(0,0,0,0)");ctx.fillStyle=halo;ctx.beginPath();ctx.arc(cx,base,r*1.2,Math.PI,Math.PI*2);ctx.fill();
-   ctx.save();ctx.beginPath();ctx.rect(0,0,w,base+2);ctx.clip();
-   const fill=ctx.createLinearGradient(cx,base-r,cx,base);fill.addColorStop(0,"rgba(35,125,225,.12)");fill.addColorStop(.45,"rgba(14,78,145,.055)");fill.addColorStop(.78,"rgba(8,52,105,.018)");fill.addColorStop(1,"rgba(0,0,0,0)");ctx.fillStyle=fill;ctx.beginPath();ctx.arc(cx,base,r,Math.PI,Math.PI*2);ctx.fill();
-   // Reference-style dome grid: clear parcel lines, fading only toward the lower edge.
-   for(let e=10;e<=80;e+=10){ctx.beginPath();let on=false;for(let lon=-90;lon<=90;lon+=3){const p=rot(pt(lon,e),s.yaw,s.pitch);if(p.z<-.04||p.y<0){on=false;continue}const q=proj(p,r,cx,base);on?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y);on=true}ctx.lineWidth=1;ctx.strokeStyle=`rgba(120,190,255,${(.10+e/80*.20).toFixed(3)})`;ctx.stroke()}
-   for(let lon=-90;lon<=90;lon+=10){ctx.beginPath();let on=false;for(let e=0;e<=90;e+=3){const p=rot(pt(lon,e),s.yaw,s.pitch);if(p.z<-.04||p.y<0){on=false;continue}const q=proj(p,r,cx,base);on?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y);on=true}ctx.lineWidth=1;ctx.strokeStyle="rgba(120,190,255,.22)";ctx.stroke()}
-   const by=new Map<number,Parcel[]>();[...data.current()].sort((a,b)=>n(a)-n(b)).forEach(p=>{const k=sec(p),list=by.get(k)||[];list.push(p);by.set(k,list)});
-   // Six sectors x ten rows = 60 parcels in the initial view. Rotation changes the six-sector window; positions remain stable.
-   const center=((Math.floor(((s.yaw/(Math.PI*2))*100)%100)+100)%100)+1,visible:number[]=[];for(let i=-2;i<=3;i++)visible.push(((center-1+i+100)%100)+1);
-   const hs:Hit[]=[];visible.forEach(k=>{const list=(by.get(k)||[]).sort((a,b)=>row(a)-row(b));for(let rr=0;rr<10;rr++){const p=list.find(x=>row(x)===rr);if(!p)continue;
-     // Rows are fixed: top 5 Digital, middle 3 Elite, bottom 2 Premium. Each sector has ten parcels.
-     const lon0=-72+(k-1)*1.44+.06,lon1=lon0+1.30,e0=10+rr*7.25,e1=e0+6.35;
-     const raw=[pt(lon0,e0),pt(lon1,e0),pt(lon1,e1),pt(lon0,e1)].map(x=>rot(x,s.yaw,s.pitch)),c=rot(pt((lon0+lon1)/2,(e0+e1)/2),s.yaw,s.pitch);if(c.z<.02||c.y<-.08)continue;
-     hs.push({parcel:p,points:raw.map(x=>proj(x,r,cx,base)),center:proj(c,r,cx,base),depth:c.z,sector:k})
-   }});hs.sort((a,b)=>a.depth-b.depth);hits.current=hs;
-   for(const item of hs){const selected=item.parcel.id===sel.current,color=C[tier(item.parcel)],v=Math.max(.25,Math.min(1,item.depth));ctx.beginPath();item.points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=selected?color+"dd":color+Math.round((.035+v*.07)*255).toString(16).padStart(2,"0");ctx.fill();ctx.lineWidth=selected?2.8:1.8;ctx.strokeStyle=selected?color:color+Math.round((.58+v*.32)*255).toString(16).padStart(2,"0");ctx.stroke();ctx.font="700 9px Inter,system-ui,sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillStyle=`rgba(238,247,255,${Math.min(.96,.66+v*.3)})`;ctx.fillText(`S${item.sector}`,item.center.x,item.center.y);
-     if(selected){ctx.save();ctx.shadowColor=color;ctx.shadowBlur=24;ctx.strokeStyle=color;ctx.lineWidth=3;ctx.beginPath();item.points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.stroke();ctx.fillStyle="#fff7d6";star(ctx,item.center.x,item.center.y,Math.max(8,r*.018));ctx.restore();const label=item.parcel.parcel_number;ctx.font="700 12px Inter,system-ui,sans-serif";ctx.textAlign="left";const lw=ctx.measureText(label).width+26,bx=Math.min(w-lw-12,Math.max(12,item.center.x+18)),by=Math.max(12,item.center.y-48);ctx.fillStyle="rgba(3,12,27,.97)";ctx.strokeStyle=color;ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(bx,by,lw,32,7);ctx.fill();ctx.stroke();ctx.fillStyle="#fff";ctx.fillText(label,bx+13,by+21)}}
-   // No yellow baseline: only a very soft blue upper-atmosphere arc.
-   const edge=ctx.createLinearGradient(cx,base,cx,base-r);edge.addColorStop(0,"rgba(80,160,240,0)");edge.addColorStop(.55,"rgba(80,160,240,.05)");edge.addColorStop(1,"rgba(124,198,255,.20)");ctx.save();ctx.lineWidth=1.1;ctx.shadowColor="rgba(77,165,255,.14)";ctx.shadowBlur=10;ctx.strokeStyle=edge;ctx.beginPath();ctx.arc(cx,base,r,Math.PI,Math.PI*2);ctx.stroke();ctx.restore();ctx.restore();raf=requestAnimationFrame(draw)};
-  resize();window.addEventListener("resize",resize);raf=requestAnimationFrame(draw);return()=>{cancelAnimationFrame(raf);window.removeEventListener("resize",resize)}
- },[]);
- const down=(e:PointerEvent<HTMLCanvasElement>)=>{const s=sref.current;s.dragging=true;s.moved=false;s.vx=0;s.vy=0;s.lastX=e.clientX;s.lastY=e.clientY;e.currentTarget.setPointerCapture(e.pointerId)};
- const move=(e:PointerEvent<HTMLCanvasElement>)=>{const s=sref.current;if(!s.dragging)return;const dx=e.clientX-s.lastX,dy=e.clientY-s.lastY;if(Math.abs(dx)+Math.abs(dy)>3)s.moved=true;s.yaw+=dx*.0068;s.pitch-=dy*.004;s.vx=dx*.00105;s.vy=-dy*.0005;s.lastX=e.clientX;s.lastY=e.clientY};
- const up=(e:PointerEvent<HTMLCanvasElement>)=>{sref.current.dragging=false;try{e.currentTarget.releasePointerCapture(e.pointerId)}catch{}};
- const click=(e:MouseEvent<HTMLCanvasElement>)=>{if(sref.current.moved)return;const r=e.currentTarget.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let best:Hit|null=null;for(const item of hits.current){const d=Math.hypot(x-item.center.x,y-item.center.y);if(d<30&&(!best||item.depth>best.depth||d<Math.hypot(x-best.center.x,y-best.center.y)))best=item}if(best)onSelect(best.parcel.id)};
- const wheel=(e:WheelEvent<HTMLCanvasElement>)=>{e.preventDefault();sref.current.zoom=Math.max(.86,Math.min(1.1,sref.current.zoom-e.deltaY*.0005))};
- const reset=()=>{sref.current.yaw=0;sref.current.pitch=.02;sref.current.zoom=1;sref.current.vx=0;sref.current.vy=0};
- return <div className="relative w-full -mt-5 sm:-mt-7"><canvas ref={canvasRef} className="h-[500px] w-full touch-none select-none sm:h-[560px]" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onClick={click} onWheel={wheel} aria-label="Havada duran dijital gökyüzü kubbesi"/><button type="button" onClick={reset} className="absolute right-3 top-3 rounded-md border border-gold/25 bg-navy-deep/65 px-3 py-2 text-[10px] text-gold backdrop-blur-sm">↻ SIFIRLA</button></div>;
+type Props = { parcels: Parcel[]; selectedId: string | null; onSelect: (id: string) => void };
+type Point = { x: number; y: number };
+type Cell = { parcel: Parcel; sector: number; row: number; points: Point[]; center: Point };
+
+const COLORS = { digital: "#4aa9ff", elite: "#a879ff", premium: "#f0b84b" } as const;
+const numberOf = (p: Parcel) => Number(p.parcel_number.split("-").pop() || 0);
+const sectorOf = (p: Parcel) => Math.max(1, Math.min(100, Math.ceil(numberOf(p) / 10)));
+const rowOf = (p: Parcel) => (numberOf(p) - 1) % 10;
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+
+/** Reference-inspired floating digital sky dome. SVG is used deliberately so tablet pointer hit-testing is deterministic. */
+export function SkyParcelDomeReference({ parcels, selectedId, onSelect }: Props) {
+  const [yaw, setYaw] = useState(0);
+  const [pitch, setPitch] = useState(0);
+  const drag = useRef({ active: false, x: 0, y: 0, moved: false });
+  const bySector = useMemo(() => {
+    const map = new Map<number, Parcel[]>();
+    [...parcels].sort((a, b) => numberOf(a) - numberOf(b)).forEach((p) => {
+      const list = map.get(sectorOf(p)) ?? [];
+      list.push(p);
+      map.set(sectorOf(p), list);
+    });
+    return map;
+  }, [parcels]);
+
+  // Initial viewport = 6 sectors x 10 parcels = 60 real Supabase parcels.
+  // As yaw changes, the viewport advances through the 100 real sectors without changing cell geometry.
+  const centerSector = ((Math.round((yaw / (Math.PI * 2)) * 100) % 100) + 100) % 100 + 1;
+  const visibleSectors = Array.from({ length: 6 }, (_, i) => ((centerSector - 3 + i + 100) % 100) + 1);
+
+  const cells: Cell[] = visibleSectors.flatMap((sector, col) => {
+    const list = (bySector.get(sector) ?? []).sort((a, b) => rowOf(a) - rowOf(b));
+    return Array.from({ length: 10 }, (_, row) => {
+      const parcel = list.find((p) => rowOf(p) === row);
+      if (!parcel) return null;
+      const angle = ((col - 2.5) / 2.5) * 0.86 + (yaw % (Math.PI * 2)) * 0.025;
+      const x = 500 + Math.sin(angle) * 380;
+      const surface = 365 - Math.cos(angle) * 150;
+      const y = surface - row * 25 - pitch * 72;
+      const w = 108 - Math.abs(col - 2.5) * 8;
+      const h = 21;
+      const skew = Math.sin(angle) * 11;
+      const points = [
+        { x: x - w / 2 + skew, y }, { x: x + w / 2 + skew, y },
+        { x: x + w / 2 - skew, y: y - h }, { x: x - w / 2 - skew, y: y - h },
+      ];
+      return { parcel, sector, row, points, center: { x, y: y - h / 2 } };
+    }).filter((x): x is Cell => Boolean(x));
+  });
+
+  const down = (e: ReactPointerEvent<SVGSVGElement>) => {
+    drag.current = { active: true, x: e.clientX, y: e.clientY, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const move = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (!drag.current.active) return;
+    const dx = e.clientX - drag.current.x;
+    const dy = e.clientY - drag.current.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) drag.current.moved = true;
+    setYaw((v) => v + dx * 0.012);
+    setPitch((v) => clamp(v - dy * 0.006, -1, 1));
+    drag.current.x = e.clientX;
+    drag.current.y = e.clientY;
+  };
+  const up = (e: ReactPointerEvent<SVGSVGElement>) => {
+    drag.current.active = false;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+  };
+
+  return (
+    <div className="relative -mt-8 w-full select-none sm:-mt-12">
+      <svg viewBox="0 0 1000 520" className="block h-[490px] w-full touch-none overflow-visible sm:h-[550px]" role="img" aria-label="Havada duran dijital gökyüzü kubbesi" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+        <defs>
+          <linearGradient id="domeFade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#1e7fd5" stopOpacity=".17" />
+            <stop offset=".48" stopColor="#14588e" stopOpacity=".075" />
+            <stop offset=".82" stopColor="#0b3158" stopOpacity=".02" />
+            <stop offset="1" stopColor="#082039" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="blueAtmosphere" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#7bcfff" stopOpacity=".45" />
+            <stop offset=".55" stopColor="#3c9bea" stopOpacity=".12" />
+            <stop offset="1" stopColor="#3c9bea" stopOpacity="0" />
+          </linearGradient>
+          <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5" /></filter>
+          <filter id="glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="7" /></filter>
+        </defs>
+
+        {/* Wide, high, floating dome. Its lower edge fades into the city instead of forming a hard baseline. */}
+        <path d="M 72 386 A 428 330 0 0 1 928 386 L 850 388 A 350 270 0 0 0 150 388 Z" fill="url(#domeFade)" />
+        <path d="M 78 386 A 422 326 0 0 1 922 386" fill="none" stroke="url(#blueAtmosphere)" strokeWidth="14" opacity=".25" filter="url(#soft)" />
+        <path d="M 80 386 A 420 323 0 0 1 920 386" fill="none" stroke="#5db8ff" strokeWidth="1.5" opacity=".48" />
+
+        {/* Clear blue parcel grid. No yellow lower line. */}
+        {Array.from({ length: 11 }, (_, i) => {
+          const y = 116 + i * 25 - pitch * 25;
+          return <path key={`h${i}`} d={`M ${130 - i * 4} ${y} Q 500 ${y - 40} ${870 + i * 4} ${y}`} fill="none" stroke="#67bcff" strokeWidth="1.25" opacity={0.7 - i * 0.035} />;
+        })}
+        {Array.from({ length: 13 }, (_, i) => {
+          const x = 150 + i * 58 + Math.sin(yaw) * 7;
+          return <path key={`v${i}`} d={`M ${x} 108 Q ${500 + (x - 500) * .72} 250 ${x + (x - 500) * .16} 386`} fill="none" stroke="#55aff9" strokeWidth="1.15" opacity=".64" />;
+        })}
+
+        {cells.map(({ parcel, sector, points, center }) => {
+          const color = COLORS[parcel.tier];
+          const selected = parcel.id === selectedId;
+          const polygon = points.map((p) => `${p.x},${p.y}`).join(" ");
+          return (
+            <g key={parcel.id}>
+              {selected && <polygon points={polygon} fill={color} opacity=".42" filter="url(#glow)" />}
+              <polygon points={polygon} fill={selected ? color : "rgba(5,25,48,.20)"} stroke={color} strokeWidth={selected ? 3 : 1.9} opacity={selected ? 1 : .96} style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); if (!drag.current.moved) onSelect(parcel.id); }} />
+              <text x={center.x} y={center.y + 1} textAnchor="middle" dominantBaseline="middle" fill="#f0f8ff" fontSize="10" fontWeight="700" pointerEvents="none">S{sector}</text>
+              {selected && <g pointerEvents="none">
+                <path d={`M ${center.x} ${center.y - 8} l 2.5 5.5 6 .5 -4.5 4 1.4 6 -5.4 -3.1 -5.4 3.1 1.4 -6 -4.5 -4 6 -.5 Z`} fill="#fff9dc" />
+                <rect x={center.x + 14} y={center.y - 28} width={Math.max(112, parcel.parcel_number.length * 7.2)} height="28" rx="7" fill="#06172a" stroke={color} strokeWidth="1.3" />
+                <text x={center.x + 24} y={center.y - 10} fill="#fff" fontSize="11" fontWeight="700">{parcel.parcel_number}</text>
+              </g>}
+            </g>
+          );
+        })}
+
+        {/* Bottom transparency only; the city remains visually dominant. */}
+        <path d="M 100 386 A 400 315 0 0 0 900 386 L 900 440 L 100 440 Z" fill="url(#domeFade)" opacity=".48" pointerEvents="none" />
+        <text x="500" y="454" textAnchor="middle" fill="#76bfff" fontSize="9" letterSpacing="2.2" opacity=".5" pointerEvents="none">HAVADA ASILI DİJİTAL GÖKYÜZÜ</text>
+      </svg>
+      <button type="button" onClick={() => { setYaw(0); setPitch(0); }} className="absolute right-3 top-2 rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-[10px] text-sky-200 backdrop-blur-sm">↻ SIFIRLA</button>
+    </div>
+  );
 }
