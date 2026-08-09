@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MapPin, Search } from "lucide-react";
 import globe from "@/assets/globe.png";
-import heroCity from "@/assets/hero-city.jpg";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
 import { ParcelMap } from "@/components/ParcelMap";
 import { ParcelDetailPanel } from "@/components/ParcelDetailPanel";
+import { CITY_IMAGES, CITY_IMAGE_FALLBACK } from "@/lib/cityImages";
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import type { Parcel } from "@/types/parcel";
@@ -44,6 +44,9 @@ function Harita() {
     () => parcels.find((parcel) => parcel.id === selectedId) ?? null,
     [parcels, selectedId],
   );
+
+  const selectedCityName = PILOT_CITIES.find((city) => city.code === selectedCity)?.name ?? "Gaziantep";
+  const selectedCityImage = CITY_IMAGES[selectedCity] ?? CITY_IMAGE_FALLBACK;
 
   useEffect(() => {
     let mounted = true;
@@ -140,7 +143,15 @@ function Harita() {
           </aside>
 
           <div className="panel relative min-h-[600px] overflow-hidden p-4 sm:p-6">
-            <img src={heroCity} alt="" aria-hidden loading="lazy" width={1920} height={1088} className="absolute inset-x-0 bottom-0 h-1/2 w-full object-cover opacity-30" />
+            <img
+              src={selectedCityImage}
+              alt={`${selectedCityName} şehir manzarası`}
+              loading="lazy"
+              width={1920}
+              height={1080}
+              className="absolute inset-x-0 bottom-0 h-1/2 w-full object-cover opacity-30 transition-opacity duration-500"
+            />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-background/90 via-background/35 to-transparent" />
             <img src={globe} alt="MySkyParcel 3D küre" loading="lazy" width={1024} height={1024} className="relative mx-auto h-[380px] w-auto opacity-70 mix-blend-screen sm:h-[480px]" />
 
             <div className="relative -mt-12 min-h-[120px]">
@@ -164,9 +175,7 @@ function Harita() {
             )}
 
             <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-md bg-navy-deep/90 px-4 py-2 text-center">
-              <p className="text-sm font-semibold text-gold">
-                {PILOT_CITIES.find((city) => city.code === selectedCity)?.name}
-              </p>
+              <p className="text-sm font-semibold text-gold">{selectedCityName}</p>
               <p className="text-[10px] text-muted-foreground">
                 {parcels.length.toLocaleString("tr-TR")} parsel · dokunarak seç
               </p>
