@@ -4,17 +4,17 @@ import type { LucideIcon } from "lucide-react";
 export type TrustItem = { icon: LucideIcon; title: string; text: string };
 
 export const DEFAULT_TRUST: TrustItem[] = [
-  { icon: Lock, title: "GÜVENLİ ÖDEME", text: "256 Bit SSL ile korunur" },
-  { icon: Truck, title: "HIZLI TESLİMAT", text: "Dijital ürün anında teslim" },
-  { icon: Headphones, title: "7/24 CANLI DESTEK", text: "Her zaman yanınızdayız!" },
+  { icon: Lock, title: "GÜVENLİ ALTYAPI", text: "Güvenlik altyapısı yayın öncesi ayrıca doğrulanmalıdır" },
+  { icon: Truck, title: "HIZLI TESLİMAT", text: "Dijital teslimat akışı yayın öncesi doğrulanmalıdır" },
+  { icon: Headphones, title: "DESTEK", text: "Destek bilgileri için iletişim sayfasını ziyaret edin" },
   { icon: Award, title: "KOLEKSİYONUNA KAT", text: "Gökyüzündeki yerini koleksiyonuna ekle" },
 ];
 
 export const SECURITY_TRUST: TrustItem[] = [
-  { icon: ShieldCheck, title: "256 BİT SSL GÜVENLİK", text: "Tüm bilgileriniz 256 Bit SSL ile korunur." },
-  { icon: Lock, title: "GÜVENLİ ÖDEME", text: "Güvenli ödeme altyapısı ile korunur." },
-  { icon: Truck, title: "HIZLI TESLİMAT", text: "Sertifikanız dijital olarak anında teslim edilir." },
-  { icon: Headphones, title: "7/24 DESTEK", text: "Her zaman yanınızdayız. Sorularınız için bize ulaşın." },
+  { icon: ShieldCheck, title: "GÜVENLİK ALTYAPISI", text: "Teknik güvenlik yapılandırması yayın öncesi doğrulanmalıdır." },
+  { icon: Lock, title: "GÜVENLİ ÖDEME", text: "Ödeme altyapısı ve sağlayıcı doğrulaması yayın öncesi tamamlanmalıdır." },
+  { icon: Truck, title: "HIZLI TESLİMAT", text: "Sertifika teslim akışı yayın öncesi doğrulanmalıdır." },
+  { icon: Headphones, title: "DESTEK", text: "Destek bilgileri için iletişim sayfasını ziyaret edin." },
 ];
 
 export function TrustBar({ items = DEFAULT_TRUST }: { items?: TrustItem[] }) {
