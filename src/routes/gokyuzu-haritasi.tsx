@@ -11,93 +11,26 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import type { Parcel } from "@/types/parcel";
 
 export const Route = createFileRoute("/gokyuzu-haritasi")({
-  head: () => ({ meta: [
-    { title: "Gökyüzü Haritası — MySkyParcel" },
-    { name: "description", content: "Pilot şehirlerdeki MySkyParcel parsellerini referans tasarıma göre havada duran dijital gökyüzü kubbesi üzerinden keşfet." },
-    { property: "og:title", content: "Gökyüzü Haritası — MySkyParcel" },
-    { property: "og:description", content: "İstanbul, Ankara, İzmir, Bursa, Antalya, Kayseri ve Gaziantep parsellerini keşfet." },
-  ] }),
+  head: () => ({ meta: [{ title: "Gökyüzü Haritası — MySkyParcel" }, { name: "description", content: "Pilot şehirlerdeki MySkyParcel parsellerini dijital gökyüzü kubbesi üzerinden keşfet." }] }),
   component: Harita,
 });
 
 const PILOT_CITIES = [
-  { code: "IST", slug: "istanbul", name: "İstanbul" },
-  { code: "ANK", slug: "ankara", name: "Ankara" },
-  { code: "IZM", slug: "izmir", name: "İzmir" },
-  { code: "BUR", slug: "bursa", name: "Bursa" },
-  { code: "ANT", slug: "antalya", name: "Antalya" },
-  { code: "KAY", slug: "kayseri", name: "Kayseri" },
-  { code: "GZT", slug: "gaziantep", name: "Gaziantep" },
+  { code: "IST", slug: "istanbul", name: "İstanbul" }, { code: "ANK", slug: "ankara", name: "Ankara" }, { code: "IZM", slug: "izmir", name: "İzmir" },
+  { code: "BUR", slug: "bursa", name: "Bursa" }, { code: "ANT", slug: "antalya", name: "Antalya" }, { code: "KAY", slug: "kayseri", name: "Kayseri" }, { code: "GZT", slug: "gaziantep", name: "Gaziantep" },
 ] as const;
+const TIER_BY_NUMBER = (n:number) => n<=500 ? "digital" : n<=800 ? "elite" : "premium";
+const TIER_PRICE = { digital:199, elite:499, premium:999 } as const;
 
-const TIER_BY_NUMBER = (number: number) => number <= 500 ? "digital" : number <= 800 ? "elite" : "premium";
-const TIER_PRICE = { digital: 199, elite: 499, premium: 999 } as const;
-
-function Harita() {
-  const [selectedCity, setSelectedCity] = useState("GZT");
-  const [parcels, setParcels] = useState<Parcel[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const selectedParcel = useMemo(() => parcels.find((parcel) => parcel.id === selectedId) ?? null, [parcels, selectedId]);
-  const selectedCityMeta = PILOT_CITIES.find((city) => city.code === selectedCity) ?? PILOT_CITIES[6];
-  const selectedCityImage = CITY_IMAGES[selectedCity] ?? CITY_IMAGE_FALLBACK;
-
-  useEffect(() => {
-    let mounted = true;
-    async function loadParcels() {
-      if (!supabaseBrowser) { setError("Supabase yapılandırması eksik"); setLoading(false); return; }
-      setLoading(true); setError(null); setSelectedId(null);
-      try {
-        const { data: city, error: cityError } = await supabaseBrowser.from("cities").select("id,name,slug").eq("slug", selectedCityMeta.slug).single();
-        if (cityError) throw cityError;
-        const { data, error: parcelError } = await supabaseBrowser.from("parcels").select("id, parcel_number, status, owner_id, price, city_id, latitude, longitude, created_at, updated_at, grid_x, grid_y").eq("city_id", city.id).order("parcel_number").limit(1000);
-        if (parcelError) throw parcelError;
-        const normalized = ((data ?? []) as Array<Parcel & { grid_x?: number; grid_y?: number }>).map((parcel) => {
-          const numericCode = Number(parcel.parcel_number.split("-").pop() ?? 0);
-          const tier = TIER_BY_NUMBER(numericCode);
-          return { ...parcel, tier, tier_price: TIER_PRICE[tier] } as Parcel;
-        });
-        if (mounted) setParcels(normalized);
-      } catch (err) {
-        console.error("Error loading pilot city parcels", err);
-        if (mounted) setError("Şehrin gerçek parselleri yüklenemedi. Supabase bağlantısını kontrol edin.");
-      } finally { if (mounted) setLoading(false); }
-    }
-    void loadParcels(); return () => { mounted = false; };
-  }, [selectedCityMeta.slug]);
-
-  return (
-    <div className="starfield min-h-screen">
-      <SiteHeader />
-      <main className="mx-auto max-w-[1600px] px-4 py-12 lg:px-8">
-        <div className="text-center">
-          <h1 className="font-display text-4xl font-bold sm:text-5xl">GÖKYÜZÜ HARİTASI</h1>
-          <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground">Küreyi keşfet, pilot şehrini seç ve bir parsele dokun. Parsel kodu yalnızca seçtiğinde gösterilir.</p>
-        </div>
-        <div className="mt-10 grid gap-6 lg:grid-cols-[300px_1fr]">
-          <aside className="panel grid content-start gap-5 p-5">
-            <div className="flex items-center gap-2 rounded-md border border-input bg-background/50 px-3"><Search className="h-4 w-4 shrink-0 text-muted-foreground" /><input placeholder="Pilot şehir ara..." className="min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none" aria-label="Pilot şehir ara" /></div>
-            <div><p className="mb-2 text-xs text-muted-foreground">Pilot şehirler · 1.000 parsel</p><ul className="grid gap-1">{PILOT_CITIES.map((city) => <li key={city.code}><button type="button" onClick={() => setSelectedCity(city.code)} className={`flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm ${selectedCity === city.code ? "border border-gold/50 bg-accent text-gold" : "hover:bg-accent hover:text-gold"}`}><MapPin className="h-4 w-4 shrink-0" />{city.name}</button></li>)}</ul></div>
-            <div className="rounded-md border border-gold/20 bg-background/30 p-3 text-xs"><p className="font-semibold text-gold">PARSEL STATÜLERİ</p><p className="mt-2 text-muted-foreground">%50 Dijital · 199 TL</p><p className="text-muted-foreground">%30 Elit · 499 TL</p><p className="text-muted-foreground">%20 Premium · 999 TL</p></div>
-          </aside>
-          <div className="panel relative min-h-[600px] overflow-hidden p-4 sm:p-6">
-            <img key={selectedCityImage} src={selectedCityImage} alt={`${selectedCityMeta.name} şehir manzarası`} loading="eager" width={1536} height={864} onError={(event) => { if (event.currentTarget.src.endsWith(CITY_IMAGE_FALLBACK)) return; event.currentTarget.src = CITY_IMAGE_FALLBACK; }} className="absolute inset-0 h-full w-full object-cover opacity-32 transition-all duration-700 scale-[1.02]" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/45 via-transparent to-background/40" />
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_22%,rgba(24,78,145,0.10),transparent_48%)]" />
-            <div className="relative z-10">
-              <div className="mb-1 flex items-center justify-center gap-3 text-center"><span className="hidden h-px w-16 bg-gold/60 sm:block" /><div><h2 className="font-display text-2xl font-semibold tracking-[0.08em] sm:text-3xl">{selectedCityMeta.name.toUpperCase()} GÖKYÜZÜ</h2><p className="mt-1 text-xs tracking-[0.12em] text-muted-foreground">1.000 ADET SEMBOLİK GÖKYÜZÜ PARSELİ</p></div><span className="hidden h-px w-16 bg-gold/60 sm:block" /></div>
-              {loading && <p className="py-10 text-center text-sm text-muted-foreground">Gerçek parseller yükleniyor...</p>}
-              {error && <p className="py-10 text-center text-sm text-red-300">{error}</p>}
-              {!loading && !error && parcels.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Bu pilot şehirde henüz parsel bulunamadı.</p>}
-              {!error && <SkyParcelDomeReference parcels={parcels} selectedId={selectedId} onSelect={setSelectedId} />}
-            </div>
-            {selectedParcel && <ParcelDetailPanel parcel={selectedParcel} onClose={() => setSelectedId(null)} onReserved={(parcel) => setParcels((prev) => prev.map((item) => item.id === parcel.id ? parcel : item))} />}
-          </div>
-        </div>
-      </main>
-      <TrustBar />
-      <SiteFooter />
-    </div>
-  );
+function Harita(){
+ const [selectedCity,setSelectedCity]=useState("GZT"),[parcels,setParcels]=useState<Parcel[]>([]),[selectedId,setSelectedId]=useState<string|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState<string|null>(null);
+ const selectedParcel=useMemo(()=>parcels.find(p=>p.id===selectedId)??null,[parcels,selectedId]);
+ const city=PILOT_CITIES.find(c=>c.code===selectedCity)??PILOT_CITIES[6],cityImage=CITY_IMAGES[selectedCity]??CITY_IMAGE_FALLBACK;
+ useEffect(()=>{let mounted=true;async function load(){if(!supabaseBrowser){setError("Supabase yapılandırması eksik");setLoading(false);return;}setLoading(true);setError(null);setSelectedId(null);try{const {data:cityRow,error:ce}=await supabaseBrowser.from("cities").select("id,name,slug").eq("slug",city.slug).single();if(ce)throw ce;const {data,error:pe}=await supabaseBrowser.from("parcels").select("id, parcel_number, status, owner_id, price, city_id, latitude, longitude, created_at, updated_at, grid_x, grid_y").eq("city_id",cityRow.id).order("parcel_number").limit(1000);if(pe)throw pe;const normalized=((data??[]) as Array<Parcel & {grid_x?:number;grid_y?:number}>).map(p=>{const n=Number(p.parcel_number.split("-").pop()??0),t=TIER_BY_NUMBER(n);return {...p,tier:t,tier_price:TIER_PRICE[t]} as Parcel;});if(mounted)setParcels(normalized);}catch(err){console.error("Error loading pilot city parcels",err);if(mounted)setError("Şehrin gerçek parselleri yüklenemedi. Supabase bağlantısını kontrol edin.");}finally{if(mounted)setLoading(false);}}void load();return()=>{mounted=false;};},[city.slug]);
+ return <div className="starfield min-h-screen"><SiteHeader/><main className="mx-auto max-w-[1800px] px-4 py-8 lg:px-6"><div className="text-center"><h1 className="font-display text-2xl font-bold tracking-[0.08em] sm:text-3xl">GÖKYÜZÜ HARİTASI</h1><p className="mx-auto mt-2 max-w-xl text-xs text-muted-foreground">Küreyi keşfet, pilot şehrini seç ve bir parsele dokun.</p></div>
+  <div className="mt-6 grid items-start gap-4 lg:grid-cols-[270px_minmax(0,1fr)_320px]">
+   <aside className="panel grid content-start gap-5 p-4"><div className="flex items-center gap-2 rounded-md border border-input bg-background/50 px-3"><Search className="h-4 w-4 shrink-0 text-muted-foreground"/><input placeholder="Pilot şehir ara..." className="min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none" aria-label="Pilot şehir ara"/></div><div><p className="mb-2 text-xs text-muted-foreground">Pilot şehirler · 1.000 parsel</p><ul className="grid gap-1">{PILOT_CITIES.map(c=><li key={c.code}><button type="button" onClick={()=>setSelectedCity(c.code)} className={`flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm ${selectedCity===c.code?"border border-gold/50 bg-accent text-gold":"hover:bg-accent hover:text-gold"}`}><MapPin className="h-4 w-4 shrink-0"/>{c.name}</button></li>)}</ul></div><div className="rounded-md border border-gold/20 bg-background/30 p-3 text-xs"><p className="font-semibold text-gold">PARSEL STATÜLERİ</p><p className="mt-2 text-muted-foreground">%50 Dijital · 199 TL</p><p className="text-muted-foreground">%30 Elit · 499 TL</p><p className="text-muted-foreground">%20 Premium · 999 TL</p></div></aside>
+   <section className="panel relative min-h-[600px] overflow-hidden p-3 sm:p-5"><img key={cityImage} src={cityImage} alt={`${city.name} şehir manzarası`} loading="eager" width={1536} height={864} onError={e=>{if(!e.currentTarget.src.endsWith(CITY_IMAGE_FALLBACK))e.currentTarget.src=CITY_IMAGE_FALLBACK;}} className="absolute inset-0 h-full w-full scale-[1.02] object-cover opacity-32 transition-all duration-700"/><div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/45 via-transparent to-background/35"/><div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,rgba(24,78,145,0.08),transparent_50%)]"/><div className="relative z-10"><div className="mb-0 flex items-center justify-center gap-2 text-center"><span className="hidden h-px w-10 bg-gold/55 sm:block"/><div><h2 className="font-display text-xl font-semibold tracking-[0.07em] sm:text-2xl">{city.name.toUpperCase()} GÖKYÜZÜ</h2><p className="mt-0.5 text-[10px] tracking-[0.12em] text-muted-foreground sm:text-xs">1.000 ADET SEMBOLİK GÖKYÜZÜ PARSELİ</p></div><span className="hidden h-px w-10 bg-gold/55 sm:block"/></div>{loading&&<p className="py-10 text-center text-sm text-muted-foreground">Gerçek parseller yükleniyor...</p>}{error&&<p className="py-10 text-center text-sm text-red-300">{error}</p>}{!loading&&!error&&parcels.length===0&&<p className="py-10 text-center text-sm text-muted-foreground">Bu pilot şehirde henüz parsel bulunamadı.</p>}{!error&&<SkyParcelDomeReference parcels={parcels} selectedId={selectedId} onSelect={setSelectedId}/>}</div></section>
+   {selectedParcel ? <div className="lg:sticky lg:top-4"><ParcelDetailPanel parcel={selectedParcel} onClose={()=>setSelectedId(null)} onReserved={p=>setParcels(prev=>prev.map(item=>item.id===p.id?p:item))}/></div> : <aside className="panel hidden min-h-[260px] p-5 lg:block"><p className="text-xs font-semibold text-gold">SEÇİLEN PARSEL</p><p className="mt-3 text-sm text-muted-foreground">Kubbeden bir parsel seçtiğinde detayları burada açılacak.</p></aside>}
+  </div></main><TrustBar/><SiteFooter/></div>;
 }
