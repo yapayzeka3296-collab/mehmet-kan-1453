@@ -3,7 +3,7 @@ import { MapPin, Search } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
-import { SkyParcelDomeV2 } from "@/components/SkyParcelDomeV2";
+import { SkyParcelDomeReference } from "@/components/SkyParcelDomeReference";
 import { ParcelDetailPanel } from "@/components/ParcelDetailPanel";
 import { CITY_IMAGES, CITY_IMAGE_FALLBACK } from "@/lib/cityImages";
 import { useEffect, useMemo, useState } from "react";
@@ -11,14 +11,12 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import type { Parcel } from "@/types/parcel";
 
 export const Route = createFileRoute("/gokyuzu-haritasi")({
-  head: () => ({
-    meta: [
-      { title: "Gökyüzü Haritası — MySkyParcel" },
-      { name: "description", content: "Pilot şehirlerdeki MySkyParcel parsellerini 3D dijital gökyüzü kubbesi üzerinden keşfet." },
-      { property: "og:title", content: "Gökyüzü Haritası — MySkyParcel" },
-      { property: "og:description", content: "İstanbul, Ankara, İzmir, Bursa, Antalya, Kayseri ve Gaziantep parsellerini keşfet." },
-    ],
-  }),
+  head: () => ({ meta: [
+    { title: "Gökyüzü Haritası — MySkyParcel" },
+    { name: "description", content: "Pilot şehirlerdeki MySkyParcel parsellerini referans tasarıma göre havada duran dijital gökyüzü kubbesi üzerinden keşfet." },
+    { property: "og:title", content: "Gökyüzü Haritası — MySkyParcel" },
+    { property: "og:description", content: "İstanbul, Ankara, İzmir, Bursa, Antalya, Kayseri ve Gaziantep parsellerini keşfet." },
+  ] }),
   component: Harita,
 });
 
@@ -77,47 +75,23 @@ function Harita() {
           <h1 className="font-display text-4xl font-bold sm:text-5xl">GÖKYÜZÜ HARİTASI</h1>
           <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground">Küreyi keşfet, pilot şehrini seç ve bir parsele dokun. Parsel kodu yalnızca seçtiğinde gösterilir.</p>
         </div>
-
         <div className="mt-10 grid gap-6 lg:grid-cols-[300px_1fr]">
           <aside className="panel grid content-start gap-5 p-5">
-            <div className="flex items-center gap-2 rounded-md border border-input bg-background/50 px-3">
-              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <input placeholder="Pilot şehir ara..." className="min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none" aria-label="Pilot şehir ara" />
-            </div>
-            <div>
-              <p className="mb-2 text-xs text-muted-foreground">Pilot şehirler · 1.000 parsel</p>
-              <ul className="grid gap-1">
-                {PILOT_CITIES.map((city) => <li key={city.code}><button type="button" onClick={() => setSelectedCity(city.code)} className={`flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm ${selectedCity === city.code ? "border border-gold/50 bg-accent text-gold" : "hover:bg-accent hover:text-gold"}`}><MapPin className="h-4 w-4 shrink-0" />{city.name}</button></li>)}
-              </ul>
-            </div>
-            <div className="rounded-md border border-gold/20 bg-background/30 p-3 text-xs">
-              <p className="font-semibold text-gold">PARSEL STATÜLERİ</p>
-              <p className="mt-2 text-muted-foreground">%50 Dijital · 199 TL</p>
-              <p className="text-muted-foreground">%30 Elit · 499 TL</p>
-              <p className="text-muted-foreground">%20 Premium · 999 TL</p>
-            </div>
+            <div className="flex items-center gap-2 rounded-md border border-input bg-background/50 px-3"><Search className="h-4 w-4 shrink-0 text-muted-foreground" /><input placeholder="Pilot şehir ara..." className="min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none" aria-label="Pilot şehir ara" /></div>
+            <div><p className="mb-2 text-xs text-muted-foreground">Pilot şehirler · 1.000 parsel</p><ul className="grid gap-1">{PILOT_CITIES.map((city) => <li key={city.code}><button type="button" onClick={() => setSelectedCity(city.code)} className={`flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm ${selectedCity === city.code ? "border border-gold/50 bg-accent text-gold" : "hover:bg-accent hover:text-gold"}`}><MapPin className="h-4 w-4 shrink-0" />{city.name}</button></li>)}</ul></div>
+            <div className="rounded-md border border-gold/20 bg-background/30 p-3 text-xs"><p className="font-semibold text-gold">PARSEL STATÜLERİ</p><p className="mt-2 text-muted-foreground">%50 Dijital · 199 TL</p><p className="text-muted-foreground">%30 Elit · 499 TL</p><p className="text-muted-foreground">%20 Premium · 999 TL</p></div>
           </aside>
-
           <div className="panel relative min-h-[600px] overflow-hidden p-4 sm:p-6">
             <img key={selectedCityImage} src={selectedCityImage} alt={`${selectedCityMeta.name} şehir manzarası`} loading="eager" width={1536} height={864} onError={(event) => { if (event.currentTarget.src.endsWith(CITY_IMAGE_FALLBACK)) return; event.currentTarget.src = CITY_IMAGE_FALLBACK; }} className="absolute inset-0 h-full w-full object-cover opacity-32 transition-all duration-700 scale-[1.02]" />
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/45 via-transparent to-background/40" />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_22%,rgba(24,78,145,0.10),transparent_48%)]" />
-
             <div className="relative z-10">
-              <div className="mb-1 flex items-center justify-center gap-3 text-center">
-                <span className="hidden h-px w-16 bg-gold/60 sm:block" />
-                <div>
-                  <h2 className="font-display text-2xl font-semibold tracking-[0.08em] sm:text-3xl">{selectedCityMeta.name.toUpperCase()} GÖKYÜZÜ</h2>
-                  <p className="mt-1 text-xs tracking-[0.12em] text-muted-foreground">1.000 ADET SEMBOLİK GÖKYÜZÜ PARSELİ</p>
-                </div>
-                <span className="hidden h-px w-16 bg-gold/60 sm:block" />
-              </div>
+              <div className="mb-1 flex items-center justify-center gap-3 text-center"><span className="hidden h-px w-16 bg-gold/60 sm:block" /><div><h2 className="font-display text-2xl font-semibold tracking-[0.08em] sm:text-3xl">{selectedCityMeta.name.toUpperCase()} GÖKYÜZÜ</h2><p className="mt-1 text-xs tracking-[0.12em] text-muted-foreground">1.000 ADET SEMBOLİK GÖKYÜZÜ PARSELİ</p></div><span className="hidden h-px w-16 bg-gold/60 sm:block" /></div>
               {loading && <p className="py-10 text-center text-sm text-muted-foreground">Gerçek parseller yükleniyor...</p>}
               {error && <p className="py-10 text-center text-sm text-red-300">{error}</p>}
               {!loading && !error && parcels.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Bu pilot şehirde henüz parsel bulunamadı.</p>}
-              {!error && <SkyParcelDomeV2 parcels={parcels} selectedId={selectedId} onSelect={setSelectedId} />}
+              {!error && <SkyParcelDomeReference parcels={parcels} selectedId={selectedId} onSelect={setSelectedId} />}
             </div>
-
             {selectedParcel && <ParcelDetailPanel parcel={selectedParcel} onClose={() => setSelectedId(null)} onReserved={(parcel) => setParcels((prev) => prev.map((item) => item.id === parcel.id ? parcel : item))} />}
           </div>
         </div>
