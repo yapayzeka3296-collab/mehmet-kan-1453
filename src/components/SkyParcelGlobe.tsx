@@ -13,6 +13,9 @@ const ROWS = 10;
 const VISIBLE_CELLS = 66;
 const PHI_MIN = 0.05;
 const PHI_MAX = Math.PI * 0.50;
+// Deliberately non-rectangular: fewer cells near the pole, wider rows toward the equator.
+// The sum is exactly 66 while preserving the 50/30/20 tier bands as closely as possible.
+const ROW_VISIBLE_COUNTS = [3, 4, 5, 6, 7, 8, 10, 10, 7, 6];
 
 const GRID = "rgba(151,214,255,0.82)";
 const FILL: Record<ParcelTier, string> = {
@@ -45,6 +48,8 @@ function rotatePoint(p: P3, yaw: number, pitch: number): P3 {
 }
 
 function project(p: P3, radius: number, cx: number, cy: number): P3 {
+  // Orthographic projection keeps the dome reference geometry stable while the
+  // rotated 3D coordinates provide the actual surface curvature.
   return { x: cx + p.x * radius, y: cy - p.y * radius, z: p.z };
 }
 
@@ -98,6 +103,46 @@ function pointInPolygon(x: number, y: number, points: P3[]) {
     if (intersect) inside = !inside;
   }
   return inside;
+}
+
+function wrappedSectorDistance(a: number, b: number) {
+  const d = Math.abs(a - b);
+  return Math.min(d, SECTORS - d);
+}
+
+/**
+ * Select a surface patch, not the 66 deepest cells.
+ *
+ * The previous implementation sorted every front-facing cell by depth and
+ * took the first 66. That necessarily produced a rectangular-looking block
+ * around the camera-facing centre. Instead we choose a per-row quota around
+ * the currently facing longitude. This keeps the selected cells distributed
+ * over the curved dome: narrow near the pole, wider through the middle, and
+ * tapering again toward the lower edge.
+ */
+function selectVisibleCells(candidates: Cell[], yaw: number): Cell[] {
+  const result: Cell[] = [];
+  const facingTheta = Math.PI / 2 - yaw;
+
+  for (let row = 0; row < ROWS; row++) {
+    const quota = ROW_VISIBLE_COUNTS[row] ?? 0;
+    const rowCandidates = candidates
+      .filter((cell) => cell.row === row)
+      .sort((a, b) => {
+        const aTheta = -Math.PI + (2 * Math.PI * (a.sector + 0.5)) / SECTORS;
+        const bTheta = -Math.PI + (2 * Math.PI * (b.sector + 0.5)) / SECTORS;
+        const aTarget = (facingTheta - aTheta + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+        const bTarget = (facingTheta - bTheta + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+        return Math.abs(aTarget) - Math.abs(bTarget);
+      });
+
+    result.push(...rowCandidates.slice(0, quota));
+  }
+
+  // A defensive fallback keeps the render count bounded if a future geometry
+  // change makes one row temporarily under-populated.
+  if (result.length > VISIBLE_CELLS) return result.slice(0, VISIBLE_CELLS);
+  return result;
 }
 
 export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
@@ -195,25 +240,34 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
         const theta1 = -Math.PI + (2 * Math.PI * (item.sector + 1)) / SECTORS;
         const phi0 = PHI_MIN + (PHI_MAX - PHI_MIN) * (item.row / ROWS);
         const phi1 = PHI_MIN + (PHI_MAX - PHI_MIN) * ((item.row + 1) / ROWS);
-        const center = rotatePoint(spherePoint((theta0 + theta1) / 2, (phi0 + phi1) / 2), s.yaw, s.pitch);
-        if (center.z <= 0.015) continue;
+
+        // Each parcel is a real spherical surface cell. Its four corners are
+        // projected only after the 3D rotation, so the screen shape follows
+        // the dome instead of being laid out as a flat HTML/SVG grid.
+        const center3 = rotatePoint(spherePoint((theta0 + theta1) / 2, (phi0 + phi1) / 2), s.yaw, s.pitch);
+        if (center3.z <= 0.015) continue;
+
         const corners = [
           spherePoint(theta0, phi0), spherePoint(theta1, phi0),
           spherePoint(theta1, phi1), spherePoint(theta0, phi1),
         ].map((p) => project(rotatePoint(p, s.yaw, s.pitch), radius, cx, cy));
+
+        const center = project(center3, radius, cx, cy);
+        if (center.x < -radius || center.x > width + radius || center.y < -radius || center.y > height + radius) continue;
+
         candidates.push({
           parcel: item.parcel,
           sector: item.sector,
           row: item.row,
-          depth: center.z,
-          center: project(center, radius, cx, cy),
+          depth: center3.z,
+          center,
           points: corners,
           tier: rowTier(item.row),
         });
       }
 
-      candidates.sort((a, b) => b.depth - a.depth);
-      const visible = candidates.slice(0, VISIBLE_CELLS).sort((a, b) => a.depth - b.depth);
+      const visible = selectVisibleCells(candidates, s.yaw)
+        .sort((a, b) => a.depth - b.depth);
       hitRef.current = visible;
 
       for (const cell of visible) {
