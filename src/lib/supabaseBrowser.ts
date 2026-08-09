@@ -1,6 +1,12 @@
+import * as React from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-const url = import.meta.env.VITE_SUPABASE_URL as string;
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-export const supabase = createClient(url, anonKey);
+export function createBrowserSupabase() {
+  if (!url || !anonKey) return null;
+  return createClient(url, anonKey);
+}
+
+export const supabaseBrowser = createBrowserSupabase();
