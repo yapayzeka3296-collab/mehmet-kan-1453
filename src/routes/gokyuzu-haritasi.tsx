@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MapPin, Search } from "lucide-react";
-import globe from "@/assets/globe.png";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
-import { ParcelMap } from "@/components/ParcelMap";
+import { SkyParcelGlobe } from "@/components/SkyParcelGlobe";
 import { ParcelDetailPanel } from "@/components/ParcelDetailPanel";
 import { CITY_IMAGES, CITY_IMAGE_FALLBACK } from "@/lib/cityImages";
 import { useEffect, useMemo, useState } from "react";
@@ -147,21 +146,20 @@ function Harita() {
               src={selectedCityImage}
               alt={`${selectedCityName} şehir manzarası`}
               loading="lazy"
-              width={1920}
-              height={1080}
-              className="absolute inset-x-0 bottom-0 h-1/2 w-full object-cover opacity-30 transition-opacity duration-500"
+              width={1536}
+              height={864}
+              className="absolute inset-x-0 bottom-0 h-1/2 w-full object-cover opacity-35 transition-opacity duration-500"
             />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-background/90 via-background/35 to-transparent" />
-            <img src={globe} alt="MySkyParcel 3D küre" loading="lazy" width={1024} height={1024} className="relative mx-auto h-[380px] w-auto opacity-70 mix-blend-screen sm:h-[480px]" />
 
-            <div className="relative -mt-12 min-h-[120px]">
+            <div className="relative z-10">
               {loading && <p className="text-center text-sm text-muted-foreground">Parseller yükleniyor...</p>}
               {error && <p className="text-center text-sm text-red-300">{error}</p>}
               {!loading && !error && parcels.length === 0 && (
                 <p className="text-center text-sm text-muted-foreground">Bu pilot şehirde henüz parsel bulunamadı.</p>
               )}
 
-              <ParcelMap parcels={parcels} selectedId={selectedId} onSelect={setSelectedId} />
+              <SkyParcelGlobe parcels={parcels} selectedId={selectedId} onSelect={setSelectedId} />
             </div>
 
             {selectedParcel && (
@@ -174,10 +172,10 @@ function Harita() {
               />
             )}
 
-            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-md bg-navy-deep/90 px-4 py-2 text-center">
+            <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-md bg-navy-deep/90 px-4 py-2 text-center">
               <p className="text-sm font-semibold text-gold">{selectedCityName}</p>
               <p className="text-[10px] text-muted-foreground">
-                {parcels.length.toLocaleString("tr-TR")} parsel · dokunarak seç
+                {parcels.length.toLocaleString("tr-TR")} parsel · sürükleyerek döndür · dokunarak seç
               </p>
             </div>
           </div>
