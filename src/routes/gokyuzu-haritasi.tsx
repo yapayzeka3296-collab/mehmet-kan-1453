@@ -33,6 +33,7 @@ const PILOT_CITIES: ReadonlyArray<{ code: CityImageCode; slug: string; name: str
   { code: "GZT", slug: "gaziantep", name: "Gaziantep" },
 ];
 
+const DEFAULT_CITY = { code: "GZT", slug: "gaziantep", name: "Gaziantep" } satisfies { code: CityImageCode; slug: string; name: string };
 const TIER_BY_NUMBER = (number: number) => number <= 500 ? "digital" : number <= 800 ? "elite" : "premium";
 const TIER_PRICE = { digital: 199, elite: 499, premium: 999 } as const;
 type Tier = keyof typeof TIER_PRICE;
@@ -47,7 +48,7 @@ function Harita() {
   const [error, setError] = useState<string | null>(null);
 
   const selectedParcel = useMemo(() => parcels.find((parcel) => parcel.id === selectedId) ?? null, [parcels, selectedId]);
-  const selectedCityMeta = PILOT_CITIES.find((city) => city.code === selectedCity) ?? PILOT_CITIES[PILOT_CITIES.length - 1];
+  const selectedCityMeta = PILOT_CITIES.find((city) => city.code === selectedCity) ?? DEFAULT_CITY;
   const selectedCityImage = CITY_IMAGES[selectedCity] ?? CITY_IMAGE_FALLBACK;
 
   useEffect(() => {
