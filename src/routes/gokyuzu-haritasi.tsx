@@ -3,18 +3,20 @@ import { MapPin, Search } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
-import { SkyParcelGlobe } from "@/components/SkyParcelGlobe";
+import { SkyParcelDome } from "@/components/SkyParcelDome";
 import { ParcelDetailPanel } from "@/components/ParcelDetailPanel";
 import { CITY_IMAGES, CITY_IMAGE_FALLBACK } from "@/lib/cityImages";
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import type { Parcel } from "@/types/parcel";
 
+type SkyMapParcel = Parcel & { grid_x?: number; grid_y?: number };
+
 export const Route = createFileRoute("/gokyuzu-haritasi")({
   head: () => ({
     meta: [
       { title: "Gökyüzü Haritası — MySkyParcel" },
-      { name: "description", content: "Pilot şehirlerdeki MySkyParcel parsellerini 3D küre üzerinden keşfet." },
+      { name: "description", content: "Pilot şehirlerdeki MySkyParcel parsellerini havada duran dijital gökyüzü kubbesi üzerinden keşfet." },
       { property: "og:title", content: "Gökyüzü Haritası — MySkyParcel" },
       { property: "og:description", content: "İstanbul, Ankara, İzmir, Bursa, Antalya, Kayseri ve Gaziantep parsellerini keşfet." },
     ],
@@ -32,19 +34,16 @@ const PILOT_CITIES = [
   { code: "GZT", slug: "gaziantep", name: "Gaziantep" },
 ] as const;
 
-const TIER_BY_NUMBER = (number: number) => number <= 500 ? "digital" : number <= 800 ? "elite" : "premium";
-const TIER_PRICE = { digital: 199, elite: 499, premium: 999 } as const;
-
 function Harita() {
   const [selectedCity, setSelectedCity] = useState("GZT");
-  const [parcels, setParcels] = useState<Parcel[]>([]);
+  const [parcels, setParcels] = useState<SkyMapParcel[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const selectedParcel = useMemo(() => parcels.find((parcel) => parcel.id === selectedId) ?? null, [parcels, selectedId]);
-  const selectedCityMeta = PILOT_CITIES.find((city) => city.code === selectedCity) ?? PILOT_CITIES[6];
-  const selectedCityImage = CITY_IMAGES[selectedCity] ?? CITY_IMAGE_FALLBACK;
+  const city = PILOT_CITIES.find((item) => item.code === selectedCity) ?? PILOT_CITIES[6];
+  const cityImage = CITY_IMAGES[selectedCity] ?? CITY_IMAGE_FALLBACK;
 
   useEffect(() => {
     let mounted = true;
@@ -61,27 +60,22 @@ function Harita() {
       setSelectedId(null);
 
       try {
-        const { data: city, error: cityError } = await supabaseBrowser
+        const { data: cityRow, error: cityError } = await supabaseBrowser
           .from("cities")
           .select("id,name,slug")
-          .eq("slug", selectedCityMeta.slug)
+          .eq("slug", city.slug)
           .single();
         if (cityError) throw cityError;
 
         const { data, error: parcelError } = await supabaseBrowser
           .from("parcels")
-          .select("id, parcel_number, status, owner_id, price, city_id, latitude, longitude, created_at, updated_at, grid_x, grid_y")
-          .eq("city_id", city.id)
+          .select("id, parcel_number, status, owner_id, price, city_id, latitude, longitude, created_at, updated_at, tier, grid_x, grid_y")
+          .eq("city_id", cityRow.id)
           .order("parcel_number")
           .limit(1000);
         if (parcelError) throw parcelError;
 
-        const normalized = ((data ?? []) as Array<Parcel & { grid_x?: number; grid_y?: number }>).map((parcel) => {
-          const numericCode = Number(parcel.parcel_number.split("-").pop() ?? 0);
-          const tier = TIER_BY_NUMBER(numericCode);
-          return { ...parcel, tier, tier_price: TIER_PRICE[tier] } as Parcel;
-        });
-        if (mounted) setParcels(normalized);
+        if (mounted) setParcels((data ?? []) as SkyMapParcel[]);
       } catch (err) {
         console.error("Error loading pilot city parcels", err);
         if (mounted) setError("Şehrin gerçek parselleri yüklenemedi. Supabase bağlantısını kontrol edin.");
@@ -91,36 +85,41 @@ function Harita() {
     }
 
     void loadParcels();
-    return () => { mounted = false; };
-  }, [selectedCityMeta.slug]);
+    return () => {
+      mounted = false;
+    };
+  }, [city.slug]);
 
   return (
     <div className="starfield min-h-screen">
       <SiteHeader />
-      <main className="mx-auto max-w-[1600px] px-4 py-12 lg:px-8">
-        <div className="text-center">
-          <h1 className="font-display text-4xl font-bold sm:text-5xl">GÖKYÜZÜ HARİTASI</h1>
-          <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground">Küreyi keşfet, pilot şehrini seç ve bir parsele dokun. Parsel kodu yalnızca seçtiğinde gösterilir.</p>
-        </div>
 
-        <div className="mt-10 grid gap-6 lg:grid-cols-[300px_1fr]">
-          <aside className="panel grid content-start gap-5 p-5">
+      <main className="mx-auto max-w-[1800px] px-3 py-6 sm:px-4 lg:px-6">
+        <div className="mt-2 grid items-start gap-4 lg:grid-cols-[270px_minmax(0,1fr)_320px]">
+          <aside className="panel grid content-start gap-5 p-4">
             <div className="flex items-center gap-2 rounded-md border border-input bg-background/50 px-3">
               <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <input placeholder="Pilot şehir ara..." className="min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none" aria-label="Pilot şehir ara" />
             </div>
+
             <div>
               <p className="mb-2 text-xs text-muted-foreground">Pilot şehirler · 1.000 parsel</p>
               <ul className="grid gap-1">
-                {PILOT_CITIES.map((city) => (
-                  <li key={city.code}>
-                    <button type="button" onClick={() => setSelectedCity(city.code)} className={`flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm ${selectedCity === city.code ? "border border-gold/50 bg-accent text-gold" : "hover:bg-accent hover:text-gold"}`}>
-                      <MapPin className="h-4 w-4 shrink-0" />{city.name}
+                {PILOT_CITIES.map((item) => (
+                  <li key={item.code}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCity(item.code)}
+                      className={`flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm ${selectedCity === item.code ? "border border-gold/50 bg-accent text-gold" : "hover:bg-accent hover:text-gold"}`}
+                    >
+                      <MapPin className="h-4 w-4 shrink-0" />
+                      {item.name}
                     </button>
                   </li>
                 ))}
               </ul>
             </div>
+
             <div className="rounded-md border border-gold/20 bg-background/30 p-3 text-xs">
               <p className="font-semibold text-gold">PARSEL STATÜLERİ</p>
               <p className="mt-2 text-muted-foreground">%50 Dijital · 199 TL</p>
@@ -129,24 +128,47 @@ function Harita() {
             </div>
           </aside>
 
-          <div className="panel relative min-h-[600px] overflow-hidden p-4 sm:p-6">
-            <img key={selectedCityImage} src={selectedCityImage} alt={`${selectedCityMeta.name} şehir manzarası`} loading="eager" width={1536} height={864} onError={(event) => { if (event.currentTarget.src.endsWith(CITY_IMAGE_FALLBACK)) return; event.currentTarget.src = CITY_IMAGE_FALLBACK; }} className="absolute inset-0 h-full w-full object-cover opacity-32 transition-all duration-700 scale-[1.02]" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/65 via-background/30 to-background/90" />
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(24,78,145,0.18),transparent_58%)]" />
+          <section className="panel relative min-h-[610px] overflow-hidden p-2 sm:p-4">
+            <img
+              key={cityImage}
+              src={cityImage}
+              alt={`${city.name} şehir manzarası`}
+              loading="eager"
+              width={1536}
+              height={864}
+              onError={(event) => {
+                if (!event.currentTarget.src.endsWith(CITY_IMAGE_FALLBACK)) event.currentTarget.src = CITY_IMAGE_FALLBACK;
+              }}
+              className="absolute inset-0 h-full w-full scale-[1.02] object-cover opacity-[0.48] transition-all duration-700"
+            />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/15 via-transparent to-background/45" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_28%,rgba(24,78,145,0.10),transparent_60%)]" />
+
             <div className="relative z-10">
-              {loading && <p className="text-center text-sm text-muted-foreground">Gerçek parseller yükleniyor...</p>}
-              {error && <p className="text-center text-sm text-red-300">{error}</p>}
-              {!loading && !error && parcels.length === 0 && <p className="text-center text-sm text-muted-foreground">Bu pilot şehirde henüz parsel bulunamadı.</p>}
-              {!error && <SkyParcelGlobe parcels={parcels} selectedId={selectedId} onSelect={setSelectedId} />}
+              {loading && <p className="py-10 text-center text-sm text-muted-foreground">Gerçek parseller yükleniyor...</p>}
+              {error && <p className="py-10 text-center text-sm text-red-300">{error}</p>}
+              {!loading && !error && parcels.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Bu pilot şehirde henüz parsel bulunamadı.</p>}
+              {!error && <SkyParcelDome parcels={parcels} selectedId={selectedId} onSelect={setSelectedId} cityName={city.name} />}
             </div>
-            {selectedParcel && <ParcelDetailPanel parcel={selectedParcel} onClose={() => setSelectedId(null)} onReserved={(parcel) => setParcels((prev) => prev.map((item) => item.id === parcel.id ? parcel : item))} />}
-            <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-md bg-navy-deep/90 px-4 py-2 text-center shadow-lg shadow-black/30">
-              <p className="text-sm font-semibold text-gold">{selectedCityMeta.name}</p>
-              <p className="text-[10px] text-muted-foreground">{parcels.length.toLocaleString("tr-TR")} gerçek parsel · sürükleyerek döndür · dokunarak seç</p>
-            </div>
-          </div>
+          </section>
+
+          <aside className="lg:sticky lg:top-4">
+            {selectedParcel ? (
+              <ParcelDetailPanel
+                parcel={selectedParcel}
+                onClose={() => setSelectedId(null)}
+                onReserved={(parcel) => setParcels((previous) => previous.map((item) => (item.id === parcel.id ? { ...item, ...parcel } : item)))}
+              />
+            ) : (
+              <div className="panel min-h-[260px] p-5">
+                <p className="text-xs font-semibold text-gold">SEÇİLEN PARSEL</p>
+                <p className="mt-3 text-sm text-muted-foreground">Kubbeden bir parsel seçtiğinde detayları burada açılacak.</p>
+              </div>
+            )}
+          </aside>
         </div>
       </main>
+
       <TrustBar />
       <SiteFooter />
     </div>
