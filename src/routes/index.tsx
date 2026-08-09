@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Boxes, Check, Globe, Headphones, Layers, Lock, MapPin, Play, ShieldCheck, Sparkles } from "lucide-react";
+import { useState, type FormEvent } from "react";
 import globe from "@/assets/globe.png";
 import certDigital from "@/assets/cert-digital.jpg";
 import certPremium from "@/assets/cert-premium.jpg";
@@ -41,8 +42,8 @@ const STATS = [
   { icon: Layers, big: "10", title: "KATMAN / İL", text: "Her il için 10 katman" },
   { icon: ShieldCheck, big: "1.000", title: "SEKTÖR / İL", text: "Her il için 1.000 sektör" },
   { icon: Boxes, big: "1.000.000", title: "PARSEL / İL", text: "Her il için 1.000.000 parsel" },
-  { icon: Headphones, big: "7/24", title: "CANLI DESTEK", text: "Her zaman yanınızda destek ekibimiz" },
-  { icon: Lock, big: "", title: "GÜVENLİ ALTYAPI", text: "256 Bit SSL ile korunur, güvenli ödeme" },
+  { icon: Headphones, big: "DESTEK", title: "DESTEK EKİBİ", text: "İletişim kanalları üzerinden bize ulaşabilirsiniz" },
+  { icon: Lock, big: "", title: "GÜVENLİ ALTYAPI", text: "Güvenlik ve ödeme altyapısı ayrıca doğrulanmalıdır" },
 ];
 
 const CERTIFICATE_PACKAGES = [
@@ -74,7 +75,14 @@ const DEMO_CERTIFICATE = {
 } as const;
 
 function Index() {
+  const navigate = useNavigate();
+  const [certificateCode, setCertificateCode] = useState("");
   const parcelModelCheck = SKY_PARCEL_MODEL.cityCount * SKY_PARCEL_MODEL.parcelsPerCity === SKY_PARCEL_MODEL.totalParcels;
+
+  function handleCertificateSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    navigate({ to: "/sertifika-dogrula", search: { code: certificateCode.trim() } });
+  }
 
   return (
     <div className="starfield min-h-screen">
@@ -121,7 +129,7 @@ function Index() {
         </section>
 
         <section className="mx-auto grid max-w-[1600px] gap-6 px-4 pb-8 lg:px-8 xl:grid-cols-[3fr_1fr]">
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">{CERTIFICATE_PACKAGES.map((p) => <article key={p.id} className="panel flex min-w-0 flex-col p-6"><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2"><div className="min-w-0"><h3 className="font-display text-lg">{p.name}</h3><ul className="mt-4 space-y-2 text-xs">{p.features.map((f)=><li key={f} className="flex items-start gap-2 text-muted-foreground"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold"/><span>{f}</span></li>)}</ul></div><img src={p.img} alt={p.name} loading="lazy" width={900} height={800} className="h-40 w-full rounded-lg object-contain"/></div><p className="mt-6 font-display text-3xl text-gold">{p.price.toLocaleString("tr-TR")} <span className="text-base">TL</span></p><Link to="/paketler" className="btn-gold mt-4 inline-flex items-center justify-center rounded-md px-5 py-2.5 text-[11px]">HEMEN İNCELE</Link></article>)}</div><div className="grid content-start gap-6"><div className="panel p-6"><h3 className="font-display text-base">SERTİFİKA DOĞRULA</h3><p className="mt-2 text-xs text-muted-foreground">Parsel kodunuzu girerek sertifikanızın geçerliliğini kontrol edebilirsiniz.</p><div className="mt-4 flex flex-col gap-2 sm:flex-row"><input aria-label="Parsel kodu" placeholder="Parsel kodunuzu girin (Örn: GZT-K05-S042-P07)" className="min-w-0 w-full rounded-md border border-input bg-background/60 px-3 py-2 text-[11px] outline-none focus:border-gold"/><Link to="/sertifika-dogrula" aria-label="Sertifika doğrulama sayfasına git" className="btn-gold inline-flex w-full shrink-0 items-center justify-center rounded-md px-4 py-2 text-[11px] sm:w-auto">DOĞRULA</Link></div></div><div className="panel p-6"><h3 className="font-display text-base">GÜVENLİ ALIŞVERİŞ</h3><p className="mt-2 text-xs text-muted-foreground">256 Bit SSL ile korunur. Tüm ödemeleriniz güvenli altyapı ile gerçekleştirilmektedir.</p></div></div>
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">{CERTIFICATE_PACKAGES.map((p) => <article key={p.id} className="panel flex min-w-0 flex-col p-6"><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2"><div className="min-w-0"><h3 className="font-display text-lg">{p.name}</h3><ul className="mt-4 space-y-2 text-xs">{p.features.map((f)=><li key={f} className="flex items-start gap-2 text-muted-foreground"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold"/><span>{f}</span></li>)}</ul></div><img src={p.img} alt={p.name} loading="lazy" width={900} height={800} className="h-40 w-full rounded-lg object-contain"/></div><p className="mt-6 font-display text-3xl text-gold">{p.price.toLocaleString("tr-TR")} <span className="text-base">TL</span></p><Link to="/paketler" className="btn-gold mt-4 inline-flex items-center justify-center rounded-md px-5 py-2.5 text-[11px]">HEMEN İNCELE</Link></article>)}</div><div className="grid content-start gap-6"><div className="panel p-6"><h3 className="font-display text-base">SERTİFİKA DOĞRULA</h3><p className="mt-2 text-xs text-muted-foreground">Parsel kodunuzu girerek sertifikanızın geçerliliğini kontrol edebilirsiniz.</p><form onSubmit={handleCertificateSubmit} className="mt-4 flex flex-col gap-2 sm:flex-row"><label htmlFor="homepage-certificate-code" className="sr-only">Sertifika numarası</label><input id="homepage-certificate-code" value={certificateCode} onChange={(event) => setCertificateCode(event.target.value)} aria-label="Sertifika numarası" placeholder="Sertifika numaranızı girin (Örn: SP-GZT-0004207)" autoComplete="off" className="min-w-0 w-full rounded-md border border-input bg-background/60 px-3 py-2 text-[11px] uppercase outline-none focus:border-gold"/><button type="submit" className="btn-gold inline-flex w-full shrink-0 items-center justify-center rounded-md px-4 py-2 text-[11px] sm:w-auto">DOĞRULA</button></form></div><div className="panel p-6"><h3 className="font-display text-base">GÜVENLİ ALIŞVERİŞ</h3><p className="mt-2 text-xs text-muted-foreground">Güvenlik ve ödeme altyapısı yayın öncesi ayrıca doğrulanmalıdır.</p></div></div>
         </section>
 
         <section className="mx-auto max-w-[1600px] px-4 pb-8 lg:px-8"><div className="panel grid gap-6 p-6 lg:grid-cols-[auto_1fr_auto] lg:items-center"><h3 className="font-display text-base tracking-[0.08em]">POPÜLER ŞEHİRLER</h3><ul className="flex flex-wrap justify-center gap-5">{POPULAR_CITIES.map(c=><li key={c.code} className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-gold/60 bg-navy overflow-hidden"><img src={c.image} alt="" loading="lazy" width={96} height={96} className="h-full w-full object-cover opacity-75"/></div><p className="mt-2 text-[10px] tracking-[0.08em] text-muted-foreground">{c.name}</p></li>)}</ul><Link to="/gokyuzu-haritasi" className="inline-flex items-center justify-center gap-2 rounded-md border border-gold/60 px-5 py-2.5 text-[11px] tracking-[0.08em] text-gold">TÜM ŞEHİRLER <ArrowRight className="h-4 w-4"/></Link></div></section>
