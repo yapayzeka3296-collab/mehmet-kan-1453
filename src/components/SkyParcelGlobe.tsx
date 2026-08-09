@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { MouseEvent, PointerEvent } from "react";
 import type { Parcel } from "@/types/parcel";
 
 type Props = {
@@ -19,7 +20,6 @@ function rotatePoint(point: Point3, yaw: number, pitch: number): Point3 {
   const sy = Math.sin(yaw);
   const cp = Math.cos(pitch);
   const sp = Math.sin(pitch);
-
   const x1 = point.x * cy - point.z * sy;
   const z1 = point.x * sy + point.z * cy;
   const y1 = point.y * cp - z1 * sp;
@@ -81,10 +81,8 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
       const radius = Math.min(width * 0.39, height * 0.48);
       const cx = width / 2;
       const cy = height * 0.48;
-
       ctx.clearRect(0, 0, width, height);
 
-      // Deep blue globe body and soft atmospheric halo.
       const glow = ctx.createRadialGradient(cx - radius * 0.2, cy - radius * 0.35, radius * 0.1, cx, cy, radius * 1.18);
       glow.addColorStop(0, "rgba(37, 94, 169, 0.30)");
       glow.addColorStop(0.65, "rgba(16, 48, 94, 0.18)");
@@ -102,7 +100,6 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.fill();
 
-      // Longitude and latitude wireframe.
       ctx.lineWidth = 0.7;
       ctx.strokeStyle = GRID;
       for (let lon = -180; lon < 180; lon += 15) {
@@ -141,20 +138,15 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
       const projected: ProjectedParcel[] = [];
       const halfLat = 4.0;
       const halfLon = 3.6;
-      const source = parcelsRef.current;
-
-      // Every database parcel becomes a small square/rectangular cell on the globe.
-      for (const parcel of source) {
+      for (const parcel of parcelsRef.current) {
         const corners = [
           latLonPoint(parcel.latitude - halfLat, parcel.longitude - halfLon),
           latLonPoint(parcel.latitude - halfLat, parcel.longitude + halfLon),
           latLonPoint(parcel.latitude + halfLat, parcel.longitude + halfLon),
           latLonPoint(parcel.latitude + halfLat, parcel.longitude - halfLon),
         ].map((p) => rotatePoint(p, state.yaw, state.pitch));
-
         const center = rotatePoint(latLonPoint(parcel.latitude, parcel.longitude), state.yaw, state.pitch);
         if (center.z < 0.02) continue;
-
         projected.push({
           parcel,
           depth: center.z,
@@ -186,7 +178,7 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
           ctx.arc(center.x, center.y, 4, 0, Math.PI * 2);
           ctx.fill();
           ctx.shadowBlur = 0;
-
+          ctx.font = "600 12px Inter, sans-serif";
           const label = item.parcel.parcel_number;
           const labelWidth = ctx.measureText(label).width + 22;
           const boxX = Math.min(width - labelWidth - 12, Math.max(12, center.x + 18));
@@ -199,32 +191,28 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
           ctx.fill();
           ctx.stroke();
           ctx.fillStyle = "#fff";
-          ctx.font = "600 12px Inter, sans-serif";
           ctx.fillText(label, boxX + 11, boxY + 18);
         }
       }
 
-      // Outer rim.
       ctx.lineWidth = 1.4;
       ctx.strokeStyle = "rgba(106, 168, 235, 0.78)";
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.stroke();
-
       frame = requestAnimationFrame(draw);
     };
 
     resize();
     window.addEventListener("resize", resize);
     frame = requestAnimationFrame(draw);
-
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
     };
   }, []);
 
-  const pointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+  const pointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
     const state = stateRef.current;
     state.dragging = true;
     state.lastX = event.clientX;
@@ -232,7 +220,7 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const pointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+  const pointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
     const state = stateRef.current;
     if (!state.dragging) return;
     const dx = event.clientX - state.lastX;
@@ -243,22 +231,21 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
     state.lastY = event.clientY;
   };
 
-  const pointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+  const pointerUp = (event: PointerEvent<HTMLCanvasElement>) => {
     const state = stateRef.current;
     state.dragging = false;
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
     } catch {
-      // Pointer capture may already have been released by the browser.
+      // Pointer capture may already have been released.
     }
   };
 
-  const click = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const click = (event: MouseEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     let closest: { id: string; distance: number } | null = null;
-
     for (const item of hitRef.current) {
       const center = item.points.reduce((acc, p) => ({ x: acc.x + p.x / 4, y: acc.y + p.y / 4 }), { x: 0, y: 0 });
       const distance = Math.hypot(x - center.x, y - center.y);
@@ -266,7 +253,6 @@ export function SkyParcelGlobe({ parcels, selectedId, onSelect }: Props) {
         closest = { id: item.parcel.id, distance };
       }
     }
-
     if (closest) onSelect(closest.id);
   };
 
