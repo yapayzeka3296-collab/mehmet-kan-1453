@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Boxes, Check, Globe, Headphones, Layers, Lock, MapPin, Play, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Boxes, Check, Globe, Headphones, Layers, Lock, Play, ShieldCheck, Sparkles } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -12,7 +12,6 @@ export const Route = createFileRoute("/")({
 });
 
 const SKY_PARCEL_MODEL = { cityCount: 81, layersPerCity: 10, sectorsPerCity: 1_000, parcelsPerCity: 1_000_000, totalParcels: 81_000_000 } as const;
-const HERO_CITY = { name: "İSTANBUL", slug: "istanbul", district: "MERKEZ", image: CITY_IMAGES.IST } as const;
 const STATS = [
   { icon: Globe, big: "81 MİLYON", title: "TOPLAM GÖKYÜZÜ PARSELİ", text: "81 il × 1.000.000 parsel uzun vadeli hedef" },
   { icon: Layers, big: "10", title: "KATMAN / İL", text: "Her il için 10 katman" },
@@ -39,16 +38,14 @@ function Index() {
     <div className="starfield min-h-screen">
       <SiteHeader />
       <main>
-        <section className="relative overflow-hidden">
-          <img src={HERO_CITY.image} alt={`${HERO_CITY.name} şehir manzarası`} width={1920} height={1088} className="absolute inset-0 h-full w-full object-cover opacity-100" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background/30 via-background/10 to-transparent" />
+        <section className="hero-sky-parcels relative min-h-[620px] overflow-hidden lg:min-h-[700px]">
+          <div className="absolute inset-0 bg-gradient-to-r from-background/60 via-background/20 to-background/5" />
           <div className="relative mx-auto max-w-[1600px] px-4 py-14 lg:px-8 xl:py-20">
             <div className="min-w-0 max-w-3xl">
-              <span className="inline-block max-w-full rounded-md border border-gold/60 px-4 py-2 text-[10px] leading-5 tracking-[0.12em] text-gold">HER İL İÇİN {SKY_PARCEL_MODEL.layersPerCity} KATMAN · {SKY_PARCEL_MODEL.sectorsPerCity.toLocaleString("tr-TR")} SEKTÖR · {SKY_PARCEL_MODEL.parcelsPerCity.toLocaleString("tr-TR")} PARSEL<br /><strong>TOPLAM {SKY_PARCEL_MODEL.totalParcels.toLocaleString("tr-TR")} GÖKYÜZÜ PARSELİ</strong></span>
-              <h1 className="mt-6 break-words font-display text-4xl leading-[1.1] font-bold sm:text-5xl lg:text-6xl">GÖKYÜZÜNDE<br /><span className="text-gradient-gold">SANA ÖZEL</span><br />SEMBOLİK BİR YER</h1>
-              <p className="mt-5 max-w-lg text-sm text-muted-foreground sm:text-base">MySkyParcel ile gökyüzünde sana özel bir parsel seçebilir, benzersiz sertifikanla bu anı ölümsüzleştirebilirsin.</p>
-              <div className="mt-8 flex max-w-full flex-wrap gap-3"><Link to="/gokyuzu-haritasi" className="btn-gold inline-flex max-w-full items-center gap-2 rounded-md px-6 py-3 text-xs"><Sparkles className="h-4 w-4 shrink-0" /> GÖKYÜZÜ HARİTASINA GİT</Link><button type="button" disabled aria-disabled="true" title="Video kaynağı sonraki entegrasyonda eklenecek" className="inline-flex max-w-full items-center gap-2 rounded-md border border-border px-6 py-3 text-xs tracking-[0.08em] transition-colors hover:border-gold hover:text-gold disabled:cursor-not-allowed disabled:opacity-70"><Play className="h-4 w-4 shrink-0" /> VİDEOYU İZLE</button></div>
-              <div className="mt-10 inline-flex max-w-full items-center gap-2 rounded-md bg-navy-deep/70 px-4 py-2"><MapPin className="h-5 w-5 shrink-0 text-gold" /><span className="text-sm font-semibold">{HERO_CITY.name} <span className="block text-[10px] text-muted-foreground">{HERO_CITY.district}</span></span></div>
+              <span className="inline-block max-w-full rounded-md border border-gold/60 bg-background/20 px-4 py-2 text-[10px] leading-5 tracking-[0.12em] text-gold backdrop-blur-[2px]">HER İL İÇİN {SKY_PARCEL_MODEL.layersPerCity} KATMAN · {SKY_PARCEL_MODEL.sectorsPerCity.toLocaleString("tr-TR")} SEKTÖR · {SKY_PARCEL_MODEL.parcelsPerCity.toLocaleString("tr-TR")} PARSEL<br /><strong>TOPLAM {SKY_PARCEL_MODEL.totalParcels.toLocaleString("tr-TR")} GÖKYÜZÜ PARSELİ</strong></span>
+              <h1 className="mt-6 break-words font-display text-4xl leading-[1.1] font-bold drop-shadow-lg sm:text-5xl lg:text-6xl">GÖKYÜZÜNDE<br /><span className="text-gradient-gold">SANA ÖZEL</span><br />SEMBOLİK BİR YER</h1>
+              <p className="mt-5 max-w-lg text-sm text-foreground/85 drop-shadow sm:text-base">MySkyParcel ile gökyüzünde sana özel bir parsel seçebilir, benzersiz sertifikanla bu anı ölümsüzleştirebilirsin.</p>
+              <div className="mt-8 flex max-w-full flex-wrap gap-3"><Link to="/gokyuzu-haritasi" className="btn-gold inline-flex max-w-full items-center gap-2 rounded-md px-6 py-3 text-xs"><Sparkles className="h-4 w-4 shrink-0" /> GÖKYÜZÜ HARİTASINA GİT</Link><button type="button" disabled aria-disabled="true" title="Video kaynağı sonraki entegrasyonda eklenecek" className="inline-flex max-w-full items-center gap-2 rounded-md border border-border bg-background/20 px-6 py-3 text-xs tracking-[0.08em] transition-colors hover:border-gold hover:text-gold disabled:cursor-not-allowed disabled:opacity-70"><Play className="h-4 w-4 shrink-0" /> VİDEOYU İZLE</button></div>
             </div>
           </div>
         </section>
