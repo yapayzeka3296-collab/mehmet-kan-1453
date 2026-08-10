@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MapPin, Search } from "lucide-react";
+import { z } from "zod";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
@@ -12,6 +13,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import type { Parcel } from "@/types/parcel";
 
 export const Route = createFileRoute("/gokyuzu-haritasi")({
+  validateSearch: z.object({ city: z.string().optional() }),
   head: () => ({
     meta: [
       { title: "Gökyüzü Haritası — MySkyParcel" },
@@ -41,11 +43,18 @@ type Tier = keyof typeof TIER_PRICE;
 type PublicParcelRow = Omit<Parcel, "owner_id"> & { owner_id: null; city_slug?: string | null; layer_number?: number | null; sector_number?: number | null; local_parcel_number?: number | null };
 
 function Harita() {
-  const [selectedCity, setSelectedCity] = useState<CityImageCode>("GZT");
+  const { city: citySlug } = Route.useSearch();
+  const initialCity = PILOT_CITIES.find((city) => city.slug === citySlug) ?? DEFAULT_CITY;
+  const [selectedCity, setSelectedCity] = useState<CityImageCode>(initialCity.code);
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const nextCity = PILOT_CITIES.find((city) => city.slug === citySlug)?.code ?? DEFAULT_CITY.code;
+    setSelectedCity(nextCity);
+  }, [citySlug]);
 
   const selectedParcel = useMemo(() => parcels.find((parcel) => parcel.id === selectedId) ?? null, [parcels, selectedId]);
   const selectedCityMeta = PILOT_CITIES.find((city) => city.code === selectedCity) ?? DEFAULT_CITY;
