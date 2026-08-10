@@ -84,20 +84,32 @@ export function SiteHeader() {
         </div>
         <div className="flex items-center gap-2 xl:hidden">
           <button type="button" aria-label="Sepet (henüz etkin değil)" title="Sepet özelliği sonraki entegrasyonda etkinleştirilecek" className="p-2 text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]"><ShoppingCart className="h-6 w-6" /></button>
-          <button ref={menuButtonRef} type="button" aria-label={open ? "Menüyü kapat" : "Menüyü aç"} aria-expanded={open} aria-controls="mobile-navigation" onClick={() => setOpen((value) => !value)} className="p-2 text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]">{open ? <X className="h-7 w-7" /> : <Menu className="h-7 w-7" />}</button>
+          {!open && (
+            <button ref={menuButtonRef} type="button" aria-label="Menüyü aç" aria-expanded="false" aria-controls="mobile-navigation" onClick={() => setOpen(true)} className="p-2 text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]"><Menu className="h-7 w-7" /></button>
+          )}
         </div>
       </div>
-      <div className={`fixed inset-0 z-50 bg-black/70 backdrop-blur-sm transition-opacity duration-300 xl:hidden ${open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`} onClick={closeMenu} aria-hidden="true" />
-      <aside ref={drawerRef} id="mobile-navigation" role="dialog" aria-modal="true" aria-label="Site menüsü" aria-hidden={!open} style={{ transform: open ? "translateX(0)" : "translateX(100%)" }} className={`fixed top-0 right-0 z-50 flex h-screen w-[min(320px,calc(100vw-24px))] flex-col justify-between overflow-y-auto border-l border-[#1E293B] bg-[#050B1A] p-6 transform transition-transform duration-300 ease-in-out xl:hidden ${open ? "pointer-events-auto" : "pointer-events-none"}`}>
-        <div>
-          <div className="flex items-center justify-between border-b border-[#1E293B] pb-6"><span className="text-lg font-bold text-white">Menü</span><button ref={closeButtonRef} type="button" onClick={closeMenu} aria-label="Menüyü kapat" tabIndex={open ? 0 : -1} className="p-1 text-slate-400 hover:text-white"><X className="h-6 w-6" /></button></div>
-          <nav aria-label="Mobil site navigasyonu" className="mt-6 flex flex-col gap-4">{NAV_LINKS.map((item) => <Link key={item.to} to={item.to} onClick={closeMenu} tabIndex={open ? 0 : -1} className="text-base font-medium text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]" activeProps={{ className: "font-semibold text-[#D4AF37]" }}>{item.label}</Link>)}</nav>
-        </div>
-        <div className="mt-8 flex flex-col gap-3 border-t border-[#1E293B] pt-6">
-          <Link to="/giris" onClick={closeMenu} tabIndex={open ? 0 : -1} className="w-full rounded-lg border border-slate-700 py-2.5 text-center text-sm font-medium text-slate-200 transition-colors duration-200 hover:border-[#D4AF37] hover:text-[#D4AF37]">Giriş Yap</Link>
-          <Link to="/kayit-ol" onClick={closeMenu} tabIndex={open ? 0 : -1} className="w-full rounded-lg bg-[#D4AF37] py-2.5 text-center text-sm font-semibold text-black transition-colors duration-200 hover:bg-[#c29f2e]">Üye Ol</Link>
-        </div>
-      </aside>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm xl:hidden" onClick={closeMenu} aria-hidden="true" />
+          <aside ref={drawerRef} id="mobile-navigation" role="dialog" aria-modal="true" aria-label="Site menüsü" className="fixed top-0 right-0 z-50 flex h-screen w-[min(320px,calc(100vw-24px))] flex-col justify-between overflow-y-auto border-l border-[#1E293B] bg-[#050B1A] p-6 xl:hidden">
+            <div>
+              <div className="flex items-center justify-between border-b border-[#1E293B] pb-6">
+                <span className="text-lg font-bold text-white">Menü</span>
+                <button ref={closeButtonRef} type="button" onClick={closeMenu} aria-label="Menüyü kapat" className="p-1 text-slate-400 hover:text-white"><X className="h-6 w-6" /></button>
+              </div>
+              <nav aria-label="Mobil site navigasyonu" className="mt-6 flex flex-col gap-4">
+                {NAV_LINKS.map((item) => <Link key={item.to} to={item.to} onClick={closeMenu} className="text-base font-medium text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]" activeProps={{ className: "font-semibold text-[#D4AF37]" }}>{item.label}</Link>)}
+              </nav>
+            </div>
+            <div className="mt-8 flex flex-col gap-3 border-t border-[#1E293B] pt-6">
+              <Link to="/giris" onClick={closeMenu} className="w-full rounded-lg border border-slate-700 py-2.5 text-center text-sm font-medium text-slate-200 transition-colors duration-200 hover:border-[#D4AF37] hover:text-[#D4AF37]">Giriş Yap</Link>
+              <Link to="/kayit-ol" onClick={closeMenu} className="w-full rounded-lg bg-[#D4AF37] py-2.5 text-center text-sm font-semibold text-black transition-colors duration-200 hover:bg-[#c29f2e]">Üye Ol</Link>
+            </div>
+          </aside>
+        </>
+      )}
     </header>
   );
 }
