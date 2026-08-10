@@ -30,7 +30,7 @@ const PLANS = [
   {
     name: "PREMIUM SERTİFİKA",
     price: "499",
-    img: "/certificates/premium-certificate.jpg",
+    img: "/certificates/elite-certificate.jpg",
     popular: true,
     features: [
       "Özel tasarım sertifika",
@@ -43,7 +43,7 @@ const PLANS = [
   {
     name: "ÇERÇEVELİ BASKI (A4)",
     price: "999",
-    img: "/certificates/elite-certificate.jpg",
+    img: "/certificates/premium-certificate.jpg",
     popular: false,
     features: [
       "Özel tasarım sertifika",
