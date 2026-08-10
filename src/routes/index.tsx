@@ -38,7 +38,7 @@ function Index() {
     <div className="starfield min-h-screen">
       <SiteHeader />
       <main>
-        <section className="hero-sky-parcels relative min-h-[620px] overflow-hidden bg-cover bg-center bg-no-repeat lg:min-h-[700px]" style={{ backgroundImage: "url('/sky-parcels-hero.png')" }}>
+        <section className="hero-sky-parcels relative min-h-[620px] overflow-hidden bg-cover bg-center bg-no-repeat lg:min-h-[700px]" style={{ backgroundImage: "url('/sky-parcels-hero.webp')" }}>
           <div className="relative mx-auto max-w-[1600px] px-4 py-14 lg:px-8 xl:py-20">
             <div className="min-w-0 max-w-3xl">
               <span className="inline-block max-w-full rounded-md border border-gold/60 bg-background/20 px-4 py-2 text-[10px] leading-5 tracking-[0.12em] text-gold backdrop-blur-[2px]">HER İL İÇİN {SKY_PARCEL_MODEL.layersPerCity} KATMAN · {SKY_PARCEL_MODEL.sectorsPerCity.toLocaleString("tr-TR")} SEKTÖR · {SKY_PARCEL_MODEL.parcelsPerCity.toLocaleString("tr-TR")} PARSEL<br /><strong>TOPLAM {SKY_PARCEL_MODEL.totalParcels.toLocaleString("tr-TR")} GÖKYÜZÜ PARSELİ</strong></span>
