@@ -62,18 +62,6 @@ const POPULAR_CITIES = [
   { name: "GAZİANTEP", slug: "gaziantep", code: "GZT", image: CITY_IMAGES.GZT },
 ] as const;
 
-const DEMO_CERTIFICATE = {
-  isDemo: true,
-  ownerName: "DEMO KULLANICI",
-  parcelCode: "DEMO-PARCEL",
-  city: HERO_CITY.name,
-  issueDate: "GERÇEK VERİ ENTEGRASYONUNDA DİNAMİK",
-  certificateNo: "DEMO-SERTİFİKA",
-  layer: "DEMO",
-  sector: "DEMO",
-  parcel: "DEMO",
-} as const;
-
 function Index() {
   const navigate = useNavigate();
   const [certificateCode, setCertificateCode] = useState("");
@@ -107,15 +95,16 @@ function Index() {
               <div className="mt-10 inline-flex max-w-full items-center gap-2 rounded-md bg-navy-deep/70 px-4 py-2"><MapPin className="h-5 w-5 shrink-0 text-gold" /><span className="text-sm font-semibold">{HERO_CITY.name} <span className="block text-[10px] text-muted-foreground">{HERO_CITY.district}</span></span></div>
             </div>
 
-            <div className="panel min-w-0 border-2 border-gold/50 p-5">
-              <div className="rounded-lg border border-gold/40 p-5 text-center">
-                <p className="font-display text-lg font-bold">MYSKY<span className="text-gold">PARCEL</span></p><p className="text-[9px] tracking-[0.3em] text-muted-foreground">TÜRKİYE</p>
-                <h2 className="mt-5 font-display text-xl">GÖKYÜZÜ PARSELİ</h2><p className="text-[10px] tracking-[0.12em] text-muted-foreground">SEMBOLİK KOLEKSİYON SERTİFİKASI</p>
-                <div className="mt-5 inline-flex items-center rounded-full border border-gold/40 px-3 py-1 text-[9px] tracking-[0.12em] text-gold">DEMO GÖSTERİMİ · GERÇEK SERTİFİKA DEĞİL</div>
-                <p className="mt-4 text-[10px] tracking-[0.2em] text-muted-foreground">AD SOYAD</p><p className="font-display text-2xl italic">{DEMO_CERTIFICATE.ownerName}</p>
-                <p className="mt-4 text-[10px] tracking-[0.2em] text-muted-foreground">PARSEL KODU</p><p className="break-all font-display text-2xl text-gold">{DEMO_CERTIFICATE.parcelCode}</p>
-                <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2 text-left text-[11px]">{[["ŞEHİR", DEMO_CERTIFICATE.city],["DÜZENLENME TARİHİ", DEMO_CERTIFICATE.issueDate],["KATMAN", DEMO_CERTIFICATE.layer],["SERTİFİKA NO", DEMO_CERTIFICATE.certificateNo],["SEKTÖR", DEMO_CERTIFICATE.sector],["PARSEL", DEMO_CERTIFICATE.parcel]].map(([k,v]) => <div key={k} className="min-w-0"><dt className="text-[9px] tracking-[0.1em] text-muted-foreground">{k}</dt><dd className="truncate">{v}</dd></div>)}</dl>
-                <div className="mt-6 flex items-center justify-between gap-3"><div className="grid h-14 w-14 shrink-0 place-items-center rounded-full border-2 border-gold bg-[image:var(--gradient-gold)]"><Sparkles className="h-6 w-6 text-primary-foreground" /></div><p className="min-w-0 text-left text-[9px] text-muted-foreground">Bu panel yalnızca tasarım demosudur; gerçek sertifika doğrulaması backend entegrasyonunda yapılacaktır.</p><div className="grid h-14 w-14 shrink-0 grid-cols-4 gap-0.5 rounded bg-foreground p-1" aria-hidden="true">{Array.from({length:16}).map((_,i)=><span key={i} className={i%3===0?"bg-background":"bg-transparent"}/>)}</div></div>
+            <div className="panel min-w-0 overflow-hidden border-2 border-gold/50 p-3 sm:p-5">
+              <div className="relative min-h-[420px] overflow-hidden rounded-lg border border-gold/40">
+                <img src={HERO_CITY.image} alt="İstanbul şehir manzarası" width={1536} height={864} className="absolute inset-0 h-full w-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/25 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-5 text-left sm:p-7">
+                  <p className="text-[10px] tracking-[0.25em] text-gold">MYSKYPARCEL · İSTANBUL</p>
+                  <h2 className="mt-2 font-display text-2xl font-bold sm:text-3xl">İSTANBUL</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">Gökyüzündeki sembolik yolculuğuna İstanbul'dan başla.</p>
+                  <Link to="/gokyuzu-haritasi" search={{ city: HERO_CITY.slug }} className="btn-gold mt-4 inline-flex items-center gap-2 rounded-md px-5 py-2.5 text-[11px]">İSTANBUL PARSELLERİNİ KEŞFET <ArrowRight className="h-4 w-4" /></Link>
+                </div>
               </div>
             </div>
           </div>
