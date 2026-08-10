@@ -82,7 +82,7 @@ function Paketler() {
           {PLANS.map((p) => (
             <article
               key={p.name}
-              className={`panel relative flex flex-col p-7 ${p.popular ? "border-gold/70" : ""}`}
+              className={`panel relative flex h-full flex-col p-7 ${p.popular ? "border-gold/70" : ""}`}
             >
               {p.popular && (
                 <span className="btn-gold absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-4 py-1 text-[10px]">
@@ -111,7 +111,7 @@ function Paketler() {
               </ul>
               <Link
                 to="/giris"
-                className="btn-gold mt-8 flex items-center justify-center gap-3 rounded-md py-3 text-sm"
+                className="btn-gold mt-auto flex items-center justify-center gap-3 rounded-md py-3 pt-3 text-sm"
               >
                 HEMEN AL <ArrowRight className="h-4 w-4" />
               </Link>
