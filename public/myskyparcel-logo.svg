@@ -1,3 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="411" viewBox="0 0 1200 411">
-  <image href="data:image/webp;base64,UklGRnQ/AAABXRUJQVlA4WAoAAAAgAAAARQAAA..." width="1200" height="411" preserveAspectRatio="xMidYMid meet"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1536 526" role="img" aria-label="MySkyParcel — Gökyüzünde Sana Özel Bir Yer">
+<rect width="1536" height="526" fill="#020712"/>
+<g fill="none" stroke="#d9a64b" stroke-width="7" stroke-linecap="round"><path d="M285 230 C420 55 690 45 790 230"/><path d="M285 421 H475"/><path d="M1070 421 H1260"/></g>
+<g fill="#e7b653"><path d="M515 115 l9 30 30 9-30 9-9 30-9-30-30-9 30-9z"/><path d="M680 55 l10 36 36 10-36 10-10 36-10-36-36-10 36-10z"/><path d="M760 145 l7 25 25 7-25 7-7 25-7-25-25-7 25-7z"/><path d="M435 150 l6 21 21 6-21 6-6 21-6-21-21-6 21-6z"/><path d="M360 190 l5 18 18 5-18 5-5 18-5-18-18-5 18-5z"/></g>
+<text x="180" y="350" font-family="Georgia,Times New Roman,serif" font-size="126" letter-spacing="2" fill="#f5f5f5">MY SKY</text>
+<text x="765" y="350" font-family="Georgia,Times New Roman,serif" font-size="126" letter-spacing="2" fill="#e4ad4f">PARCEL</text>
+<text x="768" y="435" text-anchor="middle" font-family="Georgia,Times New Roman,serif" font-size="45" letter-spacing="5" fill="#f1f1f1">GÖKYÜZÜNDE SANA ÖZEL BİR YER</text>
 </svg>
