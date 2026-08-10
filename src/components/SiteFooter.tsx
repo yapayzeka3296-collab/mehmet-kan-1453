@@ -1,4 +1,5 @@
 import { Facebook, Instagram, Linkedin, Twitter, Youtube } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 const LEGAL = ["KVKK", "GİZLİLİK POLİTİKASI", "KULLANIM ŞARTLARI", "ÇEREZ POLİTİKASI"];
 const CURRENT_YEAR = new Date().getFullYear();
@@ -11,9 +12,15 @@ export function SiteFooter() {
         <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 lg:justify-center" aria-label="Hukuki sayfalar">
           {LEGAL.map((l) => (
             <li key={l}>
-              <span className="tracking-[0.06em] text-gold/70" title="Bu hukuki sayfa henüz repository'de tanımlı değil">
-                {l}
-              </span>
+              {l === "KVKK" ? (
+                <Link to="/kvkk" className="tracking-[0.06em] text-gold/70 transition-colors hover:text-gold">
+                  {l}
+                </Link>
+              ) : (
+                <span className="tracking-[0.06em] text-gold/70" title="Bu hukuki sayfa henüz repository'de tanımlı değil">
+                  {l}
+                </span>
+              )}
             </li>
           ))}
         </ul>
