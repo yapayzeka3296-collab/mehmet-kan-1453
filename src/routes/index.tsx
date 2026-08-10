@@ -22,8 +22,8 @@ const STATS = [
 ];
 const CERTIFICATE_PACKAGES = [
   { id: "digital", name: "DİJİTAL", price: 199, img: "/certificates/digital-certificate.jpg", features: ["Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"] },
-  { id: "elite", name: "ELİT", price: 499, img: "/certificates/elite-certificate.jpg", features: ["Özel tasarım sertifika", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"] },
-  { id: "premium", name: "PREMİUM", price: 999, img: "/certificates/premium-certificate.jpg", features: ["Özel tasarım sertifika", "Çerçeveli baskı (A4)", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama"] },
+  { id: "elite", name: "ELİT", price: 499, img: "/certificates/elite-certificate.jpg", features: ["Özel tasarım sertifika", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim", "Posta yoluyla gönderim"] },
+  { id: "premium", name: "PREMİUM", price: 999, img: "/certificates/premium-certificate.jpg", features: ["Özel tasarım sertifika", "Çerçeveli baskı (A4)", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "Posta yoluyla gönderim"] },
 ] as const;
 const POPULAR_CITIES = [
   { name: "İSTANBUL", slug: "istanbul", code: "IST", image: CITY_IMAGES.IST }, { name: "ANKARA", slug: "ankara", code: "ANK", image: CITY_IMAGES.ANK }, { name: "İZMİR", slug: "izmir", code: "IZM", image: CITY_IMAGES.IZM }, { name: "ANTALYA", slug: "antalya", code: "ANT", image: CITY_IMAGES.ANT }, { name: "BURSA", slug: "bursa", code: "BUR", image: CITY_IMAGES.BUR }, { name: "KAYSERİ", slug: "kayseri", code: "KAY", image: CITY_IMAGES.KAY }, { name: "GAZİANTEP", slug: "gaziantep", code: "GZT", image: CITY_IMAGES.GZT },
