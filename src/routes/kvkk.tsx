@@ -3,64 +3,10 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 
 export const Route = createFileRoute("/kvkk")({
-  head: () => ({
-    meta: [
-      { title: "KVKK Aydınlatma Metni — MySkyParcel" },
-      { name: "description", content: "MySkyParcel KVKK Aydınlatma Metni." },
-    ],
-  }),
+  head: () => ({ meta: [{ title: "KVKK Aydınlatma Metni — MySkyParcel" }, { name: "description", content: "MySkyParcel KVKK Aydınlatma Metni." }] }),
   component: KVKK,
 });
 
 function KVKK() {
-  return (
-    <div className="starfield min-h-screen">
-      <SiteHeader />
-      <main className="mx-auto max-w-4xl px-4 py-12 lg:px-8">
-        <article className="panel p-6 sm:p-10">
-          <h1 className="font-display text-3xl font-bold sm:text-4xl">KVKK AYDINLATMA METNİ</h1>
-          <p className="mt-5 text-sm leading-7 text-muted-foreground">
-            <strong className="text-foreground">MySkyParcel</strong> olarak kişisel verilerinizin güvenliğini ve gizliliğini önemsiyoruz. Bu metin, 6698 sayılı <strong className="text-foreground">Kişisel Verilerin Korunması Kanunu (KVKK)</strong> kapsamında kişisel verilerinizin nasıl işlendiği hakkında sizi bilgilendirmek amacıyla hazırlanmıştır.
-          </p>
-
-          <div className="mt-8 space-y-7 text-sm leading-7">
-            <section>
-              <h2 className="font-display text-lg text-gold">1. İşlenen Kişisel Veriler</h2>
-              <p className="mt-2 text-muted-foreground">Siteyi kullanmanız ve hizmetlerimizden yararlanmanız kapsamında; <strong className="text-foreground">ad-soyad, e-posta adresi, telefon numarası, teslimat adresi, üyelik bilgileri, sipariş ve sertifika bilgileri</strong> gibi veriler işlenebilir.</p>
-            </section>
-            <section>
-              <h2 className="font-display text-lg text-gold">2. Kişisel Verilerin İşlenme Amaçları</h2>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-                <li>Üyelik ve hesap işlemlerinin gerçekleştirilmesi,</li><li>Parsel ve sertifika hizmetlerinin sunulması,</li><li>Sipariş ve ödeme süreçlerinin yürütülmesi,</li><li>Fiziksel sertifikaların teslim edilmesi,</li><li>Müşteri destek taleplerinin cevaplanması,</li><li>Yasal yükümlülüklerin yerine getirilmesi,</li><li>Site ve hizmet güvenliğinin sağlanması.</li>
-              </ul>
-            </section>
-            <section>
-              <h2 className="font-display text-lg text-gold">3. Kişisel Verilerin Aktarılması</h2>
-              <p className="mt-2 text-muted-foreground">Kişisel verileriniz, hizmetin gerektirdiği ölçüde <strong className="text-foreground">ödeme kuruluşları, kargo/posta hizmet sağlayıcıları, teknik altyapı ve barındırma hizmet sağlayıcıları</strong> ile ve kanunen yetkili kamu kurumlarıyla paylaşılabilir.</p>
-            </section>
-            <section>
-              <h2 className="font-display text-lg text-gold">4. Saklama ve Güvenlik</h2>
-              <p className="mt-2 text-muted-foreground">Kişisel verileriniz, işleme amacı için gerekli olan süre boyunca ve ilgili mevzuatta öngörülen yasal süreler kapsamında saklanır. Verilerin güvenliğini sağlamak için gerekli teknik ve idari tedbirler uygulanır.</p>
-            </section>
-            <section>
-              <h2 className="font-display text-lg text-gold">5. KVKK Kapsamındaki Haklarınız</h2>
-              <p className="mt-2 text-muted-foreground">KVKK'nın 11. maddesi kapsamında kişisel verileriniz hakkında <strong className="text-foreground">bilgi talep etme, düzeltilmesini isteme, silinmesini veya yok edilmesini talep etme, işlenmesine itiraz etme</strong> ve kanunda belirtilen diğer haklarınızı kullanabilirsiniz.</p>
-              <p className="mt-3 text-muted-foreground">Haklarınızı kullanmak için <strong className="text-foreground">MySkyParcel iletişim kanalları üzerinden</strong> bizimle iletişime geçebilirsiniz.</p>
-            </section>
-            <section>
-              <h2 className="font-display text-lg text-gold">6. İlgili Hukuki Metinler</h2>
-              <p className="mt-2 text-muted-foreground">Kişisel verileriniz, site kullanımı ve çerezler hakkında tamamlayıcı bilgiler için aşağıdaki metinleri de inceleyebilirsiniz:</p>
-              <div className="mt-4 flex flex-wrap gap-3 text-xs">
-                <Link to="/gizlilik-politikasi" className="rounded-md border border-gold/40 px-4 py-2 text-gold hover:border-gold">Gizlilik Politikası</Link>
-                <Link to="/kullanim-sartlari" className="rounded-md border border-gold/40 px-4 py-2 text-gold hover:border-gold">Kullanım Şartları</Link>
-                <Link to="/cerez-politikasi" className="rounded-md border border-gold/40 px-4 py-2 text-gold hover:border-gold">Çerez Politikası</Link>
-              </div>
-            </section>
-          </div>
-          <p className="mt-10 border-t border-border pt-5 text-xs text-muted-foreground">Son güncelleme: 10 Ağustos 2026</p>
-        </article>
-      </main>
-      <SiteFooter />
-    </div>
-  );
+  return <div className="starfield min-h-screen"><SiteHeader /><main className="mx-auto max-w-4xl px-4 py-12 lg:px-8"><article className="panel p-6 sm:p-10"><h1 className="font-display text-3xl font-bold sm:text-4xl">KVKK AYDINLATMA METNİ</h1><p className="mt-5 text-sm leading-7 text-muted-foreground"><strong className="text-foreground">MySkyParcel</strong> olarak kişisel verilerinizin güvenliğini ve gizliliğini önemsiyoruz. Bu metin, 6698 sayılı <strong className="text-foreground">Kişisel Verilerin Korunması Kanunu (KVKK)</strong> kapsamında kişisel verilerinizin nasıl işlendiği hakkında sizi bilgilendirmek amacıyla hazırlanmıştır.</p><div className="mt-8 space-y-7 text-sm leading-7"><section><h2 className="font-display text-lg text-gold">1. Hizmetin Niteliği</h2><p className="mt-2 text-muted-foreground">MySkyParcel üzerindeki gökyüzü parselleri <strong className="text-foreground">sembolik ve dijital koleksiyon amaçlıdır</strong>. Parsel veya sertifika edinimi gerçek arazi, taşınmaz ya da gökyüzü üzerinde mülkiyet, tapu, kullanım, tasarruf, imar veya başka bir ayni hak sağlamaz. Sertifikalar resmi tapu veya mülkiyet belgesi değildir.</p></section><section><h2 className="font-display text-lg text-gold">2. İşlenen Kişisel Veriler</h2><p className="mt-2 text-muted-foreground">Siteyi kullanmanız ve hizmetlerden yararlanmanız kapsamında; <strong className="text-foreground">ad-soyad, e-posta adresi, telefon numarası, teslimat adresi, üyelik bilgileri, sipariş ve sertifika bilgileri</strong> gibi veriler işlenebilir.</p></section><section><h2 className="font-display text-lg text-gold">3. Kişisel Verilerin İşlenme Amaçları</h2><ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground"><li>Üyelik ve hesap işlemlerinin gerçekleştirilmesi,</li><li>Sembolik dijital parsel ve sertifika hizmetlerinin sunulması,</li><li>Sipariş ve ödeme süreçlerinin yürütülmesi,</li><li>Fiziksel sertifikaların posta/kargo yoluyla teslim edilmesi,</li><li>Müşteri destek taleplerinin cevaplanması,</li><li>Yasal yükümlülüklerin yerine getirilmesi,</li><li>Site ve hizmet güvenliğinin sağlanması.</li></ul></section><section><h2 className="font-display text-lg text-gold">4. Kişisel Verilerin Aktarılması</h2><p className="mt-2 text-muted-foreground">Kişisel verileriniz, hizmetin gerektirdiği ölçüde <strong className="text-foreground">ödeme kuruluşları, kargo/posta hizmet sağlayıcıları, teknik altyapı ve barındırma hizmet sağlayıcıları</strong> ile ve kanunen yetkili kamu kurumlarıyla paylaşılabilir.</p></section><section><h2 className="font-display text-lg text-gold">5. Saklama ve Güvenlik</h2><p className="mt-2 text-muted-foreground">Kişisel verileriniz, işleme amacı için gerekli olan süre boyunca ve ilgili mevzuatta öngörülen yasal süreler kapsamında saklanır. Verilerin güvenliğini sağlamak için gerekli teknik ve idari tedbirler uygulanır.</p></section><section><h2 className="font-display text-lg text-gold">6. KVKK Kapsamındaki Haklarınız</h2><p className="mt-2 text-muted-foreground">KVKK'nın 11. maddesi kapsamında kişisel verileriniz hakkında <strong className="text-foreground">bilgi talep etme, düzeltilmesini isteme, silinmesini veya yok edilmesini talep etme, işlenmesine itiraz etme</strong> ve kanunda belirtilen diğer haklarınızı kullanabilirsiniz.</p><p className="mt-3 text-muted-foreground">Haklarınızı kullanmak için <strong className="text-foreground">MySkyParcel iletişim kanalları üzerinden</strong> bizimle iletişime geçebilirsiniz.</p></section><section><h2 className="font-display text-lg text-gold">7. İlgili Hukuki Metinler</h2><p className="mt-2 text-muted-foreground">Hizmetin sembolik/dijital koleksiyon niteliği, kullanım koşulları, gizlilik ve çerez uygulamaları hakkında tamamlayıcı bilgiler için aşağıdaki metinleri inceleyebilirsiniz:</p><div className="mt-4 flex flex-wrap gap-3 text-xs"><Link to="/gizlilik-politikasi" className="rounded-md border border-gold/40 px-4 py-2 text-gold hover:border-gold">Gizlilik Politikası</Link><Link to="/kullanim-sartlari" className="rounded-md border border-gold/40 px-4 py-2 text-gold hover:border-gold">Kullanım Şartları</Link><Link to="/cerez-politikasi" className="rounded-md border border-gold/40 px-4 py-2 text-gold hover:border-gold">Çerez Politikası</Link></div></section></div><p className="mt-10 border-t border-border pt-5 text-xs text-muted-foreground">Son güncelleme: 10 Ağustos 2026</p></article></main><SiteFooter /></div>;
 }
