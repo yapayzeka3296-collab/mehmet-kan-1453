@@ -18,7 +18,14 @@ function PazarYeri() {
       <SiteHeader />
       <main className="mx-auto flex min-h-[calc(100vh-160px)] max-w-4xl items-center px-4 py-14 lg:px-8">
         <article className="panel w-full p-8 text-center sm:p-12">
-          <div className="text-5xl" aria-hidden="true">🌌</div>
+          <img
+            src="/myskyparcel-logo.svg"
+            alt="MySkyParcel"
+            className="mx-auto h-auto w-[150px] object-contain sm:w-[190px]"
+            width={1536}
+            height={526}
+            decoding="async"
+          />
           <h1 className="mt-5 font-display text-3xl font-bold sm:text-5xl">MY SKY PARCEL PAZAR YERİ</h1>
           <h2 className="mx-auto mt-5 max-w-2xl font-display text-xl leading-relaxed text-gold sm:text-2xl">
             GÖKYÜZÜNDEKİ PARSELİNİ KEŞFET.<br />KOLEKSİYONUNU BÜYÜT.
