@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { ArrowRight, Calendar, FileBadge, Globe, Grid2x2, Headphones, List, Lock, MoreVertical, ShieldCheck, Star, Truck } from "lucide-react";
 import heroCity from "@/assets/hero-city.jpg";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -83,6 +83,14 @@ function Parsellerim() {
     void load();
     return () => { mounted = false; };
   }, [user, authLoading]);
+
+  if (authLoading) {
+    return <div className="starfield min-h-screen" aria-busy="true" />;
+  }
+
+  if (!user) {
+    return <Navigate to="/giris" replace />;
+  }
 
   const summaryCounts = () => {
     const total = parcels.length;
