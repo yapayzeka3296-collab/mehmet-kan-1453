@@ -1,24 +1,28 @@
 import { Link } from "@tanstack/react-router";
 import { Menu, ShoppingCart, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import { Logo } from "./Logo";
 
 const NAV_LINKS = [
   { label: "Ana Sayfa", to: "/" },
   { label: "Gökyüzü Haritası", to: "/gokyuzu-haritasi" },
   { label: "Parsel Satın Al", to: "/parsel-satin-al" },
-  { label: "Koleksiyonum", to: "/parsellerim" },
-  { label: "Dijital Sertifika", to: "/sertifikalarim" },
+  { label: "Koleksiyonum", to: "/parsellerim", requiresAuth: true },
+  { label: "Dijital Sertifika", to: "/sertifikalarim", requiresAuth: true },
   { label: "Sertifika Doğrula", to: "/sertifika-dogrula" },
   { label: "Hakkımızda", to: "/hakkimizda" },
   { label: "İletişim", to: "/iletisim" },
 ] as const;
 
 export function SiteHeader() {
+  const { user, loading: authLoading } = useAuth();
   const [open, setOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
+
+  const visibleNavLinks = NAV_LINKS.filter((item) => !item.requiresAuth || (!authLoading && !!user));
 
   useEffect(() => {
     if (!open) return;
@@ -73,7 +77,7 @@ export function SiteHeader() {
       <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex shrink-0 items-center"><Logo /></div>
         <nav aria-label="Ana navigasyon" className="hidden items-center gap-3 xl:flex 2xl:gap-5">
-          {NAV_LINKS.map((item) => (
+          {visibleNavLinks.map((item) => (
             <Link key={item.to} to={item.to} className="relative whitespace-nowrap text-xs font-medium text-slate-300 transition-colors duration-200 hover:text-[#D4AF37] 2xl:text-sm" activeProps={{ className: "text-[#D4AF37] after:absolute after:bottom-[-6px] after:left-0 after:h-[2px] after:w-full after:bg-[#D4AF37]" }}>{item.label}</Link>
           ))}
         </nav>
@@ -100,7 +104,7 @@ export function SiteHeader() {
                 <button ref={closeButtonRef} type="button" onClick={closeMenu} aria-label="Menüyü kapat" className="p-1 text-slate-400 hover:text-white"><X className="h-6 w-6" /></button>
               </div>
               <nav aria-label="Mobil site navigasyonu" className="mt-6 flex flex-col gap-4">
-                {NAV_LINKS.map((item) => <Link key={item.to} to={item.to} onClick={closeMenu} className="text-base font-medium text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]" activeProps={{ className: "font-semibold text-[#D4AF37]" }}>{item.label}</Link>)}
+                {visibleNavLinks.map((item) => <Link key={item.to} to={item.to} onClick={closeMenu} className="text-base font-medium text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]" activeProps={{ className: "font-semibold text-[#D4AF37]" }}>{item.label}</Link>)}
               </nav>
             </div>
             <div className="mt-8 flex flex-col gap-3 border-t border-[#1E293B] pt-6">
