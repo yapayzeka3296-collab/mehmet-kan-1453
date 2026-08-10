@@ -6,6 +6,7 @@ import { TrustBar } from "@/components/TrustBar";
 import { SkyParcelGlobe } from "@/components/SkyParcelGlobe";
 import { ParcelDetailPanel } from "@/components/ParcelDetailPanel";
 import { CITY_IMAGES, CITY_IMAGE_FALLBACK } from "@/lib/cityImages";
+import type { CityImageCode } from "@/lib/cityImages";
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import type { Parcel } from "@/types/parcel";
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/gokyuzu-haritasi")({
   component: Harita,
 });
 
-const PILOT_CITIES = [
+const PILOT_CITIES: ReadonlyArray<{ code: CityImageCode; slug: string; name: string }> = [
   { code: "IST", slug: "istanbul", name: "İstanbul" },
   { code: "ANK", slug: "ankara", name: "Ankara" },
   { code: "IZM", slug: "izmir", name: "İzmir" },
@@ -30,20 +31,24 @@ const PILOT_CITIES = [
   { code: "ANT", slug: "antalya", name: "Antalya" },
   { code: "KAY", slug: "kayseri", name: "Kayseri" },
   { code: "GZT", slug: "gaziantep", name: "Gaziantep" },
-] as const;
+];
 
+const DEFAULT_CITY = { code: "GZT", slug: "gaziantep", name: "Gaziantep" } satisfies { code: CityImageCode; slug: string; name: string };
 const TIER_BY_NUMBER = (number: number) => number <= 500 ? "digital" : number <= 800 ? "elite" : "premium";
 const TIER_PRICE = { digital: 199, elite: 499, premium: 999 } as const;
+type Tier = keyof typeof TIER_PRICE;
+
+type PublicParcelRow = Omit<Parcel, "owner_id"> & { owner_id: null; city_slug?: string | null; layer_number?: number | null; sector_number?: number | null; local_parcel_number?: number | null };
 
 function Harita() {
-  const [selectedCity, setSelectedCity] = useState("GZT");
+  const [selectedCity, setSelectedCity] = useState<CityImageCode>("GZT");
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const selectedParcel = useMemo(() => parcels.find((parcel) => parcel.id === selectedId) ?? null, [parcels, selectedId]);
-  const selectedCityMeta = PILOT_CITIES.find((city) => city.code === selectedCity) ?? PILOT_CITIES[6];
+  const selectedCityMeta = PILOT_CITIES.find((city) => city.code === selectedCity) ?? DEFAULT_CITY;
   const selectedCityImage = CITY_IMAGES[selectedCity] ?? CITY_IMAGE_FALLBACK;
 
   useEffect(() => {
@@ -61,30 +66,30 @@ function Harita() {
       setSelectedId(null);
 
       try {
-        const { data: city, error: cityError } = await supabaseBrowser
-          .from("cities")
-          .select("id,name,slug")
-          .eq("slug", selectedCityMeta.slug)
-          .single();
-        if (cityError) throw cityError;
-
         const { data, error: parcelError } = await supabaseBrowser
-          .from("parcels")
-          .select("id, parcel_number, status, owner_id, price, city_id, latitude, longitude, created_at, updated_at, grid_x, grid_y")
-          .eq("city_id", city.id)
+          .from("parcel_map_public")
+          .select("id, parcel_number, status, price, tier, tier_price, city_id, city_code, city_name, city_slug, layer_number, sector_number, local_parcel_number, latitude, longitude, created_at, updated_at")
+          .eq("city_slug", selectedCityMeta.slug)
           .order("parcel_number")
           .limit(1000);
         if (parcelError) throw parcelError;
 
-        const normalized = ((data ?? []) as Array<Parcel & { grid_x?: number; grid_y?: number }>).map((parcel) => {
+        const normalized = ((data ?? []) as PublicParcelRow[]).map((parcel) => {
           const numericCode = Number(parcel.parcel_number.split("-").pop() ?? 0);
-          const tier = TIER_BY_NUMBER(numericCode);
-          return { ...parcel, tier, tier_price: TIER_PRICE[tier] } as Parcel;
+          const tier = (parcel.tier ?? TIER_BY_NUMBER(numericCode)) as Tier;
+          return {
+            ...parcel,
+            owner_id: null,
+            tier,
+            tier_price: parcel.tier_price ?? TIER_PRICE[tier],
+            city_name: parcel.city_name ?? selectedCityMeta.name,
+            city_code: parcel.city_code ?? selectedCityMeta.code,
+          } as Parcel;
         });
         if (mounted) setParcels(normalized);
       } catch (err) {
-        console.error("Error loading pilot city parcels", err);
-        if (mounted) setError("Şehrin gerçek parselleri yüklenemedi. Supabase bağlantısını kontrol edin.");
+        console.error("Error loading public pilot city parcels", err);
+        if (mounted) setError("Şehrin herkese açık parsel verileri yüklenemedi. Supabase bağlantısını kontrol edin.");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -92,7 +97,7 @@ function Harita() {
 
     void loadParcels();
     return () => { mounted = false; };
-  }, [selectedCityMeta.slug]);
+  }, [selectedCityMeta.code, selectedCityMeta.name, selectedCityMeta.slug]);
 
   return (
     <div className="starfield min-h-screen">
@@ -100,7 +105,7 @@ function Harita() {
       <main className="mx-auto max-w-[1600px] px-4 py-12 lg:px-8">
         <div className="text-center">
           <h1 className="font-display text-4xl font-bold sm:text-5xl">GÖKYÜZÜ HARİTASI</h1>
-          <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground">Küreyi keşfet, pilot şehrini seç ve bir parsele dokun. Parsel kodu yalnızca seçtiğinde gösterilir.</p>
+          <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground">Küreyi keşfet, pilot şehrini seç ve bir parsele dokun. Sahiplik bilgileri yalnızca yetkili kullanıcı alanlarında gösterilir.</p>
         </div>
 
         <div className="mt-10 grid gap-6 lg:grid-cols-[300px_1fr]">
@@ -110,7 +115,7 @@ function Harita() {
               <input placeholder="Pilot şehir ara..." className="min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none" aria-label="Pilot şehir ara" />
             </div>
             <div>
-              <p className="mb-2 text-xs text-muted-foreground">Pilot şehirler · 1.000 parsel</p>
+              <p className="mb-2 text-xs text-muted-foreground">Pilot şehirler · 1.000 başlangıç parseli</p>
               <ul className="grid gap-1">
                 {PILOT_CITIES.map((city) => (
                   <li key={city.code}>

@@ -2,13 +2,8 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 
-type User = {
-  id: string;
-  email?: string | null;
-};
-
+type User = { id: string; email?: string | null };
 type AuthResult = { success: true; user?: User } | { success: false; error: string };
-
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
@@ -17,8 +12,11 @@ type AuthContextValue = {
   signUp: (email: string, password: string, name?: string) => Promise<AuthResult>;
   signOut: () => Promise<AuthResult>;
 };
-
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+function toUser(sessionUser: { id: string; email?: string | null }): User {
+  return { id: sessionUser.id, email: sessionUser.email ?? null };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -26,20 +24,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!supabaseBrowser) {
+    const client = supabaseBrowser;
+    if (!client) {
       setLoading(false);
       return;
     }
-
     let mounted = true;
 
     async function init() {
       try {
-        const { data } = await supabaseBrowser.auth.getSession();
-        const sessionUser = (data as any)?.session?.user ?? null;
-        if (mounted && sessionUser) {
-          setUser({ id: sessionUser.id, email: sessionUser.email });
-        }
+        const { data } = await client!.auth.getSession();
+        const sessionUser = data.session?.user ?? null;
+        if (mounted && sessionUser) setUser(toUser(sessionUser));
       } catch (err) {
         console.error('Error fetching session', err);
       } finally {
@@ -47,12 +43,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    init();
-
-    const { data: listener } = supabaseBrowser.auth.onAuthStateChange((_event, session) => {
-      const sUser = (session as any)?.user ?? null;
-      if (sUser) {
-        setUser({ id: sUser.id, email: sUser.email });
+    void init();
+    const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
+      const sessionUser = session?.user ?? null;
+      if (sessionUser) {
+        setUser(toUser(sessionUser));
         setError(null);
       } else {
         setUser(null);
@@ -61,40 +56,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
-      listener?.subscription?.unsubscribe?.();
+      listener.subscription.unsubscribe();
     };
   }, []);
 
   async function signIn(email: string, password: string): Promise<AuthResult> {
     setLoading(true);
     setError(null);
-    if (!supabaseBrowser) {
+    const client = supabaseBrowser;
+    if (!client) {
       const msg = 'Supabase yapılandırması eksik';
       setError(msg);
       setLoading(false);
       return { success: false, error: msg };
     }
-
     try {
-      const { data, error } = await supabaseBrowser.auth.signInWithPassword({ email, password });
+      const { data, error } = await client.auth.signInWithPassword({ email, password });
       if (error) {
         const msg = error.message ?? 'Giriş sırasında bir hata oluştu';
         setError(msg);
         return { success: false, error: msg };
       }
-
-      const sessionUser = (data as any)?.user ?? (data as any)?.session?.user ?? null;
+      const sessionUser = data.user ?? null;
       if (sessionUser) {
-        const u = { id: sessionUser.id, email: sessionUser.email } as User;
+        const u = toUser(sessionUser);
         setUser(u);
         return { success: true, user: u };
       }
-
       const msg = 'Giriş başarısız';
       setError(msg);
       return { success: false, error: msg };
-    } catch (err: any) {
-      const msg = err?.message ?? 'Giriş sırasında bir hata oluştu';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Giriş sırasında bir hata oluştu';
       setError(msg);
       return { success: false, error: msg };
     } finally {
@@ -105,37 +98,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signUp(email: string, password: string, name?: string): Promise<AuthResult> {
     setLoading(true);
     setError(null);
-    if (!supabaseBrowser) {
+    const client = supabaseBrowser;
+    if (!client) {
       const msg = 'Supabase yapılandırması eksik';
       setError(msg);
       setLoading(false);
       return { success: false, error: msg };
     }
-
     try {
-      const { data, error } = await supabaseBrowser.auth.signUp({
-        email,
-        password,
-        options: name?.trim()
-          ? { data: { full_name: name.trim() } }
-          : undefined,
-      });
+      const credentials = name?.trim()
+        ? { email, password, options: { data: { full_name: name.trim() } } }
+        : { email, password };
+      const { data, error } = await client.auth.signUp(credentials);
       if (error) {
         const msg = error.message ?? 'Kayıt sırasında bir hata oluştu';
         setError(msg);
         return { success: false, error: msg };
       }
-
-      const sessionUser = (data as any)?.user ?? (data as any)?.session?.user ?? null;
+      const sessionUser = data.user ?? null;
       if (sessionUser) {
-        const u = { id: sessionUser.id, email: sessionUser.email } as User;
+        const u = toUser(sessionUser);
         setUser(u);
         return { success: true, user: u };
       }
-
       return { success: true };
-    } catch (err: any) {
-      const msg = err?.message ?? 'Kayıt sırasında bir hata oluştu';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Kayıt sırasında bir hata oluştu';
       setError(msg);
       return { success: false, error: msg };
     } finally {
@@ -146,15 +134,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signOut(): Promise<AuthResult> {
     setLoading(true);
     setError(null);
-    if (!supabaseBrowser) {
+    const client = supabaseBrowser;
+    if (!client) {
       const msg = 'Supabase yapılandırması eksik';
       setError(msg);
       setLoading(false);
       return { success: false, error: msg };
     }
-
     try {
-      const { error } = await supabaseBrowser.auth.signOut();
+      const { error } = await client.auth.signOut();
       if (error) {
         const msg = error.message ?? 'Çıkış sırasında bir hata oluştu';
         setError(msg);
@@ -162,8 +150,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setUser(null);
       return { success: true };
-    } catch (err: any) {
-      const msg = err?.message ?? 'Çıkış sırasında bir hata oluştu';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Çıkış sırasında bir hata oluştu';
       setError(msg);
       return { success: false, error: msg };
     } finally {
@@ -171,11 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  return (
-    <AuthContext.Provider value={{ user, loading, error, signIn, signUp, signOut }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{ user, loading, error, signIn, signUp, signOut }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {
