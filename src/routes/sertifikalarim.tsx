@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { Award, RefreshCw } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -31,7 +31,7 @@ type Certificate = {
 const TIER_LABELS = { digital: "Dijital", elite: "Elit", premium: "Premium" } as const;
 
 function Sertifikalarim() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +64,14 @@ function Sertifikalarim() {
     void loadCertificates();
   }, [loadCertificates]);
 
+  if (authLoading) {
+    return <div className="starfield min-h-screen" aria-busy="true" />;
+  }
+
+  if (!user) {
+    return <Navigate to="/giris" replace />;
+  }
+
   return (
     <div className="starfield min-h-screen">
       <SiteHeader />
@@ -82,10 +90,9 @@ function Sertifikalarim() {
             </button>
           </div>
 
-          {!user && <div className="panel mt-6 p-6 text-sm text-muted-foreground">Sertifikalarınızı görmek için giriş yapın.</div>}
           {loading && <div className="panel mt-6 p-6 text-sm text-muted-foreground">Sertifikalar yükleniyor...</div>}
           {error && <div className="panel mt-6 p-6 text-sm text-red-300">{error}</div>}
-          {!loading && !error && user && certificates.length === 0 && (
+          {!loading && !error && certificates.length === 0 && (
             <div className="panel mt-6 p-8 text-center">
               <Award className="mx-auto h-12 w-12 text-gold" />
               <h2 className="mt-4 font-display text-xl">Henüz sertifika yok</h2>
