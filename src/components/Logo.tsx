@@ -6,7 +6,7 @@ export function Logo() {
       <img
         src="/myskyparcel-logo.svg"
         alt="MySkyParcel — Gökyüzünde Sana Özel Bir Yer"
-        className="h-auto w-[150px] object-contain sm:w-[185px]"
+        className="h-auto w-[180px] object-contain sm:w-[220px]"
         width={1536}
         height={526}
         decoding="async"
