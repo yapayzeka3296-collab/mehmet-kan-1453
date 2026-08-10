@@ -30,6 +30,12 @@ type Certificate = {
 
 const TIER_LABELS = { digital: "Dijital", elite: "Elit", premium: "Premium" } as const;
 
+const TIER_IMAGE_PATHS = {
+  digital: "/sertifikalar/dijital-sertifika.jpg",
+  elite: "/sertifikalar/elit-sertifika.jpg",
+  premium: "/sertifikalar/premium-sertifika.jpg",
+} as const;
+
 function Sertifikalarim() {
   const { user, loading: authLoading } = useAuth();
   const [certificates, setCertificates] = useState<Certificate[]>([]);
@@ -105,18 +111,25 @@ function Sertifikalarim() {
           {!loading && !error && certificates.length > 0 && (
             <ul className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {certificates.map((certificate) => (
-                <li key={certificate.id} className="panel p-5">
-                  <div className="grid h-36 place-items-center rounded-lg border border-gold/40 bg-navy">
-                    <Award className="h-12 w-12 text-gold" />
+                <li key={certificate.id} className="panel overflow-hidden p-0">
+                  <div className="aspect-[1.414/1] w-full overflow-hidden bg-navy">
+                    <img
+                      src={TIER_IMAGE_PATHS[certificate.tier]}
+                      alt={`${TIER_LABELS[certificate.tier]} sertifika görseli`}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
                   </div>
-                  <p className="mt-4 font-display text-lg">{TIER_LABELS[certificate.tier]}</p>
-                  <p className="text-xs text-gold">Parsel: {certificate.parcel_id}</p>
-                  <p className="mt-2 text-[11px] text-muted-foreground">
-                    Durum: {certificate.status} · Talep: {new Date(certificate.requested_at).toLocaleDateString("tr-TR")}
-                  </p>
-                  {certificate.certificate_number && (
-                    <p className="mt-1 text-[11px] text-muted-foreground">Sertifika No: {certificate.certificate_number}</p>
-                  )}
+                  <div className="p-5">
+                    <p className="font-display text-lg">{TIER_LABELS[certificate.tier]}</p>
+                    <p className="text-xs text-gold">Parsel: {certificate.parcel_id}</p>
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      Durum: {certificate.status} · Talep: {new Date(certificate.requested_at).toLocaleDateString("tr-TR")}
+                    </p>
+                    {certificate.certificate_number && (
+                      <p className="mt-1 text-[11px] text-muted-foreground">Sertifika No: {certificate.certificate_number}</p>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
