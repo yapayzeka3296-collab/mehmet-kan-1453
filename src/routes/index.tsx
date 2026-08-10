@@ -22,9 +22,9 @@ const STATS = [
   { icon: Lock, big: "", title: "GÜVENLİ ALTYAPI", text: "Güvenlik ve ödeme altyapısı ayrıca doğrulanmalıdır" },
 ];
 const CERTIFICATE_PACKAGES = [
-  { id: "digital", name: "DİJİTAL", price: 199, img: "/dijital-sertifika.webp", features: ["Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"] },
-  { id: "elite", name: "ELİT", price: 499, img: "/elit-sertifika.webp", features: ["Özel tasarım sertifika", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"] },
-  { id: "premium", name: "PREMİUM", price: 999, img: "/premium-sertifika.webp", features: ["Özel tasarım sertifika", "Çerçeveli baskı (A4)", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama"] },
+  { id: "digital", name: "DİJİTAL", price: 199, img: "/digital-certificate.webp", features: ["Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"] },
+  { id: "elite", name: "ELİT", price: 499, img: "/elite-certificate.webp", features: ["Özel tasarım sertifika", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"] },
+  { id: "premium", name: "PREMİUM", price: 999, img: "/premium-certificate.webp", features: ["Özel tasarım sertifika", "Çerçeveli baskı (A4)", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama"] },
 ] as const;
 const POPULAR_CITIES = [
   { name: "İSTANBUL", slug: "istanbul", code: "IST", image: CITY_IMAGES.IST }, { name: "ANKARA", slug: "ankara", code: "ANK", image: CITY_IMAGES.ANK }, { name: "İZMİR", slug: "izmir", code: "IZM", image: CITY_IMAGES.IZM }, { name: "ANTALYA", slug: "antalya", code: "ANT", image: CITY_IMAGES.ANT }, { name: "BURSA", slug: "bursa", code: "BUR", image: CITY_IMAGES.BUR }, { name: "KAYSERİ", slug: "kayseri", code: "KAY", image: CITY_IMAGES.KAY }, { name: "GAZİANTEP", slug: "gaziantep", code: "GZT", image: CITY_IMAGES.GZT },
