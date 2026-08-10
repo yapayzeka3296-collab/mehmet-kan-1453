@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Boxes, Check, Globe, Headphones, Layers, Lock, MapPin, Play, ShieldCheck, Sparkles } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import globe from "@/assets/globe.png";
 import certDigital from "@/assets/cert-digital.jpg";
 import certPremium from "@/assets/cert-premium.jpg";
 import certFramed from "@/assets/cert-framed.jpg";
@@ -79,9 +78,8 @@ function Index() {
         <section className="relative overflow-hidden">
           <img src={HERO_CITY.image} alt={`${HERO_CITY.name} şehir manzarası`} width={1920} height={1088} className="absolute inset-0 h-full w-full object-cover opacity-60" />
           <div className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/40" />
-          <img src={globe} alt="" aria-hidden width={1024} height={1024} className="pointer-events-none absolute -top-24 right-[18%] hidden h-[130%] opacity-50 mix-blend-screen xl:block" />
-          <div className="relative mx-auto grid max-w-[1600px] gap-10 px-4 py-14 xl:grid-cols-[1.05fr_0.75fr] xl:px-8 xl:py-20">
-            <div className="min-w-0">
+          <div className="relative mx-auto max-w-[1600px] px-4 py-14 lg:px-8 xl:py-20">
+            <div className="min-w-0 max-w-3xl">
               <span className="inline-block max-w-full rounded-md border border-gold/60 px-4 py-2 text-[10px] leading-5 tracking-[0.12em] text-gold">
                 HER İL İÇİN {SKY_PARCEL_MODEL.layersPerCity} KATMAN · {SKY_PARCEL_MODEL.sectorsPerCity.toLocaleString("tr-TR")} SEKTÖR · {SKY_PARCEL_MODEL.parcelsPerCity.toLocaleString("tr-TR")} PARSEL<br />
                 <strong>TOPLAM {SKY_PARCEL_MODEL.totalParcels.toLocaleString("tr-TR")} GÖKYÜZÜ PARSELİ</strong>
@@ -94,8 +92,6 @@ function Index() {
               </div>
               <div className="mt-10 inline-flex max-w-full items-center gap-2 rounded-md bg-navy-deep/70 px-4 py-2"><MapPin className="h-5 w-5 shrink-0 text-gold" /><span className="text-sm font-semibold">{HERO_CITY.name} <span className="block text-[10px] text-muted-foreground">{HERO_CITY.district}</span></span></div>
             </div>
-
-            <div className="panel min-w-0 min-h-[420px] border-2 border-gold/50 p-3 sm:p-5" aria-hidden="true" />
           </div>
         </section>
 
