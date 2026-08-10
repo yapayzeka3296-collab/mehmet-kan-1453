@@ -38,6 +38,7 @@ const PLANS = [
       "Parsel kodu ve koordinatlar",
       "QR doğrulama",
       "E-posta ile anında teslim",
+      "Posta yoluyla gönderim",
     ],
   },
   {
@@ -51,6 +52,7 @@ const PLANS = [
       "Dijital sertifika",
       "Parsel kodu ve koordinatlar",
       "QR doğrulama",
+      "Posta yoluyla gönderim",
     ],
   },
 ];
