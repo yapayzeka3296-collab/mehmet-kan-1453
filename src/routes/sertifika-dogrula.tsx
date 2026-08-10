@@ -9,7 +9,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 export const Route = createFileRoute("/sertifika-dogrula")({
   validateSearch: (search) => ({
-    code: typeof search.code === "string" ? search.code : "",
+    code: typeof search["code"] === "string" ? search["code"] : "",
   }),
   head: () => ({
     meta: [
@@ -62,84 +62,96 @@ function Dogrula() {
     }
 
     setLoading(true);
-    try {
-      const { data, error } = await supabaseBrowser.rpc("verify_certificate", {
-        p_certificate_number: normalized,
-      });
-      if (error) throw error;
+    const { data, error } = await supabaseBrowser.rpc("verify_certificate", {
+      p_certificate_number: normalized,
+    });
+    setLoading(false);
 
-      const verified = Array.isArray(data) ? data[0] : data;
-      if (!verified) {
-        setMessage("Bu numaraya ait doğrulanmış bir sertifika bulunamadı.");
-        return;
-      }
-
-      setResult(verified as VerificationResult);
-    } catch (error) {
-      console.error("Certificate verification error", error);
-      setMessage("Doğrulama sırasında bir hata oluştu. Lütfen tekrar deneyin.");
-    } finally {
-      setLoading(false);
+    if (error) {
+      setMessage("Sertifika doğrulanamadı. Lütfen tekrar deneyin.");
+      return;
     }
+
+    const verified = Array.isArray(data) ? data[0] : data;
+    if (!verified) {
+      setMessage("Bu sertifika numarası bulunamadı veya geçerli değil.");
+      return;
+    }
+
+    setResult(verified as VerificationResult);
   }
 
   return (
-    <div className="starfield min-h-screen">
+    <div className="min-h-screen bg-[#071426] text-white">
       <SiteHeader />
-      <main className="mx-auto max-w-3xl px-4 py-16 lg:px-8">
-        <div className="text-center">
-          <ShieldCheck className="mx-auto h-10 w-10 text-gold" />
-          <h1 className="mt-4 font-display text-4xl font-bold">SERTİFİKA DOĞRULA</h1>
-          <p className="mt-4 text-sm text-muted-foreground">Sertifika numaranızı girerek sertifikanızın geçerliliğini kontrol edebilirsiniz.</p>
-        </div>
+      <main>
+        <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#d6b15a]">Dijital Sertifika</p>
+            <h1 className="mt-3 text-3xl font-bold sm:text-4xl">Sertifikanı Doğrula</h1>
+            <p className="mt-4 text-white/70">Sertifika numaranı girerek gerçekliğini güvenli şekilde kontrol edebilirsin.</p>
+          </div>
 
-        <div className="panel mt-10 p-6 sm:p-10">
-          <form onSubmit={handleSubmit} noValidate>
-            <label className="text-xs text-muted-foreground" htmlFor="kod">Sertifika Numarası</label>
-            <div className="mt-2 flex items-center gap-3 rounded-md border border-input bg-background/50 px-3 focus-within:border-gold">
-              <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <input
-                id="kod"
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                placeholder="Örn: SP-GZT-0004207"
-                autoComplete="off"
-                inputMode="text"
-                aria-describedby="verification-status"
-                aria-invalid={Boolean(message)}
-                disabled={loading}
-                className="min-w-0 flex-1 bg-transparent py-3 text-sm uppercase outline-none"
-              />
-            </div>
-            <button type="submit" disabled={loading} className="btn-gold mt-5 w-full rounded-md py-3.5 text-sm disabled:cursor-not-allowed disabled:opacity-60">
-              {loading ? "DOĞRULANIYOR..." : "DOĞRULA"}
-            </button>
-          </form>
+          <div className="mx-auto mt-10 max-w-2xl rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-xl sm:p-7">
+            <form onSubmit={handleSubmit} noValidate>
+              <label htmlFor="certificate-code" className="text-sm font-medium text-white/85">
+                Sertifika numarası
+              </label>
+              <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+                <input
+                  id="certificate-code"
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                  aria-label="Sertifika numarası"
+                  aria-invalid={message ? true : undefined}
+                  autoComplete="off"
+                  className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/20 px-4 py-3 text-white outline-none transition focus:border-[#d6b15a] focus:ring-2 focus:ring-[#d6b15a]/30"
+                  placeholder="SP-GZT-0004207"
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#d6b15a] px-6 py-3 font-semibold text-[#071426] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Search className="h-4 w-4" aria-hidden="true" />
+                  {loading ? "Doğrulanıyor..." : "Doğrula"}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-white/50">Sertifika kodu 4–80 karakter arasında harf, rakam ve tire içermelidir.</p>
+            </form>
 
-          <div id="verification-status" aria-live="polite" className="mt-5">
-            {message && <div className="rounded-md border border-red-300/20 bg-red-500/5 p-4 text-sm text-red-200">{message}</div>}
-            {result && (
-              <div className="rounded-md border border-gold/30 bg-gold/5 p-5">
-                <div className="flex items-center gap-2 text-sm font-semibold text-gold"><ShieldCheck className="h-5 w-5" aria-hidden="true" /> SERTİFİKA DOĞRULANDI</div>
-                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                  <div><dt className="text-xs text-muted-foreground">Sertifika</dt><dd className="mt-1 font-medium">{result.certificate_number}</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">Parsel</dt><dd className="mt-1 font-medium">{result.parcel_number}</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">Şehir</dt><dd className="mt-1 font-medium">{result.city_name ?? result.city_code ?? "—"}</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">Paket</dt><dd className="mt-1 font-medium">{TIER_LABELS[result.tier]}</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">Durum</dt><dd className="mt-1 font-medium">Geçerli</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">Düzenlenme</dt><dd className="mt-1 font-medium">{result.issued_at ? new Date(result.issued_at).toLocaleDateString("tr-TR") : "—"}</dd></div>
-                </dl>
+            {message && (
+              <div role="alert" className="mt-5 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-100">
+                {message}
               </div>
             )}
-          </div>
 
-          <div className="mt-8 flex items-start gap-4 rounded-md border border-border bg-background/40 p-5">
-            <QrCode className="h-8 w-8 shrink-0 text-gold" aria-hidden="true" />
-            <p className="min-w-0 text-sm text-muted-foreground">Sertifikanızın üzerindeki QR kodu okutarak da doğrulama yapabilirsiniz. QR kodunuz doğrulama sayfasındaki sertifika numarasını açmalıdır.</p>
+            {result && (
+              <div className="mt-6 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-5" role="status" aria-live="polite">
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <h2 className="font-semibold text-emerald-100">Sertifika doğrulandı</h2>
+                    <dl className="mt-3 grid gap-2 text-sm text-white/80 sm:grid-cols-2">
+                      <div><dt className="text-white/50">Sertifika</dt><dd className="break-all">{result.certificate_number}</dd></div>
+                      <div><dt className="text-white/50">Parsel</dt><dd className="break-all">{result.parcel_number}</dd></div>
+                      <div><dt className="text-white/50">Şehir</dt><dd>{result.city_name ?? result.city_code ?? "—"}</dd></div>
+                      <div><dt className="text-white/50">Paket</dt><dd>{TIER_LABELS[result.tier]}</dd></div>
+                      <div><dt className="text-white/50">Düzenlenme</dt><dd>{result.issued_at ? new Date(result.issued_at).toLocaleDateString("tr-TR") : "—"}</dd></div>
+                    </dl>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6 flex items-center gap-3 rounded-xl border border-white/10 bg-black/10 p-4 text-sm text-white/60">
+              <QrCode className="h-5 w-5 shrink-0 text-[#d6b15a]" aria-hidden="true" />
+              <span>QR kodlu sertifikalarda da aynı doğrulama numarası kullanılabilir.</span>
+            </div>
           </div>
-        </div>
+        </section>
+        <TrustBar items={SECURITY_TRUST} />
       </main>
-      <TrustBar items={SECURITY_TRUST} />
       <SiteFooter />
     </div>
   );
