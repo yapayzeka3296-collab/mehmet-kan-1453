@@ -31,9 +31,9 @@ type Certificate = {
 const TIER_LABELS = { digital: "Dijital", elite: "Elit", premium: "Premium" } as const;
 
 const TIER_IMAGE_PATHS = {
-  digital: "/sertifikalar/dijital-sertifika.jpg",
-  elite: "/sertifikalar/elit-sertifika.jpg",
-  premium: "/sertifikalar/premium-sertifika.jpg",
+  digital: "/certificates/digital-certificate.jpg",
+  elite: "/certificates/elite-certificate.jpg",
+  premium: "/certificates/premium-certificate.jpg",
 } as const;
 
 function Sertifikalarim() {
