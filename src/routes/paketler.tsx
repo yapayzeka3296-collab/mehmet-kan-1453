@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Check, CloudDownload, Heart, Lock, ShieldCheck, Star } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -107,9 +107,12 @@ function Paketler() {
                   </li>
                 ))}
               </ul>
-              <button className="btn-gold mt-8 flex items-center justify-center gap-3 rounded-md py-3 text-sm">
+              <Link
+                to="/giris"
+                className="btn-gold mt-8 flex items-center justify-center gap-3 rounded-md py-3 text-sm"
+              >
                 HEMEN AL <ArrowRight className="h-4 w-4" />
-              </button>
+              </Link>
             </article>
           ))}
         </div>
