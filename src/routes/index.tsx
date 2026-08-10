@@ -95,18 +95,7 @@ function Index() {
               <div className="mt-10 inline-flex max-w-full items-center gap-2 rounded-md bg-navy-deep/70 px-4 py-2"><MapPin className="h-5 w-5 shrink-0 text-gold" /><span className="text-sm font-semibold">{HERO_CITY.name} <span className="block text-[10px] text-muted-foreground">{HERO_CITY.district}</span></span></div>
             </div>
 
-            <div className="panel min-w-0 overflow-hidden border-2 border-gold/50 p-3 sm:p-5">
-              <div className="relative min-h-[420px] overflow-hidden rounded-lg border border-gold/40">
-                <img src={HERO_CITY.image} alt="İstanbul şehir manzarası" width={1536} height={864} className="absolute inset-0 h-full w-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/25 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-5 text-left sm:p-7">
-                  <p className="text-[10px] tracking-[0.25em] text-gold">MYSKYPARCEL · İSTANBUL</p>
-                  <h2 className="mt-2 font-display text-2xl font-bold sm:text-3xl">İSTANBUL</h2>
-                  <p className="mt-1 text-xs text-muted-foreground">Gökyüzündeki sembolik yolculuğuna İstanbul'dan başla.</p>
-                  <Link to="/gokyuzu-haritasi" search={{ city: HERO_CITY.slug }} className="btn-gold mt-4 inline-flex items-center gap-2 rounded-md px-5 py-2.5 text-[11px]">İSTANBUL PARSELLERİNİ KEŞFET <ArrowRight className="h-4 w-4" /></Link>
-                </div>
-              </div>
-            </div>
+            <div className="panel min-w-0 min-h-[420px] border-2 border-gold/50 p-3 sm:p-5" aria-hidden="true" />
           </div>
         </section>
 
