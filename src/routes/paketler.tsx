@@ -1,8 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ArrowRight, Check, CloudDownload, Heart, Lock, ShieldCheck, Star } from "lucide-react";
-import certDigital from "@/assets/cert-digital.jpg";
-import certPremium from "@/assets/cert-premium.jpg";
-import certFramed from "@/assets/cert-framed.jpg";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 
@@ -26,14 +23,14 @@ const PLANS = [
   {
     name: "DİJİTAL SERTİFİKA",
     price: "199",
-    img: certDigital,
+    img: "/certificates/digital-certificate.jpg",
     popular: false,
     features: ["Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"],
   },
   {
     name: "PREMIUM SERTİFİKA",
     price: "499",
-    img: certPremium,
+    img: "/certificates/premium-certificate.jpg",
     popular: true,
     features: [
       "Özel tasarım sertifika",
@@ -46,7 +43,7 @@ const PLANS = [
   {
     name: "ÇERÇEVELİ BASKI (A4)",
     price: "999",
-    img: certFramed,
+    img: "/certificates/elite-certificate.jpg",
     popular: false,
     features: [
       "Özel tasarım sertifika",
