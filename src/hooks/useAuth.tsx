@@ -3,7 +3,9 @@ import type { ReactNode } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 
 type User = { id: string; email?: string | null };
-type AuthResult = { success: true; user?: User } | { success: false; error: string };
+type AuthResult =
+  | { success: true; user?: User; status?: 'verification_sent' | 'verification_resent' }
+  | { success: false; error: string };
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
@@ -16,6 +18,17 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 function toUser(sessionUser: { id: string; email?: string | null }): User {
   return { id: sessionUser.id, email: sessionUser.email ?? null };
+}
+
+function getEmailRedirectUrl(): string {
+  if (typeof window === 'undefined') return 'https://myskyparcel.com/dogrula';
+
+  const hostname = window.location.hostname.toLowerCase();
+  if (hostname === 'myskyparcel.com' || hostname === 'www.myskyparcel.com') {
+    return 'https://myskyparcel.com/dogrula';
+  }
+
+  return `${window.location.origin}/dogrula`;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -33,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function init() {
       try {
-        const { data } = await client!.auth.getSession();
+        const { data } = await client.auth.getSession();
         const sessionUser = data.session?.user ?? null;
         if (mounted && sessionUser) setUser(toUser(sessionUser));
       } catch (err) {
@@ -95,6 +108,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function resendSignup(email: string): Promise<AuthResult> {
+    const client = supabaseBrowser;
+    if (!client) return { success: false, error: 'Supabase yapılandırması eksik' };
+
+    const { error } = await client.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: getEmailRedirectUrl() },
+    });
+
+    if (!error) return { success: true, status: 'verification_resent' };
+
+    const code = 'code' in error ? String(error.code ?? '') : '';
+    const message = error.message ?? '';
+    if (/already.?confirmed|confirmed/i.test(`${code} ${message}`)) {
+      return { success: false, error: 'Bu e-posta adresi zaten kayıtlı. Lütfen giriş yapın.' };
+    }
+
+    return { success: false, error: message || 'Doğrulama e-postası yeniden gönderilemedi.' };
+  }
+
   async function signUp(email: string, password: string, name?: string): Promise<AuthResult> {
     setLoading(true);
     setError(null);
@@ -106,22 +140,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: msg };
     }
     try {
-      const credentials = name?.trim()
-        ? { email, password, options: { data: { full_name: name.trim() } } }
-        : { email, password };
-      const { data, error } = await client.auth.signUp(credentials);
+      const cleanEmail = email.trim().toLowerCase();
+      const options = {
+        emailRedirectTo: getEmailRedirectUrl(),
+        ...(name?.trim() ? { data: { full_name: name.trim() } } : {}),
+      };
+      const { data, error } = await client.auth.signUp({
+        email: cleanEmail,
+        password,
+        options,
+      });
+
       if (error) {
+        const code = 'code' in error ? String(error.code ?? '') : '';
+        if (/email_exists|user_already_exists/i.test(code)) {
+          const resendResult = await resendSignup(cleanEmail);
+          if (resendResult.success) return resendResult;
+        }
+
         const msg = error.message ?? 'Kayıt sırasında bir hata oluştu';
         setError(msg);
         return { success: false, error: msg };
       }
+
       const sessionUser = data.user ?? null;
-      if (sessionUser) {
+
+      // Supabase may return an obfuscated user with no identities when the
+      // email already exists. If so, resend the signup confirmation instead
+      // of misleading the user with a new-account success message.
+      if (sessionUser && Array.isArray(sessionUser.identities) && sessionUser.identities.length === 0) {
+        const resendResult = await resendSignup(cleanEmail);
+        if (resendResult.success) return resendResult;
+        setError(resendResult.error);
+        return resendResult;
+      }
+
+      if (data.session && sessionUser) {
         const u = toUser(sessionUser);
         setUser(u);
         return { success: true, user: u };
       }
-      return { success: true };
+
+      return { success: true, status: 'verification_sent' };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Kayıt sırasında bir hata oluştu';
       setError(msg);

@@ -11,7 +11,13 @@ const anonKey =
 
 export function createBrowserSupabase() {
   if (!url || !anonKey) return null;
-  return createClient(url, anonKey);
+  return createClient(url, anonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  });
 }
 
 export const supabaseBrowser = createBrowserSupabase();
