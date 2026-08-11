@@ -1,8 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { UserSidebar } from "@/components/UserSidebar";
 import { SECURITY_TRUST, TrustBar } from "@/components/TrustBar";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/profilim")({
   head: () => ({
@@ -16,14 +17,24 @@ export const Route = createFileRoute("/profilim")({
   component: Profilim,
 });
 
-const FIELDS = [
-  ["Ad Soyad", "Ahmet Yılmaz"],
-  ["E-posta", "ahmet@email.com"],
-  ["Telefon", "+90 555 000 00 00"],
-  ["Şehir", "Gaziantep"],
-];
-
 function Profilim() {
+  const { user, loading } = useAuth();
+
+  if (loading) return <div className="starfield min-h-screen" aria-busy="true" />;
+  if (!user) return <Navigate to="/giris" replace />;
+
+  const fullName = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
+  const email = user.email ?? "";
+  const phone = typeof user.user_metadata?.phone === "string" ? user.user_metadata.phone : "";
+  const city = typeof user.user_metadata?.city === "string" ? user.user_metadata.city : "";
+
+  const fields = [
+    ["Ad Soyad", fullName],
+    ["E-posta", email],
+    ["Telefon", phone],
+    ["Şehir", city],
+  ];
+
   return (
     <div className="starfield min-h-screen">
       <SiteHeader />
@@ -34,11 +45,12 @@ function Profilim() {
             <h1 className="font-display text-3xl font-bold">PROFİLİM</h1>
           </div>
           <form className="panel mt-6 grid gap-5 p-6 sm:grid-cols-2" onSubmit={(e) => e.preventDefault()}>
-            {FIELDS.map(([l, v]) => (
-              <label key={l} className="block">
-                <span className="text-xs text-muted-foreground">{l}</span>
+            {fields.map(([label, value]) => (
+              <label key={label} className="block">
+                <span className="text-xs text-muted-foreground">{label}</span>
                 <input
-                  defaultValue={v}
+                  defaultValue={value}
+                  autoComplete={label === "E-posta" ? "email" : label === "Ad Soyad" ? "name" : "off"}
                   className="mt-1.5 w-full rounded-md border border-input bg-background/50 px-3 py-2.5 text-sm outline-none focus:border-gold"
                 />
               </label>

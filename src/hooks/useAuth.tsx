@@ -21,6 +21,16 @@ type AuthContextValue = {
 };
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const PROTECTED_PATHS = new Set([
+  '/panelim',
+  '/parsellerim',
+  '/siparislerim',
+  '/sertifikalarim',
+  '/profilim',
+  '/guvenlik-ayarlari',
+  '/yonetim',
+]);
+
 function toUser(sessionUser: {
   id: string;
   email?: string | null;
@@ -47,6 +57,42 @@ function getEmailRedirectUrl(): string {
   return `${window.location.origin}/dogrula`;
 }
 
+function redirectToLogin() {
+  if (typeof window === 'undefined') return;
+  const path = window.location.pathname;
+  if (!PROTECTED_PATHS.has(path)) return;
+  if (path === '/giris') return;
+  const redirect = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  window.location.replace(`/giris?redirect=${encodeURIComponent(redirect)}`);
+}
+
+async function enforceAdminRoute(sessionUserId: string | undefined) {
+  if (typeof window === 'undefined' || window.location.pathname !== '/yonetim') return;
+  if (!sessionUserId || !supabaseBrowser) return;
+
+  try {
+    const { data } = await supabaseBrowser.auth.getSession();
+    const accessToken = data.session?.access_token;
+    if (!accessToken) {
+      redirectToLogin();
+      return;
+    }
+
+    const response = await fetch('/admin-check', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      window.location.replace('/panelim');
+    }
+  } catch (error) {
+    console.error('Admin authorization check failed', error);
+    window.location.replace('/panelim');
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,30 +102,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const client = supabaseBrowser;
     if (!client) {
       setLoading(false);
+      redirectToLogin();
       return;
     }
     let mounted = true;
 
     async function init() {
       try {
-        const { data } = await client.auth.getSession();
+        const { data, error: sessionError } = await client.auth.getSession();
+        if (sessionError) console.error('Error fetching session', sessionError);
+
         const sessionUser = data.session?.user ?? null;
-        if (mounted && sessionUser) setUser(toUser(sessionUser));
+        if (mounted) {
+          if (sessionUser) {
+            setUser(toUser(sessionUser));
+            void enforceAdminRoute(sessionUser.id);
+          } else {
+            setUser(null);
+            redirectToLogin();
+          }
+        }
       } catch (err) {
         console.error('Error fetching session', err);
+        if (mounted) {
+          setUser(null);
+          redirectToLogin();
+        }
       } finally {
         if (mounted) setLoading(false);
       }
     }
 
     void init();
-    const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = client.auth.onAuthStateChange((event, session) => {
       const sessionUser = session?.user ?? null;
       if (sessionUser) {
         setUser(toUser(sessionUser));
         setError(null);
+        void enforceAdminRoute(sessionUser.id);
       } else {
         setUser(null);
+        if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') redirectToLogin();
       }
     });
 
@@ -100,7 +163,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: msg };
     }
     try {
-      const { data, error } = await client.auth.signInWithPassword({ email, password });
+      const cleanEmail = email.trim().toLowerCase();
+      const { data, error } = await client.auth.signInWithPassword({ email: cleanEmail, password });
       if (error) {
         const msg = error.message ?? 'Giriş sırasında bir hata oluştu';
         setError(msg);
@@ -157,15 +221,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     try {
       const cleanEmail = email.trim().toLowerCase();
+      if (password.length < 10) {
+        const msg = 'Şifre en az 10 karakter olmalıdır.';
+        setError(msg);
+        return { success: false, error: msg };
+      }
       const options = {
         emailRedirectTo: getEmailRedirectUrl(),
         ...(name?.trim() ? { data: { full_name: name.trim() } } : {}),
       };
-      const { data, error } = await client.auth.signUp({
-        email: cleanEmail,
-        password,
-        options,
-      });
+      const { data, error } = await client.auth.signUp({ email: cleanEmail, password, options });
 
       if (error) {
         const code = 'code' in error ? String(error.code ?? '') : '';
