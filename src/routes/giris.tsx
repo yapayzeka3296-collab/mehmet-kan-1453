@@ -69,7 +69,7 @@ function GirisPage() {
       return;
     }
 
-    await navigate({ to: "/panelim" });
+    await navigate({ to: "/" });
     setLoading(false);
   }
 
