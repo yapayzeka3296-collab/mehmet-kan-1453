@@ -10,7 +10,7 @@ export const Route = createFileRoute("/paketler")({
       {
         name: "description",
         content:
-          "Dijital sertifika 199 TL, Premium sertifika 499 TL, çerçeveli baskı 999 TL. Gökyüzü parselin için paketini seç.",
+          "Dijital sertifika 199 TL, Elit sertifika 499 TL, Premium sertifika 999 TL. Gökyüzü parselin için paketini seç.",
       },
       { property: "og:title", content: "Paketlerimiz — MySkyParcel" },
       { property: "og:description", content: "Gökyüzü parseli sertifika paketleri ve fiyatları." },
@@ -28,7 +28,7 @@ const PLANS = [
     features: ["Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"],
   },
   {
-    name: "PREMIUM SERTİFİKA",
+    name: "ELİT SERTİFİKA",
     price: "499",
     img: "/certificates/elite-certificate.jpg",
     popular: true,
@@ -42,7 +42,7 @@ const PLANS = [
     ],
   },
   {
-    name: "ÇERÇEVELİ BASKI (A4)",
+    name: "PREMİUM SERTİFİKA",
     price: "999",
     img: "/certificates/premium-certificate.jpg",
     popular: false,
