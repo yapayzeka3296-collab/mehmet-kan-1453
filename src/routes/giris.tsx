@@ -27,6 +27,13 @@ const FEATURES = [
   { icon: Lock, big: "1.000.000 Parsel", label: "Her İl İçin" },
 ];
 
+function getSafeRedirect() {
+  if (typeof window === "undefined") return "/";
+  const value = new URLSearchParams(window.location.search).get("redirect");
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/";
+  return value;
+}
+
 function GirisPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -69,7 +76,12 @@ function GirisPage() {
       return;
     }
 
-    await navigate({ to: "/" });
+    const redirect = getSafeRedirect();
+    if (redirect !== "/") {
+      await navigate({ to: redirect as "/" });
+    } else {
+      await navigate({ to: "/" });
+    }
     setLoading(false);
   }
 
@@ -93,7 +105,7 @@ function GirisPage() {
               <div><label className="text-xs text-muted-foreground" htmlFor="email">E-posta Adresiniz</label><div className="mt-2 flex items-center gap-3 rounded-md border border-input bg-background/50 px-3 focus-within:border-gold"><Mail className="h-4 w-4 shrink-0 text-muted-foreground" /><input id="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="ornek@email.com" className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" /></div></div>
               <div><label className="text-xs text-muted-foreground" htmlFor="pass">Şifreniz</label><div className="mt-2 flex items-center gap-3 rounded-md border border-input bg-background/50 px-3 focus-within:border-gold"><Lock className="h-4 w-4 shrink-0 text-muted-foreground" /><input id="pass" value={password} onChange={(e) => setPassword(e.target.value)} type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="••••••••••" className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" /><button type="button" aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"} onClick={() => setShowPassword((value) => !value)} className="shrink-0 text-muted-foreground hover:text-gold"><span className="sr-only">{showPassword ? "Şifreyi gizle" : "Şifreyi göster"}</span>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
               {message && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{message}</p>}
-              <div className="flex flex-wrap items-center justify-between gap-3 text-xs"><label className="flex items-center gap-2"><input type="checkbox" defaultChecked className="accent-[oklch(0.78_0.13_82)]" />Beni hatırla</label><Link to="/sifremi-unuttum" className="text-gold hover:underline">Şifremi unuttum?</Link></div>
+              <p className="text-xs text-muted-foreground">Güvenlik nedeniyle oturum yalnızca bu tarayıcı oturumu boyunca saklanır. Tarayıcıyı kapatıp yeniden açtığınızda tekrar giriş yapmanız gerekir.</p>
               <button type="submit" disabled={loading} className="btn-gold flex w-full items-center justify-center gap-3 rounded-md py-3.5 text-sm disabled:pointer-events-none disabled:opacity-60">{loading ? "GİRİŞ YAPILIYOR..." : "GİRİŞ YAP"} <ArrowRight className="h-4 w-4" /></button>
               <div className="flex items-center gap-4 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" /> veya <span className="h-px flex-1 bg-border" /></div>
               <div className="grid gap-3 sm:grid-cols-2"><button type="button" className="rounded-md border border-border py-3 text-sm transition-colors hover:border-gold">Google ile giriş yap</button><button type="button" className="rounded-md border border-border py-3 text-sm transition-colors hover:border-gold">Apple ile giriş yap</button></div>
