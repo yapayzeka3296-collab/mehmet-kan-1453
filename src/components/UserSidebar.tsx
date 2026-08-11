@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
   Award,
@@ -10,6 +10,7 @@ import {
   Sparkles,
   User,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const ITEMS = [
   { to: "/panelim", label: "Panelim", icon: Home },
@@ -21,6 +22,16 @@ const ITEMS = [
 ] as const;
 
 export function UserSidebar({ active }: { active: string }) {
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    const result = await signOut();
+    if (result.success) {
+      await navigate({ to: "/" });
+    }
+  };
+
   return (
     <aside className="grid content-start gap-6">
       <nav className="panel p-4">
@@ -43,12 +54,13 @@ export function UserSidebar({ active }: { active: string }) {
           ))}
         </ul>
         <div className="my-3 h-px bg-border" />
-        <Link
-          to="/giris"
-          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground/85 hover:bg-accent hover:text-gold"
+        <button
+          type="button"
+          onClick={() => void handleSignOut()}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-foreground/85 hover:bg-accent hover:text-gold"
         >
           <LogOut className="h-4 w-4" /> Çıkış Yap
-        </Link>
+        </button>
       </nav>
 
       <div className="panel p-6 text-center">
