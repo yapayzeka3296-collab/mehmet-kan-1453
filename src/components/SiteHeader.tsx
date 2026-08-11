@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Menu, ShoppingCart, X, Store } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,6 +17,7 @@ const NAV_LINKS = [
 
 export function SiteHeader() {
   const { user, loading: authLoading, signOut } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -47,8 +48,11 @@ export function SiteHeader() {
   const closeMenu = () => setOpen(false);
 
   const handleSignOut = async () => {
-    closeMenu();
-    await signOut();
+    const result = await signOut();
+    if (result.success) {
+      closeMenu();
+      await navigate({ to: "/" });
+    }
   };
 
   return (
