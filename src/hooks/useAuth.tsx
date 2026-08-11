@@ -2,7 +2,12 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 
-type User = { id: string; email?: string | null; name?: string | null };
+type User = {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  user_metadata?: Record<string, unknown>;
+};
 type AuthResult =
   | { success: true; user?: User; status?: 'verification_sent' | 'verification_resent' }
   | { success: false; error: string };
@@ -21,11 +26,13 @@ function toUser(sessionUser: {
   email?: string | null;
   user_metadata?: Record<string, unknown> | null;
 }): User {
-  const fullName = sessionUser.user_metadata?.full_name;
+  const metadata = sessionUser.user_metadata ?? {};
+  const fullName = metadata.full_name;
   return {
     id: sessionUser.id,
     email: sessionUser.email ?? null,
     name: typeof fullName === 'string' && fullName.trim() ? fullName.trim() : null,
+    user_metadata: metadata,
   };
 }
 
