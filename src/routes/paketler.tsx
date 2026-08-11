@@ -93,14 +93,24 @@ function Paketler() {
               <p className="mt-2 text-center font-display text-4xl text-gold">
                 {p.price} <span className="text-lg">TL</span>
               </p>
-              <img
-                src={p.img}
-                alt={p.name}
-                loading="lazy"
-                width={900}
-                height={800}
-                className="mt-6 h-56 w-full rounded-lg object-contain"
-              />
+              <div className="relative mt-6 h-56 w-full overflow-hidden rounded-lg">
+                <img
+                  src={p.img}
+                  alt={p.name}
+                  loading="lazy"
+                  width={900}
+                  height={800}
+                  className="h-full w-full object-contain"
+                />
+                {p.name === "PREMİUM SERTİFİKA" && (
+                  <span
+                    aria-label="Premium sertifika"
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-sm bg-black/85 px-3 py-1 font-display text-sm font-semibold tracking-wide text-white shadow-lg"
+                  >
+                    PREMİUM
+                  </span>
+                )}
+              </div>
               <ul className="mt-6 space-y-3 text-sm">
                 {p.features.map((f) => (
                   <li key={f} className="flex items-start gap-2 text-muted-foreground">
