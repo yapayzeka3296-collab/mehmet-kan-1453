@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { ShoppingBag } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { UserSidebar } from "@/components/UserSidebar";
 import { SECURITY_TRUST, TrustBar } from "@/components/TrustBar";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/siparislerim")({
   head: () => ({
@@ -17,15 +18,17 @@ export const Route = createFileRoute("/siparislerim")({
   component: Siparislerim,
 });
 
-const ORDERS = [
-  { no: "#MSP-2024-000123", date: "20.05.2024", total: "1.198,00 TL", status: "Tamamlandı" },
-  { no: "#MSP-2024-000098", date: "15.04.2024", total: "999,00 TL", status: "Tamamlandı" },
-  { no: "#MSP-2024-000076", date: "10.03.2024", total: "499,00 TL", status: "Tamamlandı" },
-  { no: "#MSP-2024-000045", date: "05.02.2024", total: "199,00 TL", status: "Tamamlandı" },
-  { no: "#MSP-2024-000031", date: "12.01.2024", total: "499,00 TL", status: "İşlemde" },
-];
-
 function Siparislerim() {
+  const { user, loading: authLoading } = useAuth();
+
+  if (authLoading) {
+    return <div className="starfield min-h-screen" aria-busy="true" />;
+  }
+
+  if (!user) {
+    return <Navigate to="/giris" replace />;
+  }
+
   return (
     <div className="starfield min-h-screen">
       <SiteHeader />
@@ -34,31 +37,15 @@ function Siparislerim() {
         <div className="min-w-0">
           <div className="panel p-6">
             <h1 className="font-display text-3xl font-bold">SİPARİŞLERİM</h1>
-            <p className="mt-2 text-xs text-muted-foreground">5 siparişiniz bulunuyor.</p>
+            <p className="mt-2 text-xs text-muted-foreground">Gerçek sipariş geçmişiniz burada gösterilir.</p>
           </div>
-          <ul className="panel mt-6 divide-y divide-border p-2">
-            {ORDERS.map((o) => (
-              <li key={o.no} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-4">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{o.no}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{o.date}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <span
-                    className={`rounded-full border px-3 py-1 text-[11px] ${
-                      o.status === "Tamamlandı"
-                        ? "border-success/40 text-success"
-                        : "border-gold/50 text-gold"
-                    }`}
-                  >
-                    {o.status}
-                  </span>
-                  <span className="text-sm">{o.total}</span>
-                  <ChevronRight className="h-4 w-4 text-gold" />
-                </div>
-              </li>
-            ))}
-          </ul>
+          <section className="panel mt-6 p-8 text-center">
+            <ShoppingBag className="mx-auto h-12 w-12 text-gold" />
+            <h2 className="mt-4 font-display text-xl">Henüz siparişiniz yok</h2>
+            <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
+              Bu hesap için henüz kaydedilmiş bir sipariş bulunmuyor. Sipariş oluşturulduğunda numarası, tarihi, tutarı ve durumu burada gösterilecektir.
+            </p>
+          </section>
         </div>
       </main>
       <TrustBar items={SECURITY_TRUST} />
