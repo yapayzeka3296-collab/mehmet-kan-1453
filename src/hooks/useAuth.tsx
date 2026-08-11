@@ -6,6 +6,7 @@ type User = {
   id: string;
   email?: string | null;
   name?: string | null;
+  role?: string | null;
   user_metadata?: Record<string, unknown>;
 };
 type AuthResult =
@@ -15,6 +16,7 @@ type AuthContextValue = {
   user: User | null;
   loading: boolean;
   error: string | null;
+  isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signUp: (email: string, password: string, name?: string) => Promise<AuthResult>;
   signOut: () => Promise<AuthResult>;
@@ -35,25 +37,32 @@ function toUser(sessionUser: {
   id: string;
   email?: string | null;
   user_metadata?: Record<string, unknown> | null;
-}): User {
+}, role?: string | null): User {
   const metadata = sessionUser.user_metadata ?? {};
   const fullName = metadata.full_name;
   return {
     id: sessionUser.id,
     email: sessionUser.email ?? null,
     name: typeof fullName === 'string' && fullName.trim() ? fullName.trim() : null,
+    role: role ?? null,
     user_metadata: metadata,
   };
 }
 
+async function loadUserRole(userId: string): Promise<string | null> {
+  if (!supabaseBrowser) return null;
+  const { data, error } = await supabaseBrowser.from('profiles').select('role').eq('id', userId).maybeSingle();
+  if (error) {
+    console.error('User role lookup failed', error);
+    return null;
+  }
+  return typeof data?.role === 'string' ? data.role : null;
+}
+
 function getEmailRedirectUrl(): string {
   if (typeof window === 'undefined') return 'https://myskyparcel.com/dogrula';
-
   const hostname = window.location.hostname.toLowerCase();
-  if (hostname === 'myskyparcel.com' || hostname === 'www.myskyparcel.com') {
-    return 'https://myskyparcel.com/dogrula';
-  }
-
+  if (hostname === 'myskyparcel.com' || hostname === 'www.myskyparcel.com') return 'https://myskyparcel.com/dogrula';
   return `${window.location.origin}/dogrula`;
 }
 
@@ -69,24 +78,12 @@ function redirectToLogin() {
 async function enforceAdminRoute(sessionUserId: string | undefined) {
   if (typeof window === 'undefined' || window.location.pathname !== '/yonetim') return;
   if (!sessionUserId || !supabaseBrowser) return;
-
   try {
     const { data } = await supabaseBrowser.auth.getSession();
     const accessToken = data.session?.access_token;
-    if (!accessToken) {
-      redirectToLogin();
-      return;
-    }
-
-    const response = await fetch('/admin-check', {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${accessToken}` },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      window.location.replace('/panelim');
-    }
+    if (!accessToken) { redirectToLogin(); return; }
+    const response = await fetch('/admin-check', { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store' });
+    if (!response.ok) window.location.replace('/panelim');
   } catch (error) {
     console.error('Admin authorization check failed', error);
     window.location.replace('/panelim');
@@ -100,34 +97,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const client = supabaseBrowser;
-    if (!client) {
-      setLoading(false);
-      redirectToLogin();
-      return;
-    }
+    if (!client) { setLoading(false); redirectToLogin(); return; }
     let mounted = true;
+
+    async function hydrate(sessionUser: NonNullable<Awaited<ReturnType<typeof client.auth.getSession>>['data']['session']>['user']) {
+      const role = await loadUserRole(sessionUser.id);
+      if (!mounted) return;
+      const u = toUser(sessionUser, role);
+      setUser(u);
+      void enforceAdminRoute(sessionUser.id);
+    }
 
     async function init() {
       try {
         const { data, error: sessionError } = await client.auth.getSession();
         if (sessionError) console.error('Error fetching session', sessionError);
-
         const sessionUser = data.session?.user ?? null;
         if (mounted) {
-          if (sessionUser) {
-            setUser(toUser(sessionUser));
-            void enforceAdminRoute(sessionUser.id);
-          } else {
-            setUser(null);
-            redirectToLogin();
-          }
+          if (sessionUser) await hydrate(sessionUser);
+          else { setUser(null); redirectToLogin(); }
         }
       } catch (err) {
         console.error('Error fetching session', err);
-        if (mounted) {
-          setUser(null);
-          redirectToLogin();
-        }
+        if (mounted) { setUser(null); redirectToLogin(); }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -137,167 +129,88 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: listener } = client.auth.onAuthStateChange((event, session) => {
       const sessionUser = session?.user ?? null;
       if (sessionUser) {
-        setUser(toUser(sessionUser));
+        void hydrate(sessionUser);
         setError(null);
-        void enforceAdminRoute(sessionUser.id);
       } else {
         setUser(null);
         if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') redirectToLogin();
       }
     });
-
-    return () => {
-      mounted = false;
-      listener.subscription.unsubscribe();
-    };
+    return () => { mounted = false; listener.subscription.unsubscribe(); };
   }, []);
 
   async function signIn(email: string, password: string): Promise<AuthResult> {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     const client = supabaseBrowser;
-    if (!client) {
-      const msg = 'Supabase yapılandırması eksik';
-      setError(msg);
-      setLoading(false);
-      return { success: false, error: msg };
-    }
+    if (!client) { const msg = 'Supabase yapılandırması eksik'; setError(msg); setLoading(false); return { success: false, error: msg }; }
     try {
       const cleanEmail = email.trim().toLowerCase();
       const { data, error } = await client.auth.signInWithPassword({ email: cleanEmail, password });
-      if (error) {
-        const msg = error.message ?? 'Giriş sırasında bir hata oluştu';
-        setError(msg);
-        return { success: false, error: msg };
-      }
+      if (error) { const msg = error.message ?? 'Giriş sırasında bir hata oluştu'; setError(msg); return { success: false, error: msg }; }
       const sessionUser = data.user ?? null;
       if (sessionUser) {
-        const u = toUser(sessionUser);
+        const role = await loadUserRole(sessionUser.id);
+        const u = toUser(sessionUser, role);
         setUser(u);
         return { success: true, user: u };
       }
-      const msg = 'Giriş başarısız';
-      setError(msg);
-      return { success: false, error: msg };
+      const msg = 'Giriş başarısız'; setError(msg); return { success: false, error: msg };
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Giriş sırasında bir hata oluştu';
-      setError(msg);
-      return { success: false, error: msg };
-    } finally {
-      setLoading(false);
-    }
+      const msg = err instanceof Error ? err.message : 'Giriş sırasında bir hata oluştu'; setError(msg); return { success: false, error: msg };
+    } finally { setLoading(false); }
   }
 
   async function resendSignup(email: string): Promise<AuthResult> {
     const client = supabaseBrowser;
     if (!client) return { success: false, error: 'Supabase yapılandırması eksik' };
-
-    const { error } = await client.auth.resend({
-      type: 'signup',
-      email,
-      options: { emailRedirectTo: getEmailRedirectUrl() },
-    });
-
+    const { error } = await client.auth.resend({ type: 'signup', email, options: { emailRedirectTo: getEmailRedirectUrl() } });
     if (!error) return { success: true, status: 'verification_resent' };
-
     const code = 'code' in error ? String(error.code ?? '') : '';
     const message = error.message ?? '';
-    if (/already.?confirmed|confirmed/i.test(`${code} ${message}`)) {
-      return { success: false, error: 'Bu e-posta adresi zaten kayıtlı. Lütfen giriş yapın.' };
-    }
-
+    if (/already.?confirmed|confirmed/i.test(`${code} ${message}`)) return { success: false, error: 'Bu e-posta adresi zaten kayıtlı. Lütfen giriş yapın.' };
     return { success: false, error: message || 'Doğrulama e-postası yeniden gönderilemedi.' };
   }
 
   async function signUp(email: string, password: string, name?: string): Promise<AuthResult> {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     const client = supabaseBrowser;
-    if (!client) {
-      const msg = 'Supabase yapılandırması eksik';
-      setError(msg);
-      setLoading(false);
-      return { success: false, error: msg };
-    }
+    if (!client) { const msg = 'Supabase yapılandırması eksik'; setError(msg); setLoading(false); return { success: false, error: msg }; }
     try {
       const cleanEmail = email.trim().toLowerCase();
-      if (password.length < 10) {
-        const msg = 'Şifre en az 10 karakter olmalıdır.';
-        setError(msg);
-        return { success: false, error: msg };
-      }
-      const options = {
-        emailRedirectTo: getEmailRedirectUrl(),
-        ...(name?.trim() ? { data: { full_name: name.trim() } } : {}),
-      };
+      if (password.length < 10) { const msg = 'Şifre en az 10 karakter olmalıdır.'; setError(msg); return { success: false, error: msg }; }
+      const options = { emailRedirectTo: getEmailRedirectUrl(), ...(name?.trim() ? { data: { full_name: name.trim() } } : {}) };
       const { data, error } = await client.auth.signUp({ email: cleanEmail, password, options });
-
       if (error) {
         const code = 'code' in error ? String(error.code ?? '') : '';
-        if (/email_exists|user_already_exists/i.test(code)) {
-          const resendResult = await resendSignup(cleanEmail);
-          if (resendResult.success) return resendResult;
-        }
-
-        const msg = error.message ?? 'Kayıt sırasında bir hata oluştu';
-        setError(msg);
-        return { success: false, error: msg };
+        if (/email_exists|user_already_exists/i.test(code)) { const resendResult = await resendSignup(cleanEmail); if (resendResult.success) return resendResult; }
+        const msg = error.message ?? 'Kayıt sırasında bir hata oluştu'; setError(msg); return { success: false, error: msg };
       }
-
       const sessionUser = data.user ?? null;
-
       if (sessionUser && Array.isArray(sessionUser.identities) && sessionUser.identities.length === 0) {
-        const resendResult = await resendSignup(cleanEmail);
-        if (resendResult.success) return resendResult;
-        setError(resendResult.error);
-        return resendResult;
+        const resendResult = await resendSignup(cleanEmail); if (resendResult.success) return resendResult;
+        setError(resendResult.error); return resendResult;
       }
-
-      if (data.session && sessionUser) {
-        const u = toUser(sessionUser);
-        setUser(u);
-        return { success: true, user: u };
-      }
-
+      if (data.session && sessionUser) { const role = await loadUserRole(sessionUser.id); const u = toUser(sessionUser, role); setUser(u); return { success: true, user: u }; }
       return { success: true, status: 'verification_sent' };
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Kayıt sırasında bir hata oluştu';
-      setError(msg);
-      return { success: false, error: msg };
-    } finally {
-      setLoading(false);
-    }
+      const msg = err instanceof Error ? err.message : 'Kayıt sırasında bir hata oluştu'; setError(msg); return { success: false, error: msg };
+    } finally { setLoading(false); }
   }
 
   async function signOut(): Promise<AuthResult> {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     const client = supabaseBrowser;
-    if (!client) {
-      const msg = 'Supabase yapılandırması eksik';
-      setError(msg);
-      setLoading(false);
-      return { success: false, error: msg };
-    }
+    if (!client) { const msg = 'Supabase yapılandırması eksik'; setError(msg); setLoading(false); return { success: false, error: msg }; }
     try {
-      const { error } = await client.auth.signOut();
-      if (error) {
-        const msg = error.message ?? 'Çıkış sırasında bir hata oluştu';
-        setError(msg);
-        return { success: false, error: msg };
-      }
-      setUser(null);
-      return { success: true };
+      const { error } = await client.auth.signOut({ scope: 'global' });
+      if (error) { const msg = error.message ?? 'Çıkış sırasında bir hata oluştu'; setError(msg); return { success: false, error: msg }; }
+      setUser(null); return { success: true };
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Çıkış sırasında bir hata oluştu';
-      setError(msg);
-      return { success: false, error: msg };
-    } finally {
-      setLoading(false);
-    }
+      const msg = err instanceof Error ? err.message : 'Çıkış sırasında bir hata oluştu'; setError(msg); return { success: false, error: msg };
+    } finally { setLoading(false); }
   }
 
-  return <AuthContext.Provider value={{ user, loading, error, signIn, signUp, signOut }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, error, isAdmin: user?.role === 'admin', signIn, signUp, signOut }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {
