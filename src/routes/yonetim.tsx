@@ -1,405 +1,153 @@
-import { createFileRoute } from "@tanstack/react-router";
-import {
-  Award,
-  Bell,
-  Boxes,
-  Calendar,
-  CreditCard,
-  Database,
-  FileText,
-  HardDrive,
-  Home,
-  LayoutDashboard,
-  LifeBuoy,
-  LogOut,
-  Mail,
-  Menu,
-  Search,
-  Settings,
-  ShoppingCart,
-  Sparkles,
-  Users,
-  Wallet,
-} from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Award, Boxes, LogOut, Menu, RefreshCw, ShieldCheck, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 export const Route = createFileRoute("/yonetim")({
   head: () => ({
     meta: [
       { title: "Yönetim Paneli — MySkyParcel" },
-      { name: "description", content: "Parsel, sipariş, kullanıcı ve gelir metriklerini tek ekrandan yönet." },
-      { property: "og:title", content: "Yönetim Paneli — MySkyParcel" },
-      { property: "og:description", content: "MySkyParcel admin dashboard." },
+      { name: "description", content: "MySkyParcel yönetim paneli." },
     ],
   }),
   component: Admin,
 });
 
-const MENU = [
-  { label: "Dashboard", icon: LayoutDashboard, active: true },
-  { label: "Parseller", icon: Boxes },
-  { label: "Siparişler", icon: ShoppingCart },
-  { label: "Kullanıcılar", icon: Users },
-  { label: "Sertifikalar", icon: Award },
-  { label: "Ödemeler", icon: CreditCard },
-  { label: "Bildirimler", icon: Bell },
-  { label: "Destek Talepleri", icon: LifeBuoy },
-  { label: "İçerik Yönetimi", icon: FileText },
-  { label: "Ayarlar", icon: Settings },
-];
-
-const REPORTS = [
-  { label: "Satış Raporları", icon: FileText },
-  { label: "Kullanıcı Raporları", icon: Users },
-  { label: "Finansal Raporlar", icon: Wallet },
-];
-
-const SYSTEM = [
-  { label: "Yedekleme", icon: HardDrive },
-  { label: "Sistem Günlükleri", icon: Database },
-];
-
-const KPIS = [
-  { icon: Boxes, label: "Toplam Parsel", value: "1.248", delta: "12.5%" },
-  { icon: ShoppingCart, label: "Toplam Sipariş", value: "2.356", delta: "15.3%" },
-  { icon: Users, label: "Toplam Kullanıcı", value: "5.892", delta: "9.8%" },
-  { icon: Award, label: "Toplam Sertifika", value: "2.985", delta: "11.7%" },
-  { icon: Wallet, label: "Toplam Gelir", value: "₺1.245.320", delta: "18.6%" },
-];
-
-const REVENUE = [340, 420, 560, 700, 900, 810, 1180];
-const SIGNUPS = [500, 610, 730, 820, 860, 960, 1130];
-const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem"];
-
-const DIST = [
-  { label: "Satışta", pct: 45.2, count: 564 },
-  { label: "Satıldı", pct: 35.9, count: 448 },
-  { label: "Rezerve", pct: 10.3, count: 128 },
-  { label: "Kiralık", pct: 5.8, count: 72 },
-  { label: "Beklemede", pct: 2.8, count: 36 },
-];
-
-const ORDERS = [
-  { no: "SP-2026-1258", user: "Ahmet Yılmaz", total: "₺2.450", status: "Tamamlandı" },
-  { no: "SP-2026-1257", user: "Zeynep Kaya", total: "₺1.890", status: "Tamamlandı" },
-  { no: "SP-2026-1256", user: "Mehmet Demir", total: "₺3.250", status: "Ödeme Bekliyor" },
-  { no: "SP-2026-1255", user: "Elif Arslan", total: "₺1.450", status: "Tamamlandı" },
-  { no: "SP-2026-1254", user: "Can Yıldız", total: "₺2.190", status: "İşlemde" },
-];
-
-const SERVICES = [
-  { label: "Web Sunucusu", icon: Database },
-  { label: "Veritabanı", icon: Database },
-  { label: "Ödeme Sistemi", icon: CreditCard },
-  { label: "E-posta Servisi", icon: Mail },
-  { label: "Yedekleme", icon: HardDrive },
-];
-
-const NOTIFS = [
-  { t: "Yeni parsel eklendi", d: "Nova Prime - A12 parseli sisteme eklendi.", w: "5 dk önce", icon: Bell },
-  { t: "Ödeme alındı", d: "SP-2026-1256 numaralı siparişin ödemesi alındı.", w: "15 dk önce", icon: CreditCard },
-  { t: "Yeni destek talebi", d: "Ahmet Yılmaz yeni bir destek talebi oluşturdu.", w: "1 saat önce", icon: LifeBuoy },
-  { t: "Sertifika oluşturuldu", d: "PRC-2026-0894 numaralı sertifika oluşturuldu.", w: "2 saat önce", icon: Award },
-];
+type Stats = {
+  parcels_total: number;
+  parcels_sold: number;
+  parcels_available: number;
+  users_total: number;
+  certificates_total: number;
+  certificates_issued: number;
+  certificates_pending: number;
+  certificates_revoked: number;
+  generated_at: string;
+};
 
 function Admin() {
-  const maxRev = Math.max(...REVENUE);
-  const points = REVENUE.map((v, i) => `${(i / (REVENUE.length - 1)) * 100},${100 - (v / maxRev) * 90}`).join(" ");
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [name, setName] = useState("Yönetici");
+  const [error, setError] = useState("");
+
+  async function loadAdmin() {
+    if (!supabaseBrowser) {
+      await navigate({ to: "/giris" });
+      return;
+    }
+    setLoading(true);
+    setError("");
+
+    const { data: userData, error: userError } = await supabaseBrowser.auth.getUser();
+    if (userError || !userData.user) {
+      await navigate({ to: "/giris", search: { redirect: "/yonetim" } as never });
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabaseBrowser
+      .from("profiles")
+      .select("full_name, role")
+      .eq("id", userData.user.id)
+      .maybeSingle();
+
+    if (profileError || profile?.role !== "admin") {
+      setAuthorized(false);
+      setLoading(false);
+      await navigate({ to: "/", search: { admin: "denied" } as never });
+      return;
+    }
+
+    setAuthorized(true);
+    setName(profile.full_name?.trim() || "Yönetici");
+
+    const { data, error: statsError } = await supabaseBrowser.rpc("admin_dashboard_stats");
+    if (statsError) {
+      setError("Yönetim verileri yüklenemedi. Yetki veya veritabanı bağlantısını kontrol edin.");
+    } else {
+      setStats(data as Stats);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    let active = true;
+    void loadAdmin();
+    const { data: listener } = supabaseBrowser?.auth.onAuthStateChange((event) => {
+      if (!active) return;
+      if (event === "SIGNED_OUT") void navigate({ to: "/giris" });
+      if (event === "TOKEN_REFRESHED") void loadAdmin();
+    }) ?? { data: { subscription: { unsubscribe: () => undefined } } };
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  async function logout() {
+    if (supabaseBrowser) await supabaseBrowser.auth.signOut({ scope: "global" });
+    await navigate({ to: "/giris" });
+  }
+
+  if (loading) {
+    return <div className="grid min-h-screen place-items-center bg-background text-sm text-muted-foreground">Yönetim yetkisi doğrulanıyor...</div>;
+  }
+
+  if (!authorized) return null;
+
+  const cards = stats
+    ? [
+        { label: "Toplam Parsel", value: stats.parcels_total, icon: Boxes },
+        { label: "Satılmış Parsel", value: stats.parcels_sold, icon: Boxes },
+        { label: "Kullanıcı", value: stats.users_total, icon: Users },
+        { label: "Toplam Sertifika", value: stats.certificates_total, icon: Award },
+        { label: "Düzenlenmiş Sertifika", value: stats.certificates_issued, icon: ShieldCheck },
+      ]
+    : [];
 
   return (
     <div className="min-h-screen bg-background lg:grid lg:grid-cols-[260px_1fr]">
-      {/* SIDEBAR */}
       <aside className="border-r border-border bg-navy-deep p-4">
         <div className="flex items-center gap-2 px-2 py-3">
-          <Sparkles className="h-7 w-7 text-gold" />
-          <span>
-            <span className="block font-display text-base font-bold">
-              MySky<span className="text-gold">Parcel</span>
-            </span>
-            <span className="text-[8px] tracking-[0.25em] text-muted-foreground">YÖNETİM PANELİ</span>
-          </span>
+          <ShieldCheck className="h-7 w-7 text-gold" />
+          <div><div className="font-display font-bold">MySky<span className="text-gold">Parcel</span></div><div className="text-[8px] tracking-[0.25em] text-muted-foreground">YÖNETİM PANELİ</div></div>
         </div>
-
-        <p className="mt-6 px-3 text-[10px] tracking-[0.16em] text-gold">ANA MENÜ</p>
-        <ul className="mt-2 grid gap-1">
-          {MENU.map((m) => (
-            <li key={m.label}>
-              <button
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm ${
-                  m.active
-                    ? "bg-[image:var(--gradient-gold)] text-primary-foreground"
-                    : "text-foreground/85 hover:bg-accent hover:text-gold"
-                }`}
-              >
-                <m.icon className="h-4 w-4 shrink-0" />
-                <span className="truncate">{m.label}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-
-        <p className="mt-6 px-3 text-[10px] tracking-[0.16em] text-gold">RAPORLAR</p>
-        <ul className="mt-2 grid gap-1">
-          {REPORTS.map((m) => (
-            <li key={m.label}>
-              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground/85 hover:bg-accent hover:text-gold">
-                <m.icon className="h-4 w-4 shrink-0" />
-                <span className="truncate">{m.label}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-
-        <p className="mt-6 px-3 text-[10px] tracking-[0.16em] text-gold">SİSTEM</p>
-        <ul className="mt-2 grid gap-1">
-          {SYSTEM.map((m) => (
-            <li key={m.label}>
-              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground/85 hover:bg-accent hover:text-gold">
-                <m.icon className="h-4 w-4 shrink-0" />
-                <span className="truncate">{m.label}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-
-        <div className="panel mt-8 p-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent text-gold">MY</div>
-            <div className="min-w-0">
-              <p className="truncate text-sm">Mehmet Yılmaz</p>
-              <p className="text-xs text-gold">Yönetici</p>
-            </div>
-          </div>
-          <button className="mt-4 flex w-full items-center gap-3 rounded-lg px-1 py-2 text-sm text-foreground/85 hover:text-gold">
-            <LogOut className="h-4 w-4" /> Çıkış Yap
-          </button>
+        <div className="mt-8 rounded-lg border border-gold/30 bg-background/20 p-4">
+          <p className="text-sm font-medium truncate">{name}</p>
+          <p className="mt-1 text-xs text-gold">ADMIN</p>
         </div>
+        <button onClick={() => void logout()} className="mt-4 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground/85 hover:bg-accent hover:text-gold">
+          <LogOut className="h-4 w-4" /> Çıkış Yap
+        </button>
       </aside>
 
-      {/* MAIN */}
       <div className="min-w-0">
-        <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border px-4 py-4 lg:px-6">
-          <div className="flex min-w-0 items-center gap-4">
-            <Menu className="h-5 w-5 shrink-0 text-muted-foreground" />
-            <h1 className="truncate text-xl font-semibold">Dashboard</h1>
-          </div>
-          <div className="flex shrink-0 items-center gap-3">
-            <div className="hidden items-center gap-2 rounded-lg border border-input bg-card px-3 md:flex">
-              <input placeholder="Ara..." className="w-40 bg-transparent py-2 text-sm outline-none" />
-              <Search className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <button className="relative rounded-lg border border-border p-2" aria-label="Bildirimler">
-              <Bell className="h-4 w-4" />
-              <span className="absolute -right-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
-                3
-              </span>
-            </button>
-            <div className="hidden items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs sm:flex">
-              <Calendar className="h-4 w-4 text-gold" />
-              <span>
-                6 Temmuz 2026 <span className="block text-muted-foreground">Pazartesi</span>
-              </span>
-            </div>
-          </div>
+        <header className="flex items-center justify-between gap-4 border-b border-border px-4 py-4 lg:px-6">
+          <div className="flex items-center gap-3"><Menu className="h-5 w-5 text-muted-foreground" /><h1 className="text-xl font-semibold">Dashboard</h1></div>
+          <button onClick={() => void loadAdmin()} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs hover:border-gold" disabled={loading}><RefreshCw className="h-4 w-4" /> Yenile</button>
         </header>
 
         <main className="grid gap-6 p-4 lg:p-6">
-          {/* KPIs */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            {KPIS.map((k) => (
-              <div key={k.label} className="panel flex min-w-0 items-center gap-4 p-5">
-                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-accent">
-                  <k.icon className="h-5 w-5 text-gold" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-xs text-muted-foreground">{k.label}</p>
-                  <p className="font-display text-xl">{k.value}</p>
-                  <p className="text-[11px] text-success">↑ {k.delta} önceki aya göre</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid gap-6 xl:grid-cols-3">
-            {/* Revenue chart */}
-            <section className="panel p-6">
-              <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                <h2 className="truncate text-sm font-semibold">Gelir Grafiği</h2>
-                <span className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">
-                  Son 6 Ay
-                </span>
-              </header>
-              <svg viewBox="0 0 100 100" className="mt-6 h-48 w-full" preserveAspectRatio="none">
-                <polyline
-                  points={points}
-                  fill="none"
-                  stroke="var(--gold)"
-                  strokeWidth="1.5"
-                  vectorEffect="non-scaling-stroke"
-                />
-                <polygon points={`0,100 ${points} 100,100`} fill="var(--gold)" opacity="0.15" />
-              </svg>
-              <ul className="mt-3 flex justify-between text-[10px] text-muted-foreground">
-                {MONTHS.map((m) => (
-                  <li key={m}>{m}</li>
-                ))}
-              </ul>
-              <p className="mt-4 text-center text-xs text-gold">— Gelir (₺)</p>
-            </section>
-
-            {/* Distribution */}
-            <section className="panel p-6">
-              <h2 className="text-sm font-semibold">Parsel Dağılımı</h2>
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-8">
-                <div className="grid h-40 w-40 place-items-center rounded-full border-[14px] border-gold/80 [border-right-color:var(--muted)] [border-top-color:var(--info)]">
-                  <div className="text-center">
-                    <p className="font-display text-xl">1.248</p>
-                    <p className="text-[11px] text-muted-foreground">Toplam</p>
-                  </div>
-                </div>
-                <ul className="grid gap-2 text-xs">
-                  {DIST.map((d) => (
-                    <li key={d.label} className="flex items-center gap-3">
-                      <span className="h-2 w-2 rounded-full bg-gold" />
-                      <span className="w-20 text-muted-foreground">{d.label}</span>
-                      <span>%{d.pct}</span>
-                      <span className="text-muted-foreground">{d.count}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <button className="mt-6 w-full text-center text-xs text-gold">Tüm Parseller →</button>
-            </section>
-
-            {/* Recent orders */}
-            <section className="panel p-6">
-              <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                <h2 className="truncate text-sm font-semibold">Son Siparişler</h2>
-                <button className="shrink-0 text-xs text-gold">Tümünü Gör →</button>
-              </header>
-              <ul className="mt-4 divide-y divide-border">
-                {ORDERS.map((o) => (
-                  <li key={o.no} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm">{o.no}</p>
-                      <p className="truncate text-xs text-muted-foreground">{o.user}</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <span className="text-sm">{o.total}</span>
-                      <span
-                        className={`rounded px-2 py-1 text-[10px] ${
-                          o.status === "Tamamlandı"
-                            ? "bg-success/20 text-success"
-                            : o.status === "İşlemde"
-                              ? "bg-gold/20 text-gold"
-                              : "bg-info/20 text-info"
-                        }`}
-                      >
-                        {o.status}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </div>
-
-          <div className="grid gap-6 xl:grid-cols-4">
-            {/* Signups bar chart */}
-            <section className="panel p-6 xl:col-span-2">
-              <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                <h2 className="truncate text-sm font-semibold">Kullanıcı Kayıtları</h2>
-                <span className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">
-                  Son 6 Ay
-                </span>
-              </header>
-              <div className="mt-6 flex h-48 items-stretch gap-3">
-                {SIGNUPS.map((v, i) => (
-                  <div key={i} className="flex h-full min-w-0 flex-1 flex-col justify-end gap-2">
-                    <div
-                      className="w-full shrink-0 rounded-t"
-                      style={{
-                        height: `${(v / 1200) * 100}%`,
-                        minHeight: "4px",
-                        backgroundImage: "var(--gradient-gold)",
-                      }}
-                    />
-
-                    <span className="text-center text-[10px] text-muted-foreground">{MONTHS[i]}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-4 text-center text-xs text-gold">▮ Yeni Kayıtlar</p>
-            </section>
-
-            {/* Parcel status */}
-            <section className="panel p-6">
-              <h2 className="text-sm font-semibold">Parsel Durumu</h2>
-              <ul className="mt-5 grid gap-4">
-                {DIST.map((d) => (
-                  <li key={d.label}>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="truncate text-muted-foreground">{d.label}</span>
-                      <span>
-                        {d.count} <span className="text-muted-foreground">(%{d.pct})</span>
-                      </span>
-                    </div>
-                    <div className="mt-1.5 h-1.5 rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${d.pct}%`,
-                          backgroundImage: "var(--gradient-gold)",
-                        }}
-                      />
-
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              <button className="mt-6 w-full text-center text-xs text-gold">Tüm Parseller →</button>
-            </section>
-
-            {/* System status */}
-            <section className="panel p-6">
-              <h2 className="text-sm font-semibold">Sistem Durumu</h2>
-              <ul className="mt-5 grid gap-4 text-sm">
-                {SERVICES.map((s) => (
-                  <li key={s.label} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                    <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
-                      <s.icon className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{s.label}</span>
-                    </span>
-                    <span className="shrink-0 text-xs text-success">Aktif</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-5 text-xs text-muted-foreground">Son Yedekleme: 06.07.2026 02:30</p>
-              <p className="text-xs text-success">Başarılı</p>
-            </section>
-          </div>
-
-          <section className="panel p-6">
-            <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-              <h2 className="truncate text-sm font-semibold">Son Bildirimler</h2>
-              <button className="shrink-0 text-xs text-gold">Tümünü Gör →</button>
-            </header>
-            <ul className="mt-4 grid gap-4 md:grid-cols-2">
-              {NOTIFS.map((n) => (
-                <li key={n.t} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3">
-                  <n.icon className="mt-0.5 h-5 w-5 shrink-0 text-gold" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm">{n.t}</p>
-                    <p className="truncate text-xs text-muted-foreground">{n.d}</p>
-                  </div>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{n.w}</span>
-                </li>
-              ))}
-            </ul>
+          {error && <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            {cards.map((card) => <div key={card.label} className="panel flex items-center gap-4 p-5"><div className="grid h-11 w-11 place-items-center rounded-full bg-accent"><card.icon className="h-5 w-5 text-gold" /></div><div><p className="text-xs text-muted-foreground">{card.label}</p><p className="font-display text-2xl">{card.value.toLocaleString("tr-TR")}</p></div></div>)}
           </section>
 
-          <footer className="flex items-center gap-2 pb-4 text-xs text-muted-foreground">
-            <Home className="h-3.5 w-3.5" /> © 2026 MySkyParcel Yönetim Paneli. Tüm hakları saklıdır.
-          </footer>
+          <section className="grid gap-6 lg:grid-cols-3">
+            <div className="panel p-6"><h2 className="font-semibold">Parsel Durumu</h2><div className="mt-5 space-y-3 text-sm"><div className="flex justify-between"><span className="text-muted-foreground">Satışta</span><b>{stats?.parcels_available.toLocaleString("tr-TR")}</b></div><div className="flex justify-between"><span className="text-muted-foreground">Satıldı</span><b>{stats?.parcels_sold.toLocaleString("tr-TR")}</b></div><div className="flex justify-between"><span className="text-muted-foreground">Toplam</span><b>{stats?.parcels_total.toLocaleString("tr-TR")}</b></div></div></div>
+            <div className="panel p-6"><h2 className="font-semibold">Sertifika Durumu</h2><div className="mt-5 space-y-3 text-sm"><div className="flex justify-between"><span className="text-muted-foreground">Bekleyen</span><b>{stats?.certificates_pending}</b></div><div className="flex justify-between"><span className="text-muted-foreground">Düzenlenmiş</span><b>{stats?.certificates_issued}</b></div><div className="flex justify-between"><span className="text-muted-foreground">İptal edilmiş</span><b>{stats?.certificates_revoked}</b></div></div></div>
+            <div className="panel p-6"><h2 className="font-semibold">Güvenlik</h2><p className="mt-3 text-sm text-muted-foreground">Bu sayfa yalnızca Supabase'deki <strong>admin</strong> rolü ile erişilebilir. Kritik işlemler veritabanındaki admin yetkili fonksiyonlar üzerinden yapılmalıdır.</p><div className="mt-4 inline-flex items-center gap-2 rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-500"><ShieldCheck className="h-4 w-4" /> Admin doğrulandı</div></div>
+          </section>
+
+          <section className="panel p-6">
+            <h2 className="font-semibold">Yönetim Modülleri</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Yalnızca canlı veritabanında gerçekten mevcut olan modüller burada güvenli biçimde etkinleştirilecektir. Sahte KPI, sipariş, ödeme veya gelir verisi gösterilmez.</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {["Parseller", "Kullanıcılar", "Sertifikalar", "Sistem Günlükleri"].map((item) => <div key={item} className="rounded-lg border border-border p-4 text-sm"><p className="font-medium">{item}</p><p className="mt-1 text-xs text-muted-foreground">Backend yetkilendirmesi tamamlanmadan değişiklik işlemleri açılmaz.</p></div>)}
+            </div>
+          </section>
         </main>
       </div>
     </div>
