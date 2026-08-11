@@ -29,8 +29,18 @@ function KayitOl() {
     if (password !== confirm) { setMessage("Şifreler eşleşmiyor."); return; }
     if (!accepted) { setMessage("Üyelik Sözleşmesi'ni okuduğunuzu ve kabul ettiğinizi onaylamalısınız."); return; }
     if (!kvkkRead) { setMessage("KVKK Aydınlatma Metni'ni okuduğunuzu onaylamalısınız."); return; }
+
     const res = await signUp(email.trim(), password, name.trim());
-    if (res.success) { setSuccess(true); setMessage("Kayıt başarılı. Lütfen e-postanızı kontrol edin."); } else setMessage(res.error);
+    if (res.success) {
+      setSuccess(true);
+      setMessage(
+        res.status === "verification_resent"
+          ? "Doğrulama e-postası yeniden gönderildi. Lütfen e-postanızı kontrol edin."
+          : "Kayıt başarılı. Lütfen e-postanızı kontrol edin.",
+      );
+    } else {
+      setMessage(res.error);
+    }
   }
 
   return (
