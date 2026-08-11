@@ -102,14 +102,6 @@ function Paketler() {
                   height={800}
                   className="h-full w-full object-contain"
                 />
-                {p.name === "PREMİUM SERTİFİKA" && (
-                  <span
-                    aria-label="Premium sertifika"
-                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-sm bg-black/85 px-3 py-1 font-display text-sm font-semibold tracking-wide text-white shadow-lg"
-                  >
-                    PREMİUM
-                  </span>
-                )}
               </div>
               <ul className="mt-6 space-y-3 text-sm">
                 {p.features.map((f) => (
