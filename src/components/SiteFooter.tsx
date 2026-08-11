@@ -2,6 +2,7 @@ import { Facebook, Instagram, Linkedin, Twitter, Youtube } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 const LEGAL = [
+  { label: "ÜYELİK SÖZLEŞMESİ", to: "/uyelik-sozlesmesi" },
   { label: "KVKK", to: "/kvkk" },
   { label: "GİZLİLİK POLİTİKASI", to: "/gizlilik-politikasi" },
   { label: "KULLANIM ŞARTLARI", to: "/kullanim-sartlari" },
@@ -26,11 +27,7 @@ export function SiteFooter() {
         <ul className="flex items-center gap-3 lg:justify-end" aria-label="Sosyal medya">
           {[Facebook, Instagram, Twitter, Youtube, Linkedin].map((Icon, i) => (
             <li key={i}>
-              <span
-                aria-label="Sosyal medya bağlantısı henüz tanımlı değil"
-                title="Sosyal medya bağlantısı henüz tanımlı değil"
-                className="grid h-8 w-8 place-items-center rounded-full border border-gold/50 text-gold/70"
-              >
+              <span aria-label="Sosyal medya bağlantısı henüz tanımlı değil" title="Sosyal medya bağlantısı henüz tanımlı değil" className="grid h-8 w-8 place-items-center rounded-full border border-gold/50 text-gold/70">
                 <Icon className="h-3.5 w-3.5" aria-hidden="true" />
               </span>
             </li>
