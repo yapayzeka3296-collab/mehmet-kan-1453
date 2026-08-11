@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import {
   Award,
   ChevronRight,
@@ -15,6 +16,8 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { UserSidebar } from "@/components/UserSidebar";
 import { SECURITY_TRUST, TrustBar } from "@/components/TrustBar";
+import { useAuth } from "@/hooks/useAuth";
+import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 export const Route = createFileRoute("/panelim")({
   head: () => ({
@@ -28,40 +31,94 @@ export const Route = createFileRoute("/panelim")({
   component: Panelim,
 });
 
-const STATS = [
-  { icon: Globe, value: "3", title: "Parselim", sub: "Toplam Parsel" },
-  { icon: Award, value: "3", title: "Sertifikam", sub: "Toplam Sertifika" },
-  { icon: ShoppingBag, value: "5", title: "Siparişim", sub: "Toplam Sipariş" },
-  { icon: Star, value: "4", title: "Favori Şehrim", sub: "Favori Şehir" },
-];
-
-const PARCELS = [
-  { city: "Gaziantep", code: "K05 (5. Katman) - S042 (42. Sektör) - P07 (7. Parsel)", date: "20.05.2024" },
-  { city: "İstanbul", code: "K02 (2. Katman) - S018 (18. Sektör) - P15 (15. Parsel)", date: "15.04.2024" },
-  { city: "Konya", code: "K06 (6. Katman) - S067 (67. Sektör) - P03 (3. Parsel)", date: "10.03.2024" },
-];
-
-const ORDERS = [
-  { no: "#MSP-2024-000123", date: "20.05.2024", total: "1.198,00 TL" },
-  { no: "#MSP-2024-000098", date: "15.04.2024", total: "999,00 TL" },
-  { no: "#MSP-2024-000076", date: "10.03.2024", total: "499,00 TL" },
-  { no: "#MSP-2024-000045", date: "05.02.2024", total: "199,00 TL" },
-];
-
-const CERTS = [
-  { city: "Gaziantep", code: "GZT-K05-S042-P07" },
-  { city: "İstanbul", code: "IST-K02-S018-P15" },
-  { city: "Konya", code: "KON-K06-S067-P03" },
-];
+type Parcel = {
+  id: string;
+  parcel_number: string;
+  status: "available" | "reserved" | "sold";
+  price: number | string;
+  latitude: number;
+  longitude: number;
+  created_at: string;
+};
 
 const ACTIONS = [
-  { icon: ShoppingCart, label: "Parsel Satın Al" },
-  { icon: Globe, label: "Gökyüzü Haritası" },
-  { icon: ShieldCheck, label: "Sertifika Doğrula" },
-  { icon: Layers, label: "Paketleri İncele" },
-];
+  { icon: ShoppingCart, label: "Parsel Satın Al", to: "/parsel-satin-al" },
+  { icon: Globe, label: "Gökyüzü Haritası", to: "/gokyuzu-haritasi" },
+  { icon: ShieldCheck, label: "Sertifika Doğrula", to: "/sertifika-dogrula" },
+  { icon: Layers, label: "Paketleri İncele", to: "/paketler" },
+] as const;
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function statusLabel(status: Parcel["status"]) {
+  if (status === "sold") return "Satın Alındı";
+  if (status === "reserved") return "Rezerve";
+  return "Müsait";
+}
 
 function Panelim() {
+  const { user, loading: authLoading } = useAuth();
+  const [parcels, setParcels] = useState<Parcel[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadUserParcels() {
+      if (!user?.id || !supabaseBrowser) {
+        if (active) {
+          setParcels([]);
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      const { data, error: queryError } = await supabaseBrowser
+        .from("parcels")
+        .select("id, parcel_number, status, price, latitude, longitude, created_at")
+        .eq("owner_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(3);
+
+      if (!active) return;
+
+      if (queryError) {
+        console.error("Panel parcels query failed", queryError);
+        setError("Parselleriniz şu anda yüklenemedi. Lütfen biraz sonra tekrar deneyin.");
+        setParcels([]);
+      } else {
+        setParcels((data ?? []) as Parcel[]);
+      }
+      setLoading(false);
+    }
+
+    void loadUserParcels();
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
+  const displayName = user?.name || user?.email || "Kullanıcımız";
+  const greetingName = displayName.includes("@") ? displayName.split("@")[0] : displayName;
+  const favoriteCity = "—";
+
+  const stats = [
+    { icon: Globe, value: String(parcels.length), title: "Parselim", sub: "Son 3 / toplam görünüm" },
+    { icon: Award, value: "0", title: "Sertifikam", sub: "Toplam Sertifika" },
+    { icon: ShoppingBag, value: "0", title: "Siparişim", sub: "Toplam Sipariş" },
+    { icon: Star, value: favoriteCity, title: "Favori Şehrim", sub: "Henüz belirlenmedi" },
+  ];
+
   return (
     <div className="starfield min-h-screen">
       <SiteHeader />
@@ -82,13 +139,13 @@ function Panelim() {
             <div className="relative">
               <h1 className="font-display text-3xl font-bold">PANELİM</h1>
               <p className="mt-2 text-sm">
-                Hoş geldiniz, <span className="text-gold">Ahmet Yılmaz</span>
+                Hoş geldiniz, <span className="text-gold">{authLoading ? "..." : greetingName}</span>
               </p>
             </div>
           </div>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {STATS.map((s) => (
+            {stats.map((s) => (
               <div key={s.title} className="panel flex min-w-0 items-center gap-4 p-5">
                 <s.icon className="h-8 w-8 shrink-0 text-gold" />
                 <div className="min-w-0">
@@ -100,6 +157,12 @@ function Panelim() {
             ))}
           </div>
 
+          {error && (
+            <div className="mt-6 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+
           <div className="mt-6 grid gap-6 xl:grid-cols-2">
             <section className="panel p-6">
               <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
@@ -108,23 +171,44 @@ function Panelim() {
                   Tüm Parsellerim →
                 </Link>
               </header>
-              <ul className="mt-4 divide-y divide-border">
-                {PARCELS.map((p) => (
-                  <li key={p.city} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-4">
-                    <div className="min-w-0">
-                      <p className="font-semibold">{p.city}</p>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">{p.code}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">Satın Alma Tarihi: {p.date}</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <span className="rounded-full border border-success/40 px-3 py-1 text-[11px] text-success">
-                        Aktif
-                      </span>
-                      <ChevronRight className="h-4 w-4 text-gold" />
-                    </div>
-                  </li>
-                ))}
-              </ul>
+
+              {loading ? (
+                <p className="mt-6 text-sm text-muted-foreground">Parselleriniz yükleniyor...</p>
+              ) : parcels.length === 0 ? (
+                <div className="mt-6 rounded-lg border border-dashed border-border p-6 text-center">
+                  <Globe className="mx-auto h-8 w-8 text-gold" />
+                  <p className="mt-3 text-sm font-medium">Henüz parseliniz yok.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Gökyüzü Haritası'ndan bir parsel seçerek başlayabilirsiniz.</p>
+                  <Link
+                    to="/parsel-satin-al"
+                    className="mt-4 inline-flex rounded-lg border border-gold/50 px-4 py-2 text-xs text-gold hover:bg-gold/10"
+                  >
+                    Parsel Satın Al
+                  </Link>
+                </div>
+              ) : (
+                <ul className="mt-4 divide-y divide-border">
+                  {parcels.map((p) => (
+                    <li key={p.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-4">
+                      <div className="min-w-0">
+                        <p className="font-semibold">{p.parcel_number}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Koordinat: {p.latitude.toFixed(4)}, {p.longitude.toFixed(4)}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Kayıt Tarihi: {formatDate(p.created_at)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <span className="rounded-full border border-success/40 px-3 py-1 text-[11px] text-success">
+                          {statusLabel(p.status)}
+                        </span>
+                        <ChevronRight className="h-4 w-4 text-gold" />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
 
             <section className="panel p-6">
@@ -134,23 +218,11 @@ function Panelim() {
                   Tüm Siparişlerim →
                 </Link>
               </header>
-              <ul className="mt-4 divide-y divide-border">
-                {ORDERS.map((o) => (
-                  <li key={o.no} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-4">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{o.no}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{o.date}</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <span className="rounded-full border border-success/40 px-3 py-1 text-[11px] text-success">
-                        Tamamlandı
-                      </span>
-                      <span className="text-sm">{o.total}</span>
-                      <ChevronRight className="h-4 w-4 text-gold" />
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-6 rounded-lg border border-dashed border-border p-6 text-center">
+                <ShoppingBag className="mx-auto h-8 w-8 text-gold" />
+                <p className="mt-3 text-sm font-medium">Henüz siparişiniz yok.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Gerçek siparişleriniz oluştuğunda burada görünecek.</p>
+              </div>
             </section>
 
             <section className="panel p-6">
@@ -160,22 +232,16 @@ function Panelim() {
                   Tüm Sertifikalarım →
                 </Link>
               </header>
-              <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {CERTS.map((c) => (
-                  <div key={c.code} className="text-center">
-                    <div className="grid h-28 place-items-center rounded-lg border border-gold/40 bg-navy">
-                      <Award className="h-8 w-8 text-gold" />
-                    </div>
-                    <p className="mt-2 text-xs font-medium">{c.city}</p>
-                    <p className="truncate text-[10px] text-muted-foreground">{c.code}</p>
-                  </div>
-                ))}
-                <div className="grid h-28 place-items-center rounded-lg border border-dashed border-border text-center">
-                  <div>
-                    <Plus className="mx-auto h-6 w-6 text-gold" />
-                    <p className="mt-1 text-[11px] text-muted-foreground">Yeni Sertifika</p>
-                  </div>
-                </div>
+              <div className="mt-6 rounded-lg border border-dashed border-border p-6 text-center">
+                <Award className="mx-auto h-8 w-8 text-gold" />
+                <p className="mt-3 text-sm font-medium">Henüz sertifikanız yok.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Size ait gerçek sertifikalar oluşturulduğunda burada görünecek.</p>
+                <Link
+                  to="/sertifikalarim"
+                  className="mt-4 inline-flex rounded-lg border border-gold/50 px-4 py-2 text-xs text-gold hover:bg-gold/10"
+                >
+                  Sertifikalarım
+                </Link>
               </div>
             </section>
 
@@ -183,13 +249,14 @@ function Panelim() {
               <h2 className="font-display text-base tracking-[0.06em]">HIZLI İŞLEMLER</h2>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 {ACTIONS.map((a) => (
-                  <button
+                  <Link
                     key={a.label}
+                    to={a.to}
                     className="flex items-center gap-3 rounded-lg border border-border bg-background/40 px-4 py-4 text-sm transition-colors hover:border-gold hover:text-gold"
                   >
                     <a.icon className="h-5 w-5 shrink-0 text-gold" />
                     <span className="truncate">{a.label}</span>
-                  </button>
+                  </Link>
                 ))}
               </div>
             </section>
