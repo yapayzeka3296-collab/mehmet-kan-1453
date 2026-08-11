@@ -4,6 +4,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { UserSidebar } from "@/components/UserSidebar";
 import { SECURITY_TRUST, TrustBar } from "@/components/TrustBar";
+import { CertificatePreview } from "@/components/CertificatePreview";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { useAuth } from "@/hooks/useAuth";
 import { useCallback, useEffect, useState } from "react";
@@ -35,6 +36,15 @@ const TIER_IMAGE_PATHS = {
   elite: "/certificates/elite-certificate.jpg",
   premium: "/certificates/premium-certificate.jpg",
 } as const;
+
+function getUserDisplayName(user: NonNullable<ReturnType<typeof useAuth>["user"]>) {
+  const metadata = user.user_metadata as Record<string, unknown> | undefined;
+  const fullName = typeof metadata?.full_name === "string" ? metadata.full_name.trim() : "";
+  if (fullName) return fullName;
+  const name = typeof metadata?.name === "string" ? metadata.name.trim() : "";
+  if (name) return name;
+  return user.email?.split("@")[0] || "ÖRNEK KULLANICI";
+}
 
 function Sertifikalarim() {
   const { user, loading: authLoading } = useAuth();
@@ -78,6 +88,8 @@ function Sertifikalarim() {
     return <Navigate to="/giris" replace />;
   }
 
+  const displayName = getUserDisplayName(user);
+
   return (
     <div className="starfield min-h-screen">
       <SiteHeader />
@@ -95,6 +107,22 @@ function Sertifikalarim() {
               <RefreshCw className="mr-2 inline h-3.5 w-3.5" /> Yenile
             </button>
           </div>
+
+          <section className="panel mt-6 p-5 sm:p-6" aria-labelledby="certificate-preview-title">
+            <div>
+              <h2 id="certificate-preview-title" className="font-display text-xl font-bold">DİJİTAL GÖKYÜZÜ SERTİFİKASI — İSİM YERLEŞİM TESTİ</h2>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                Bu ilk aşama yalnızca isim yerleşimini test eder. Sertifika henüz oluşturulmaz, kaydedilmez veya gönderilmez.
+              </p>
+            </div>
+            <div className="mx-auto mt-5 max-w-3xl overflow-hidden rounded-lg border border-[#1E293B]">
+              <CertificatePreview
+                imageSrc={TIER_IMAGE_PATHS.digital}
+                certificateLabel="Dijital Gökyüzü"
+                name={displayName}
+              />
+            </div>
+          </section>
 
           {loading && <div className="panel mt-6 p-6 text-sm text-muted-foreground">Sertifikalar yükleniyor...</div>}
           {error && <div className="panel mt-6 p-6 text-sm text-red-300">{error}</div>}
