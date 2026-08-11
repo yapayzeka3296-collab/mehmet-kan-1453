@@ -19,6 +19,7 @@ function KayitOl() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [accepted, setAccepted] = useState(false);
+  const [kvkkRead, setKvkkRead] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -27,6 +28,7 @@ function KayitOl() {
     if (!name.trim() || !email.trim() || !password || !confirm) { setMessage("Lütfen tüm alanları doldurun."); return; }
     if (password !== confirm) { setMessage("Şifreler eşleşmiyor."); return; }
     if (!accepted) { setMessage("Üyelik Sözleşmesi'ni okuduğunuzu ve kabul ettiğinizi onaylamalısınız."); return; }
+    if (!kvkkRead) { setMessage("KVKK Aydınlatma Metni'ni okuduğunuzu onaylamalısınız."); return; }
     const res = await signUp(email.trim(), password, name.trim());
     if (res.success) { setSuccess(true); setMessage("Kayıt başarılı. Lütfen e-postanızı kontrol edin."); } else setMessage(res.error);
   }
@@ -43,7 +45,10 @@ function KayitOl() {
             <div><label className="text-xs text-muted-foreground" htmlFor="mail">E-posta Adresiniz</label><div className="mt-2 flex items-center gap-3 rounded-md border border-input bg-background/50 px-3 focus-within:border-gold"><Mail className="h-4 w-4 shrink-0 text-muted-foreground" /><input id="mail" name="email" type="email" placeholder="ornek@email.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" /></div></div>
             <div><label className="text-xs text-muted-foreground" htmlFor="sifre">Şifreniz</label><div className="mt-2 flex items-center gap-3 rounded-md border border-input bg-background/50 px-3 focus-within:border-gold"><Lock className="h-4 w-4 shrink-0 text-muted-foreground" /><input id="sifre" name="password" type="password" placeholder="••••••••••" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" /></div></div>
             <div><label className="text-xs text-muted-foreground" htmlFor="sifre2">Şifre Tekrar</label><div className="mt-2 flex items-center gap-3 rounded-md border border-input bg-background/50 px-3 focus-within:border-gold"><Lock className="h-4 w-4 shrink-0 text-muted-foreground" /><input id="sifre2" name="password-confirmation" type="password" placeholder="••••••••••" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" /></div></div>
-            <label className="flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className="mt-0.5 accent-[oklch(0.78_0.13_82)]" /><span><Link to="/uyelik-sozlesmesi" className="text-gold hover:underline">Üyelik Sözleşmesi</Link>'ni okudum ve kabul ediyorum.</span></label>
+            <div className="space-y-3">
+              <label className="flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className="mt-0.5 accent-[oklch(0.78_0.13_82)]" /><span><Link to="/uyelik-sozlesmesi" className="text-gold hover:underline">Üyelik Sözleşmesi</Link>'ni okudum ve kabul ediyorum.</span></label>
+              <label className="flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={kvkkRead} onChange={(e) => setKvkkRead(e.target.checked)} className="mt-0.5 accent-[oklch(0.78_0.13_82)]" /><span><Link to="/kvkk" className="text-gold hover:underline">KVKK Aydınlatma Metni</Link>'ni okudum ve bilgilendirildim.</span></label>
+            </div>
             <button type="submit" disabled={loading} className="btn-gold flex w-full items-center justify-center gap-3 rounded-md py-3.5 text-sm disabled:cursor-not-allowed disabled:opacity-60">{loading ? "KAYIT YAPILIYOR..." : "KAYIT OL"}{!loading && <ArrowRight className="h-4 w-4" />}</button>
             {message && <p className={`text-center text-sm ${success ? "text-green-500" : "text-destructive"}`} role="status">{message}</p>}
             <p className="text-center text-sm text-muted-foreground">Zaten hesabınız var? <Link to="/giris" className="text-gold hover:underline">Giriş yapın</Link></p>
