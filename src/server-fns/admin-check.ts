@@ -19,15 +19,18 @@ export const GET = async ({ request }: { request: Request }): Promise<Response> 
     const { data, error } = await admin.auth.getUser(token);
     if (error || !data.user) return jsonResponse({ ok: false, admin: false, reason: "unauthenticated" }, 401);
 
-    const trustedRole = data.user.app_metadata?.role;
-    const allowedEmails = (process.env["ADMIN_EMAILS"] ?? "")
-      .split(",")
-      .map((email) => email.trim().toLowerCase())
-      .filter(Boolean);
-    const emailAllowed = Boolean(data.user.email && allowedEmails.includes(data.user.email.toLowerCase()));
-    const adminAllowed = trustedRole === "admin" || emailAllowed;
+    const { data: profile, error: profileError } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .maybeSingle();
 
-    if (!adminAllowed) return jsonResponse({ ok: false, admin: false, reason: "forbidden" }, 403);
+    if (profileError) {
+      console.error("Admin role lookup failed", profileError);
+      return jsonResponse({ ok: false, admin: false, reason: "internal_error" }, 500);
+    }
+
+    if (profile?.role !== "admin") return jsonResponse({ ok: false, admin: false, reason: "forbidden" }, 403);
     return jsonResponse({ ok: true, admin: true }, 200);
   } catch (error) {
     console.error("Admin authorization check failed", error);
