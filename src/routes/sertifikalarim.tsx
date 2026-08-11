@@ -4,7 +4,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { UserSidebar } from "@/components/UserSidebar";
 import { SECURITY_TRUST, TrustBar } from "@/components/TrustBar";
-import { CertificatePreview } from "@/components/CertificatePreview";
+import { CertificateArtwork } from "@/components/CertificateArtwork";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { useAuth } from "@/hooks/useAuth";
 import { useCallback, useEffect, useState } from "react";
@@ -31,19 +31,13 @@ type Certificate = {
 
 const TIER_LABELS = { digital: "Dijital", elite: "Elit", premium: "Premium" } as const;
 
-const TIER_IMAGE_PATHS = {
-  digital: "/certificates/digital-certificate.jpg",
-  elite: "/certificates/elite-certificate.jpg",
-  premium: "/certificates/premium-certificate.jpg",
-} as const;
-
 function getUserDisplayName(user: NonNullable<ReturnType<typeof useAuth>["user"]>) {
   const metadata = user.user_metadata as Record<string, unknown> | undefined;
   const fullName = typeof metadata?.full_name === "string" ? metadata.full_name.trim() : "";
   if (fullName) return fullName;
   const name = typeof metadata?.name === "string" ? metadata.name.trim() : "";
   if (name) return name;
-  return user.email?.split("@")[0] || "ÖRNEK KULLANICI";
+  return user.email?.split("@")[0] || "MySkyParcel Koleksiyoncusu";
 }
 
 function Sertifikalarim() {
@@ -100,29 +94,13 @@ function Sertifikalarim() {
             <div>
               <h1 className="font-display text-3xl font-bold">SERTİFİKALARIM</h1>
               <p className="mt-2 text-xs text-muted-foreground">
-                Her statü için en fazla 1 sertifika hakkınız vardır. Sertifika otomatik oluşturulmaz.
+                Sertifika talebiniz onaylandığında kişisel bilgilerinizle otomatik olarak oluşturulur.
               </p>
             </div>
             <button type="button" onClick={() => void loadCertificates()} className="rounded-md border border-input px-3 py-2 text-xs hover:bg-accent" aria-label="Sertifikaları yenile">
               <RefreshCw className="mr-2 inline h-3.5 w-3.5" /> Yenile
             </button>
           </div>
-
-          <section className="panel mt-6 p-5 sm:p-6" aria-labelledby="certificate-preview-title">
-            <div>
-              <h2 id="certificate-preview-title" className="font-display text-xl font-bold">DİJİTAL GÖKYÜZÜ SERTİFİKASI — İSİM YERLEŞİM TESTİ</h2>
-              <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                Bu ilk aşama yalnızca isim yerleşimini test eder. Sertifika henüz oluşturulmaz, kaydedilmez veya gönderilmez.
-              </p>
-            </div>
-            <div className="mx-auto mt-5 max-w-3xl overflow-hidden rounded-lg border border-[#1E293B]">
-              <CertificatePreview
-                imageSrc={TIER_IMAGE_PATHS.digital}
-                certificateLabel="Dijital Gökyüzü"
-                name={displayName}
-              />
-            </div>
-          </section>
 
           {loading && <div className="panel mt-6 p-6 text-sm text-muted-foreground">Sertifikalar yükleniyor...</div>}
           {error && <div className="panel mt-6 p-6 text-sm text-red-300">{error}</div>}
@@ -131,7 +109,7 @@ function Sertifikalarim() {
               <Award className="mx-auto h-12 w-12 text-gold" />
               <h2 className="mt-4 font-display text-xl">Henüz sertifika yok</h2>
               <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
-                Satın aldığınız ve sahipliğiniz doğrulanan bir parsel için uygun statüde “Sertifika Talep Et” işlemi yapılabilir.
+                Uygun bir parsel için sertifika talebiniz onaylandığında, sertifikanız burada kişisel bilgilerinizle oluşturulur.
               </p>
             </div>
           )}
@@ -139,17 +117,16 @@ function Sertifikalarim() {
           {!loading && !error && certificates.length > 0 && (
             <ul className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {certificates.map((certificate) => (
-                <li key={certificate.id} className="panel overflow-hidden p-0">
-                  <div className="aspect-[1.414/1] w-full overflow-hidden bg-navy">
-                    <img
-                      src={TIER_IMAGE_PATHS[certificate.tier]}
-                      alt={`${TIER_LABELS[certificate.tier]} sertifika görseli`}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                  <div className="p-5">
-                    <p className="font-display text-lg">{TIER_LABELS[certificate.tier]}</p>
+                <li key={certificate.id} className="panel overflow-hidden p-4">
+                  <CertificateArtwork
+                    tier={certificate.tier}
+                    name={displayName}
+                    parcelCode={certificate.parcel_id}
+                    certificateNumber={certificate.certificate_number}
+                    issuedAt={certificate.issued_at}
+                  />
+                  <div className="p-2 pt-4">
+                    <p className="font-display text-lg">{TIER_LABELS[certificate.tier]} Sertifika</p>
                     <p className="text-xs text-gold">Parsel: {certificate.parcel_id}</p>
                     <p className="mt-2 text-[11px] text-muted-foreground">
                       Durum: {certificate.status} · Talep: {new Date(certificate.requested_at).toLocaleDateString("tr-TR")}
