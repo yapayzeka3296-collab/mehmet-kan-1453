@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 
-type User = { id: string; email?: string | null };
+type User = { id: string; email?: string | null; name?: string | null };
 type AuthResult =
   | { success: true; user?: User; status?: 'verification_sent' | 'verification_resent' }
   | { success: false; error: string };
@@ -16,8 +16,17 @@ type AuthContextValue = {
 };
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-function toUser(sessionUser: { id: string; email?: string | null }): User {
-  return { id: sessionUser.id, email: sessionUser.email ?? null };
+function toUser(sessionUser: {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+}): User {
+  const fullName = sessionUser.user_metadata?.full_name;
+  return {
+    id: sessionUser.id,
+    email: sessionUser.email ?? null,
+    name: typeof fullName === 'string' && fullName.trim() ? fullName.trim() : null,
+  };
 }
 
 function getEmailRedirectUrl(): string {
@@ -165,9 +174,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const sessionUser = data.user ?? null;
 
-      // Supabase may return an obfuscated user with no identities when the
-      // email already exists. If so, resend the signup confirmation instead
-      // of misleading the user with a new-account success message.
       if (sessionUser && Array.isArray(sessionUser.identities) && sessionUser.identities.length === 0) {
         const resendResult = await resendSignup(cleanEmail);
         if (resendResult.success) return resendResult;
