@@ -5,7 +5,6 @@ import {
   ChevronRight,
   Globe,
   Layers,
-  Plus,
   ShieldCheck,
   ShoppingBag,
   ShoppingCart,
@@ -35,7 +34,6 @@ type Parcel = {
   id: string;
   parcel_number: string;
   status: "available" | "reserved" | "sold";
-  price: number | string;
   latitude: number;
   longitude: number;
   created_at: string;
@@ -65,6 +63,7 @@ function statusLabel(status: Parcel["status"]) {
 function Panelim() {
   const { user, loading: authLoading } = useAuth();
   const [parcels, setParcels] = useState<Parcel[]>([]);
+  const [parcelTotal, setParcelTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,6 +74,7 @@ function Panelim() {
       if (!user?.id || !supabaseBrowser) {
         if (active) {
           setParcels([]);
+          setParcelTotal(0);
           setLoading(false);
         }
         return;
@@ -83,9 +83,9 @@ function Panelim() {
       setLoading(true);
       setError(null);
 
-      const { data, error: queryError } = await supabaseBrowser
+      const { data, count, error: queryError } = await supabaseBrowser
         .from("parcels")
-        .select("id, parcel_number, status, price, latitude, longitude, created_at")
+        .select("id, parcel_number, status, latitude, longitude, created_at", { count: "exact" })
         .eq("owner_id", user.id)
         .order("created_at", { ascending: false })
         .limit(3);
@@ -96,8 +96,10 @@ function Panelim() {
         console.error("Panel parcels query failed", queryError);
         setError("Parselleriniz şu anda yüklenemedi. Lütfen biraz sonra tekrar deneyin.");
         setParcels([]);
+        setParcelTotal(0);
       } else {
         setParcels((data ?? []) as Parcel[]);
+        setParcelTotal(count ?? 0);
       }
       setLoading(false);
     }
@@ -110,13 +112,12 @@ function Panelim() {
 
   const displayName = user?.name || user?.email || "Kullanıcımız";
   const greetingName = displayName.includes("@") ? displayName.split("@")[0] : displayName;
-  const favoriteCity = "—";
 
   const stats = [
-    { icon: Globe, value: String(parcels.length), title: "Parselim", sub: "Son 3 / toplam görünüm" },
+    { icon: Globe, value: String(parcelTotal), title: "Parselim", sub: "Toplam Parsel" },
     { icon: Award, value: "0", title: "Sertifikam", sub: "Toplam Sertifika" },
     { icon: ShoppingBag, value: "0", title: "Siparişim", sub: "Toplam Sipariş" },
-    { icon: Star, value: favoriteCity, title: "Favori Şehrim", sub: "Henüz belirlenmedi" },
+    { icon: Star, value: "—", title: "Favori Şehrim", sub: "Henüz belirlenmedi" },
   ];
 
   return (
