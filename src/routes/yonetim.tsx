@@ -43,7 +43,7 @@ function Admin() {
 
     const { data: userData, error: userError } = await supabaseBrowser.auth.getUser();
     if (userError || !userData.user) {
-      await navigate({ to: "/giris", search: { redirect: "/yonetim" } as never });
+      await navigate({ to: "/giris" });
       return;
     }
 
@@ -56,7 +56,7 @@ function Admin() {
     if (profileError || profile?.role !== "admin") {
       setAuthorized(false);
       setLoading(false);
-      await navigate({ to: "/", search: { admin: "denied" } as never });
+      await navigate({ to: "/" });
       return;
     }
 
@@ -75,14 +75,14 @@ function Admin() {
   useEffect(() => {
     let active = true;
     void loadAdmin();
-    const { data: listener } = supabaseBrowser?.auth.onAuthStateChange((event) => {
+    const subscription = supabaseBrowser?.auth.onAuthStateChange((event) => {
       if (!active) return;
       if (event === "SIGNED_OUT") void navigate({ to: "/giris" });
       if (event === "TOKEN_REFRESHED") void loadAdmin();
-    }) ?? { data: { subscription: { unsubscribe: () => undefined } } };
+    });
     return () => {
       active = false;
-      listener.subscription.unsubscribe();
+      subscription?.data.subscription.unsubscribe();
     };
   }, []);
 
@@ -115,7 +115,7 @@ function Admin() {
           <div><div className="font-display font-bold">MySky<span className="text-gold">Parcel</span></div><div className="text-[8px] tracking-[0.25em] text-muted-foreground">YÖNETİM PANELİ</div></div>
         </div>
         <div className="mt-8 rounded-lg border border-gold/30 bg-background/20 p-4">
-          <p className="text-sm font-medium truncate">{name}</p>
+          <p className="truncate text-sm font-medium">{name}</p>
           <p className="mt-1 text-xs text-gold">ADMIN</p>
         </div>
         <button onClick={() => void logout()} className="mt-4 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground/85 hover:bg-accent hover:text-gold">
