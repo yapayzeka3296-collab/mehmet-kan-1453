@@ -22,8 +22,9 @@ export const Route = createFileRoute("/sertifikalarim")({
 type Certificate = {
   id: string;
   parcel_id: string;
+  parcel?: { parcel_number?: string | null } | null;
   tier: "digital" | "elite" | "premium";
-  status: "requested" | "approved" | "issued" | "rejected";
+  status: "requested" | "approved" | "issued" | "rejected" | "revoked";
   certificate_number: string | null;
   requested_at: string;
   issued_at: string | null;
@@ -57,7 +58,7 @@ function Sertifikalarim() {
     setError(null);
     const { data, error: queryError } = await supabaseBrowser
       .from("certificate_requests")
-      .select("id,parcel_id,tier,status,certificate_number,requested_at,issued_at")
+      .select("id,parcel_id,tier,status,certificate_number,requested_at,issued_at,parcel:parcels(parcel_number)")
       .eq("user_id", user.id)
       .order("requested_at", { ascending: false });
 
@@ -116,27 +117,30 @@ function Sertifikalarim() {
 
           {!loading && !error && certificates.length > 0 && (
             <ul className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {certificates.map((certificate) => (
-                <li key={certificate.id} className="panel overflow-hidden p-4">
-                  <CertificateArtwork
-                    tier={certificate.tier}
-                    name={displayName}
-                    parcelCode={certificate.parcel_id}
-                    certificateNumber={certificate.certificate_number}
-                    issuedAt={certificate.issued_at}
-                  />
-                  <div className="p-2 pt-4">
-                    <p className="font-display text-lg">{TIER_LABELS[certificate.tier]} Sertifika</p>
-                    <p className="text-xs text-gold">Parsel: {certificate.parcel_id}</p>
-                    <p className="mt-2 text-[11px] text-muted-foreground">
-                      Durum: {certificate.status} · Talep: {new Date(certificate.requested_at).toLocaleDateString("tr-TR")}
-                    </p>
-                    {certificate.certificate_number && (
-                      <p className="mt-1 text-[11px] text-muted-foreground">Sertifika No: {certificate.certificate_number}</p>
-                    )}
-                  </div>
-                </li>
-              ))}
+              {certificates.map((certificate) => {
+                const parcelNumber = certificate.parcel?.parcel_number || certificate.parcel_id;
+                return (
+                  <li key={certificate.id} className="panel overflow-hidden p-4">
+                    <CertificateArtwork
+                      tier={certificate.tier}
+                      name={displayName}
+                      parcelCode={parcelNumber}
+                      certificateNumber={certificate.certificate_number}
+                      issuedAt={certificate.issued_at}
+                    />
+                    <div className="p-2 pt-4">
+                      <p className="font-display text-lg">{TIER_LABELS[certificate.tier]} Sertifika</p>
+                      <p className="text-xs text-gold">Parsel: {parcelNumber}</p>
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        Durum: {certificate.status} · Talep: {new Date(certificate.requested_at).toLocaleDateString("tr-TR")}
+                      </p>
+                      {certificate.certificate_number && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">Sertifika No: {certificate.certificate_number}</p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
