@@ -50,9 +50,16 @@ export function SiteHeader() {
         first.focus();
       }
     };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (drawerRef.current && !drawerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
     document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("pointerdown", handlePointerDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
       document.body.style.overflow = previousOverflow;
       menuButtonRef.current?.focus();
     };
