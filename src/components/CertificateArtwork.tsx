@@ -11,9 +11,9 @@ function dateTR(value?: string | null) { if (!value) return '—'; const d = new
 function xmlEscape(value: string) { return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[char] ?? char); }
 function buildCertificateSvg(template: string, values: { name: string; parcel: string; date: string; number: string; city: string }) {
   const safe = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, xmlEscape(value)])) as typeof values;
+  const personalizedTemplate = template.replace('>Ad Soyad<', `>${safe.name || 'Ad Soyad'}<`);
   const marker = '</svg>';
   const dynamic = `
-    <text x="800" y="600" text-anchor="middle" fill="#f6d477" font-family="Georgia,serif" font-size="38" font-style="italic">${safe.name || 'Ad Soyad'}</text>
     <g font-family="Arial,sans-serif" text-anchor="middle">
       <text x="500" y="805" fill="#fff" font-size="20">${safe.parcel || '—'}</text>
       <text x="800" y="805" fill="#fff" font-size="20">${safe.date || '—'}</text>
@@ -21,7 +21,7 @@ function buildCertificateSvg(template: string, values: { name: string; parcel: s
       ${safe.city ? `<text x="800" y="870" fill="#fff" fill-opacity=".82" font-size="18">${safe.city}</text>` : ''}
     </g>
   `;
-  return template.replace(marker, `${dynamic}${marker}`);
+  return personalizedTemplate.replace(marker, `${dynamic}${marker}`);
 }
 export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, issuedAt, cityName }: CertificateArtworkProps) {
   const meta = META[tier];
