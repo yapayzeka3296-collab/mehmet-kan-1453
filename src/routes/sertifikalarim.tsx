@@ -1,5 +1,5 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { Award, RefreshCw } from "lucide-react";
+import { Award, RefreshCw, Sparkles } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { UserSidebar } from "@/components/UserSidebar";
@@ -10,26 +10,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCallback, useEffect, useState } from "react";
 
 export const Route = createFileRoute("/sertifikalarim")({
-  head: () => ({
-    meta: [
-      { title: "Sertifikalarım — MySkyParcel" },
-      { name: "description", content: "MySkyParcel dijital sertifika taleplerini ve sertifika geçmişini görüntüle." },
-    ],
-  }),
+  head: () => ({ meta: [{ title: "Sertifikalarım — MySkyParcel" }, { name: "description", content: "MySkyParcel dijital sertifika taleplerini ve sertifika geçmişini görüntüle." }] }),
   component: Sertifikalarim,
 });
 
-type Certificate = {
-  id: string;
-  parcel_id: string;
-  parcel?: { parcel_number?: string | null } | null;
-  tier: "digital" | "elite" | "premium";
-  status: "requested" | "approved" | "issued" | "rejected" | "revoked";
-  certificate_number: string | null;
-  requested_at: string;
-  issued_at: string | null;
-};
-
+type Certificate = { id: string; parcel_id: string; parcel?: { parcel_number?: string | null } | null; tier: "digital" | "elite" | "premium"; status: "requested" | "approved" | "issued" | "rejected" | "revoked"; certificate_number: string | null; requested_at: string; issued_at: string | null };
+type OwnedParcel = { id: string; parcel_number: string; tier: "digital" | "elite" | "premium"; status: string };
 const TIER_LABELS = { digital: "Dijital", elite: "Elit", premium: "Premium" } as const;
 
 function getUserDisplayName(user: NonNullable<ReturnType<typeof useAuth>["user"]>) {
@@ -44,46 +30,49 @@ function getUserDisplayName(user: NonNullable<ReturnType<typeof useAuth>["user"]
 function Sertifikalarim() {
   const { user, loading: authLoading } = useAuth();
   const [certificates, setCertificates] = useState<Certificate[]>([]);
+  const [ownedParcels, setOwnedParcels] = useState<OwnedParcel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [requestingParcel, setRequestingParcel] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadCertificates = useCallback(async () => {
-    if (!user || !supabaseBrowser) {
-      setCertificates([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    const { data, error: queryError } = await supabaseBrowser
-      .from("certificate_requests")
-      .select("id,parcel_id,tier,status,certificate_number,requested_at,issued_at,parcel:parcels(parcel_number)")
-      .eq("user_id", user.id)
-      .order("requested_at", { ascending: false });
-
-    if (queryError) {
-      console.error("Certificate query failed", queryError);
-      setError("Sertifika kayıtları yüklenemedi.");
-    } else {
-      setCertificates((data as Certificate[]) ?? []);
-    }
+    if (!user || !supabaseBrowser) { setCertificates([]); setOwnedParcels([]); setLoading(false); return; }
+    setLoading(true); setError(null);
+    const [{ data: certificateData, error: certificateError }, { data: parcelData, error: parcelError }] = await Promise.all([
+      supabaseBrowser.from("certificate_requests").select("id,parcel_id,tier,status,certificate_number,requested_at,issued_at,parcel:parcels(parcel_number)").eq("user_id", user.id).order("requested_at", { ascending: false }),
+      supabaseBrowser.from("parcels").select("id,parcel_number,tier,status").eq("owner_id", user.id).eq("status", "sold").order("parcel_number", { ascending: true }),
+    ]);
+    if (certificateError) { console.error("Certificate query failed", certificateError); setError("Sertifika kayıtları yüklenemedi."); } else setCertificates((certificateData as Certificate[]) ?? []);
+    if (parcelError) console.error("Owned parcel query failed", parcelError); else setOwnedParcels((parcelData as OwnedParcel[]) ?? []);
     setLoading(false);
   }, [user]);
 
-  useEffect(() => {
-    void loadCertificates();
-  }, [loadCertificates]);
+  useEffect(() => { void loadCertificates(); }, [loadCertificates]);
 
-  if (authLoading) {
-    return <div className="starfield min-h-screen" aria-busy="true" />;
+  async function requestCertificate(parcel: OwnedParcel) {
+    if (!supabaseBrowser || !user) return;
+    setMessage(null); setRequestingParcel(parcel.id);
+    try {
+      const { data, error: rpcError } = await supabaseBrowser.rpc("request_certificate_for_owned_parcel", { p_parcel_id: parcel.id });
+      if (rpcError) throw rpcError;
+      const result = data as Certificate;
+      setMessage(`${TIER_LABELS[parcel.tier]} sertifikanız oluşturuldu: ${result.certificate_number ?? "hazır"}.`);
+      await loadCertificates();
+    } catch (err) {
+      console.error("Certificate request failed", err);
+      const code = err instanceof Error ? err.message : String(err);
+      if (code.includes("parcel_not_owned")) setMessage("Bu parselin sahibi değilsiniz veya parsel satış durumunda değil.");
+      else if (code.includes("invalid_parcel_tier")) setMessage("Parselin sertifika seviyesi geçersiz.");
+      else setMessage("Sertifika oluşturulamadı. Lütfen tekrar deneyin.");
+    } finally { setRequestingParcel(null); }
   }
 
-  if (!user) {
-    return <Navigate to="/giris" replace />;
-  }
+  if (authLoading) return <div className="starfield min-h-screen" aria-busy="true" />;
+  if (!user) return <Navigate to="/giris" replace />;
 
   const displayName = getUserDisplayName(user);
+  const certificateParcelIds = new Set(certificates.filter((c) => c.status !== "revoked").map((c) => c.parcel_id));
 
   return (
     <div className="starfield min-h-screen">
@@ -92,57 +81,23 @@ function Sertifikalarim() {
         <UserSidebar active="/sertifikalarim" />
         <div className="min-w-0">
           <div className="panel flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="font-display text-3xl font-bold">SERTİFİKALARIM</h1>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Sertifika talebiniz onaylandığında kişisel bilgilerinizle otomatik olarak oluşturulur.
-              </p>
-            </div>
-            <button type="button" onClick={() => void loadCertificates()} className="rounded-md border border-input px-3 py-2 text-xs hover:bg-accent" aria-label="Sertifikaları yenile">
-              <RefreshCw className="mr-2 inline h-3.5 w-3.5" /> Yenile
-            </button>
+            <div><h1 className="font-display text-3xl font-bold">SERTİFİKALARIM</h1><p className="mt-2 text-xs text-muted-foreground">Sahibi olduğunuz parsel için uygun sertifika tek tıkla oluşturulur ve kişisel bilgileriniz otomatik yerleştirilir.</p></div>
+            <button type="button" onClick={() => void loadCertificates()} className="rounded-md border border-input px-3 py-2 text-xs hover:bg-accent" aria-label="Sertifikaları yenile"><RefreshCw className="mr-2 inline h-3.5 w-3.5" /> Yenile</button>
           </div>
 
-          {loading && <div className="panel mt-6 p-6 text-sm text-muted-foreground">Sertifikalar yükleniyor...</div>}
+          {message && <div className="panel mt-6 border-gold/30 p-4 text-sm text-gold">{message}</div>}
           {error && <div className="panel mt-6 p-6 text-sm text-red-300">{error}</div>}
-          {!loading && !error && certificates.length === 0 && (
-            <div className="panel mt-6 p-8 text-center">
-              <Award className="mx-auto h-12 w-12 text-gold" />
-              <h2 className="mt-4 font-display text-xl">Henüz sertifika yok</h2>
-              <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
-                Uygun bir parsel için sertifika talebiniz onaylandığında, sertifikanız burada kişisel bilgilerinizle oluşturulur.
-              </p>
-            </div>
-          )}
 
-          {!loading && !error && certificates.length > 0 && (
-            <ul className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {certificates.map((certificate) => {
-                const parcelNumber = certificate.parcel?.parcel_number || certificate.parcel_id;
-                return (
-                  <li key={certificate.id} className="panel overflow-hidden p-4">
-                    <CertificateArtwork
-                      tier={certificate.tier}
-                      name={displayName}
-                      parcelCode={parcelNumber}
-                      certificateNumber={certificate.certificate_number}
-                      issuedAt={certificate.issued_at}
-                    />
-                    <div className="p-2 pt-4">
-                      <p className="font-display text-lg">{TIER_LABELS[certificate.tier]} Sertifika</p>
-                      <p className="text-xs text-gold">Parsel: {parcelNumber}</p>
-                      <p className="mt-2 text-[11px] text-muted-foreground">
-                        Durum: {certificate.status} · Talep: {new Date(certificate.requested_at).toLocaleDateString("tr-TR")}
-                      </p>
-                      {certificate.certificate_number && (
-                        <p className="mt-1 text-[11px] text-muted-foreground">Sertifika No: {certificate.certificate_number}</p>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          {!loading && !error && ownedParcels.length > 0 && <section className="panel mt-6 p-5">
+            <div className="flex items-center gap-3"><Sparkles className="h-5 w-5 text-gold" /><div><h2 className="font-display text-xl">PARSELLERİNİZ İÇİN SERTİFİKA OLUŞTUR</h2><p className="mt-1 text-xs text-muted-foreground">Sistem parsel sahipliğini sunucu tarafında doğrular ve doğru şablonu otomatik seçer.</p></div></div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {ownedParcels.map((parcel) => { const alreadyIssued = certificateParcelIds.has(parcel.id); return <div key={parcel.id} className="rounded-xl border border-gold/20 bg-background/30 p-4"><p className="font-display text-lg">{parcel.parcel_number}</p><p className="mt-1 text-xs text-gold">{TIER_LABELS[parcel.tier]} Gökyüzü Sertifikası</p><button type="button" onClick={() => void requestCertificate(parcel)} disabled={alreadyIssued || requestingParcel === parcel.id} className="btn-gold mt-4 w-full rounded-md py-2.5 text-xs disabled:cursor-not-allowed disabled:opacity-50">{requestingParcel === parcel.id ? "OLUŞTURULUYOR..." : alreadyIssued ? "SERTİFİKA MEVCUT" : "SERTİFİKA OLUŞTUR"}</button></div>; })}
+            </div>
+          </section>}
+
+          {loading && <div className="panel mt-6 p-6 text-sm text-muted-foreground">Sertifikalar yükleniyor...</div>}
+          {!loading && !error && certificates.length === 0 && <div className="panel mt-6 p-8 text-center"><Award className="mx-auto h-12 w-12 text-gold" /><h2 className="mt-4 font-display text-xl">Henüz sertifika yok</h2><p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">Sahibi olduğunuz satılmış bir parsel varsa yukarıdaki butondan sertifikanızı anında oluşturabilirsiniz.</p></div>}
+          {!loading && !error && certificates.length > 0 && <ul className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{certificates.map((certificate) => { const parcelNumber = certificate.parcel?.parcel_number || certificate.parcel_id; return <li key={certificate.id} className="panel overflow-hidden p-4"><CertificateArtwork tier={certificate.tier} name={displayName} parcelCode={parcelNumber} certificateNumber={certificate.certificate_number} issuedAt={certificate.issued_at} /><div className="p-2 pt-4"><p className="font-display text-lg">{TIER_LABELS[certificate.tier]} Sertifika</p><p className="text-xs text-gold">Parsel: {parcelNumber}</p><p className="mt-2 text-[11px] text-muted-foreground">Durum: {certificate.status} · Talep: {new Date(certificate.requested_at).toLocaleDateString("tr-TR")}</p>{certificate.certificate_number && <p className="mt-1 text-[11px] text-muted-foreground">Sertifika No: {certificate.certificate_number}</p>}</div></li>; })}</ul>}
         </div>
       </main>
       <TrustBar items={SECURITY_TRUST} />
