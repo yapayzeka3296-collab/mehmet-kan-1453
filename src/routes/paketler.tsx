@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Check, CloudDownload, Heart, Lock, ShieldCheck, Star } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
-import templateImage from "@/assets/cert-digital.jpg";
+import { CERTIFICATE_TEMPLATE_IMAGE as templateImage } from "@/lib/certificateTemplate";
 
 export const Route = createFileRoute("/paketler")({ head: () => ({ meta: [{ title: "Paketlerimiz — MySkyParcel" }, { name: "description", content: "Dijital sertifika 199 TL, Elit sertifika 499 TL, Premium sertifika 999 TL. Gökyüzü parselin için paketini seç." }, { property: "og:title", content: "Paketlerimiz — MySkyParcel" }, { property: "og:description", content: "Gökyüzü parseli sertifika paketleri ve fiyatları." }] }), component: Paketler });
 const PLANS = [
