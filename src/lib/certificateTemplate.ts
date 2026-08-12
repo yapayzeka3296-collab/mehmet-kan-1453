@@ -1,7 +1,7 @@
-import certificateTemplate from "@/assets/cert-digital.jpg";
+const CERTIFICATE_TEMPLATE_IMAGE = "/sertifikalar/dijital-sertifika.webp";
 
 /** Single source of truth for the certificate artwork used throughout the site. */
-export const CERTIFICATE_TEMPLATE_IMAGE = certificateTemplate;
+export { CERTIFICATE_TEMPLATE_IMAGE };
 
 export const CERTIFICATE_TEMPLATE_LABELS = {
   digital: "Dijital Gökyüzü Sertifikası",
