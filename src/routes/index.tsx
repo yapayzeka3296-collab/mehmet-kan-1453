@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
 import { CITY_IMAGES } from "@/lib/cityImages";
-import templateImage from "@/assets/cert-digital.jpg";
+import { CERTIFICATE_TEMPLATE_IMAGE as templateImage } from "@/lib/certificateTemplate";
 
 export const Route = createFileRoute("/")({ head: () => ({ meta: [{ title: "MySkyParcel — Gökyüzünde Sana Özel Sembolik Bir Yer" }, { name: "description", content: "Her il için 10 katman, 1.000 sektör ve 1.000.000 parsel. Uzun vadeli hedef: 81 milyon gökyüzü parseli." }, { property: "og:title", content: "MySkyParcel — Gökyüzünde Sana Özel Bir Yer" }, { property: "og:description", content: "Sembolik gökyüzü parselini seç, dijital veya çerçeveli sertifikanı al." }] }), component: Index });
 const SKY_PARCEL_MODEL = { cityCount: 81, layersPerCity: 10, sectorsPerCity: 1_000, parcelsPerCity: 1_000_000, totalParcels: 81_000_000 } as const;
