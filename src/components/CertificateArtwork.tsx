@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from "react";
+import { CERTIFICATE_TEMPLATE_IMAGE } from "@/lib/certificateTemplate";
 
-const templateImage = "/certificates/dijital-sertifika.webp";
+const templateImage = CERTIFICATE_TEMPLATE_IMAGE;
 type Tier = "digital" | "elite" | "premium";
 type Props = { tier: Tier; name?: string | null; parcelCode?: string | null; certificateNumber?: string | null; issuedAt?: string | null; cityName?: string | null };
 const LABEL: Record<Tier,string> = { digital:"DİJİTAL GÖKYÜZÜ SERTİFİKASI", elite:"ELİT GÖKYÜZÜ SERTİFİKASI", premium:"PREMİUM GÖKYÜZÜ SERTİFİKASI" };
