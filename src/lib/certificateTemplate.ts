@@ -1,4 +1,4 @@
-const CERTIFICATE_TEMPLATE_IMAGE = "/sertifikalar/dijital-sertifika.webp";
+const CERTIFICATE_TEMPLATE_IMAGE = "/sertifikalar/dijital-sertifika.webp?v=2";
 
 /** Single source of truth for the certificate artwork used throughout the site. */
 export { CERTIFICATE_TEMPLATE_IMAGE };
