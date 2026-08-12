@@ -1,4 +1,4 @@
-import { Award, ShieldCheck, Star } from "lucide-react";
+import { useEffect, useState } from "react";
 
 type CertificateArtworkProps = {
   tier: "digital" | "elite" | "premium";
@@ -9,12 +9,32 @@ type CertificateArtworkProps = {
 };
 
 const TIER_META = {
-  digital: { label: "DİJİTAL SERTİFİKA", subtitle: "Dijital Koleksiyon Katılım Belgesi", shell: "bg-[#f3f0e8] text-[#16233a] border-[#b99a5a]", inner: "border-[#b99a5a]/70", accent: "text-[#a77c2d]", muted: "text-[#536071]", mark: "bg-[#e7dfcf] border-[#b99a5a]/60" },
-  elite: { label: "ELİT SERTİFİKA", subtitle: "Özel Dijital Koleksiyon Katılım Belgesi", shell: "bg-[#111722] text-[#f1e7d2] border-[#b08a42]", inner: "border-[#b08a42]/70", accent: "text-[#d1a34f]", muted: "text-[#b9b7b0]", mark: "bg-[#1b2230] border-[#b08a42]/60" },
-  premium: { label: "PREMİUM SERTİFİKA", subtitle: "Premium Dijital Koleksiyon Katılım Belgesi", shell: "bg-[#080b10] text-[#f4ead4] border-[#d0a84d]", inner: "border-[#d0a84d]/75", accent: "text-[#e0b657]", muted: "text-[#aaa79f]", mark: "bg-[#10141c] border-[#d0a84d]/65" },
+  digital: {
+    label: "DİJİTAL GÖKYÜZÜ SERTİFİKASI",
+    image: "/certificates/digital-certificate.jpg",
+    nameClass: "text-[#a77c2d]",
+  },
+  elite: {
+    label: "ELİT GÖKYÜZÜ SERTİFİKASI",
+    image: "/certificates/elite-certificate.jpg",
+    nameClass: "text-[#d1a34f]",
+  },
+  premium: {
+    label: "PREMİUM GÖKYÜZÜ SERTİFİKASI",
+    image: "/certificates/premium-certificate.jpg",
+    nameClass: "text-[#e0b657]",
+  },
 } as const;
 
-function formatDate(value?: string | null) { if (!value) return "—"; const date = new Date(value); if (Number.isNaN(date.getTime())) return "—"; return date.toLocaleDateString("tr-TR"); }
+function getDisplayName(name?: string | null) {
+  return name?.trim() || "MySkyParcel Koleksiyoncusu";
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("tr-TR");
+}
 
 function getQrUrl(certificateNumber?: string | null) {
   if (!certificateNumber) return null;
@@ -24,25 +44,51 @@ function getQrUrl(certificateNumber?: string | null) {
 
 export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, issuedAt }: CertificateArtworkProps) {
   const meta = TIER_META[tier];
-  const displayName = name?.trim() || "MySkyParcel Koleksiyoncusu";
+  const displayName = getDisplayName(name);
   const qrUrl = getQrUrl(certificateNumber);
+  const [imageReady, setImageReady] = useState(false);
+
+  useEffect(() => {
+    const image = new Image();
+    image.onload = () => setImageReady(true);
+    image.src = meta.image;
+  }, [meta.image]);
 
   return (
-    <div className={`relative aspect-[1.414/1] overflow-hidden rounded-xl border-2 p-4 shadow-2xl sm:p-6 ${meta.shell}`}>
-      <div className={`pointer-events-none absolute inset-2 rounded-lg border ${meta.inner}`} />
-      <div className="pointer-events-none absolute -left-10 -top-10 h-28 w-28 rounded-full border opacity-30" />
-      <div className="pointer-events-none absolute -bottom-12 -right-12 h-36 w-36 rounded-full border opacity-25" />
-      <div className="relative flex h-full flex-col items-center justify-between text-center">
-        <div className="flex items-center gap-2 text-[9px] font-semibold tracking-[0.3em] sm:text-[11px]"><Star className={`h-3.5 w-3.5 ${meta.accent}`} />MYSKYPARCEL · TÜRKİYE<Star className={`h-3.5 w-3.5 ${meta.accent}`} /></div>
-        <div className="mt-1"><div className={`mx-auto grid h-10 w-10 place-items-center rounded-full border ${meta.mark}`}>{tier === "premium" ? <Star className={`h-5 w-5 ${meta.accent}`} /> : tier === "elite" ? <ShieldCheck className={`h-5 w-5 ${meta.accent}`} /> : <Award className={`h-5 w-5 ${meta.accent}`} />}</div><p className={`mt-2 font-display text-base font-bold tracking-[0.12em] sm:text-xl ${meta.accent}`}>{meta.label}</p><p className={`mt-1 text-[8px] tracking-[0.16em] sm:text-[10px] ${meta.muted}`}>{meta.subtitle}</p></div>
-        <div className="w-full max-w-xl"><p className={`text-[8px] uppercase tracking-[0.25em] ${meta.muted}`}>Bu belge</p><p className="mt-1 font-display text-base font-semibold sm:text-xl">{displayName}</p><p className={`mt-1 text-[9px] sm:text-[11px] ${meta.muted}`}>MySkyParcel dijital koleksiyon ve deneyim ekosistemine katılımını temsil eder.</p></div>
-        <div className="grid w-full grid-cols-[1fr_auto] items-center gap-4 border-y py-2.5 text-left text-[8px] sm:text-[10px]">
-          <div className="grid grid-cols-2 gap-3"><div><p className={meta.muted}>PARSEL KODU</p><p className={`mt-0.5 font-semibold ${meta.accent}`}>{parcelCode || "—"}</p></div><div><p className={meta.muted}>SERTİFİKA NO</p><p className="mt-0.5 font-semibold">{certificateNumber || "Talep aşamasında"}</p></div></div>
-          {qrUrl ? <div className="rounded bg-white p-1 shadow-sm"><img src={qrUrl} alt="Sertifika doğrulama QR kodu" width={64} height={64} className="block h-14 w-14 sm:h-16 sm:w-16" /></div> : <div className={`grid h-14 w-14 place-items-center rounded border ${meta.inner}`}><span className={`text-[6px] font-semibold ${meta.accent}`}>QR<br />ISSUED</span></div>}
+    <div className="relative aspect-[1.5/1] w-full overflow-hidden rounded-xl bg-[#101a2b] shadow-2xl" aria-label={meta.label}>
+      <img
+        src={meta.image}
+        alt={meta.label}
+        className="absolute inset-0 h-full w-full object-cover"
+        width={1536}
+        height={1024}
+        decoding="async"
+      />
+
+      {/* The artwork is the fixed certificate template. Dynamic data is layered on top. */}
+      <div className="absolute inset-0">
+        {/* Covers the baked-in sample name while preserving a clean luxury name area. */}
+        <div className="absolute left-[27%] top-[39%] h-[12%] w-[46%] rounded-sm bg-white/90 shadow-sm" />
+        <div className={`absolute left-[28%] top-[40%] w-[44%] text-center font-serif text-[clamp(13px,2.5vw,34px)] font-semibold leading-none ${meta.nameClass}`}>
+          {displayName}
         </div>
-        <div className="flex w-full items-end justify-between text-[7px] sm:text-[9px]"><div className="text-left"><p className={meta.muted}>DÜZENLENME TARİHİ</p><p className="mt-0.5">{formatDate(issuedAt)}</p></div><div className={`rounded-full border px-2 py-1 font-semibold tracking-[0.12em] ${meta.inner} ${meta.accent}`}>DİJİTAL BELGE</div></div>
-        <p className={`max-w-2xl text-[6.5px] leading-tight sm:text-[8px] ${meta.muted}`}>Bu belge, MySkyParcel dijital koleksiyon ve deneyim ekosistemine katılımı temsil eder. Herhangi bir taşınmaz mülkiyeti, tapu veya ayni hak devri anlamına gelmez.</p>
+        <div className="absolute left-[29%] top-[49%] h-px w-[42%] bg-[#b99a5a]/80" />
+
+        {/* Dynamic metadata is shown in a compact overlay so the sample values in the artwork are never treated as real data. */}
+        <div className="absolute bottom-[9%] left-[7%] rounded-md bg-black/65 px-2 py-1 text-[clamp(6px,0.75vw,10px)] leading-tight text-white backdrop-blur-[2px]">
+          <div>Parsel: <strong>{parcelCode || "—"}</strong></div>
+          <div>Sertifika: <strong>{certificateNumber || "Talep aşamasında"}</strong></div>
+          <div>Tarih: <strong>{formatDate(issuedAt)}</strong></div>
+        </div>
+
+        {qrUrl && (
+          <div className="absolute bottom-[8%] right-[8%] rounded-md bg-white p-1 shadow-lg">
+            <img src={qrUrl} alt="Sertifika doğrulama QR kodu" width={72} height={72} className="h-12 w-12 sm:h-16 sm:w-16" />
+          </div>
+        )}
       </div>
+
+      {!imageReady && <div className="absolute inset-0 animate-pulse bg-[#101a2b]" aria-hidden="true" />}
     </div>
   );
 }
