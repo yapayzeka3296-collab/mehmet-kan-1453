@@ -94,11 +94,11 @@ function SatinAl() {
               className="mt-4 h-52 w-full rounded-lg object-contain"
             />
             <ul className="mt-5 space-y-2 text-sm">
-              ["Premium Sertifika", "QR doğrulama", "E-posta ile anında teslim"].map((i) => (
+              {["Premium Sertifika", "QR doğrulama", "E-posta ile anında teslim"].map((i) => (
                 <li key={i} className="flex items-start gap-2 text-muted-foreground">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-gold" /> {i}
                 </li>
-              ))
+              ))}
             </ul>
             <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
               <span className="text-sm text-muted-foreground">Toplam</span>
