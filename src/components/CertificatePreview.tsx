@@ -10,9 +10,12 @@ export function CertificatePreview({ imageSrc, certificateLabel, name }: Certifi
       <img
         src={imageSrc}
         alt={`${certificateLabel} sertifika şablonu`}
-        loading="lazy"
+        loading="eager"
+        fetchPriority="high"
         decoding="async"
-        className="absolute inset-0 h-full w-full object-contain object-center"
+        width={768}
+        height={512}
+        className="absolute inset-0 block h-full w-full object-contain object-center"
       />
       <div
         aria-label={`Sertifika adı: ${name}`}
