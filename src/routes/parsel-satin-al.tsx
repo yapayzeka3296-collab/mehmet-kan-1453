@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Check } from "lucide-react";
-import certPremium from "@/assets/cert-premium.jpg";
+import certDigital from "@/assets/cert-digital.jpg";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
@@ -86,19 +86,19 @@ function SatinAl() {
           <aside className="panel h-fit p-6">
             <h2 className="font-display text-base">SİPARİŞ ÖZETİ</h2>
             <img
-              src={certPremium}
-              alt="Premium sertifika önizleme"
+              src={certDigital}
+              alt="Sertifika önizleme"
               loading="lazy"
               width={800}
               height={1000}
               className="mt-4 h-52 w-full rounded-lg object-contain"
             />
             <ul className="mt-5 space-y-2 text-sm">
-              {["Premium Sertifika", "QR doğrulama", "E-posta ile anında teslim"].map((i) => (
+              ["Premium Sertifika", "QR doğrulama", "E-posta ile anında teslim"].map((i) => (
                 <li key={i} className="flex items-start gap-2 text-muted-foreground">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-gold" /> {i}
                 </li>
-              ))}
+              ))
             </ul>
             <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
               <span className="text-sm text-muted-foreground">Toplam</span>
