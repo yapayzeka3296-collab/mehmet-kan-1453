@@ -1,7 +1,7 @@
 {
   "project_ref": "agfxwddvobkhwbbrdzpt",
-  "captured_at": "2026-08-13T00:00:00Z",
-  "source": "Supabase production migration history (read-only)",
+  "captured_at": "2026-08-13T09:44:19Z",
+  "source": "Supabase production migration history (read-only capture)",
   "migrations": [
     ["20260809102117","add_secure_admin_authorization"],
     ["20260809135329","seed_pilot_cities_and_7000_real_parcels"],
@@ -23,6 +23,7 @@
     ["20260811234859","admin_management_invariant_hardening"],
     ["20260812001758","fix_admin_user_list_return_shape"],
     ["20260812093105","certificate_instant_generation_for_owned_parcels"],
-    ["20260812095028","harden_owned_parcel_certificate_issuance"]
+    ["20260812095028","harden_owned_parcel_certificate_issuance"],
+    ["20260813094419","fix_parcels_tier_price_schema"]
   ]
 }
