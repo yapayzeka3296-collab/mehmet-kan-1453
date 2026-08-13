@@ -4,11 +4,11 @@ export const CERTIFICATE_TEMPLATE_IMAGES = {
   premium: "/sertifikalar/premium-sablon.jpg",
 } as const;
 
-/** Existing repository artwork used only as a temporary fallback until the tier JPGs are uploaded. */
+/** Existing repository artwork used as the safe fallback until tier JPGs are available in production. */
 export const CERTIFICATE_TEMPLATE_FALLBACK = "/sertifikalar/dijital-sertifika.webp";
 
-// Backward-compatible export used by existing homepage/package components.
-export const CERTIFICATE_TEMPLATE_IMAGE = CERTIFICATE_TEMPLATE_IMAGES.digital;
+// Homepage/package legacy consumers use the known-good repository asset until the tier JPGs are deployed.
+export const CERTIFICATE_TEMPLATE_IMAGE = CERTIFICATE_TEMPLATE_FALLBACK;
 
 export const CERTIFICATE_TEMPLATE_LABELS = {
   digital: "Dijital Gökyüzü Sertifikası",
