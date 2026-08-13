@@ -10,6 +10,8 @@ export const CERTIFICATE_TEMPLATE_IMAGES: Record<CertificateTier, string> = {
   premium: "/sertifikalar/premium-sablon.jpg",
 };
 
+/** Backward-compatible alias for existing consumers. */
+export const CERTIFICATE_TEMPLATE_IMAGE = "/sertifikalar/dijital-sertifika.webp";
 export const CERTIFICATE_TEMPLATE_FALLBACK = "/sertifikalar/dijital-sertifika.webp";
 
 export const CERTIFICATE_TEMPLATE_LABELS: Record<CertificateTier, string> = {
