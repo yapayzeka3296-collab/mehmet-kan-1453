@@ -1,0 +1,104 @@
+name: Supabase Migration Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/workflows/supabase-migrations.yml'
+      - 'package.json'
+      - 'package-lock.json'
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/workflows/supabase-migrations.yml'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Supabase CLI
+        run: npm install --global supabase
+
+      - name: Validate migration filenames and duplicates
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d supabase/migrations
+          mapfile -t files < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No migration files found."
+            exit 1
+          fi
+          declare -A seen
+          for file in "${files[@]}"; do
+            version="${file%%_*}"
+            if [[ ! "$version" =~ ^[0-9]{8,14}$ ]]; then
+              echo "Invalid migration version prefix: $file"
+              exit 1
+            fi
+            if [[ -n "${seen[$version]:-}" ]]; then
+              echo "Duplicate migration version: $version ($file and ${seen[$version]})"
+              exit 1
+            fi
+            seen[$version]="$file"
+          done
+
+      - name: Reject obvious destructive SQL in changed migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags --prune --depth=1 origin "${{ github.base_ref }}"
+            changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- 'supabase/migrations/*.sql' || true)
+          else
+            changed=$(git diff --name-only HEAD^ HEAD -- 'supabase/migrations/*.sql' || true)
+          fi
+          if [ -z "$changed" ]; then
+            echo "No changed migration files to scan."
+            exit 0
+          fi
+          bad=0
+          while IFS= read -r file; do
+            [ -f "$file" ] || continue
+            if grep -Einq '\b(DROP[[:space:]]+(DATABASE|SCHEMA|TABLE|VIEW|FUNCTION|TRIGGER|INDEX|POLICY)|TRUNCATE|DELETE[[:space:]]+FROM)\b' "$file"; then
+              echo "Potentially destructive SQL detected in changed migration: $file"
+              bad=1
+            fi
+          done <<< "$changed"
+          if [ "$bad" -ne 0 ]; then
+            echo "Review required. Production migration deployment is intentionally not performed by this workflow."
+            exit 1
+          fi
+
+      - name: Check migration status without pushing
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase --version
+          echo "Project ref: agfxwddvobkhwbbrdzpt"
+          echo "Validation only: no db push/reset/repair is performed."
+
+      - name: Application lint
+        run: npm run lint --if-present
+
+      - name: Application build
+        run: npm run build --if-present
