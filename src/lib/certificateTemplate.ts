@@ -1,17 +1,20 @@
-export const CERTIFICATE_TEMPLATE_IMAGES = {
+export type CertificateTier = "digital" | "elite" | "premium";
+
+export const CERTIFICATE_TEMPLATE_IMAGES: Record<CertificateTier, string> = {
   digital: "/sertifikalar/standart-sablon.jpg",
   elite: "/sertifikalar/elit-sablon.jpg",
   premium: "/sertifikalar/premium-sablon.jpg",
-} as const;
+};
 
-/** Existing repository artwork used as the safe fallback until tier JPGs are available in production. */
+/** Last-resort repository asset. Used only when the tier artwork is unavailable. */
 export const CERTIFICATE_TEMPLATE_FALLBACK = "/sertifikalar/dijital-sertifika.webp";
 
-// Homepage/package legacy consumers use the known-good repository asset until the tier JPGs are deployed.
-export const CERTIFICATE_TEMPLATE_IMAGE = CERTIFICATE_TEMPLATE_FALLBACK;
-
-export const CERTIFICATE_TEMPLATE_LABELS = {
+export const CERTIFICATE_TEMPLATE_LABELS: Record<CertificateTier, string> = {
   digital: "Dijital Gökyüzü Sertifikası",
   elite: "Elit Gökyüzü Sertifikası",
   premium: "Premium Gökyüzü Sertifikası",
-} as const;
+};
+
+export function getCertificateTemplateImage(tier: CertificateTier): string {
+  return CERTIFICATE_TEMPLATE_IMAGES[tier] ?? CERTIFICATE_TEMPLATE_FALLBACK;
+}
