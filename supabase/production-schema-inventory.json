@@ -1,0 +1,25 @@
+{
+  "project_ref":"agfxwddvobkhwbbrdzpt",
+  "source":"read-only production catalog snapshot",
+  "public_tables":{
+    "parcels":{"rls":true,"rows":7000,"columns":["id","parcel_number","status","owner_id","price","latitude","longitude","created_at","updated_at","city_id","tier","grid_x","grid_y"]},
+    "profiles":{"rls":true,"rows":1,"columns":["id","full_name","role","created_at","updated_at"]},
+    "cities":{"rls":true,"rows":7,"columns":["id","name","slug","is_active","created_at","code"]},
+    "certificate_requests":{"rls":true,"rows":0,"columns":["id","user_id","parcel_id","tier","status","certificate_number","qr_token","certificate_fingerprint","requested_at","approved_at","approved_by","issued_at","issued_by","rejected_at","rejected_by","rejection_reason","revoked_at","revoked_by","revocation_reason","created_at","updated_at"]},
+    "certificate_audit_log":{"rls":true,"rows":0,"columns":["id","certificate_request_id","action","actor_id","metadata","created_at"]},
+    "security_configuration":{"rls":true,"rows":1,"columns":["key","enabled","updated_at"]},
+    "admin_audit_log":{"rls":true,"rows":0,"columns":["id","actor_id","entity_type","entity_id","action","metadata","created_at"]},
+    "orders":{"rls":true,"rows":0,"columns":["id","user_id","parcel_id","amount","currency","status","provider","provider_reference","created_at","updated_at"]},
+    "payments":{"rls":true,"rows":0,"columns":["id","order_id","user_id","amount","currency","status","provider","provider_payment_id","paid_at","created_at","updated_at"]}
+  },
+  "views":["public.parcel_map_public"],
+  "policies":["admin_audit_select","certificate_audit_admin_select","certificate_audit_select_own","certificate_requests_insert_own","certificate_requests_select_own","cities_public_read","orders_select_admin","admin_delete_parcels","admin_insert_parcels","admin_update_parcels","parcels_select_own","payments_select_admin","profiles_select_own_or_admin","profiles_update_own"],
+  "indexes":["admin_audit_log_created_at_idx","admin_audit_log_entity_idx","certificate_audit_certificate_idx","certificate_one_active_per_user_tier_idx","certificate_one_per_user_parcel_idx","certificate_requests_certificate_fingerprint_key","certificate_requests_certificate_number_key","certificate_requests_parcel_idx","certificate_requests_qr_token_key","certificate_requests_status_idx","certificate_requests_user_idx","cities_code_idx","cities_name_key","cities_slug_key","orders_provider_reference_unique","orders_status_idx","orders_user_idx","parcels_city_grid_idx","parcels_city_id_idx","parcels_parcel_number_key","parcels_tier_idx","payments_order_idx","payments_provider_payment_unique"],
+  "triggers":["certificate_request_created_audit_trigger","certificate_touch_updated_at_trigger","validate_certificate_request_trigger","trigger_set_timestamp"],
+  "functions":[
+    "admin_create_order","admin_create_payment","admin_dashboard_stats","admin_list_audit","admin_list_certificates","admin_list_orders","admin_list_parcels","admin_list_payments","admin_list_users","admin_update_certificate","admin_update_order","admin_update_parcel","admin_update_payment","admin_update_user_profile","admin_write_audit","approve_certificate_request","certificate_touch_updated_at","handle_new_user","hook_restrict_new_oauth_users","is_admin","is_certificate_admin","issue_certificate_request","log_certificate_request_created","reject_certificate_request","request_certificate_for_owned_parcel","revoke_certificate","trigger_set_timestamp","validate_certificate_request","verify_certificate"
+  ],
+  "security_definer_functions":["admin_create_order","admin_create_payment","admin_dashboard_stats","admin_list_audit","admin_list_certificates","admin_list_orders","admin_list_parcels","admin_list_payments","admin_list_users","admin_update_certificate","admin_update_order","admin_update_parcel","admin_update_payment","admin_update_user_profile","admin_write_audit","approve_certificate_request","handle_new_user","is_admin","is_certificate_admin","issue_certificate_request","log_certificate_request_created","reject_certificate_request","request_certificate_for_owned_parcel","revoke_certificate","validate_certificate_request","verify_certificate"],
+  "legacy_github_migration_versions":["0001","0002","0003","0004","0005","0005","0006","0007","0008","0009","0010","0011"],
+  "legacy_conflict":"duplicate version 0005; legacy files archived outside supabase/migrations"
+}

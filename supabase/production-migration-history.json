@@ -1,0 +1,28 @@
+{
+  "project_ref": "agfxwddvobkhwbbrdzpt",
+  "captured_at": "2026-08-13T00:00:00Z",
+  "source": "Supabase production migration history (read-only)",
+  "migrations": [
+    ["20260809102117","add_secure_admin_authorization"],
+    ["20260809135329","seed_pilot_cities_and_7000_real_parcels"],
+    ["20260810085059","fix_public_parcel_map_and_rls"],
+    ["20260810085237","fix_public_parcel_map_hierarchy_projection"],
+    ["20260811104356","security_privilege_hardening"],
+    ["20260811104538","restrict_admin_function_execution"],
+    ["20260811230240","restrict_new_oauth_users"],
+    ["20260811230249","fix_oauth_hook_email_lookup"],
+    ["20260811232223","certificate_security_and_issuance_hardening"],
+    ["20260811232353","certificate_admin_rpc_lockdown"],
+    ["20260811232418","certificate_function_privilege_cleanup"],
+    ["20260811233042","certificate_production_hardening_and_security_cleanup_v2"],
+    ["20260811233051","enable_cities_rls_with_public_read_policy"],
+    ["20260811233109","enable_leaked_password_protection"],
+    ["20260811234035","admin_dashboard_authorization_and_live_metrics"],
+    ["20260811234632","admin_management_modules_orders_payments_users_parcels_certificates"],
+    ["20260811234645","admin_management_read_models_and_audit"],
+    ["20260811234859","admin_management_invariant_hardening"],
+    ["20260812001758","fix_admin_user_list_return_shape"],
+    ["20260812093105","certificate_instant_generation_for_owned_parcels"],
+    ["20260812095028","harden_owned_parcel_certificate_issuance"]
+  ]
+}
