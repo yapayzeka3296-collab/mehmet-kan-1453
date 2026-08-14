@@ -1,0 +1,62 @@
+name: One-time certificate QR alignment
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  align-qr:
+    if: github.event.head_commit.message == 'chore: add one-time certificate QR alignment workflow'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Align certificate QR size and position only
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/components/CertificateArtwork.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          old_layout = 'qr: { right: 8.7, top: 63.7, size: 6.8 },'
+          new_layout = 'qr: { right: 7.9, top: 64.0, size: 8.8 },'
+          old_overlay = 'right-[8.7%] top-[63.7%] flex aspect-square w-[6.8%] items-center'
+          new_overlay = 'right-[7.9%] top-[64.0%] flex aspect-square w-[8.8%] items-center'
+
+          assert text.count(old_layout) == 1, 'QR layout target not found exactly once'
+          assert text.count(old_overlay) == 1, 'QR overlay target not found exactly once'
+
+          text = text.replace(old_layout, new_layout)
+          text = text.replace(old_overlay, new_overlay)
+          path.write_text(text, encoding='utf-8')
+
+      - name: Verify only QR layout changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff -- src/components/CertificateArtwork.tsx
+          test "$(git diff --name-only)" = "src/components/CertificateArtwork.tsx"
+
+      - name: Commit certificate QR alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/CertificateArtwork.tsx
+          git commit -m 'chore: align certificate QR code'
+          git push
+
+      - name: Remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/_one_time_certificate_qr_fix.yml
+          git add .github/workflows/_one_time_certificate_qr_fix.yml
+          git commit -m 'chore: remove one-time certificate QR alignment workflow'
+          git push
