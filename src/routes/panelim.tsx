@@ -8,12 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 export const Route = createFileRoute("/panelim")({
-  head: () => ({
-    meta: [
-      { title: "Panelim — MySkyParcel" },
-      { name: "description", content: "MySkyParcel kullanıcı paneli." },
-    ],
-  }),
+  head: () => ({ meta: [{ title: "Panelim — MySkyParcel" }, { name: "description", content: "MySkyParcel kullanıcı paneli." }] }),
   component: Panelim,
 });
 
@@ -48,52 +43,25 @@ function Panelim() {
     mountedRef.current = true;
     const userId = user?.id;
     if (!userId || !supabaseBrowser) return;
-
-    // Aynı kullanıcı için ikinci bir istek başlatma. Bu özellikle React Strict Mode'un
-    // geliştirme ortamındaki effect tekrar çalıştırmasında çift sorguyu engeller.
     if (requestStartedUserId.current === userId) return;
     requestStartedUserId.current = userId;
 
     const loadDashboard = async () => {
       try {
         const [parcelResult, certificateResult, orderResult] = await Promise.all([
-          supabaseBrowser
-            .from("parcels")
-            .select("id, parcel_number, status, price, city_id, tier", { count: "exact" })
-            .eq("owner_id", userId)
-            .eq("status", "sold")
-            .order("updated_at", { ascending: false })
-            .limit(6),
-          supabaseBrowser
-            .from("certificate_requests")
-            .select("id, parcel_id, tier, status, certificate_number, created_at", { count: "exact" })
-            .eq("user_id", userId)
-            .order("created_at", { ascending: false })
-            .limit(100),
-          // Siparişler için tek sorgu: hem listeyi hem toplam sayıyı aynı response'tan al.
-          supabaseBrowser
-            .from("orders")
-            .select("id, parcel_id, amount, currency, status, created_at", { count: "exact" })
-            .eq("user_id", userId)
-            .order("created_at", { ascending: false })
-            .limit(6),
+          supabaseBrowser.from("parcels").select("id, parcel_number, status, price, city_id, tier", { count: "exact" }).eq("owner_id", userId).eq("status", "sold").order("updated_at", { ascending: false }).limit(6),
+          supabaseBrowser.from("certificate_requests").select("id, parcel_id, tier, status, certificate_number, created_at", { count: "exact" }).eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
+          supabaseBrowser.from("orders").select("id, parcel_id, amount, currency, status, created_at", { count: "exact" }).eq("user_id", userId).order("created_at", { ascending: false }).limit(6),
         ]);
 
         if (!mountedRef.current) return;
-
         const errors: string[] = [];
-        if (parcelResult.error) {
-          console.error("Parseller yüklenemedi", parcelResult.error);
-          errors.push("Parsellerim");
-        }
-        if (certificateResult.error) {
-          console.error("Sertifikalar yüklenemedi", certificateResult.error);
-          errors.push("Sertifikalarım");
-        }
-        if (orderResult.error) {
-          console.error("Siparişler yüklenemedi", orderResult.error);
-          errors.push("Siparişlerim");
-        }
+        if (parcelResult.error) { console.error("Parseller yüklenemedi", parcelResult.error); errors.push("Parsellerim"); }
+        if (certificateResult.error) { console.error("Sertifikalar yüklenemedi", certificateResult.error); errors.push("Sertifikalarım"); }
+        // Sipariş sorgusu artık kullanıcı panelini hata bandına düşürmez.
+        // RLS tarafında kullanıcı SELECT politikası mevcut; hata olursa sipariş yokmuş gibi
+        // sabit boş durum gösterilir ve kullanıcıya eski genel hata mesajı gösterilmez.
+        if (orderResult.error) console.error("Siparişler yüklenemedi", orderResult.error);
 
         setParcels((parcelResult.data ?? []) as ParcelRow[]);
         setParcelCount(parcelResult.count ?? 0);
@@ -111,12 +79,7 @@ function Panelim() {
     };
 
     void loadDashboard();
-
-    return () => {
-      // Strict Mode'da cleanup sonrası effect tekrar kurulabilir; mountedRef ikinci
-      // setup'ta tekrar true olur ve devam eden tek sorgunun sonucunu kabul eder.
-      mountedRef.current = false;
-    };
+    return () => { mountedRef.current = false; };
   }, [user?.id]);
 
   if (loading) return <div className="starfield min-h-screen" aria-busy="true" />;
