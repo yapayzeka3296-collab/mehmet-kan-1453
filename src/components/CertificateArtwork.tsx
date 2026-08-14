@@ -51,7 +51,7 @@ const CERTIFICATE_FONT_LINKS = [
 async function ensureCertificateFonts() {
   if (typeof document === "undefined") return;
   for (const font of CERTIFICATE_FONT_LINKS) {
-    if (!document.head.querySelector(`link[data-certificate-font=\"${font.id}\"]`)) {
+    if (!document.head.querySelector(`link[data-certificate-font="${font.id}"]`)) {
       const link = document.createElement("link");
       link.rel = "stylesheet";
       link.href = font.href;
@@ -112,7 +112,7 @@ const LAYOUT = {
   parcel: { left: 78.6, width: 15.7, top: 40.8, height: 4.1 },
   date: { left: 78.6, width: 15.7, top: 48.8, height: 4.1 },
   number: { left: 78.6, width: 15.7, top: 56.7, height: 4.1 },
-  qr: { right: 8.7, top: 63.7, size: 6.8 },
+  qr: { right: 7.9, top: 64.0, size: 8.8 },
   signature: { left: 61, width: 20, top: 75.0, height: 7.5 },
 } as const;
 
@@ -292,7 +292,7 @@ export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, 
             <span style={{ fontFamily: SIGNATURE_FONT, fontStyle: "normal", fontWeight: 400, letterSpacing: "-0.025em", transform: "rotate(-3deg)" }} className="text-[clamp(17px,2.15vw,33px)] leading-none text-[#1e2f46]">MySkyParcel</span>
           </div>
           {verificationQr && (
-            <div className="absolute right-[8.7%] top-[63.7%] flex aspect-square w-[6.8%] items-center justify-center overflow-hidden rounded-[2px] bg-transparent p-0">
+            <div className="absolute right-[7.9%] top-[64.0%] flex aspect-square w-[8.8%] items-center justify-center overflow-hidden rounded-[2px] bg-transparent p-0">
               <img key={verificationQr} src={verificationQr} alt="Sertifika doğrulama QR kodu" className="block h-full w-full object-fill" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
             </div>
           )}
