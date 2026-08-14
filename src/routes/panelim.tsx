@@ -1,6 +1,6 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { Award, Globe, ShoppingBag, Star } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { UserSidebar } from "@/components/UserSidebar";
@@ -41,39 +41,49 @@ function Panelim() {
   const [orderCount, setOrderCount] = useState(0);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataErrors, setDataErrors] = useState<string[]>([]);
+  const loadedUserId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!user || !supabaseBrowser) return;
+    const userId = user?.id;
+    if (!userId || !supabaseBrowser) return;
+    if (loadedUserId.current === userId) return;
+    loadedUserId.current = userId;
     let cancelled = false;
 
     const loadDashboard = async () => {
       setDataLoading(true);
       setDataErrors([]);
 
-      const [parcelList, parcelTotal, certificateList, certificateTotal, orderList, orderTotal] = await Promise.all([
-        supabaseBrowser.from("parcels").select("id, parcel_number, status, price, city_id, tier").eq("owner_id", user.id).eq("status", "sold").order("updated_at", { ascending: false }).limit(6),
-        supabaseBrowser.from("parcels").select("id", { count: "exact", head: true }).eq("owner_id", user.id).eq("status", "sold"),
-        supabaseBrowser.from("certificate_requests").select("id, parcel_id, tier, status, certificate_number, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
-        supabaseBrowser.from("certificate_requests").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-        supabaseBrowser.from("orders").select("id, parcel_id, amount, currency, status, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(6),
-        supabaseBrowser.from("orders").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-      ]);
+      try {
+        const [parcelList, parcelTotal, certificateList, certificateTotal, orderList, orderTotal] = await Promise.all([
+          supabaseBrowser.from("parcels").select("id, parcel_number, status, price, city_id, tier").eq("owner_id", userId).eq("status", "sold").order("updated_at", { ascending: false }).limit(6),
+          supabaseBrowser.from("parcels").select("id", { count: "exact", head: true }).eq("owner_id", userId).eq("status", "sold"),
+          supabaseBrowser.from("certificate_requests").select("id, parcel_id, tier, status, certificate_number, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
+          supabaseBrowser.from("certificate_requests").select("id", { count: "exact", head: true }).eq("user_id", userId),
+          supabaseBrowser.from("orders").select("id, parcel_id, amount, currency, status, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(6),
+          supabaseBrowser.from("orders").select("id", { count: "exact", head: true }).eq("user_id", userId),
+        ]);
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      const errors: string[] = [];
-      if (parcelList.error || parcelTotal.error) { console.error("Parseller yüklenemedi", parcelList.error ?? parcelTotal.error); errors.push("Parsellerim"); }
-      if (certificateList.error || certificateTotal.error) { console.error("Sertifikalar yüklenemedi", certificateList.error ?? certificateTotal.error); errors.push("Sertifikalarım"); }
-      if (orderList.error || orderTotal.error) { console.error("Siparişler yüklenemedi", orderList.error ?? orderTotal.error); errors.push("Siparişlerim"); }
+        const errors: string[] = [];
+        if (parcelList.error || parcelTotal.error) { console.error("Parseller yüklenemedi", parcelList.error ?? parcelTotal.error); errors.push("Parsellerim"); }
+        if (certificateList.error || certificateTotal.error) { console.error("Sertifikalar yüklenemedi", certificateList.error ?? certificateTotal.error); errors.push("Sertifikalarım"); }
+        if (orderList.error || orderTotal.error) { console.error("Siparişler yüklenemedi", orderList.error ?? orderTotal.error); errors.push("Siparişlerim"); }
 
-      setParcels((parcelList.data ?? []) as ParcelRow[]);
-      setParcelCount(parcelTotal.count ?? 0);
-      setCertificates((certificateList.data ?? []) as CertificateRow[]);
-      setCertificateCount(certificateTotal.count ?? 0);
-      setOrders((orderList.data ?? []) as OrderRow[]);
-      setOrderCount(orderTotal.count ?? 0);
-      setDataErrors(errors);
-      setDataLoading(false);
+        setParcels((parcelList.data ?? []) as ParcelRow[]);
+        setParcelCount(parcelTotal.count ?? 0);
+        setCertificates((certificateList.data ?? []) as CertificateRow[]);
+        setCertificateCount(certificateTotal.count ?? 0);
+        setOrders((orderList.data ?? []) as OrderRow[]);
+        setOrderCount(orderTotal.count ?? 0);
+        setDataErrors(errors);
+      } catch (error) {
+        console.error("Panel verileri yüklenemedi", error);
+        if (!cancelled) setDataErrors(["Panel verileri"]);
+      } finally {
+        if (!cancelled) setDataLoading(false);
+      }
     };
 
     void loadDashboard();
@@ -101,7 +111,7 @@ function Panelim() {
               {!dataLoading && parcels.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><Globe className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Henüz satın alınmış parsel bulunmuyor.</p></div> : parcels.map((parcel) => <div key={parcel.id} className="rounded-lg border border-border/70 bg-background/30 p-4"><div className="flex items-center justify-between gap-4"><span className="font-display text-sm">{parcel.parcel_number}</span><span className="text-xs text-gold">{formatTier(parcel.tier)}</span></div><p className="mt-1 text-xs text-muted-foreground">Parsel durumu: Satıldı</p></div>)}
             </div></section>
             <section className="panel p-6"><div className="flex items-center justify-between gap-4"><h2 className="font-display text-base tracking-[0.06em]">SON SİPARİŞLERİM</h2><span className="text-xs text-muted-foreground">{dataLoading ? "…" : orderCount}</span></div><div className="mt-6 space-y-3">
-              {!dataLoading && orders.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><ShoppingBag className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Henüz sipariş bulunmuyor.</p></div> : orders.map((order) => <div key={order.id} className="rounded-lg border border-border/70 bg-background/30 p-4"><div className="flex items-center justify-between gap-4"><span className="font-display text-sm">{order.parcel_id ? `Parsel ${order.parcel_id.slice(0, 8)}` : "Sipariş"}</span><span className="text-xs text-gold">{formatOrderStatus(order.status)}</span></div><p className="mt-1 text-xs text-muted-foreground">{Number(order.amount).toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currency}</p></div>)}
+              {dataLoading ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><ShoppingBag className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Siparişler yükleniyor…</p></div> : orders.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><ShoppingBag className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Henüz sipariş bulunmuyor.</p></div> : orders.map((order) => <div key={order.id} className="rounded-lg border border-border/70 bg-background/30 p-4"><div className="flex items-center justify-between gap-4"><span className="font-display text-sm">{order.parcel_id ? `Parsel ${order.parcel_id.slice(0, 8)}` : "Sipariş"}</span><span className="text-xs text-gold">{formatOrderStatus(order.status)}</span></div><p className="mt-1 text-xs text-muted-foreground">{Number(order.amount).toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currency}</p></div>)}
             </div></section>
           </div>
         </section>
