@@ -8,8 +8,8 @@ export const Route = createFileRoute("/paketler")({ head: () => ({ meta: [{ titl
 
 const PLANS: Array<{ name: string; tier: CertificateTier; price: string; popular: boolean; features: string[] }> = [
   { name: "DİJİTAL PARSEL SERTİFİKA", tier: "digital", price: "199", popular: false, features: ["Dijital parsel sertifikası", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"] },
-  { name: "ELİT PARSEL SERTİFİKA", tier: "elite", price: "499", popular: true, features: ["Elit tasarım parsel sertifikası", "Dijital parsel sertifikası", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim", "Posta yoluyla gönderim"] },
-  { name: "PREMİUM PARSEL SERTİFİKA", tier: "premium", price: "999", popular: false, features: ["Premium tasarım parsel sertifikası", "Çerçeveli baskı (A4)", "Dijital parsel sertifikası", "Parsel kodu ve koordinatlar", "QR doğrulama", "Posta yoluyla gönderim"] },
+  { name: "ELİT PARSEL SERTİFİKA", tier: "elite", price: "499", popular: true, features: ["Elit tasarım parsel sertifikası", "Kaliteli A4 Kuşe Kâğıt Baskı", "Dijital parsel sertifikası", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim", "Posta yoluyla gönderim"] },
+  { name: "PREMİUM PARSEL SERTİFİKA", tier: "premium", price: "999", popular: false, features: ["Premium tasarım parsel sertifikası", "A4 Premium Dokulu Kâğıt + Çerçeve", "Dijital parsel sertifikası", "Parsel kodu ve koordinatlar", "QR doğrulama", "Posta yoluyla gönderim"] },
 ];
 
 const BENEFITS = [{ icon: Star, title: "BENZERSİZ PARSEL", text: "Milyonlarca sembolik parsel içinden sana özel olanı seç." }, { icon: ShieldCheck, title: "PARSEL SAHİPLİK SERTİFİKASI", text: "Seçtiğin parseli belgeleyen kişiye özel dijital sertifikanı oluştur." }, { icon: CloudDownload, title: "DİJİTAL & FİZİKSEL", text: "Parsel sertifikanı dijital olarak al, istersen fiziksel baskıyı kapına getirelim." }, { icon: Lock, title: "GÜVENLİ & ŞEFFAF", text: "Parsel seçim ve sipariş süreçleri için güvenli altyapı." }, { icon: Heart, title: "ANLAMLI BİR HEDİYE", text: "Sevdiklerin için gökyüzünde sembolik ve kişiye özel bir parsel seç." }];
