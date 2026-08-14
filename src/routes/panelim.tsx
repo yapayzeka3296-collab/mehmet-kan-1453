@@ -41,53 +41,82 @@ function Panelim() {
   const [orderCount, setOrderCount] = useState(0);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataErrors, setDataErrors] = useState<string[]>([]);
-  const loadedUserId = useRef<string | null>(null);
+  const requestStartedUserId = useRef<string | null>(null);
+  const mountedRef = useRef(false);
 
   useEffect(() => {
+    mountedRef.current = true;
     const userId = user?.id;
     if (!userId || !supabaseBrowser) return;
-    if (loadedUserId.current === userId) return;
-    loadedUserId.current = userId;
-    let cancelled = false;
+
+    // Aynı kullanıcı için ikinci bir istek başlatma. Bu özellikle React Strict Mode'un
+    // geliştirme ortamındaki effect tekrar çalıştırmasında çift sorguyu engeller.
+    if (requestStartedUserId.current === userId) return;
+    requestStartedUserId.current = userId;
 
     const loadDashboard = async () => {
-      setDataLoading(true);
-      setDataErrors([]);
-
       try {
-        const [parcelList, parcelTotal, certificateList, certificateTotal, orderList, orderTotal] = await Promise.all([
-          supabaseBrowser.from("parcels").select("id, parcel_number, status, price, city_id, tier").eq("owner_id", userId).eq("status", "sold").order("updated_at", { ascending: false }).limit(6),
-          supabaseBrowser.from("parcels").select("id", { count: "exact", head: true }).eq("owner_id", userId).eq("status", "sold"),
-          supabaseBrowser.from("certificate_requests").select("id, parcel_id, tier, status, certificate_number, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
-          supabaseBrowser.from("certificate_requests").select("id", { count: "exact", head: true }).eq("user_id", userId),
-          supabaseBrowser.from("orders").select("id, parcel_id, amount, currency, status, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(6),
-          supabaseBrowser.from("orders").select("id", { count: "exact", head: true }).eq("user_id", userId),
+        const [parcelResult, certificateResult, orderResult] = await Promise.all([
+          supabaseBrowser
+            .from("parcels")
+            .select("id, parcel_number, status, price, city_id, tier", { count: "exact" })
+            .eq("owner_id", userId)
+            .eq("status", "sold")
+            .order("updated_at", { ascending: false })
+            .limit(6),
+          supabaseBrowser
+            .from("certificate_requests")
+            .select("id, parcel_id, tier, status, certificate_number, created_at", { count: "exact" })
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(100),
+          // Siparişler için tek sorgu: hem listeyi hem toplam sayıyı aynı response'tan al.
+          supabaseBrowser
+            .from("orders")
+            .select("id, parcel_id, amount, currency, status, created_at", { count: "exact" })
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(6),
         ]);
 
-        if (cancelled) return;
+        if (!mountedRef.current) return;
 
         const errors: string[] = [];
-        if (parcelList.error || parcelTotal.error) { console.error("Parseller yüklenemedi", parcelList.error ?? parcelTotal.error); errors.push("Parsellerim"); }
-        if (certificateList.error || certificateTotal.error) { console.error("Sertifikalar yüklenemedi", certificateList.error ?? certificateTotal.error); errors.push("Sertifikalarım"); }
-        if (orderList.error || orderTotal.error) { console.error("Siparişler yüklenemedi", orderList.error ?? orderTotal.error); errors.push("Siparişlerim"); }
+        if (parcelResult.error) {
+          console.error("Parseller yüklenemedi", parcelResult.error);
+          errors.push("Parsellerim");
+        }
+        if (certificateResult.error) {
+          console.error("Sertifikalar yüklenemedi", certificateResult.error);
+          errors.push("Sertifikalarım");
+        }
+        if (orderResult.error) {
+          console.error("Siparişler yüklenemedi", orderResult.error);
+          errors.push("Siparişlerim");
+        }
 
-        setParcels((parcelList.data ?? []) as ParcelRow[]);
-        setParcelCount(parcelTotal.count ?? 0);
-        setCertificates((certificateList.data ?? []) as CertificateRow[]);
-        setCertificateCount(certificateTotal.count ?? 0);
-        setOrders((orderList.data ?? []) as OrderRow[]);
-        setOrderCount(orderTotal.count ?? 0);
+        setParcels((parcelResult.data ?? []) as ParcelRow[]);
+        setParcelCount(parcelResult.count ?? 0);
+        setCertificates((certificateResult.data ?? []) as CertificateRow[]);
+        setCertificateCount(certificateResult.count ?? 0);
+        setOrders((orderResult.data ?? []) as OrderRow[]);
+        setOrderCount(orderResult.count ?? 0);
         setDataErrors(errors);
       } catch (error) {
         console.error("Panel verileri yüklenemedi", error);
-        if (!cancelled) setDataErrors(["Panel verileri"]);
+        if (mountedRef.current) setDataErrors(["Panel verileri"]);
       } finally {
-        if (!cancelled) setDataLoading(false);
+        if (mountedRef.current) setDataLoading(false);
       }
     };
 
     void loadDashboard();
-    return () => { cancelled = true; };
+
+    return () => {
+      // Strict Mode'da cleanup sonrası effect tekrar kurulabilir; mountedRef ikinci
+      // setup'ta tekrar true olur ve devam eden tek sorgunun sonucunu kabul eder.
+      mountedRef.current = false;
+    };
   }, [user?.id]);
 
   if (loading) return <div className="starfield min-h-screen" aria-busy="true" />;
