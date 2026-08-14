@@ -112,7 +112,7 @@ const LAYOUT = {
   parcel: { left: 78.6, width: 15.7, top: 40.8, height: 4.1 },
   date: { left: 78.6, width: 15.7, top: 48.8, height: 4.1 },
   number: { left: 78.6, width: 15.7, top: 56.7, height: 4.1 },
-  qr: { right: 8.35, top: 64.65, size: 8.65 },
+  qr: { right: 9.025, top: 65.325, size: 7.3 },
   signature: { left: 61, width: 20, top: 75.0, height: 7.5 },
 } as const;
 
@@ -163,13 +163,13 @@ async function render(
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  const nameMax = canvas.width * (LAYOUT.name.width / 100) * 0.90;
-  const nameSize = fitFont(ctx, name || "Ad Soyad", nameMax, canvas.width * 0.023, canvas.width * 0.0105, NAME_FONT);
+  const nameMax = canvas.width * 0.44;
+  const nameSize = fitFont(ctx, name || "Ad Soyad", nameMax, canvas.width * 0.0285, canvas.width * 0.0105, NAME_FONT);
   ctx.font = `400 ${nameSize}px ${NAME_FONT}`;
   ctx.fillStyle = "#c79b38";
   ctx.shadowColor = "rgba(0,0,0,.20)";
   ctx.shadowBlur = canvas.width * 0.0012;
-  ctx.fillText(name || "Ad Soyad", canvas.width * ((LAYOUT.name.left + LAYOUT.name.width / 2) / 100), canvas.height * (LAYOUT.name.top / 100));
+  ctx.fillText(name || "Ad Soyad", canvas.width * 0.50, canvas.height * (LAYOUT.name.top / 100));
   ctx.shadowBlur = 0;
 
   const valueX = canvas.width * ((LAYOUT.parcel.left + LAYOUT.parcel.width / 2) / 100);
@@ -279,8 +279,8 @@ export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, 
       <div className="relative">
         <img src={templateSrc} alt={LABEL[tier]} onError={(event) => { const image = event.currentTarget; if (image.src.endsWith(CERTIFICATE_TEMPLATE_FALLBACK)) return; image.src = CERTIFICATE_TEMPLATE_FALLBACK; }} className="block aspect-[1600/1067] h-auto w-full object-cover" />
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-[24%] top-[43.5%] flex h-[7%] w-[52%] items-center justify-center text-center">
-            <span style={{ fontFamily: NAME_FONT, fontStyle: "normal", fontWeight: 400, letterSpacing: "-0.01em" }} className="text-[clamp(16px,2.35vw,34px)] leading-none text-[#c79b38] drop-shadow-[0_1px_2px_rgba(0,0,0,.22)]">{displayName}</span>
+          <div className="absolute left-[27.5%] top-[43.5%] flex h-[7%] w-[45%] items-center justify-center text-center">
+            <span style={{ fontFamily: NAME_FONT, fontStyle: "normal", fontWeight: 400, letterSpacing: "-0.01em" }} className="text-[clamp(16px,2.75vw,40px)] leading-none text-[#c79b38] drop-shadow-[0_1px_2px_rgba(0,0,0,.22)]">{displayName}</span>
           </div>
           <div className="absolute left-[34.5%] top-[57%] flex h-[5.8%] w-[31%] items-center justify-center text-center">
             <span className="font-sans text-[clamp(10px,1.35vw,22px)] font-semibold leading-none tracking-[.18em] text-[#20324a]">{parcelField}</span>
@@ -292,7 +292,7 @@ export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, 
             <span style={{ fontFamily: SIGNATURE_FONT, fontStyle: "normal", fontWeight: 400, letterSpacing: "-0.025em", transform: "rotate(-3deg)" }} className="text-[clamp(17px,2.15vw,33px)] leading-none text-[#1e2f46]">MySkyParcel</span>
           </div>
           {verificationQr && (
-            <div className="absolute right-[8.35%] top-[64.65%] flex aspect-square w-[8.65%] items-center justify-center overflow-hidden rounded-[2px] bg-transparent p-0">
+            <div className="absolute right-[9.025%] top-[65.325%] flex aspect-square w-[7.3%] items-center justify-center overflow-hidden rounded-[2px] bg-transparent p-0">
               <img key={verificationQr} src={verificationQr} alt="Sertifika doğrulama QR kodu" className="block h-full w-full object-fill" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
             </div>
           )}
