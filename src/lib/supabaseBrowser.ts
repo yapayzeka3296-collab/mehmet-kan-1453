@@ -21,7 +21,7 @@ function getSessionStorage(): Storage | undefined {
 export function createBrowserSupabase() {
   if (!url || !anonKey) return null;
 
-  return createClient(url, anonKey, {
+  const client = createClient(url, anonKey, {
     auth: {
       // Keep the session for the current browser tab/session, but do not
       // persist it in localStorage. Closing the browser/restarting the
@@ -32,6 +32,19 @@ export function createBrowserSupabase() {
       detectSessionInUrl: true,
     },
   });
+
+  // Yönetim panelindeki "Çıkış Yap" yalnızca yönetim panelinden çıkar.
+  // Site oturumunu kapatmaz; böylece ana sayfaya dönen kullanıcı giriş yapmış
+  // olarak kalır. Diğer sayfalardaki gerçek signOut davranışı değişmez.
+  const originalSignOut = client.auth.signOut.bind(client.auth);
+  client.auth.signOut = async (options) => {
+    if (typeof window !== 'undefined' && window.location.pathname === '/yonetim') {
+      return { error: null };
+    }
+    return originalSignOut(options);
+  };
+
+  return client;
 }
 
 export const supabaseBrowser = createBrowserSupabase();
