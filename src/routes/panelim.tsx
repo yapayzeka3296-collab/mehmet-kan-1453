@@ -34,21 +34,18 @@ function Panelim() {
   const [dataErrors, setDataErrors] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!userId || !supabaseBrowser) return;
+    const client = supabaseBrowser;
+    if (!userId || !client) return;
     let cancelled = false;
-
     const loadDashboard = async () => {
       const [parcelResult, certificateResult] = await Promise.all([
-        supabaseBrowser.from("parcels").select("id, parcel_number, status, price, city_id, tier", { count: "exact" }).eq("owner_id", userId).eq("status", "sold").order("updated_at", { ascending: false }).limit(6),
-        supabaseBrowser.from("certificate_requests").select("id, parcel_id, tier, status, certificate_number, created_at", { count: "exact" }).eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
+        client.from("parcels").select("id, parcel_number, status, price, city_id, tier", { count: "exact" }).eq("owner_id", userId).eq("status", "sold").order("updated_at", { ascending: false }).limit(6),
+        client.from("certificate_requests").select("id, parcel_id, tier, status, certificate_number, created_at", { count: "exact" }).eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       ]);
-
       if (cancelled) return;
-
       const errors: string[] = [];
       if (parcelResult.error) { console.error("Parseller yüklenemedi", parcelResult.error); errors.push("Parsellerim"); }
       if (certificateResult.error) { console.error("Sertifikalar yüklenemedi", certificateResult.error); errors.push("Sertifikalarım"); }
-
       setParcels((parcelResult.data ?? []) as ParcelRow[]);
       setParcelCount(parcelResult.count ?? 0);
       setCertificates((certificateResult.data ?? []) as CertificateRow[]);
@@ -56,7 +53,6 @@ function Panelim() {
       setDataErrors(errors);
       setDataLoading(false);
     };
-
     void loadDashboard();
     return () => { cancelled = true; };
   }, [userId]);
@@ -65,7 +61,6 @@ function Panelim() {
   if (!user) return <Navigate to="/giris" replace />;
 
   const stats = { parcels: parcelCount, certificates: certificateCount, favorites: "—" };
-
   return (
     <div className="starfield min-h-screen">
       <SiteHeader />
