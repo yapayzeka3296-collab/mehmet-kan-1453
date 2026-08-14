@@ -39,15 +39,16 @@ export function AdminCertificateOverride() {
     });
     if (error) setError(error.message);
     else {
-      setMessage("Admin sertifikası oluşturuldu ve Supabase'e kaydedildi. Parselin satış durumu ve envanter sayacı değiştirilmedi.");
+      setMessage("Sertifika oluşturuldu. Parsel yönetici hesabına tahsis edildi ve artık başka bir kullanıcı tarafından satın alınamaz.");
       setParcelId("");
+      await searchParcels();
     }
     setBusy(false);
   }
 
   return <div className="panel p-5">
     <h2 className="font-semibold">Admin Sertifika Baskısı</h2>
-    <p className="mt-2 text-xs text-muted-foreground">Admin, gerçek bir parseli seçip mevcut bir kullanıcı adına Dijital, Elit veya Premium sertifika oluşturabilir. Bu özel işlem satın alma/sipariş/ödeme kaydı oluşturmaz ve parsel sayaçlarını değiştirmez.</p>
+    <p className="mt-2 text-xs text-muted-foreground">Admin, gerçek bir parseli seçip mevcut bir kullanıcı adına Dijital, Elit veya Premium sertifika oluşturabilir. Sertifika oluşturulduğunda parsel admin hesabına tahsis edilir, satılmış olarak kilitlenir ve başka bir kullanıcı tarafından satın alınamaz. Sipariş veya ödeme kaydı oluşturulmaz.</p>
 
     {error && <div role="alert" className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">{error}</div>}
     {message && <div role="status" className="mt-4 rounded-md border border-gold/30 p-3 text-xs text-gold">{message}</div>}
