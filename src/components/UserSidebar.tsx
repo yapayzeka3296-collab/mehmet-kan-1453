@@ -6,7 +6,6 @@ import {
   Layers,
   LogOut,
   ShieldCheck,
-  ShoppingBag,
   Sparkles,
   User,
 } from "lucide-react";
@@ -16,7 +15,6 @@ const ITEMS = [
   { to: "/panelim", label: "Panelim", icon: Home },
   { to: "/parsellerim", label: "Parsellerim", icon: Layers },
   { to: "/sertifikalarim", label: "Sertifikalarım", icon: Award },
-  { to: "/siparislerim", label: "Siparişlerim", icon: ShoppingBag },
   { to: "/profilim", label: "Profilim", icon: User },
   { to: "/guvenlik-ayarlari", label: "Güvenlik Ayarları", icon: ShieldCheck },
 ] as const;
