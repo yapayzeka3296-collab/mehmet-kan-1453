@@ -31,6 +31,7 @@ function Profilim() {
 
   if (loading) return <div className="starfield min-h-screen" aria-busy="true" />;
   if (!user) return <Navigate to="/giris" replace />;
+  const currentUser = user;
 
   async function updateProfile(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -39,17 +40,10 @@ function Profilim() {
     if (cleanName.length > 120) { setError("Ad soyad en fazla 120 karakter olabilir."); return; }
     setSaving(true); setMessage(null); setError(null);
     try {
-      const { error: authError } = await supabaseBrowser.auth.updateUser({
-        data: { full_name: cleanName },
-      });
+      const { error: authError } = await supabaseBrowser.auth.updateUser({ data: { full_name: cleanName } });
       if (authError) throw authError;
-
-      const { error: profileError } = await supabaseBrowser
-        .from("profiles")
-        .update({ full_name: cleanName })
-        .eq("id", user.id);
+      const { error: profileError } = await supabaseBrowser.from("profiles").update({ full_name: cleanName }).eq("id", currentUser.id);
       if (profileError) throw profileError;
-
       setMessage("Profil bilgileriniz güncellendi.");
     } catch (err) {
       console.error("Profile update failed", err);
@@ -66,7 +60,7 @@ function Profilim() {
           <div className="panel p-6"><h1 className="font-display text-3xl font-bold">PROFİLİM</h1></div>
           <form className="panel mt-6 grid gap-5 p-6 sm:grid-cols-2" onSubmit={updateProfile}>
             <label className="block"><span className="text-xs text-muted-foreground">Ad Soyad</span><input value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" maxLength={120} className="mt-1.5 w-full rounded-md border border-input bg-background/50 px-3 py-2.5 text-sm outline-none focus:border-gold" /></label>
-            <label className="block"><span className="text-xs text-muted-foreground">E-posta</span><input value={user.email ?? ""} readOnly autoComplete="email" className="mt-1.5 w-full cursor-not-allowed rounded-md border border-input bg-muted/30 px-3 py-2.5 text-sm outline-none" /></label>
+            <label className="block"><span className="text-xs text-muted-foreground">E-posta</span><input value={currentUser.email ?? ""} readOnly autoComplete="email" className="mt-1.5 w-full cursor-not-allowed rounded-md border border-input bg-muted/30 px-3 py-2.5 text-sm outline-none" /></label>
             {message && <p className="text-sm text-success sm:col-span-2" role="status">{message}</p>}
             {error && <p className="text-sm text-destructive sm:col-span-2" role="alert">{error}</p>}
             <button type="submit" disabled={saving} className="btn-gold w-fit rounded-md px-8 py-3 text-[11px] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2">{saving ? "GÜNCELLENİYOR..." : "BİLGİLERİ GÜNCELLE"}</button>
