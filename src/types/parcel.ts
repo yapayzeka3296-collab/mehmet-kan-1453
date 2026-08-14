@@ -12,6 +12,10 @@ export interface Parcel {
   city_id: string | null;
   city_name?: string;
   city_code?: string;
+  city_slug?: string | null;
+  layer_number?: number | null;
+  sector_number?: number | null;
+  local_parcel_number?: number | null;
   latitude: number;
   longitude: number;
   created_at: string;
