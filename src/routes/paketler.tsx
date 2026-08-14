@@ -4,12 +4,12 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CERTIFICATE_TEMPLATE_IMAGES, type CertificateTier } from "@/lib/certificateTemplate";
 
-export const Route = createFileRoute("/paketler")({ head: () => ({ meta: [{ title: "Paketlerimiz — MySkyParcel" }, { name: "description", content: "Dijital sertifika 199 TL, Elit sertifika 499 TL, Premium sertifika 999 TL. Gökyüzü parselin için paketini seç." }, { property: "og:title", content: "Paketlerimiz — MySkyParcel" }, { property: "og:description", content: "Gökyüzü parseli sertifika paketleri ve fiyatları." }] }), component: Paketler });
+export const Route = createFileRoute("/paketler")({ head: () => ({ meta: [{ title: "Paketlerimiz — MySkyParcel" }, { name: "description", content: "Dijital parsel sertifika 199 TL, Elit parsel sertifika 499 TL, Premium parsel sertifika 999 TL. Gökyüzü parselin için paketini seç." }, { property: "og:title", content: "Paketlerimiz — MySkyParcel" }, { property: "og:description", content: "Gökyüzü parseli ve parsel sertifika seçenekleri." }] }), component: Paketler });
 
 const PLANS: Array<{ name: string; tier: CertificateTier; price: string; popular: boolean; features: string[] }> = [
-  { name: "DİJİTAL SERTİFİKA", tier: "digital", price: "199", popular: false, features: ["Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"] },
-  { name: "ELİT SERTİFİKA", tier: "elite", price: "499", popular: true, features: ["Özel tasarım sertifika", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim", "Posta yoluyla gönderim"] },
-  { name: "PREMİUM SERTİFİKA", tier: "premium", price: "999", popular: false, features: ["Özel tasarım sertifika", "Çerçeveli baskı (A4)", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "Posta yoluyla gönderim"] },
+  { name: "DİJİTAL PARSEL SERTİFİKA", tier: "digital", price: "199", popular: false, features: ["Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim"] },
+  { name: "ELİT PARSEL SERTİFİKA", tier: "elite", price: "499", popular: true, features: ["Özel tasarım sertifika", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "E-posta ile anında teslim", "Posta yoluyla gönderim"] },
+  { name: "PREMİUM PARSEL SERTİFİKA", tier: "premium", price: "999", popular: false, features: ["Özel tasarım sertifika", "Çerçeveli baskı (A4)", "Dijital sertifika", "Parsel kodu ve koordinatlar", "QR doğrulama", "Posta yoluyla gönderim"] },
 ];
 
 const BENEFITS = [{ icon: Star, title: "BENZERSİZ PARSEL", text: "Milyonlarca sembolik parsel içinden sana özel olanı seç." }, { icon: ShieldCheck, title: "KİŞİYE ÖZEL SERTİFİKA", text: "Özel tasarım sertifikayla bu anı ölümsüzleştir." }, { icon: CloudDownload, title: "DİJİTAL & FİZİKSEL", text: "Dijital sertifikanı hemen al, istersen fiziksel baskıyı kapına getirelim." }, { icon: Lock, title: "GÜVENLİ & ŞEFFAF", text: "Tüm işlemler 256 Bit SSL ile korunur. Güvenli ödeme altyapısı." }, { icon: Heart, title: "ANLAMLI BİR HEDİYE", text: "Sevdiklerin için unutulmaz ve farklı bir hediye seçeneği." }];
