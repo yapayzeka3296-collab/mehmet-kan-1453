@@ -3,9 +3,10 @@ import QRCode from "npm:qrcode@1.5.4";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://myskyparcel.com",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Cache-Control": "no-store",
 };
 
 const url = Deno.env.get("SUPABASE_URL");
