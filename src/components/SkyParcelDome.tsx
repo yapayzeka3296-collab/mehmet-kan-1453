@@ -19,7 +19,8 @@ const LAYERS = 10;
 const VISIBLE_CELLS = 220;
 const PHI_MIN = 0.10;
 const PHI_MAX = Math.PI * 0.54;
-const X_SCALE = 1.42;
+const X_SCALE = 1.48;
+const Y_SCALE = 0.94;
 const GRID = "rgba(191,231,255,0.42)";
 const GRID_FAINT = "rgba(177,224,255,0.16)";
 const FILL: Record<ParcelTier, string> = {
@@ -54,10 +55,14 @@ function rotatePoint(p: P3, yaw: number, pitch: number): P3 {
 }
 
 function project(p: P3, radius: number, cx: number, cy: number): P3 {
-  const perspective = 1 + Math.max(-0.22, Math.min(0.22, p.z)) * 0.12;
+  // Stronger depth perspective makes the dome read as a curved surface above the city,
+  // rather than a flat grid placed over the background.
+  const depth = Math.max(-0.28, Math.min(0.28, p.z));
+  const perspective = 1 + depth * 0.18;
+  const verticalPerspective = 1 + depth * 0.10;
   return {
     x: cx + p.x * radius * X_SCALE * perspective,
-    y: cy - p.y * radius * perspective,
+    y: cy - p.y * radius * Y_SCALE * verticalPerspective,
     z: p.z,
   };
 }
@@ -233,7 +238,6 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, layerFilter = nul
         drawCurve(ctx, points);
       }
 
-      // The horizon rim is deliberately broad: it makes the dome feel much larger than the viewport.
       const rimY = cy + radius * 0.025;
       ctx.strokeStyle = "rgba(211,244,255,0.32)";
       ctx.lineWidth = 1;
@@ -241,7 +245,6 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, layerFilter = nul
       ctx.ellipse(cx, rimY, radius * 1.42, radius * 0.31, 0, Math.PI, Math.PI * 2);
       ctx.stroke();
 
-      // Soft continuation lines leave the viewport instead of ending at the dome rim.
       ctx.strokeStyle = "rgba(189,231,255,0.095)";
       ctx.lineWidth = 0.52;
       for (let i = -11; i <= 11; i += 1) {
@@ -260,7 +263,6 @@ export function SkyParcelDome({ parcels, selectedId, onSelect, layerFilter = nul
         ctx.stroke();
       }
 
-      // A very subtle lower arc reinforces the globe curvature without becoming a second map.
       ctx.strokeStyle = "rgba(206,241,255,0.08)";
       ctx.lineWidth = 0.7;
       ctx.beginPath();
