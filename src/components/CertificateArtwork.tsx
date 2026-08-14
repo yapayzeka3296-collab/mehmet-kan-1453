@@ -112,7 +112,7 @@ const LAYOUT = {
   parcel: { left: 78.6, width: 15.7, top: 40.8, height: 4.1 },
   date: { left: 78.6, width: 15.7, top: 48.8, height: 4.1 },
   number: { left: 78.6, width: 15.7, top: 56.7, height: 4.1 },
-  qr: { right: 9.55, top: 62.9, size: 7.05 },
+  qr: { right: 8.7, top: 63.7, size: 6.8 },
   signature: { left: 61, width: 20, top: 75.0, height: 7.5 },
 } as const;
 
@@ -164,7 +164,7 @@ async function render(
   ctx.textBaseline = "middle";
 
   const nameMax = canvas.width * 0.44;
-  const nameSize = fitFont(ctx, name || "Ad Soyad", nameMax, canvas.width * 0.031, canvas.width * 0.0115, NAME_FONT);
+  const nameSize = fitFont(ctx, name || "Ad Soyad", nameMax, canvas.width * 0.0335, canvas.width * 0.012, NAME_FONT);
   ctx.font = `400 ${nameSize}px ${NAME_FONT}`;
   ctx.fillStyle = "#c79b38";
   ctx.shadowColor = "rgba(0,0,0,.20)";
@@ -280,7 +280,7 @@ export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, 
         <img src={templateSrc} alt={LABEL[tier]} onError={(event) => { const image = event.currentTarget; if (image.src.endsWith(CERTIFICATE_TEMPLATE_FALLBACK)) return; image.src = CERTIFICATE_TEMPLATE_FALLBACK; }} className="block aspect-[1600/1067] h-auto w-full object-cover" />
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute left-[27.5%] top-[43.5%] flex h-[7%] w-[45%] items-center justify-center text-center">
-            <span style={{ fontFamily: NAME_FONT, fontStyle: "normal", fontWeight: 400, letterSpacing: "-0.01em" }} className="text-[clamp(16px,3vw,43px)] leading-none text-[#c79b38] drop-shadow-[0_1px_2px_rgba(0,0,0,.22)]">{displayName}</span>
+            <span style={{ fontFamily: NAME_FONT, fontStyle: "normal", fontWeight: 400, letterSpacing: "-0.01em" }} className="text-[clamp(16px,3vw,46px)] leading-none text-[#c79b38] drop-shadow-[0_1px_2px_rgba(0,0,0,.22)]">{displayName}</span>
           </div>
           <div className="absolute left-[34.5%] top-[57%] flex h-[5.8%] w-[31%] items-center justify-center text-center">
             <span className="font-sans text-[clamp(10px,1.35vw,22px)] font-semibold leading-none tracking-[.18em] text-[#20324a]">{parcelField}</span>
@@ -292,7 +292,7 @@ export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, 
             <span style={{ fontFamily: SIGNATURE_FONT, fontStyle: "normal", fontWeight: 400, letterSpacing: "-0.025em", transform: "rotate(-3deg)" }} className="text-[clamp(17px,2.15vw,33px)] leading-none text-[#1e2f46]">MySkyParcel</span>
           </div>
           {verificationQr && (
-            <div className="absolute right-[9.55%] top-[62.9%] flex aspect-square w-[7.05%] items-center justify-center overflow-hidden rounded-[2px] bg-transparent p-0">
+            <div className="absolute right-[8.7%] top-[63.7%] flex aspect-square w-[6.8%] items-center justify-center overflow-hidden rounded-[2px] bg-transparent p-0">
               <img key={verificationQr} src={verificationQr} alt="Sertifika doğrulama QR kodu" className="block h-full w-full object-fill" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
             </div>
           )}
