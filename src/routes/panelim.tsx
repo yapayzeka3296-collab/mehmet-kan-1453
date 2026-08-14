@@ -18,6 +18,7 @@ type OrderRow = { id: string; parcel_id: string | null; amount: number; currency
 
 type OrdersCacheEntry = { orders: OrderRow[]; count: number };
 const ordersCache = new Map<string, OrdersCacheEntry>();
+const orderFetches = new Map<string, Promise<OrdersCacheEntry>>();
 
 const emptyStats = [
   { key: "parcels", icon: Globe, title: "Parsellerim" },
@@ -28,6 +29,37 @@ const emptyStats = [
 
 const formatTier = (tier: string | null) => tier === "premium" ? "Premium" : tier === "elite" ? "Elit" : tier === "digital" ? "Dijital" : "-";
 const formatOrderStatus = (status: string) => status === "paid" ? "Ödendi" : status === "pending" ? "Bekliyor" : status === "cancelled" ? "İptal" : status;
+
+async function getOrdersOnce(userId: string): Promise<OrdersCacheEntry> {
+  const cached = ordersCache.get(userId);
+  if (cached) return cached;
+  const existing = orderFetches.get(userId);
+  if (existing) return existing;
+
+  const request = (async () => {
+    if (!supabaseBrowser) return { orders: [], count: 0 };
+    const { data, count, error } = await supabaseBrowser
+      .from("orders")
+      .select("id, parcel_id, amount, currency, status, created_at", { count: "exact" })
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(6);
+    if (error) {
+      console.error("Siparişler yüklenemedi", error);
+      return { orders: [], count: 0 };
+    }
+    const result = { orders: (data ?? []) as OrderRow[], count: count ?? 0 };
+    ordersCache.set(userId, result);
+    return result;
+  })();
+
+  orderFetches.set(userId, request);
+  try {
+    return await request;
+  } finally {
+    orderFetches.delete(userId);
+  }
+}
 
 function Panelim() {
   const { user, loading } = useAuth();
@@ -44,21 +76,13 @@ function Panelim() {
 
   useEffect(() => {
     if (!userId || !supabaseBrowser) return;
-    const cached = ordersCache.get(userId);
     let cancelled = false;
-
-    if (cached) {
-      setOrders(cached.orders);
-      setOrderCount(cached.count);
-    }
 
     const loadDashboard = async () => {
       const [parcelResult, certificateResult, orderResult] = await Promise.all([
         supabaseBrowser.from("parcels").select("id, parcel_number, status, price, city_id, tier", { count: "exact" }).eq("owner_id", userId).eq("status", "sold").order("updated_at", { ascending: false }).limit(6),
         supabaseBrowser.from("certificate_requests").select("id, parcel_id, tier, status, certificate_number, created_at", { count: "exact" }).eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
-        cached
-          ? Promise.resolve({ data: cached.orders, count: cached.count, error: null })
-          : supabaseBrowser.from("orders").select("id, parcel_id, amount, currency, status, created_at", { count: "exact" }).eq("user_id", userId).order("created_at", { ascending: false }).limit(6),
+        getOrdersOnce(userId),
       ]);
 
       if (cancelled) return;
@@ -66,18 +90,13 @@ function Panelim() {
       const errors: string[] = [];
       if (parcelResult.error) { console.error("Parseller yüklenemedi", parcelResult.error); errors.push("Parsellerim"); }
       if (certificateResult.error) { console.error("Sertifikalar yüklenemedi", certificateResult.error); errors.push("Sertifikalarım"); }
-      if (orderResult.error) console.error("Siparişler yüklenemedi", orderResult.error);
-
-      const loadedOrders = (orderResult.data ?? []) as OrderRow[];
-      const loadedOrderCount = orderResult.count ?? 0;
-      ordersCache.set(userId, { orders: loadedOrders, count: loadedOrderCount });
 
       setParcels((parcelResult.data ?? []) as ParcelRow[]);
       setParcelCount(parcelResult.count ?? 0);
       setCertificates((certificateResult.data ?? []) as CertificateRow[]);
       setCertificateCount(certificateResult.count ?? 0);
-      setOrders(loadedOrders);
-      setOrderCount(loadedOrderCount);
+      setOrders(orderResult.orders);
+      setOrderCount(orderResult.count);
       setDataErrors(errors);
       setDataLoading(false);
     };
@@ -90,7 +109,6 @@ function Panelim() {
   if (!user) return <Navigate to="/giris" replace />;
 
   const stats = { parcels: parcelCount, certificates: certificateCount, orders: orderCount, favorites: "—" };
-  const ordersReady = Boolean(userId && ordersCache.has(userId));
 
   return (
     <div className="starfield min-h-screen">
@@ -107,8 +125,8 @@ function Panelim() {
             <section className="panel p-6"><div className="flex items-center justify-between gap-4"><h2 className="font-display text-base tracking-[0.06em]">SON PARSELLERİM</h2><span className="text-xs text-muted-foreground">{dataLoading ? "…" : parcelCount}</span></div><div className="mt-6 space-y-3">
               {dataLoading ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><Globe className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Parseller yükleniyor…</p></div> : parcels.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><Globe className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Henüz satın alınmış parsel bulunmuyor.</p></div> : parcels.map((parcel) => <div key={parcel.id} className="rounded-lg border border-border/70 bg-background/30 p-4"><div className="flex items-center justify-between gap-4"><span className="font-display text-sm">{parcel.parcel_number}</span><span className="text-xs text-gold">{formatTier(parcel.tier)}</span></div><p className="mt-1 text-xs text-muted-foreground">Parsel durumu: Satıldı</p></div>)}
             </div></section>
-            <section className="panel p-6"><div className="flex items-center justify-between gap-4"><h2 className="font-display text-base tracking-[0.06em]">SON SİPARİŞLERİM</h2><span className="text-xs text-muted-foreground">{ordersReady ? orderCount : "0"}</span></div><div className="mt-6 space-y-3">
-              {!ordersReady ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><ShoppingBag className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Henüz sipariş bulunmuyor.</p></div> : orders.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><ShoppingBag className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Henüz sipariş bulunmuyor.</p></div> : orders.map((order) => <div key={order.id} className="rounded-lg border border-border/70 bg-background/30 p-4"><div className="flex items-center justify-between gap-4"><span className="font-display text-sm">{order.parcel_id ? `Parsel ${order.parcel_id.slice(0, 8)}` : "Sipariş"}</span><span className="text-xs text-gold">{formatOrderStatus(order.status)}</span></div><p className="mt-1 text-xs text-muted-foreground">{Number(order.amount).toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currency}</p></div>)}
+            <section className="panel p-6"><div className="flex items-center justify-between gap-4"><h2 className="font-display text-base tracking-[0.06em]">SON SİPARİŞLERİM</h2><span className="text-xs text-muted-foreground">{orderCount}</span></div><div className="mt-6 space-y-3">
+              {orders.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><ShoppingBag className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Henüz sipariş bulunmuyor.</p></div> : orders.map((order) => <div key={order.id} className="rounded-lg border border-border/70 bg-background/30 p-4"><div className="flex items-center justify-between gap-4"><span className="font-display text-sm">{order.parcel_id ? `Parsel ${order.parcel_id.slice(0, 8)}` : "Sipariş"}</span><span className="text-xs text-gold">{formatOrderStatus(order.status)}</span></div><p className="mt-1 text-xs text-muted-foreground">{Number(order.amount).toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currency}</p></div>)}
             </div></section>
           </div>
         </section>
