@@ -1,5 +1,5 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { Award, Globe, ShoppingBag, Star } from "lucide-react";
+import { Award, Globe, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -14,63 +14,22 @@ export const Route = createFileRoute("/panelim")({
 
 type ParcelRow = { id: string; parcel_number: string; status: string; price: number; city_id: string | null; tier: string | null };
 type CertificateRow = { id: string; parcel_id: string; tier: string; status: string; certificate_number: string | null; created_at: string };
-type OrderRow = { id: string; parcel_id: string | null; amount: number; currency: string; status: string; created_at: string };
-
-type OrdersCacheEntry = { orders: OrderRow[]; count: number };
-const ordersCache = new Map<string, OrdersCacheEntry>();
-const orderFetches = new Map<string, Promise<OrdersCacheEntry>>();
 
 const emptyStats = [
   { key: "parcels", icon: Globe, title: "Parsellerim" },
   { key: "certificates", icon: Award, title: "Sertifikalarım" },
-  { key: "orders", icon: ShoppingBag, title: "Siparişlerim" },
   { key: "favorites", icon: Star, title: "Favorilerim" },
 ] as const;
 
 const formatTier = (tier: string | null) => tier === "premium" ? "Premium" : tier === "elite" ? "Elit" : tier === "digital" ? "Dijital" : "-";
-const formatOrderStatus = (status: string) => status === "paid" ? "Ödendi" : status === "pending" ? "Bekliyor" : status === "cancelled" ? "İptal" : status;
-
-async function getOrdersOnce(userId: string): Promise<OrdersCacheEntry> {
-  const cached = ordersCache.get(userId);
-  if (cached) return cached;
-  const existing = orderFetches.get(userId);
-  if (existing) return existing;
-
-  const request = (async () => {
-    if (!supabaseBrowser) return { orders: [], count: 0 };
-    const { data, count, error } = await supabaseBrowser
-      .from("orders")
-      .select("id, parcel_id, amount, currency, status, created_at", { count: "exact" })
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(6);
-    if (error) {
-      console.error("Siparişler yüklenemedi", error);
-      return { orders: [], count: 0 };
-    }
-    const result = { orders: (data ?? []) as OrderRow[], count: count ?? 0 };
-    ordersCache.set(userId, result);
-    return result;
-  })();
-
-  orderFetches.set(userId, request);
-  try {
-    return await request;
-  } finally {
-    orderFetches.delete(userId);
-  }
-}
 
 function Panelim() {
   const { user, loading } = useAuth();
   const userId = user?.id;
-  const cachedOrders = userId ? ordersCache.get(userId) : undefined;
   const [parcels, setParcels] = useState<ParcelRow[]>([]);
   const [parcelCount, setParcelCount] = useState(0);
   const [certificates, setCertificates] = useState<CertificateRow[]>([]);
   const [certificateCount, setCertificateCount] = useState(0);
-  const [orders, setOrders] = useState<OrderRow[]>(cachedOrders?.orders ?? []);
-  const [orderCount, setOrderCount] = useState(cachedOrders?.count ?? 0);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataErrors, setDataErrors] = useState<string[]>([]);
 
@@ -79,10 +38,9 @@ function Panelim() {
     let cancelled = false;
 
     const loadDashboard = async () => {
-      const [parcelResult, certificateResult, orderResult] = await Promise.all([
+      const [parcelResult, certificateResult] = await Promise.all([
         supabaseBrowser.from("parcels").select("id, parcel_number, status, price, city_id, tier", { count: "exact" }).eq("owner_id", userId).eq("status", "sold").order("updated_at", { ascending: false }).limit(6),
         supabaseBrowser.from("certificate_requests").select("id, parcel_id, tier, status, certificate_number, created_at", { count: "exact" }).eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
-        getOrdersOnce(userId),
       ]);
 
       if (cancelled) return;
@@ -95,8 +53,6 @@ function Panelim() {
       setParcelCount(parcelResult.count ?? 0);
       setCertificates((certificateResult.data ?? []) as CertificateRow[]);
       setCertificateCount(certificateResult.count ?? 0);
-      setOrders(orderResult.orders);
-      setOrderCount(orderResult.count);
       setDataErrors(errors);
       setDataLoading(false);
     };
@@ -108,7 +64,7 @@ function Panelim() {
   if (loading) return <div className="starfield min-h-screen" aria-busy="true" />;
   if (!user) return <Navigate to="/giris" replace />;
 
-  const stats = { parcels: parcelCount, certificates: certificateCount, orders: orderCount, favorites: "—" };
+  const stats = { parcels: parcelCount, certificates: certificateCount, favorites: "—" };
 
   return (
     <div className="starfield min-h-screen">
@@ -117,16 +73,16 @@ function Panelim() {
         <UserSidebar active="/panelim" />
         <section className="min-w-0" aria-label="Kullanıcı paneli">
           <div className="panel p-6"><h1 className="font-display text-3xl font-bold">PANELİM</h1><p className="mt-2 text-sm text-muted-foreground">Hesabınızın güncel durumu</p></div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {emptyStats.map((item) => <div key={item.title} className="panel flex min-w-0 items-center gap-4 p-5"><item.icon className="h-8 w-8 shrink-0 text-gold" /><div><p className="font-display text-2xl">{dataLoading ? "…" : stats[item.key]}</p><p className="text-sm">{item.title}</p></div></div>)}
           </div>
-          {dataErrors.length > 0 && <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-muted-foreground">Bazı panel verileri yüklenemedi: {dataErrors.join(", ")}. Diğer veriler gösterilmeye devam ediyor.</div>}
+          {dataErrors.length > 0 && <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-muted-foreground">Bazı panel verileri yüklenemedi: {dataErrors.join(", ")}.</div>}
           <div className="mt-6 grid gap-6 xl:grid-cols-2">
             <section className="panel p-6"><div className="flex items-center justify-between gap-4"><h2 className="font-display text-base tracking-[0.06em]">SON PARSELLERİM</h2><span className="text-xs text-muted-foreground">{dataLoading ? "…" : parcelCount}</span></div><div className="mt-6 space-y-3">
               {dataLoading ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><Globe className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Parseller yükleniyor…</p></div> : parcels.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><Globe className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Henüz satın alınmış parsel bulunmuyor.</p></div> : parcels.map((parcel) => <div key={parcel.id} className="rounded-lg border border-border/70 bg-background/30 p-4"><div className="flex items-center justify-between gap-4"><span className="font-display text-sm">{parcel.parcel_number}</span><span className="text-xs text-gold">{formatTier(parcel.tier)}</span></div><p className="mt-1 text-xs text-muted-foreground">Parsel durumu: Satıldı</p></div>)}
             </div></section>
-            <section className="panel p-6"><div className="flex items-center justify-between gap-4"><h2 className="font-display text-base tracking-[0.06em]">SON SİPARİŞLERİM</h2><span className="text-xs text-muted-foreground">{orderCount}</span></div><div className="mt-6 space-y-3">
-              {orders.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><ShoppingBag className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Henüz sipariş bulunmuyor.</p></div> : orders.map((order) => <div key={order.id} className="rounded-lg border border-border/70 bg-background/30 p-4"><div className="flex items-center justify-between gap-4"><span className="font-display text-sm">{order.parcel_id ? `Parsel ${order.parcel_id.slice(0, 8)}` : "Sipariş"}</span><span className="text-xs text-gold">{formatOrderStatus(order.status)}</span></div><p className="mt-1 text-xs text-muted-foreground">{Number(order.amount).toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currency}</p></div>)}
+            <section className="panel p-6"><div className="flex items-center justify-between gap-4"><h2 className="font-display text-base tracking-[0.06em]">SON SERTİFİKALARIM</h2><span className="text-xs text-muted-foreground">{dataLoading ? "…" : certificateCount}</span></div><div className="mt-6 space-y-3">
+              {dataLoading ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><Award className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Sertifikalar yükleniyor…</p></div> : certificates.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><Award className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Henüz sertifika bulunmuyor.</p></div> : certificates.slice(0, 6).map((certificate) => <div key={certificate.id} className="rounded-lg border border-border/70 bg-background/30 p-4"><div className="flex items-center justify-between gap-4"><span className="font-display text-sm">{certificate.certificate_number ?? "Sertifika"}</span><span className="text-xs text-gold">{formatTier(certificate.tier)}</span></div><p className="mt-1 text-xs text-muted-foreground">Durum: {certificate.status}</p></div>)}
             </div></section>
           </div>
         </section>
