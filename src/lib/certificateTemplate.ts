@@ -15,9 +15,9 @@ export const CERTIFICATE_TEMPLATE_IMAGE = "/sertifikalar/dijital-sertifika.webp"
 export const CERTIFICATE_TEMPLATE_FALLBACK = "/sertifikalar/dijital-sertifika.webp";
 
 export const CERTIFICATE_TEMPLATE_LABELS: Record<CertificateTier, string> = {
-  digital: "Dijital Gökyüzü Sertifikası",
-  elite: "Elit Gökyüzü Sertifikası",
-  premium: "Premium Gökyüzü Sertifikası",
+  digital: "Dijital Parsel Sertifika",
+  elite: "Elit Parsel Sertifika",
+  premium: "Premium Parsel Sertifika",
 };
 
 export const CERTIFICATE_TEMPLATE_ASPECT_RATIO = "1600 / 1067";
