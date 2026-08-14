@@ -39,7 +39,7 @@ function Panelim() {
   const [certificateCount, setCertificateCount] = useState(0);
   const [orders, setOrders] = useState<OrderRow[]>(cachedOrders?.orders ?? []);
   const [orderCount, setOrderCount] = useState(cachedOrders?.count ?? 0);
-  const [dataLoading, setDataLoading] = useState(!cachedOrders);
+  const [dataLoading, setDataLoading] = useState(true);
   const [dataErrors, setDataErrors] = useState<string[]>([]);
 
   useEffect(() => {
@@ -81,7 +81,7 @@ function Panelim() {
   if (!user) return <Navigate to="/giris" replace />;
 
   const stats = { parcels: parcelCount, certificates: certificateCount, orders: orderCount, favorites: "—" };
-  const ordersReady = Boolean(userId && ordersCache.has(userId));
+  const hasOrders = orders.length > 0;
 
   return (
     <div className="starfield min-h-screen">
@@ -98,8 +98,8 @@ function Panelim() {
             <section className="panel p-6"><div className="flex items-center justify-between gap-4"><h2 className="font-display text-base tracking-[0.06em]">SON PARSELLERİM</h2><span className="text-xs text-muted-foreground">{dataLoading ? "…" : parcelCount}</span></div><div className="mt-6 space-y-3">
               {dataLoading ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><Globe className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Parseller yükleniyor…</p></div> : parcels.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><Globe className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Henüz satın alınmış parsel bulunmuyor.</p></div> : parcels.map((parcel) => <div key={parcel.id} className="rounded-lg border border-border/70 bg-background/30 p-4"><div className="flex items-center justify-between gap-4"><span className="font-display text-sm">{parcel.parcel_number}</span><span className="text-xs text-gold">{formatTier(parcel.tier)}</span></div><p className="mt-1 text-xs text-muted-foreground">Parsel durumu: Satıldı</p></div>)}
             </div></section>
-            <section className="panel p-6"><div className="flex items-center justify-between gap-4"><h2 className="font-display text-base tracking-[0.06em]">SON SİPARİŞLERİM</h2><span className="text-xs text-muted-foreground">{ordersReady ? orderCount : "…"}</span></div><div className="mt-6 space-y-3">
-              {!ordersReady ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><ShoppingBag className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Siparişler yükleniyor…</p></div> : orders.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center"><ShoppingBag className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Henüz sipariş bulunmuyor.</p></div> : orders.map((order) => <div key={order.id} className="rounded-lg border border-border/70 bg-background/30 p-4"><div className="flex items-center justify-between gap-4"><span className="font-display text-sm">{order.parcel_id ? `Parsel ${order.parcel_id.slice(0, 8)}` : "Sipariş"}</span><span className="text-xs text-gold">{formatOrderStatus(order.status)}</span></div><p className="mt-1 text-xs text-muted-foreground">{Number(order.amount).toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currency}</p></div>)}
+            <section className="panel p-6"><div className="flex items-center justify-between gap-4"><h2 className="font-display text-base tracking-[0.06em]">SON SİPARİŞLERİM</h2><span className="text-xs text-muted-foreground">{hasOrders ? orders.length : "0"}</span></div><div className="mt-6 space-y-3">
+              {hasOrders ? orders.map((order) => <div key={order.id} className="rounded-lg border border-border/70 bg-background/30 p-4"><div className="flex items-center justify-between gap-4"><span className="font-display text-sm">{order.parcel_id ? `Parsel ${order.parcel_id.slice(0, 8)}` : "Sipariş"}</span><span className="text-xs text-gold">{formatOrderStatus(order.status)}</span></div><p className="mt-1 text-xs text-muted-foreground">{Number(order.amount).toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currency}</p></div>) : <div className="rounded-lg border border-dashed border-border p-8 text-center"><ShoppingBag className="mx-auto h-8 w-8 text-gold" /><p className="mt-3 text-sm text-muted-foreground">Henüz sipariş bulunmuyor.</p></div>}
             </div></section>
           </div>
         </section>
