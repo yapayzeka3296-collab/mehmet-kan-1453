@@ -13,7 +13,7 @@ begin
   from public.parcels p left join public.profiles pr on pr.id=p.owner_id
   where p.status='available' and not exists(select 1 from public.certificate_requests cr where cr.parcel_id=p.id)
     and (p_query is null or p.parcel_number ilike '%'||trim(p_query)||'%' or coalesce(pr.full_name,'') ilike '%'||trim(p_query)||'%')
-  order by p.parcel_number limit 100;
+  order by p.parcel_number;
 end; $$;
 
 create or replace function public.admin_create_certificate_for_parcel(p_parcel_id uuid,p_user_id uuid,p_tier text)
