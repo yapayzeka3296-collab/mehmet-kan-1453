@@ -118,7 +118,10 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
 
       if (res.status === 202) {
         setMessage('Rezervasyon başarılı! Ödeme adımına geçebilirsiniz.');
-        onReserved?.(json.parcel as Parcel);
+        const reservedParcel = json.parcel as Partial<Parcel> | undefined;
+        if (reservedParcel?.id) {
+          onReserved?.({ ...parcel, ...reservedParcel });
+        }
       } else if (res.status === 401) {
         setMessage('Oturumunuz bulunamadı. Lütfen tekrar giriş yapın.');
       } else if (res.status === 400) {
@@ -292,14 +295,7 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
           </div>
 
           <label className="mt-4 block text-xs text-muted-foreground" htmlFor="parcel-note">Parsel notu</label>
-          <textarea
-            id="parcel-note"
-            value={note}
-            maxLength={MAX_NOTE_LENGTH}
-            onChange={(event) => setNote(event.target.value)}
-            placeholder="Bu parsel benim için..."
-            className="mt-2 min-h-24 w-full resize-none rounded-lg border border-input bg-background/70 p-3 text-sm outline-none transition focus:border-gold/60"
-          />
+          <textarea id="parcel-note" value={note} maxLength={MAX_NOTE_LENGTH} onChange={(event) => setNote(event.target.value)} placeholder="Bu parsel benim için..." className="mt-2 min-h-24 w-full resize-none rounded-lg border border-input bg-background/70 p-3 text-sm outline-none transition focus:border-gold/60" />
           <div className="mt-1 text-right text-[10px] text-muted-foreground">{note.length}/{MAX_NOTE_LENGTH}</div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -315,11 +311,7 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
             )}
           </div>
 
-          {imageUrl && (
-            <div className="relative mt-4 overflow-hidden rounded-lg border border-gold/20 bg-black/30">
-              <img src={imageUrl} alt="Parsel hatıra görseli" className="max-h-52 w-full object-cover" />
-            </div>
-          )}
+          {imageUrl && <div className="relative mt-4 overflow-hidden rounded-lg border border-gold/20 bg-black/30"><img src={imageUrl} alt="Parsel hatıra görseli" className="max-h-52 w-full object-cover" /></div>}
           {selectedImageName && <p className="mt-2 truncate text-[10px] text-muted-foreground">{selectedImageName}</p>}
 
           <button type="button" onClick={saveCustomization} disabled={memoryLoading} className="btn-gold mt-4 flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm">
@@ -330,17 +322,8 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
         </section>
       )}
 
-      {!isOwner && user && parcel.status === 'sold' && (
-        <div className="mt-6 rounded-lg border border-input bg-background/30 p-4 text-xs text-muted-foreground">
-          Bu parsel başka bir kullanıcıya ait. Parsel kişiselleştirmesi yalnızca mevcut sahibine açıktır.
-        </div>
-      )}
-
-      {!user && (
-        <div className="mt-6 rounded-lg border border-gold/20 bg-background/30 p-4 text-xs text-muted-foreground">
-          Parsel sahibi olduğunda not ve görsel ekleyebilmek için hesabınla giriş yapmalısın.
-        </div>
-      )}
+      {!isOwner && user && parcel.status === 'sold' && <div className="mt-6 rounded-lg border border-input bg-background/30 p-4 text-xs text-muted-foreground">Bu parsel başka bir kullanıcıya ait. Parsel kişiselleştirmesi yalnızca mevcut sahibine açıktır.</div>}
+      {!user && <div className="mt-6 rounded-lg border border-gold/20 bg-background/30 p-4 text-xs text-muted-foreground">Parsel sahibi olduğunda not ve görsel ekleyebilmek için hesabınla giriş yapmalısın.</div>}
 
       <div className="mt-6">
         <button onClick={handleReserve} disabled={loading || parcel.status !== 'available'} className="btn-gold w-full rounded-md py-3 text-sm">
