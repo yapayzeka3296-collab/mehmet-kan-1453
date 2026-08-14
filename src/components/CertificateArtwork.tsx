@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { CERTIFICATE_TEMPLATE_FALLBACK, CERTIFICATE_TEMPLATE_IMAGES, CERTIFICATE_TEMPLATE_LABELS } from "@/lib/certificateTemplate";
 
 type Tier = "digital" | "elite" | "premium";
@@ -42,6 +42,28 @@ const qrUrl = (number: string, cacheKey?: string | null) => {
   const suffix = cacheKey ? `&v=${encodeURIComponent(cacheKey)}` : "";
   return `${base.replace(/\/$/, "")}/functions/v1/certificate-qr?code=${encodeURIComponent(number)}${suffix}`;
 };
+
+const CERTIFICATE_FONT_LINKS = [
+  { id: "my-skyparcel-great-vibes", href: "https://fonts.bunny.net/css?family=Great+Vibes:400&display=swap" },
+  { id: "my-skyparcel-brittany-signature", href: "https://fonts.cdnfonts.com/css/brittany-signature" },
+] as const;
+
+async function ensureCertificateFonts() {
+  if (typeof document === "undefined") return;
+  for (const font of CERTIFICATE_FONT_LINKS) {
+    if (!document.head.querySelector(`link[data-certificate-font=\"${font.id}\"]`)) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = font.href;
+      link.dataset.certificateFont = font.id;
+      document.head.appendChild(link);
+    }
+  }
+  await Promise.allSettled([
+    document.fonts.load('400 64px "Great Vibes"'),
+    document.fonts.load('400 64px "Brittany Signature"'),
+  ]);
+}
 
 function loadImage(src: string, crossOrigin?: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -90,18 +112,30 @@ const LAYOUT = {
   parcel: { left: 78.6, width: 15.7, top: 40.8, height: 4.1 },
   date: { left: 78.6, width: 15.7, top: 48.8, height: 4.1 },
   number: { left: 78.6, width: 15.7, top: 56.7, height: 4.1 },
-  qr: { right: 8.55, top: 64.45, size: 8.35 },
+  qr: { right: 8.35, top: 64.65, size: 8.65 },
   signature: { left: 61, width: 20, top: 75.0, height: 7.5 },
 } as const;
 
-const SCRIPT_FONT = '"Segoe Script", "Brush Script MT", "Lucida Handwriting", cursive';
+const NAME_FONT = '"Great Vibes", cursive';
+const SIGNATURE_FONT = '"Brittany Signature", cursive';
+const SANS_FONT = 'Arial, sans-serif';
 
-function fitFont(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, start: number, min: number) {
+function fitFont(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, start: number, min: number, family: string) {
   let size = start;
   while (size > min) {
-    ctx.font = `400 ${size}px ${SCRIPT_FONT}`;
+    ctx.font = `400 ${size}px ${family}`;
     if (ctx.measureText(text).width <= maxWidth) break;
     size -= 1;
+  }
+  return size;
+}
+
+function fitRightValue(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, start: number, min: number) {
+  let size = start;
+  while (size > min) {
+    ctx.font = `600 ${size}px ${SANS_FONT}`;
+    if (ctx.measureText(text).width <= maxWidth) break;
+    size -= 0.5;
   }
   return size;
 }
@@ -117,6 +151,7 @@ async function render(
   _longitude?: number | null,
   qrVersion?: string | null,
 ) {
+  await ensureCertificateFonts();
   const bg = await loadTemplate(tier);
   const canvas = document.createElement("canvas");
   canvas.width = bg.naturalWidth;
@@ -128,10 +163,9 @@ async function render(
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  // Referanstaki zarif el yazısı karakterini koru; isim alanını gerçek metne göre sığdır.
   const nameMax = canvas.width * (LAYOUT.name.width / 100) * 0.90;
-  const nameSize = fitFont(ctx, name || "Ad Soyad", nameMax, canvas.width * 0.022, canvas.width * 0.0105);
-  ctx.font = `400 italic ${nameSize}px ${SCRIPT_FONT}`;
+  const nameSize = fitFont(ctx, name || "Ad Soyad", nameMax, canvas.width * 0.023, canvas.width * 0.0105, NAME_FONT);
+  ctx.font = `400 ${nameSize}px ${NAME_FONT}`;
   ctx.fillStyle = "#c79b38";
   ctx.shadowColor = "rgba(0,0,0,.20)";
   ctx.shadowBlur = canvas.width * 0.0012;
@@ -139,11 +173,17 @@ async function render(
   ctx.shadowBlur = 0;
 
   const valueX = canvas.width * ((LAYOUT.parcel.left + LAYOUT.parcel.width / 2) / 100);
-  ctx.font = `600 ${canvas.width * 0.0089}px Arial, sans-serif`;
+  const rightMax = canvas.width * (LAYOUT.parcel.width / 100) * 0.96;
   ctx.fillStyle = "#1e2f46";
   ctx.textBaseline = "alphabetic";
+  const parcelSize = fitRightValue(ctx, parcel || "—", rightMax, canvas.width * 0.0089, canvas.width * 0.0055);
+  ctx.font = `600 ${parcelSize}px ${SANS_FONT}`;
   ctx.fillText(parcel || "—", valueX, canvas.height * ((LAYOUT.parcel.top + LAYOUT.parcel.height) / 100));
+  const dateSize = fitRightValue(ctx, date || "—", rightMax, canvas.width * 0.0089, canvas.width * 0.0055);
+  ctx.font = `600 ${dateSize}px ${SANS_FONT}`;
   ctx.fillText(date || "—", valueX, canvas.height * ((LAYOUT.date.top + LAYOUT.date.height) / 100));
+  const numberSize = fitRightValue(ctx, number || "—", rightMax, canvas.width * 0.0089, canvas.width * 0.0042);
+  ctx.font = `600 ${numberSize}px ${SANS_FONT}`;
   ctx.fillText(number || "—", valueX, canvas.height * ((LAYOUT.number.top + LAYOUT.number.height) / 100));
 
   ctx.textBaseline = "middle";
@@ -152,18 +192,17 @@ async function render(
   const fieldSize = (() => {
     let size = canvas.width * 0.0195;
     while (size > canvas.width * 0.0105) {
-      ctx.font = `600 ${size}px Arial, sans-serif`;
+      ctx.font = `600 ${size}px ${SANS_FONT}`;
       if (ctx.measureText(parcelField).width <= fieldMax) break;
       size -= 1;
     }
     return size;
   })();
-  ctx.font = `600 ${fieldSize}px Arial, sans-serif`;
+  ctx.font = `600 ${fieldSize}px ${SANS_FONT}`;
   ctx.fillStyle = "#20324a";
   ctx.fillText(parcelField, canvas.width * ((LAYOUT.parcelField.left + LAYOUT.parcelField.width / 2) / 100), canvas.height * ((LAYOUT.parcelField.top + LAYOUT.parcelField.height / 2) / 100));
 
-  // Referanstaki imza görünümü: ince, eğimli ve gerçek imza hissi veren metin.
-  ctx.font = `400 italic ${canvas.width * 0.0205}px ${SCRIPT_FONT}`;
+  ctx.font = `400 ${canvas.width * 0.0205}px ${SIGNATURE_FONT}`;
   ctx.fillStyle = "#1e2f46";
   ctx.save();
   ctx.translate(canvas.width * ((LAYOUT.signature.left + LAYOUT.signature.width / 2) / 100), canvas.height * ((LAYOUT.signature.top + LAYOUT.signature.height / 2) / 100));
@@ -189,9 +228,20 @@ export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, 
   const displayName = name?.trim() || "Ad Soyad";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [, setFontsReady] = useState(false);
   const qrVersion = issuedAt || certificateNumber || "1";
   const parcelField = parcelFieldText(parcelCode, cityName);
   const verificationQr = certificateNumber ? qrUrl(certificateNumber, qrVersion) : "";
+
+  useEffect(() => {
+    let mounted = true;
+    void ensureCertificateFonts().finally(() => {
+      if (mounted) setFontsReady(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const make = useCallback(
     () => render(tier, displayName, parcelCode || "—", dateTR(issuedAt), certificateNumber || "—", cityName || "", latitude, longitude, qrVersion),
@@ -230,19 +280,19 @@ export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, 
         <img src={templateSrc} alt={LABEL[tier]} onError={(event) => { const image = event.currentTarget; if (image.src.endsWith(CERTIFICATE_TEMPLATE_FALLBACK)) return; image.src = CERTIFICATE_TEMPLATE_FALLBACK; }} className="block aspect-[1600/1067] h-auto w-full object-cover" />
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute left-[24%] top-[43.5%] flex h-[7%] w-[52%] items-center justify-center text-center">
-            <span style={{ fontFamily: SCRIPT_FONT, fontStyle: "italic", fontWeight: 400, letterSpacing: "-0.025em" }} className="text-[clamp(15px,2.25vw,31px)] leading-none text-[#c79b38] drop-shadow-[0_1px_2px_rgba(0,0,0,.22)]">{displayName}</span>
+            <span style={{ fontFamily: NAME_FONT, fontStyle: "normal", fontWeight: 400, letterSpacing: "-0.01em" }} className="text-[clamp(16px,2.35vw,34px)] leading-none text-[#c79b38] drop-shadow-[0_1px_2px_rgba(0,0,0,.22)]">{displayName}</span>
           </div>
           <div className="absolute left-[34.5%] top-[57%] flex h-[5.8%] w-[31%] items-center justify-center text-center">
             <span className="font-sans text-[clamp(10px,1.35vw,22px)] font-semibold leading-none tracking-[.18em] text-[#20324a]">{parcelField}</span>
           </div>
-          <div className="absolute left-[78.6%] top-[40.8%] flex h-[4.1%] w-[15.7%] items-end justify-center text-center"><span className="translate-y-[1px] font-sans text-[clamp(6px,.89vw,13px)] font-semibold leading-none text-[#1e2f46]">{parcelCode || "—"}</span></div>
-          <div className="absolute left-[78.6%] top-[48.8%] flex h-[4.1%] w-[15.7%] items-end justify-center text-center"><span className="-translate-y-[1px] font-sans text-[clamp(6px,.89vw,13px)] font-semibold leading-none text-[#1e2f46]">{dateTR(issuedAt)}</span></div>
-          <div className="absolute left-[78.6%] top-[56.7%] flex h-[4.1%] w-[15.7%] items-end justify-center text-center"><span className="translate-y-[1px] font-sans text-[clamp(6px,.89vw,13px)] font-semibold leading-none text-[#1e2f46]">{certificateNumber || "—"}</span></div>
+          <div className="absolute left-[78.6%] top-[40.8%] flex h-[4.1%] w-[15.7%] items-end justify-center overflow-hidden text-center"><span className="translate-y-[1px] whitespace-nowrap font-sans text-[clamp(6px,.82vw,12px)] font-semibold leading-none text-[#1e2f46]">{parcelCode || "—"}</span></div>
+          <div className="absolute left-[78.6%] top-[48.8%] flex h-[4.1%] w-[15.7%] items-end justify-center overflow-hidden text-center"><span className="-translate-y-[1px] whitespace-nowrap font-sans text-[clamp(6px,.82vw,12px)] font-semibold leading-none text-[#1e2f46]">{dateTR(issuedAt)}</span></div>
+          <div className="absolute left-[78.6%] top-[56.7%] flex h-[4.1%] w-[15.7%] items-end justify-center overflow-hidden text-center"><span className="translate-y-[1px] whitespace-nowrap font-sans text-[clamp(5px,.62vw,10px)] font-semibold leading-none tracking-[-0.02em] text-[#1e2f46]">{certificateNumber || "—"}</span></div>
           <div className="absolute left-[61%] top-[75%] flex h-[7.5%] w-[20%] items-center justify-center text-center">
-            <span style={{ fontFamily: SCRIPT_FONT, fontStyle: "italic", fontWeight: 400, letterSpacing: "-0.04em", transform: "rotate(-3deg)" }} className="text-[clamp(16px,2.05vw,31px)] leading-none text-[#1e2f46]">MySkyParcel</span>
+            <span style={{ fontFamily: SIGNATURE_FONT, fontStyle: "normal", fontWeight: 400, letterSpacing: "-0.025em", transform: "rotate(-3deg)" }} className="text-[clamp(17px,2.15vw,33px)] leading-none text-[#1e2f46]">MySkyParcel</span>
           </div>
           {verificationQr && (
-            <div className="absolute right-[8.55%] top-[64.45%] flex aspect-square w-[8.35%] items-center justify-center overflow-hidden rounded-[2px] bg-transparent p-0">
+            <div className="absolute right-[8.35%] top-[64.65%] flex aspect-square w-[8.65%] items-center justify-center overflow-hidden rounded-[2px] bg-transparent p-0">
               <img key={verificationQr} src={verificationQr} alt="Sertifika doğrulama QR kodu" className="block h-full w-full object-fill" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
             </div>
           )}
