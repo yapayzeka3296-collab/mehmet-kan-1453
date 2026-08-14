@@ -78,7 +78,7 @@ function Panelim() {
 
     void loadDashboard();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user?.id]);
 
   if (loading) return <div className="starfield min-h-screen" aria-busy="true" />;
   if (!user) return <Navigate to="/giris" replace />;
