@@ -51,7 +51,7 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
           <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Fiyat</dt><dd className="font-semibold">{parcel.tier_price.toLocaleString('tr-TR')} TL</dd></div>
         </dl>
       </div>
-      <button id="myskyparcel-purchase-action" type="button" onClick={handlePurchase} disabled={loading || parcel.status !== 'available'} className="btn-gold mt-6 w-full rounded-md py-3 text-sm font-semibold">
+      <button id="myskyparcel-purchase-action" data-msp-purchase="1" type="button" onClick={handlePurchase} disabled={loading || parcel.status !== 'available'} className="btn-gold mt-6 w-full rounded-md py-3 text-sm font-semibold">
         {loading ? 'SATIN ALINIYOR...' : parcel.status === 'available' ? 'SATIN AL' : 'SATIN ALINAMAZ'}
       </button>
       {message && <p className="mt-3 text-center text-sm text-muted-foreground">{message}</p>}
