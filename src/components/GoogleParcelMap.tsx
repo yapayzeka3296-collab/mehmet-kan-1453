@@ -55,28 +55,43 @@ function parseGeometry(value: ParcelWithGeometry["geometry"]): GeoJsonPolygon | 
   }
 }
 
-// Premium sky-map parcel language: cyan neon boundaries, subtle outer glow,
-// transparent fill, bright corner lights, and a bright selected parcel.
-// Tier colors remain available in the legend/metadata, while the map geometry
-// itself keeps one visual system.
+function statusColor(status: Parcel["status"]) {
+  if (status === "sold") return "#ff4d6d";
+  if (status === "reserved") return "#f6c453";
+  return "#58e6ff";
+}
+
+function statusLabel(status: Parcel["status"]) {
+  if (status === "sold") return "Satıldı";
+  if (status === "reserved") return "Rezerve";
+  return "Satışta";
+}
+
+function tierLabel(tier: Parcel["tier"]) {
+  if (tier === "premium") return "Premium";
+  if (tier === "elite") return "Elit";
+  return "Dijital";
+}
+
 function parcelStyle(status: Parcel["status"], selected: boolean, hovered: boolean, glow = false) {
+  const color = statusColor(status);
   const statusOpacity = status === "sold" ? 0.38 : status === "reserved" ? 0.62 : 1;
   if (glow) {
     return {
-      strokeColor: "#00d9ff",
-      strokeOpacity: statusOpacity * (selected || hovered ? 0.42 : 0.18),
-      strokeWeight: selected ? 11 : hovered ? 8 : 6,
-      fillColor: "#00d9ff",
+      strokeColor: color,
+      strokeOpacity: statusOpacity * (selected || hovered ? 0.55 : 0.18),
+      strokeWeight: selected ? 12 : hovered ? 8 : 6,
+      fillColor: color,
       fillOpacity: 0,
       clickable: false,
     };
   }
   return {
-    strokeColor: selected ? "#ffffff" : "#58e6ff",
+    strokeColor: color,
     strokeOpacity: statusOpacity * (selected || hovered ? 1 : 0.9),
-    strokeWeight: selected ? 2.8 : hovered ? 2.1 : 1.35,
-    fillColor: selected ? "#38dfff" : "#00cfff",
-    fillOpacity: statusOpacity * (selected ? 0.28 : hovered ? 0.10 : 0.025),
+    strokeWeight: selected ? 3.2 : hovered ? 2.1 : 1.35,
+    fillColor: color,
+    fillOpacity: statusOpacity * (selected ? 0.34 : hovered ? 0.10 : 0.025),
     clickable: true,
   };
 }
@@ -98,8 +113,6 @@ function cornerPositions(maps: any, geometry: GeoJsonPolygon | GeoJsonMultiPolyg
   const positions: LatLng[] = [];
   rings.forEach((ring) => {
     ring.forEach(([lng, lat], index) => {
-      // GeoJSON rings repeat the first coordinate at the end. Keep the first
-      // occurrence only so every visible parcel corner gets one light.
       if (index === ring.length - 1 && ring.length > 1 && ring[0][0] === lng && ring[0][1] === lat) return;
       const key = `${lng.toFixed(7)},${lat.toFixed(7)}`;
       if (seen.has(key)) return;
@@ -110,26 +123,49 @@ function cornerPositions(maps: any, geometry: GeoJsonPolygon | GeoJsonMultiPolyg
   return positions;
 }
 
-function markerIcon(maps: any, tier: Parcel["tier"], selected: boolean) {
-  const fill = selected ? "#58e6ff" : tier === "premium" ? "#f6c453" : tier === "elite" ? "#b77cff" : "#55c9ff";
+function markerIcon(maps: any, tier: Parcel["tier"], selected: boolean, status: Parcel["status"]) {
+  const fill = selected ? statusColor(status) : tier === "premium" ? "#f6c453" : tier === "elite" ? "#b77cff" : "#55c9ff";
   const size = selected ? 18 : 12;
   const stroke = selected ? "#ffffff" : "#061a2f";
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size + 8}" height="${size + 8}" viewBox="0 0 ${size + 8} ${size + 8}"><circle cx="${(size + 8) / 2}" cy="${(size + 8) / 2}" r="${size / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2"/></svg>`;
   return { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: new maps.Size(size + 8, size + 8), anchor: new maps.Point((size + 8) / 2, (size + 8) / 2) };
 }
 
-function cornerLightIcon(maps: any, selected: boolean) {
+function cornerLightIcon(maps: any, selected: boolean, status: Parcel["status"]) {
+  const color = statusColor(status);
   const size = selected ? 18 : 12;
   const center = (size + 8) / 2;
   const outer = selected ? 7 : 5;
   const inner = selected ? 3.1 : 2.2;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size + 8}" height="${size + 8}" viewBox="0 0 ${size + 8} ${size + 8}"><circle cx="${center}" cy="${center}" r="${outer}" fill="#00d9ff" fill-opacity="0.20"/><circle cx="${center}" cy="${center}" r="${outer - 1.6}" fill="#00d9ff" fill-opacity="0.28"/><circle cx="${center}" cy="${center}" r="${inner}" fill="${selected ? "#ffffff" : "#7ff5ff"}" stroke="#00d9ff" stroke-width="1"/><circle cx="${center}" cy="${center}" r="${selected ? 1.3 : 0.9}" fill="#ffffff"/></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size + 8}" height="${size + 8}" viewBox="0 0 ${size + 8} ${size + 8}"><circle cx="${center}" cy="${center}" r="${outer}" fill="${color}" fill-opacity="0.20"/><circle cx="${center}" cy="${center}" r="${outer - 1.6}" fill="${color}" fill-opacity="0.28"/><circle cx="${center}" cy="${center}" r="${inner}" fill="${selected ? "#ffffff" : color}" stroke="${color}" stroke-width="1"/><circle cx="${center}" cy="${center}" r="${selected ? 1.3 : 0.9}" fill="#ffffff"/></svg>`;
   return { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: new maps.Size(size + 8, size + 8), anchor: new maps.Point(center, center) };
+}
+
+function parcelInfoHtml(parcel: ParcelWithGeometry) {
+  const color = statusColor(parcel.status);
+  const price = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(parcel.price);
+  const city = parcel.city_name || parcel.city_code || "—";
+  const layer = parcel.layer_number ?? "—";
+  const sector = parcel.sector_number ?? "—";
+  const local = parcel.local_parcel_number ?? "—";
+  return `<div class="myskyparcel-info" style="--parcel-status:${color}">
+    <div class="myskyparcel-info__glow"></div>
+    <div class="myskyparcel-info__head"><div><div class="myskyparcel-info__eyebrow">GÖKYÜZÜ PARSELİ</div><div class="myskyparcel-info__title">${parcel.parcel_number}</div></div><span class="myskyparcel-info__status">${statusLabel(parcel.status)}</span></div>
+    <div class="myskyparcel-info__grid">
+      <div><span>Şehir</span><strong>${city}</strong></div>
+      <div><span>Katman</span><strong>${layer}</strong></div>
+      <div><span>Sektör</span><strong>${sector}</strong></div>
+      <div><span>Yerel Parsel</span><strong>${local}</strong></div>
+      <div><span>Parsel Tipi</span><strong>${tierLabel(parcel.tier)}</strong></div>
+      <div><span>Fiyat</span><strong>${price}</strong></div>
+    </div>
+  </div>`;
 }
 
 export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChange, center }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<GoogleMapInstance | null>(null);
+  const infoWindowRef = useRef<any>(null);
   const markersRef = useRef<Map<string, GoogleMarker>>(new Map());
   const cornerMarkersRef = useRef<Map<string, GoogleMarker[]>>(new Map());
   const polygonsRef = useRef<Map<string, GooglePolygon[]>>(new Map());
@@ -140,6 +176,16 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
 
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
   useEffect(() => { onViewportChangeRef.current = onViewportChange; }, [onViewportChange]);
+
+  useEffect(() => {
+    const styleId = "myskyparcel-info-window-style";
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `.gm-style .gm-style-iw-c{background:transparent!important;box-shadow:none!important;padding:0!important;border-radius:0!important}.gm-style .gm-style-iw-d{overflow:visible!important;padding:0!important}.gm-style .gm-style-iw-tc{display:none!important}.gm-style .gm-ui-hover-effect{top:4px!important;right:4px!important;width:28px!important;height:28px!important;opacity:.75!important}.gm-style .gm-ui-hover-effect>span{margin:6px!important}.myskyparcel-info{position:relative;width:300px;box-sizing:border-box;padding:14px;border:1px solid color-mix(in srgb,var(--parcel-status) 70%,white 10%);border-radius:16px;background:linear-gradient(145deg,rgba(5,18,35,.97),rgba(3,10,24,.94));color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.05),0 10px 35px rgba(0,0,0,.48),0 0 24px color-mix(in srgb,var(--parcel-status) 28%,transparent);font-family:Inter,system-ui,sans-serif}.myskyparcel-info:after{content:"";position:absolute;left:50%;bottom:-9px;width:16px;height:16px;transform:translateX(-50%) rotate(45deg);background:#071326;border-right:1px solid var(--parcel-status);border-bottom:1px solid var(--parcel-status);box-shadow:6px 6px 18px rgba(0,0,0,.3)}.myskyparcel-info__head{position:relative;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-bottom:11px;border-bottom:1px solid rgba(255,255,255,.10)}.myskyparcel-info__eyebrow{font-size:8px;letter-spacing:.16em;color:rgba(255,255,255,.52);font-weight:700}.myskyparcel-info__title{margin-top:3px;font-size:18px;line-height:1.1;font-weight:800;letter-spacing:.02em}.myskyparcel-info__status{display:inline-flex;align-items:center;white-space:nowrap;border:1px solid color-mix(in srgb,var(--parcel-status) 70%,transparent);border-radius:999px;padding:5px 8px;color:var(--parcel-status);font-size:9px;font-weight:800;background:color-mix(in srgb,var(--parcel-status) 12%,transparent)}.myskyparcel-info__grid{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;padding-top:11px}.myskyparcel-info__grid>div{min-width:0}.myskyparcel-info__grid span{display:block;font-size:8px;color:rgba(255,255,255,.45);margin-bottom:2px}.myskyparcel-info__grid strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:rgba(255,255,255,.92);font-weight:700}`;
+    document.head.appendChild(style);
+    return () => { style.remove(); };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -243,9 +289,6 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
           });
         }
 
-        // Reference-style point lights: every visible parcel corner receives a
-        // tiny cyan light with a soft halo. They are kept as separate markers
-        // so the satellite imagery remains untouched.
         const positions = cornerPositions(maps, geometry);
         let cornerMarkers = cornerMarkersRef.current.get(parcel.id);
         if (!cornerMarkers || cornerMarkers.length !== positions.length) {
@@ -254,7 +297,7 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
             const marker = new maps.Marker({
               map: mapInstanceRef.current,
               position,
-              icon: cornerLightIcon(maps, selected),
+              icon: cornerLightIcon(maps, selected, parcel.status),
               clickable: true,
               zIndex: selected ? 30 : 10,
             });
@@ -265,7 +308,7 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
         } else {
           positions.forEach((position, index) => {
             cornerMarkers![index].setPosition(position);
-            cornerMarkers![index].setIcon(cornerLightIcon(maps, selected));
+            cornerMarkers![index].setIcon(cornerLightIcon(maps, selected, parcel.status));
             cornerMarkers![index].setZIndex(selected ? 30 : 10);
             cornerMarkers![index].setMap(mapInstanceRef.current);
           });
@@ -282,7 +325,7 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
         cornerMarkersRef.current.delete(parcel.id);
       }
       const existingMarker = markersRef.current.get(parcel.id);
-      const icon = markerIcon(maps, parcel.tier, selected);
+      const icon = markerIcon(maps, parcel.tier, selected, parcel.status);
       const markerOpacity = parcel.status === "sold" ? 0.42 : parcel.status === "reserved" ? 0.68 : 1;
       if (existingMarker) {
         existingMarker.setPosition({ lat: parcel.latitude, lng: parcel.longitude });
@@ -298,12 +341,28 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
   }, [parcels, selectedId, mapReady]);
 
   useEffect(() => {
-    if (!mapReady || !selectedId || !mapInstanceRef.current) return;
+    if (!mapReady || !selectedId || !mapInstanceRef.current) {
+      if (infoWindowRef.current) infoWindowRef.current.close();
+      return;
+    }
+    const maps = (window as any).google?.maps;
+    if (!maps) return;
     const selected = parcels.find((parcel) => parcel.id === selectedId);
-    if (selected) mapInstanceRef.current.panTo({ lat: selected.latitude, lng: selected.longitude });
+    if (!selected) {
+      infoWindowRef.current?.close();
+      return;
+    }
+    if (!infoWindowRef.current) {
+      infoWindowRef.current = new maps.InfoWindow({ disableAutoPan: false, pixelOffset: new maps.Size(0, -12) });
+    }
+    infoWindowRef.current.setContent(parcelInfoHtml(selected));
+    infoWindowRef.current.setPosition({ lat: selected.latitude, lng: selected.longitude });
+    infoWindowRef.current.open({ map: mapInstanceRef.current });
+    mapInstanceRef.current.panTo({ lat: selected.latitude, lng: selected.longitude });
   }, [selectedId, parcels, mapReady]);
 
   useEffect(() => () => {
+    infoWindowRef.current?.close();
     markersRef.current.forEach((marker) => marker.setMap(null));
     cornerMarkersRef.current.forEach((markers) => markers.forEach((marker) => marker.setMap(null)));
     polygonsRef.current.forEach((polygons) => polygons.forEach((polygon) => polygon.setMap(null)));
