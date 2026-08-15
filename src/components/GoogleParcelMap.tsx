@@ -2,16 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import type { Parcel } from "@/types/parcel";
 
 type CityCenter = { lat: number; lng: number };
-type LatLng = { lat: number; lng: number };
-type GeoJsonPolygon = { type: "Polygon"; coordinates: number[][][] };
-type GeoJsonMultiPolygon = { type: "MultiPolygon"; coordinates: number[][][][] };
-type ParcelWithGeometry = Parcel & { geometry?: GeoJsonPolygon | GeoJsonMultiPolygon | string | null };
+type ParcelWithGeometry = Parcel & { geometry?: unknown };
 type ViewportBounds = { minLat: number; minLng: number; maxLat: number; maxLng: number };
 type Props = { parcels: ParcelWithGeometry[]; selectedId: string | null; onSelect: (id: string) => void; onViewportChange?: (bounds: ViewportBounds) => void; center: CityCenter };
+
 type GoogleMapsApi = any;
 type GoogleMapInstance = any;
 type GoogleMarker = any;
-type GooglePolygon = any;
 
 const SCRIPT_ID = "myskyparcel-google-maps";
 let mapsPromise: Promise<GoogleMapsApi> | null = null;
@@ -43,18 +40,6 @@ function loadGoogleMaps(apiKey: string): Promise<GoogleMapsApi> {
   return mapsPromise;
 }
 
-function parseGeometry(value: ParcelWithGeometry["geometry"]): GeoJsonPolygon | GeoJsonMultiPolygon | null {
-  if (!value) return null;
-  if (typeof value === "object" && (value.type === "Polygon" || value.type === "MultiPolygon")) return value;
-  if (typeof value !== "string") return null;
-  try {
-    const parsed = JSON.parse(value);
-    return parsed?.type === "Polygon" || parsed?.type === "MultiPolygon" ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
 function statusColor(status: Parcel["status"]) {
   if (status === "sold") return "#ff4d6d";
   if (status === "reserved") return "#f6c453";
@@ -79,71 +64,15 @@ function tierLabel(tier: Parcel["tier"]) {
   return "Dijital";
 }
 
-function parcelStyle(tier: Parcel["tier"], status: Parcel["status"], selected: boolean, hovered: boolean, glow = false) {
-  const edgeColor = tierColor(tier);
-  const activeColor = selected ? statusColor(status) : edgeColor;
-  const statusOpacity = status === "sold" ? 0.38 : status === "reserved" ? 0.62 : 1;
-  if (glow) {
-    return {
-      strokeColor: edgeColor,
-      strokeOpacity: statusOpacity * (selected || hovered ? 0.62 : 0.22),
-      strokeWeight: selected ? 12 : hovered ? 8 : 6,
-      fillColor: edgeColor,
-      fillOpacity: 0,
-      clickable: false,
-    };
-  }
-  return {
-    strokeColor: activeColor,
-    strokeOpacity: selected || hovered ? 1 : 0.94,
-    strokeWeight: selected ? 3.2 : hovered ? 2.1 : 1.35,
-    fillColor: statusColor(status),
-    fillOpacity: statusOpacity * (selected ? 0.34 : hovered ? 0.10 : 0.025),
-    clickable: true,
-  };
-}
-
-function ringToPath(maps: any, ring: number[][]): LatLng[] {
-  return ring.map(([lng, lat]) => new maps.LatLng(lat, lng));
-}
-
-function polygonPathGroups(maps: any, geometry: GeoJsonPolygon | GeoJsonMultiPolygon): LatLng[][][] {
-  if (geometry.type === "Polygon") return [geometry.coordinates.map((ring) => ringToPath(maps, ring))];
-  return geometry.coordinates.map((polygon) => polygon.map((ring) => ringToPath(maps, ring)));
-}
-
-function cornerPositions(maps: any, geometry: GeoJsonPolygon | GeoJsonMultiPolygon): LatLng[] {
-  const rings = geometry.type === "Polygon" ? geometry.coordinates : geometry.coordinates.flatMap((polygon) => polygon);
-  const seen = new Set<string>();
-  const positions: LatLng[] = [];
-  rings.forEach((ring) => {
-    ring.forEach(([lng, lat], index) => {
-      if (index === ring.length - 1 && ring.length > 1 && ring[0][0] === lng && ring[0][1] === lat) return;
-      const key = `${lng.toFixed(7)},${lat.toFixed(7)}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      positions.push(new maps.LatLng(lat, lng));
-    });
-  });
-  return positions;
-}
-
-function markerIcon(maps: any, tier: Parcel["tier"], selected: boolean, status: Parcel["status"]) {
-  const fill = selected ? statusColor(status) : tierColor(tier);
-  const size = selected ? 18 : 12;
-  const stroke = selected ? "#ffffff" : "#061a2f";
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size + 8}" height="${size + 8}" viewBox="0 0 ${size + 8} ${size + 8}"><circle cx="${(size + 8) / 2}" cy="${(size + 8) / 2}" r="${size / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2"/></svg>`;
-  return { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: new maps.Size(size + 8, size + 8), anchor: new maps.Point((size + 8) / 2, (size + 8) / 2) };
-}
-
-function cornerLightIcon(maps: any, selected: boolean, status: Parcel["status"], tier: Parcel["tier"]) {
-  const color = selected ? statusColor(status) : tierColor(tier);
-  const size = selected ? 18 : 12;
-  const center = (size + 8) / 2;
-  const outer = selected ? 7 : 5;
-  const inner = selected ? 3.1 : 2.2;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size + 8}" height="${size + 8}" viewBox="0 0 ${size + 8} ${size + 8}"><circle cx="${center}" cy="${center}" r="${outer}" fill="${color}" fill-opacity="0.20"/><circle cx="${center}" cy="${center}" r="${outer - 1.6}" fill="${color}" fill-opacity="0.28"/><circle cx="${center}" cy="${center}" r="${inner}" fill="${selected ? "#ffffff" : color}" stroke="${color}" stroke-width="1"/><circle cx="${center}" cy="${center}" r="${selected ? 1.3 : 0.9}" fill="#ffffff"/></svg>`;
-  return { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: new maps.Size(size + 8, size + 8), anchor: new maps.Point(center, center) };
+function circularParcelIcon(maps: any, parcel: ParcelWithGeometry, selected: boolean) {
+  const tier = tierColor(parcel.tier);
+  const status = statusColor(parcel.status);
+  const edge = selected ? status : tier;
+  const fill = parcel.status === "sold" ? "#3d1020" : parcel.status === "reserved" ? "#3b2a0b" : "#071a2d";
+  const size = selected ? 16 : 9;
+  const glow = selected ? 7 : 3.5;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size + 16}" height="${size + 16}" viewBox="0 0 ${size + 16} ${size + 16}"><defs><filter id="g"><feGaussianBlur stdDeviation="2.5"/></filter></defs><rect x="8" y="8" width="${size}" height="${size}" rx="${selected ? 2 : 1}" fill="${edge}" opacity=".28" filter="url(#g)"/><rect x="8" y="8" width="${size}" height="${size}" rx="${selected ? 2 : 1}" fill="${fill}" stroke="${edge}" stroke-width="${selected ? 2 : 1}"/><circle cx="${8 + size / 2}" cy="${8 + size / 2}" r="${selected ? 1.8 : 0.9}" fill="${selected ? "#fff" : edge}"/><circle cx="${8 + size / 2}" cy="${8 + size / 2}" r="${glow}" fill="none" stroke="${status}" stroke-opacity="${selected ? .7 : .18}" stroke-width="1"/></svg>`;
+  return { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: new maps.Size(size + 16, size + 16), anchor: new maps.Point((size + 16) / 2, (size + 16) / 2) };
 }
 
 function parcelInfoHtml(parcel: ParcelWithGeometry) {
@@ -153,35 +82,35 @@ function parcelInfoHtml(parcel: ParcelWithGeometry) {
   const layer = parcel.layer_number ?? "—";
   const sector = parcel.sector_number ?? "—";
   const local = parcel.local_parcel_number ?? "—";
-  const isAvailable = parcel.status === "available";
+  const available = parcel.status === "available";
   return `<div class="myskyparcel-info" style="--parcel-status:${color}">
-    <button type="button" class="myskyparcel-info__close" data-parcel-action="close" aria-label="Parsel bilgi kutusunu kapat">×</button>
+    <button type="button" class="myskyparcel-info__close" data-parcel-action="close" aria-label="Kapat">×</button>
     <div class="myskyparcel-info__head"><div><div class="myskyparcel-info__eyebrow">GÖKYÜZÜ PARSELİ</div><div class="myskyparcel-info__title">${parcel.parcel_number}</div></div><span class="myskyparcel-info__status">${statusLabel(parcel.status)}</span></div>
     <div class="myskyparcel-info__grid">
-      <div><span>Şehir</span><strong>${city}</strong></div>
-      <div><span>Katman</span><strong>${layer}</strong></div>
-      <div><span>Sektör</span><strong>${sector}</strong></div>
-      <div><span>Yerel Parsel</span><strong>${local}</strong></div>
-      <div><span>Parsel Tipi</span><strong>${tierLabel(parcel.tier)}</strong></div>
-      <div><span>Fiyat</span><strong>${price}</strong></div>
+      <div><span>Şehir</span><strong>${city}</strong></div><div><span>Katman</span><strong>${layer}</strong></div>
+      <div><span>Sektör</span><strong>${sector}</strong></div><div><span>Yerel Parsel</span><strong>${local}</strong></div>
+      <div><span>Parsel Tipi</span><strong>${tierLabel(parcel.tier)}</strong></div><div><span>Fiyat</span><strong>${price}</strong></div>
     </div>
-    ${isAvailable ? `<button type="button" class="myskyparcel-info__buy" data-parcel-action="buy">SATIN AL</button>` : `<div class="myskyparcel-info__unavailable">${statusLabel(parcel.status)} olduğu için satın alınamaz.</div>`}
+    ${available ? `<button type="button" class="myskyparcel-info__buy" data-parcel-action="buy">SATIN AL</button>` : `<div class="myskyparcel-info__unavailable">${statusLabel(parcel.status)} olduğu için satın alınamaz.</div>`}
   </div>`;
 }
 
 export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChange, center }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<GoogleMapInstance | null>(null);
-  const infoWindowRef = useRef<any>(null);
-  const infoWindowDomListenerRef = useRef<any>(null);
   const markersRef = useRef<Map<string, GoogleMarker>>(new Map());
-  const cornerMarkersRef = useRef<Map<string, GoogleMarker[]>>(new Map());
-  const polygonsRef = useRef<Map<string, GooglePolygon[]>>(new Map());
+  const positionsRef = useRef<Map<string, any>>(new Map());
+  const animationRef = useRef<number | null>(null);
+  const rotationRef = useRef(0);
+  const selectedRef = useRef(selectedId);
   const onSelectRef = useRef(onSelect);
   const onViewportChangeRef = useRef(onViewportChange);
+  const infoWindowRef = useRef<any>(null);
+  const infoListenerRef = useRef<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
+  useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
   useEffect(() => { onViewportChangeRef.current = onViewportChange; }, [onViewportChange]);
 
@@ -190,137 +119,141 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
     if (document.getElementById(styleId)) return;
     const style = document.createElement("style");
     style.id = styleId;
-    style.textContent = `.gm-style .gm-style-iw-c{background:transparent!important;box-shadow:none!important;padding:0!important;border-radius:0!important}.gm-style .gm-style-iw-d{overflow:visible!important;padding:0!important}.gm-style .gm-style-iw-tc{display:none!important}.gm-style .gm-ui-hover-effect{display:none!important}.myskyparcel-info{position:relative;width:252px;box-sizing:border-box;padding:11px;border:1px solid color-mix(in srgb,var(--parcel-status) 70%,white 10%);border-radius:13px;background:linear-gradient(145deg,rgba(5,18,35,.97),rgba(3,10,24,.94));color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.05),0 8px 24px rgba(0,0,0,.48),0 0 18px color-mix(in srgb,var(--parcel-status) 25%,transparent);font-family:Inter,system-ui,sans-serif}.myskyparcel-info:after{content:"";position:absolute;left:50%;bottom:-7px;width:12px;height:12px;transform:translateX(-50%) rotate(45deg);background:#071326;border-right:1px solid var(--parcel-status);border-bottom:1px solid var(--parcel-status)}.myskyparcel-info__close{position:absolute;right:7px;top:6px;z-index:5;width:22px;height:22px;border:1px solid rgba(255,255,255,.16);border-radius:50%;background:rgba(255,255,255,.06);color:rgba(255,255,255,.78);font-size:17px;line-height:18px;cursor:pointer}.myskyparcel-info__head{position:relative;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:0 27px 8px 0;border-bottom:1px solid rgba(255,255,255,.10)}.myskyparcel-info__eyebrow{font-size:7px;letter-spacing:.14em;color:rgba(255,255,255,.52);font-weight:700}.myskyparcel-info__title{margin-top:2px;font-size:15px;line-height:1.1;font-weight:800}.myskyparcel-info__status{display:inline-flex;align-items:center;white-space:nowrap;border:1px solid color-mix(in srgb,var(--parcel-status) 70%,transparent);border-radius:999px;padding:4px 6px;color:var(--parcel-status);font-size:8px;font-weight:800;background:color-mix(in srgb,var(--parcel-status) 12%,transparent)}.myskyparcel-info__grid{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:7px 10px;padding-top:8px}.myskyparcel-info__grid>div{min-width:0}.myskyparcel-info__grid span{display:block;font-size:7px;color:rgba(255,255,255,.45);margin-bottom:1px}.myskyparcel-info__grid strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;color:rgba(255,255,255,.92);font-weight:700}.myskyparcel-info__buy{position:relative;z-index:2;width:100%;margin-top:10px;border:1px solid color-mix(in srgb,var(--parcel-status) 75%,white 8%);border-radius:8px;padding:8px 10px;background:linear-gradient(135deg,color-mix(in srgb,var(--parcel-status) 78%,#071326 22%),color-mix(in srgb,var(--parcel-status) 52%,#071326 48%));color:#fff;font-size:9px;font-weight:800;letter-spacing:.08em;cursor:pointer;box-shadow:0 0 14px color-mix(in srgb,var(--parcel-status) 22%,transparent)}.myskyparcel-info__unavailable{position:relative;z-index:1;margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08);font-size:8px;line-height:1.35;color:rgba(255,255,255,.48);text-align:center}`;
+    style.textContent = `.gm-style .gm-style-iw-c{background:transparent!important;box-shadow:none!important;padding:0!important;border-radius:0!important}.gm-style .gm-style-iw-d{overflow:visible!important;padding:0!important}.gm-style .gm-style-iw-tc{display:none!important}.gm-style .gm-ui-hover-effect{display:none!important}.myskyparcel-info{position:relative;width:252px;box-sizing:border-box;padding:11px;border:1px solid color-mix(in srgb,var(--parcel-status) 70%,white 10%);border-radius:13px;background:linear-gradient(145deg,rgba(5,18,35,.97),rgba(3,10,24,.94));color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.48),0 0 18px color-mix(in srgb,var(--parcel-status) 25%,transparent);font-family:Inter,system-ui,sans-serif}.myskyparcel-info:after{content:"";position:absolute;left:50%;bottom:-7px;width:12px;height:12px;transform:translateX(-50%) rotate(45deg);background:#071326;border-right:1px solid var(--parcel-status);border-bottom:1px solid var(--parcel-status)}.myskyparcel-info__close{position:absolute;right:7px;top:6px;width:22px;height:22px;border:1px solid rgba(255,255,255,.16);border-radius:50%;background:rgba(255,255,255,.06);color:rgba(255,255,255,.78);font-size:17px;cursor:pointer}.myskyparcel-info__head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:0 27px 8px 0;border-bottom:1px solid rgba(255,255,255,.1)}.myskyparcel-info__eyebrow{font-size:7px;letter-spacing:.14em;color:rgba(255,255,255,.52);font-weight:700}.myskyparcel-info__title{margin-top:2px;font-size:15px;font-weight:800}.myskyparcel-info__status{border:1px solid var(--parcel-status);border-radius:999px;padding:4px 6px;color:var(--parcel-status);font-size:8px;font-weight:800}.myskyparcel-info__grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 10px;padding-top:8px}.myskyparcel-info__grid span{display:block;font-size:7px;color:rgba(255,255,255,.45)}.myskyparcel-info__grid strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px}.myskyparcel-info__buy{width:100%;margin-top:10px;border:1px solid var(--parcel-status);border-radius:8px;padding:8px;background:color-mix(in srgb,var(--parcel-status) 55%,#071326 45%);color:#fff;font-size:9px;font-weight:800;letter-spacing:.08em;cursor:pointer}.myskyparcel-info__unavailable{margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08);font-size:8px;color:rgba(255,255,255,.48);text-align:center}`;
     document.head.appendChild(style);
-    return () => { style.remove(); };
+    return () => style.remove();
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) { setError("Google Maps API anahtarı eksik. Vercel ortam değişkenlerine VITE_GOOGLE_MAPS_API_KEY eklenmelidir."); return; }
+    if (!apiKey) { setError("Google Maps API anahtarı eksik."); return; }
     if (!mapRef.current) return;
     void loadGoogleMaps(apiKey).then((maps) => {
       if (cancelled || !mapRef.current) return;
-      setError(null);
       if (!mapInstanceRef.current) {
-        mapInstanceRef.current = new maps.Map(mapRef.current, { center, zoom: 11, mapTypeId: "satellite", streetViewControl: false, fullscreenControl: false, mapTypeControl: false, gestureHandling: "greedy", clickableIcons: false, backgroundColor: "#071a2d" });
+        mapInstanceRef.current = new maps.Map(mapRef.current, { center, zoom: 12, mapTypeId: "satellite", streetViewControl: false, fullscreenControl: false, mapTypeControl: false, gestureHandling: "greedy", clickableIcons: false, backgroundColor: "#071a2d" });
       } else mapInstanceRef.current.setCenter(center);
-      setMapReady(true);
-    }).catch((loadError) => { console.error("Google Maps load error", loadError); if (!cancelled) setError("Google Maps yüklenemedi. API anahtarını ve Maps JavaScript API yetkisini kontrol edin."); });
+      setError(null); setMapReady(true);
+    }).catch((e) => { console.error(e); if (!cancelled) setError("Google Maps yüklenemedi. API anahtarını kontrol edin."); });
     return () => { cancelled = true; };
   }, [center.lat, center.lng]);
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !onViewportChangeRef.current) return;
-    const map = mapInstanceRef.current; const maps = (window as any).google?.maps; if (!maps) return;
-    const emitBounds = () => { const bounds = map.getBounds(); if (!bounds) return; const ne = bounds.getNorthEast(); const sw = bounds.getSouthWest(); onViewportChangeRef.current?.({ minLat: sw.lat(), minLng: sw.lng(), maxLat: ne.lat(), maxLng: ne.lng() }); };
-    const listener = maps.event.addListener(map, "idle", emitBounds); emitBounds();
+    const maps = (window as any).google?.maps; const map = mapInstanceRef.current;
+    const emit = () => { const b = map.getBounds(); if (!b) return; const ne = b.getNorthEast(); const sw = b.getSouthWest(); onViewportChangeRef.current?.({ minLat: sw.lat(), minLng: sw.lng(), maxLat: ne.lat(), maxLng: ne.lng() }); };
+    const listener = maps.event.addListener(map, "idle", emit); emit();
     return () => maps.event.removeListener(listener);
   }, [mapReady]);
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current) return;
-    const maps = (window as any).google?.maps; if (!maps) return;
-    const ids = new Set(parcels.map((parcel) => parcel.id));
-    markersRef.current.forEach((marker, id) => { if (!ids.has(id)) { marker.setMap(null); markersRef.current.delete(id); } });
-    cornerMarkersRef.current.forEach((markers, id) => { if (!ids.has(id)) { markers.forEach((marker) => marker.setMap(null)); cornerMarkersRef.current.delete(id); } });
-    polygonsRef.current.forEach((polygons, id) => { if (!ids.has(id)) { polygons.forEach((polygon) => polygon.setMap(null)); polygonsRef.current.delete(id); } });
+    const maps = (window as any).google?.maps;
+    if (!maps) return;
+    markersRef.current.forEach((marker) => marker.setMap(null));
+    markersRef.current.clear(); positionsRef.current.clear();
+    rotationRef.current = 0;
 
-    parcels.forEach((parcel) => {
-      const selected = parcel.id === selectedId;
-      const geometry = parseGeometry(parcel.geometry);
-      if (geometry) {
-        const pathGroups = polygonPathGroups(maps, geometry);
-        let polygons = polygonsRef.current.get(parcel.id);
-        const expectedPolygonCount = pathGroups.length * 2;
-        if (!polygons || polygons.length !== expectedPolygonCount) {
-          polygons?.forEach((polygon) => polygon.setMap(null)); polygons = [];
-          pathGroups.forEach((paths) => {
-            const glow = new maps.Polygon({ map: mapInstanceRef.current, paths, ...parcelStyle(parcel.tier, parcel.status, selected, false, true), zIndex: selected ? 19 : 0 });
-            const polygon = new maps.Polygon({ map: mapInstanceRef.current, paths, ...parcelStyle(parcel.tier, parcel.status, selected, false, false), zIndex: selected ? 20 : 1 });
-            polygon.addListener("click", () => onSelectRef.current(parcel.id));
-            polygon.addListener("mouseover", () => { polygon.setOptions({ ...parcelStyle(parcel.tier, parcel.status, parcel.id === selectedId, true, false), zIndex: 20 }); glow.setOptions({ ...parcelStyle(parcel.tier, parcel.status, parcel.id === selectedId, true, true), zIndex: 19 }); });
-            polygon.addListener("mouseout", () => { polygon.setOptions({ ...parcelStyle(parcel.tier, parcel.status, parcel.id === selectedId, false, false), zIndex: parcel.id === selectedId ? 20 : 1 }); glow.setOptions({ ...parcelStyle(parcel.tier, parcel.status, parcel.id === selectedId, false, true), zIndex: parcel.id === selectedId ? 19 : 0 }); });
-            polygons!.push(glow, polygon);
-          });
-          polygonsRef.current.set(parcel.id, polygons);
-        } else {
-          pathGroups.forEach((paths, index) => {
-            const glow = polygons![index * 2]; const polygon = polygons![index * 2 + 1];
-            glow.setPaths(paths); polygon.setPaths(paths);
-            glow.setOptions({ ...parcelStyle(parcel.tier, parcel.status, selected, false, true), zIndex: selected ? 19 : 0, visible: true });
-            polygon.setOptions({ ...parcelStyle(parcel.tier, parcel.status, selected, false, false), zIndex: selected ? 20 : 1, visible: true });
-          });
-        }
-        const positions = cornerPositions(maps, geometry);
-        let cornerMarkers = cornerMarkersRef.current.get(parcel.id);
-        if (!cornerMarkers || cornerMarkers.length !== positions.length) {
-          cornerMarkers?.forEach((marker) => marker.setMap(null));
-          cornerMarkers = positions.map((position) => {
-            const marker = new maps.Marker({ map: mapInstanceRef.current, position, icon: cornerLightIcon(maps, selected, parcel.status, parcel.tier), clickable: true, zIndex: selected ? 30 : 10 });
-            marker.addListener("click", () => onSelectRef.current(parcel.id)); return marker;
-          });
-          cornerMarkersRef.current.set(parcel.id, cornerMarkers);
-        } else {
-          positions.forEach((position, index) => { cornerMarkers![index].setPosition(position); cornerMarkers![index].setIcon(cornerLightIcon(maps, selected, parcel.status, parcel.tier)); cornerMarkers![index].setZIndex(selected ? 30 : 10); cornerMarkers![index].setMap(mapInstanceRef.current); });
-        }
-        const oldMarker = markersRef.current.get(parcel.id); if (oldMarker) { oldMarker.setMap(null); markersRef.current.delete(parcel.id); }
-        return;
-      }
+    const groups = {
+      digital: parcels.filter((p) => p.tier === "digital"),
+      elite: parcels.filter((p) => p.tier === "elite"),
+      premium: parcels.filter((p) => p.tier === "premium"),
+    };
+    const rings: Array<{ tier: Parcel["tier"]; items: ParcelWithGeometry[]; radius: number }> = [
+      { tier: "digital", items: groups.digital, radius: 0.105 },
+      { tier: "elite", items: groups.elite, radius: 0.062 },
+      { tier: "premium", items: groups.premium, radius: 0.028 },
+    ];
 
-      const oldCornerMarkers = cornerMarkersRef.current.get(parcel.id);
-      if (oldCornerMarkers) { oldCornerMarkers.forEach((marker) => marker.setMap(null)); cornerMarkersRef.current.delete(parcel.id); }
-      const existingMarker = markersRef.current.get(parcel.id);
-      const icon = markerIcon(maps, parcel.tier, selected, parcel.status);
-      const markerOpacity = parcel.status === "sold" ? 0.42 : parcel.status === "reserved" ? 0.68 : 1;
-      if (existingMarker) { existingMarker.setPosition({ lat: parcel.latitude, lng: parcel.longitude }); existingMarker.setTitle(parcel.parcel_number); existingMarker.setIcon(icon); existingMarker.setOpacity(markerOpacity); }
-      else { const marker = new maps.Marker({ map: mapInstanceRef.current, position: { lat: parcel.latitude, lng: parcel.longitude }, title: parcel.parcel_number, icon, opacity: markerOpacity }); marker.addListener("click", () => onSelectRef.current(parcel.id)); markersRef.current.set(parcel.id, marker); }
+    const createPosition = (angle: number, radius: number) => {
+      const latRadius = radius;
+      const lngRadius = radius / Math.max(Math.cos((center.lat * Math.PI) / 180), 0.2);
+      return new maps.LatLng(center.lat + Math.sin(angle) * latRadius, center.lng + Math.cos(angle) * lngRadius);
+    };
+
+    const layouts = new Map<string, { angle: number; radius: number; tier: Parcel["tier"] }>();
+    rings.forEach(({ tier, items, radius }) => {
+      items.forEach((parcel, index) => {
+        const angle = (index / Math.max(items.length, 1)) * Math.PI * 2;
+        layouts.set(parcel.id, { angle, radius, tier });
+        const position = createPosition(angle, radius);
+        positionsRef.current.set(parcel.id, position);
+        const marker = new maps.Marker({ map: mapInstanceRef.current, position, title: `${parcel.parcel_number} · ${tierLabel(tier)}`, icon: circularParcelIcon(maps, parcel, parcel.id === selectedId), optimized: true, zIndex: tier === "premium" ? 30 : tier === "elite" ? 20 : 10 });
+        marker.addListener("click", () => onSelectRef.current(parcel.id));
+        markersRef.current.set(parcel.id, marker);
+      });
     });
-  }, [parcels, selectedId, mapReady]);
+
+    const animate = () => {
+      rotationRef.current += 0.0022;
+      layouts.forEach((layout, id) => {
+        const marker = markersRef.current.get(id); if (!marker) return;
+        const position = createPosition(layout.angle + rotationRef.current, layout.radius);
+        positionsRef.current.set(id, position); marker.setPosition(position);
+      });
+      const selected = selectedRef.current;
+      if (selected && infoWindowRef.current) {
+        const position = positionsRef.current.get(selected); if (position) infoWindowRef.current.setPosition(position);
+      }
+      animationRef.current = window.setTimeout(animate, 65) as unknown as number;
+    };
+    animate();
+
+    return () => {
+      if (animationRef.current !== null) { window.clearTimeout(animationRef.current); animationRef.current = null; }
+      markersRef.current.forEach((marker) => marker.setMap(null));
+      markersRef.current.clear(); positionsRef.current.clear();
+    };
+  }, [parcels, mapReady, center.lat, center.lng]);
 
   useEffect(() => {
-    if (!mapReady || !selectedId || !mapInstanceRef.current) { if (infoWindowRef.current) infoWindowRef.current.close(); return; }
+    if (!mapReady || !mapInstanceRef.current) return;
     const maps = (window as any).google?.maps; if (!maps) return;
-    const selected = parcels.find((parcel) => parcel.id === selectedId);
-    if (!selected) { infoWindowRef.current?.close(); return; }
-    if (!infoWindowRef.current) infoWindowRef.current = new maps.InfoWindow({ disableAutoPan: true, pixelOffset: new maps.Size(0, -8) });
-    infoWindowRef.current.setContent(parcelInfoHtml(selected));
-    infoWindowRef.current.setPosition({ lat: selected.latitude, lng: selected.longitude });
-    infoWindowRef.current.open({ map: mapInstanceRef.current });
-    if (infoWindowDomListenerRef.current) { maps.event.removeListener(infoWindowDomListenerRef.current); infoWindowDomListenerRef.current = null; }
-    infoWindowDomListenerRef.current = maps.event.addListener(infoWindowRef.current, "domready", () => {
+    markersRef.current.forEach((marker, id) => {
+      const parcel = parcels.find((p) => p.id === id); if (!parcel) return;
+      marker.setIcon(circularParcelIcon(maps, parcel, id === selectedId));
+      marker.setZIndex(id === selectedId ? 100 : parcel.tier === "premium" ? 30 : parcel.tier === "elite" ? 20 : 10);
+    });
+  }, [selectedId, parcels, mapReady]);
+
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current) return;
+    const maps = (window as any).google?.maps; if (!maps) return;
+    if (!selectedId) { infoWindowRef.current?.close(); return; }
+    const selected = parcels.find((p) => p.id === selectedId); const position = positionsRef.current.get(selectedId);
+    if (!selected || !position) return;
+    if (!infoWindowRef.current) infoWindowRef.current = new maps.InfoWindow({ disableAutoPan: true, pixelOffset: new maps.Size(0, -12) });
+    infoWindowRef.current.setContent(parcelInfoHtml(selected)); infoWindowRef.current.setPosition(position); infoWindowRef.current.open({ map: mapInstanceRef.current });
+    if (infoListenerRef.current) maps.event.removeListener(infoListenerRef.current);
+    infoListenerRef.current = maps.event.addListener(infoWindowRef.current, "domready", () => {
       const root = document.querySelector(".myskyparcel-info"); if (!(root instanceof HTMLElement)) return;
       root.querySelector('[data-parcel-action="close"]')?.addEventListener("click", () => onSelectRef.current(""), { once: true });
-      root.querySelector('[data-parcel-action="buy"]')?.addEventListener("click", () => { document.getElementById("myskyparcel-purchase-action")?.click(); }, { once: true });
+      root.querySelector('[data-parcel-action="buy"]')?.addEventListener("click", () => document.getElementById("myskyparcel-purchase-action")?.click(), { once: true });
     });
   }, [selectedId, parcels, mapReady]);
 
   useEffect(() => () => {
-    if (infoWindowDomListenerRef.current) { const maps = (window as any).google?.maps; maps?.event.removeListener(infoWindowDomListenerRef.current); }
-    infoWindowRef.current?.close();
-    markersRef.current.forEach((marker) => marker.setMap(null));
-    cornerMarkersRef.current.forEach((markers) => markers.forEach((marker) => marker.setMap(null)));
-    polygonsRef.current.forEach((polygons) => polygons.forEach((polygon) => polygon.setMap(null)));
-    markersRef.current.clear(); cornerMarkersRef.current.clear(); polygonsRef.current.clear(); mapInstanceRef.current = null;
+    if (animationRef.current !== null) window.clearTimeout(animationRef.current);
+    if (infoListenerRef.current) { const maps = (window as any).google?.maps; maps?.event.removeListener(infoListenerRef.current); }
+    infoWindowRef.current?.close(); markersRef.current.forEach((marker) => marker.setMap(null));
+    markersRef.current.clear(); positionsRef.current.clear(); mapInstanceRef.current = null;
   }, []);
 
   return (
     <div className="relative h-[560px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[680px] lg:h-[760px]">
-      <div ref={mapRef} className="absolute inset-0" aria-label="MySkyParcel Google Maps parsel haritası" />
-      {error && <div className="absolute inset-0 grid place-items-center bg-[#071a2d] p-6 text-center"><div className="max-w-md rounded-2xl border border-amber-200/20 bg-slate-950/85 p-6 shadow-2xl backdrop-blur-md"><p className="text-sm font-semibold text-white">Google Maps hazır değil</p><p className="mt-2 text-xs leading-5 text-white/60">{error}</p></div></div>}
+      <div ref={mapRef} className="absolute inset-0" aria-label="MySkyParcel dairesel gökyüzü parsel haritası" />
+      {error && <div className="absolute inset-0 grid place-items-center bg-[#071a2d] p-6 text-center"><div className="max-w-md rounded-2xl border border-amber-200/20 bg-slate-950/85 p-6"><p className="text-sm font-semibold text-white">Google Maps hazır değil</p><p className="mt-2 text-xs text-white/60">{error}</p></div></div>}
       {!error && parcels.length === 0 && <div className="absolute inset-0 grid place-items-center bg-[#071a2d]/35 text-sm text-white/60">Bu şehir için gösterilecek parsel bulunamadı.</div>}
-      <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-cyan-200/20 bg-slate-950/70 px-3 py-2 text-xs font-medium text-white/90 shadow-lg backdrop-blur-md sm:left-5 sm:top-5">MySkyParcel · Gökten parsel görünümü</div>
-      <div className="pointer-events-none absolute bottom-4 left-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-slate-950/80 p-2.5 text-[10px] text-white/80 shadow-lg backdrop-blur-md sm:left-5 sm:bottom-5 sm:gap-4 sm:text-xs">
-        <span className="font-semibold text-white/90">PARSEL DURUMU</span>
-        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(88,230,255,0.95)]" />Satışta</span>
-        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(246,196,83,0.9)]" />Rezerve</span>
-        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(255,77,109,0.9)]" />Satıldı</span>
-        <span className="mx-1 h-4 w-px bg-white/15" />
+      {!error && parcels.length > 0 && <div className="pointer-events-none absolute left-1/2 top-4 z-10 -translate-x-1/2 rounded-full border border-cyan-200/20 bg-slate-950/75 px-4 py-2 text-center text-[10px] font-semibold tracking-[.12em] text-white/90 shadow-lg backdrop-blur-md sm:top-5">MY SKY PARCEL · DİJİTAL GÖKYÜZÜ HALKASI</div>}
+      <div className="pointer-events-none absolute bottom-4 left-4 z-10 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-slate-950/80 p-2.5 text-[10px] text-white/80 shadow-lg backdrop-blur-md sm:left-5 sm:bottom-5 sm:gap-4 sm:text-xs">
         <span className="font-semibold text-white/90">PARSEL TİPİ</span>
-        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-sky-300 shadow-[0_0_8px_rgba(85,201,255,0.9)]" />Dijital</span>
-        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-violet-300 shadow-[0_0_8px_rgba(183,124,255,0.9)]" />Elit</span>
-        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(246,196,83,0.9)]" />Premium</span>
+        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-sky-300 shadow-[0_0_8px_rgba(85,201,255,.9)]" />Dijital · Dış</span>
+        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-violet-300 shadow-[0_0_8px_rgba(183,124,255,.9)]" />Elit · Orta</span>
+        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(246,196,83,.9)]" />Premium · İç</span>
+        <span className="mx-1 h-4 w-px bg-white/15" />
+        <span className="font-semibold text-white/90">DURUM</span>
+        <span>🔵 Satışta</span><span>🟡 Rezerve</span><span>🔴 Satıldı</span>
       </div>
     </div>
   );
