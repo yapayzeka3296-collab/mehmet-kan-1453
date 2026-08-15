@@ -7,15 +7,7 @@ type GeoJsonPolygon = { type: "Polygon"; coordinates: number[][][] };
 type GeoJsonMultiPolygon = { type: "MultiPolygon"; coordinates: number[][][][] };
 type ParcelWithGeometry = Parcel & { geometry?: GeoJsonPolygon | GeoJsonMultiPolygon | null };
 type ViewportBounds = { minLat: number; minLng: number; maxLat: number; maxLng: number };
-
-type Props = {
-  parcels: ParcelWithGeometry[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  onViewportChange?: (bounds: ViewportBounds) => void;
-  center: CityCenter;
-};
-
+type Props = { parcels: ParcelWithGeometry[]; selectedId: string | null; onSelect: (id: string) => void; onViewportChange?: (bounds: ViewportBounds) => void; center: CityCenter };
 type GoogleMapsApi = any;
 type GoogleMapInstance = any;
 type GoogleMarker = any;
@@ -30,31 +22,20 @@ function loadGoogleMaps(apiKey: string): Promise<GoogleMapsApi> {
   if (mapsPromise) return mapsPromise;
   mapsPromise = new Promise((resolve, reject) => {
     const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
-    const finish = () => {
-      const maps = (window as any).google?.maps;
-      if (maps) resolve(maps);
-      else reject(new Error("Google Maps API yüklenemedi."));
-    };
-    if (existing) {
-      existing.addEventListener("load", finish, { once: true });
-      existing.addEventListener("error", () => reject(new Error("Google Maps script yüklenemedi.")), { once: true });
-      return;
-    }
+    const finish = () => { const maps = (window as any).google?.maps; if (maps) resolve(maps); else reject(new Error("Google Maps API yüklenemedi.")); };
+    if (existing) { existing.addEventListener("load", finish, { once: true }); existing.addEventListener("error", () => reject(new Error("Google Maps script yüklenemedi.")), { once: true }); return; }
     const script = document.createElement("script");
-    script.id = SCRIPT_ID;
-    script.async = true;
-    script.defer = true;
+    script.id = SCRIPT_ID; script.async = true; script.defer = true;
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`;
-    script.onload = finish;
-    script.onerror = () => reject(new Error("Google Maps script yüklenemedi."));
+    script.onload = finish; script.onerror = () => reject(new Error("Google Maps script yüklenemedi."));
     document.head.appendChild(script);
   });
   return mapsPromise;
 }
 
-function tierStyle(tier: Parcel["tier"], selected: boolean) {
+function tierStyle(tier: Parcel["tier"], selected: boolean, hovered: boolean) {
   const color = tier === "premium" ? "#f6c453" : tier === "elite" ? "#b77cff" : "#55c9ff";
-  return { strokeColor: selected ? "#ffffff" : color, strokeOpacity: selected ? 1 : 0.9, strokeWeight: selected ? 3 : 1.5, fillColor: color, fillOpacity: selected ? 0.42 : 0.18 };
+  return { strokeColor: selected ? "#ffffff" : color, strokeOpacity: selected || hovered ? 1 : 0.82, strokeWeight: selected ? 3 : hovered ? 2.5 : 1.25, fillColor: color, fillOpacity: selected ? 0.48 : hovered ? 0.3 : 0.16 };
 }
 
 function polygonPaths(maps: any, geometry: GeoJsonPolygon | GeoJsonMultiPolygon): LatLng[][] {
@@ -95,25 +76,16 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
         mapInstanceRef.current = new maps.Map(mapRef.current, { center, zoom: 11, mapTypeId: "roadmap", streetViewControl: false, fullscreenControl: false, mapTypeControl: false, gestureHandling: "greedy", clickableIcons: false, backgroundColor: "#071a2d" });
       } else mapInstanceRef.current.setCenter(center);
       setMapReady(true);
-    }).catch((loadError) => {
-      console.error("Google Maps load error", loadError);
-      if (!cancelled) setError("Google Maps yüklenemedi. API anahtarını ve Maps JavaScript API yetkisini kontrol edin.");
-    });
+    }).catch((loadError) => { console.error("Google Maps load error", loadError); if (!cancelled) setError("Google Maps yüklenemedi. API anahtarını ve Maps JavaScript API yetkisini kontrol edin."); });
     return () => { cancelled = true; };
   }, [center.lat, center.lng]);
 
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !onViewportChangeRef.current) return;
     const map = mapInstanceRef.current;
-    const emitBounds = () => {
-      const bounds = map.getBounds();
-      if (!bounds) return;
-      const ne = bounds.getNorthEast();
-      const sw = bounds.getSouthWest();
-      onViewportChangeRef.current?.({ minLat: sw.lat(), minLng: sw.lng(), maxLat: ne.lat(), maxLng: ne.lng() });
-    };
     const maps = (window as any).google?.maps;
     if (!maps) return;
+    const emitBounds = () => { const bounds = map.getBounds(); if (!bounds) return; const ne = bounds.getNorthEast(); const sw = bounds.getSouthWest(); onViewportChangeRef.current?.({ minLat: sw.lat(), minLng: sw.lng(), maxLat: ne.lat(), maxLng: ne.lng() }); };
     const listener = maps.event.addListener(map, "idle", emitBounds);
     emitBounds();
     return () => maps.event.removeListener(listener);
@@ -129,8 +101,7 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
 
     parcels.forEach((parcel) => {
       const selected = parcel.id === selectedId;
-      const opacity = parcel.status === "sold" ? 0.45 : parcel.status === "reserved" ? 0.7 : 1;
-      const style = tierStyle(parcel.tier, selected);
+      const opacity = parcel.status === "sold" ? 0.42 : parcel.status === "reserved" ? 0.68 : 1;
       const geometry = parcel.geometry;
       if (geometry) {
         let polygons = polygonsRef.current.get(parcel.id);
@@ -138,25 +109,24 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
         if (!polygons || polygons.length !== paths.length) {
           polygons?.forEach((polygon) => polygon.setMap(null));
           polygons = paths.map((path) => {
-            const polygon = new maps.Polygon({ map: mapInstanceRef.current, paths: path, ...style, clickable: true });
-            polygon.setOptions({ visible: opacity > 0 });
+            const polygon = new maps.Polygon({ map: mapInstanceRef.current, paths: path, ...tierStyle(parcel.tier, selected, false), clickable: true, zIndex: selected ? 20 : 1 });
+            polygon.setOptions({ visible: true });
             polygon.addListener("click", () => onSelectRef.current(parcel.id));
+            polygon.addListener("mouseover", () => polygon.setOptions({ ...tierStyle(parcel.tier, parcel.id === selectedId, true), zIndex: 10 }));
+            polygon.addListener("mouseout", () => polygon.setOptions({ ...tierStyle(parcel.tier, parcel.id === selectedId, false), zIndex: parcel.id === selectedId ? 20 : 1 }));
             return polygon;
           });
           polygonsRef.current.set(parcel.id, polygons);
-        } else polygons.forEach((polygon, index) => { polygon.setPath(paths[index]); polygon.setOptions({ ...style, visible: opacity > 0 }); });
+        } else polygons.forEach((polygon, index) => { polygon.setPath(paths[index]); polygon.setOptions({ ...tierStyle(parcel.tier, selected, false), zIndex: selected ? 20 : 1, visible: true }); });
+        polygons.forEach((polygon) => polygon.setOptions({ opacity }));
         const oldMarker = markersRef.current.get(parcel.id);
         if (oldMarker) { oldMarker.setMap(null); markersRef.current.delete(parcel.id); }
         return;
       }
       const existingMarker = markersRef.current.get(parcel.id);
       const icon = markerIcon(maps, parcel.tier, selected);
-      if (existingMarker) {
-        existingMarker.setPosition({ lat: parcel.latitude, lng: parcel.longitude });
-        existingMarker.setTitle(parcel.parcel_number);
-        existingMarker.setIcon(icon);
-        existingMarker.setOpacity(opacity);
-      } else {
+      if (existingMarker) { existingMarker.setPosition({ lat: parcel.latitude, lng: parcel.longitude }); existingMarker.setTitle(parcel.parcel_number); existingMarker.setIcon(icon); existingMarker.setOpacity(opacity); }
+      else {
         const marker = new maps.Marker({ map: mapInstanceRef.current, position: { lat: parcel.latitude, lng: parcel.longitude }, title: parcel.parcel_number, icon, opacity });
         marker.addListener("click", () => onSelectRef.current(parcel.id));
         markersRef.current.set(parcel.id, marker);
@@ -173,9 +143,7 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
   useEffect(() => () => {
     markersRef.current.forEach((marker) => marker.setMap(null));
     polygonsRef.current.forEach((polygons) => polygons.forEach((polygon) => polygon.setMap(null)));
-    markersRef.current.clear();
-    polygonsRef.current.clear();
-    mapInstanceRef.current = null;
+    markersRef.current.clear(); polygonsRef.current.clear(); mapInstanceRef.current = null;
   }, []);
 
   return (
