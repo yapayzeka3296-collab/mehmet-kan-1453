@@ -1,13 +1,10 @@
 export type ParcelRenderDetail = 1 | 2 | 3 | 4;
 
-/**
- * Centralized zoom policy for the parcel map.
- * Keeps rendering decisions out of data fetching and purchase logic.
- */
+/** Centralized zoom policy used by the map renderer. */
 export function getParcelRenderDetail(zoomLevel: number): ParcelRenderDetail {
-  if (zoomLevel <= 1) return 1;
-  if (zoomLevel === 2) return 2;
-  if (zoomLevel === 3) return 3;
+  if (zoomLevel <= 10) return 1;
+  if (zoomLevel <= 12) return 2;
+  if (zoomLevel <= 15) return 3;
   return 4;
 }
 
