@@ -56,8 +56,9 @@ function parseGeometry(value: ParcelWithGeometry["geometry"]): GeoJsonPolygon | 
 }
 
 // Premium sky-map parcel language: cyan neon boundaries, subtle outer glow,
-// transparent fill, and a bright selected parcel. Tier colors remain available
-// in the legend/metadata, while the map geometry itself keeps one visual system.
+// transparent fill, bright corner lights, and a bright selected parcel.
+// Tier colors remain available in the legend/metadata, while the map geometry
+// itself keeps one visual system.
 function parcelStyle(status: Parcel["status"], selected: boolean, hovered: boolean, glow = false) {
   const statusOpacity = status === "sold" ? 0.38 : status === "reserved" ? 0.62 : 1;
   if (glow) {
@@ -89,6 +90,26 @@ function polygonPathGroups(maps: any, geometry: GeoJsonPolygon | GeoJsonMultiPol
   return geometry.coordinates.map((polygon) => polygon.map((ring) => ringToPath(maps, ring)));
 }
 
+function cornerPositions(maps: any, geometry: GeoJsonPolygon | GeoJsonMultiPolygon): LatLng[] {
+  const rings = geometry.type === "Polygon"
+    ? geometry.coordinates
+    : geometry.coordinates.flatMap((polygon) => polygon);
+  const seen = new Set<string>();
+  const positions: LatLng[] = [];
+  rings.forEach((ring) => {
+    ring.forEach(([lng, lat], index) => {
+      // GeoJSON rings repeat the first coordinate at the end. Keep the first
+      // occurrence only so every visible parcel corner gets one light.
+      if (index === ring.length - 1 && ring.length > 1 && ring[0][0] === lng && ring[0][1] === lat) return;
+      const key = `${lng.toFixed(7)},${lat.toFixed(7)}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      positions.push(new maps.LatLng(lat, lng));
+    });
+  });
+  return positions;
+}
+
 function markerIcon(maps: any, tier: Parcel["tier"], selected: boolean) {
   const fill = selected ? "#58e6ff" : tier === "premium" ? "#f6c453" : tier === "elite" ? "#b77cff" : "#55c9ff";
   const size = selected ? 18 : 12;
@@ -97,10 +118,20 @@ function markerIcon(maps: any, tier: Parcel["tier"], selected: boolean) {
   return { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: new maps.Size(size + 8, size + 8), anchor: new maps.Point((size + 8) / 2, (size + 8) / 2) };
 }
 
+function cornerLightIcon(maps: any, selected: boolean) {
+  const size = selected ? 18 : 12;
+  const center = (size + 8) / 2;
+  const outer = selected ? 7 : 5;
+  const inner = selected ? 3.1 : 2.2;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size + 8}" height="${size + 8}" viewBox="0 0 ${size + 8} ${size + 8}"><circle cx="${center}" cy="${center}" r="${outer}" fill="#00d9ff" fill-opacity="0.20"/><circle cx="${center}" cy="${center}" r="${outer - 1.6}" fill="#00d9ff" fill-opacity="0.28"/><circle cx="${center}" cy="${center}" r="${inner}" fill="${selected ? "#ffffff" : "#7ff5ff"}" stroke="#00d9ff" stroke-width="1"/><circle cx="${center}" cy="${center}" r="${selected ? 1.3 : 0.9}" fill="#ffffff"/></svg>`;
+  return { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: new maps.Size(size + 8, size + 8), anchor: new maps.Point(center, center) };
+}
+
 export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChange, center }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<GoogleMapInstance | null>(null);
   const markersRef = useRef<Map<string, GoogleMarker>>(new Map());
+  const cornerMarkersRef = useRef<Map<string, GoogleMarker[]>>(new Map());
   const polygonsRef = useRef<Map<string, GooglePolygon[]>>(new Map());
   const onSelectRef = useRef(onSelect);
   const onViewportChangeRef = useRef(onViewportChange);
@@ -169,6 +200,9 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
     markersRef.current.forEach((marker, id) => {
       if (!ids.has(id)) { marker.setMap(null); markersRef.current.delete(id); }
     });
+    cornerMarkersRef.current.forEach((markers, id) => {
+      if (!ids.has(id)) { markers.forEach((marker) => marker.setMap(null)); cornerMarkersRef.current.delete(id); }
+    });
     polygonsRef.current.forEach((polygons, id) => {
       if (!ids.has(id)) { polygons.forEach((polygon) => polygon.setMap(null)); polygonsRef.current.delete(id); }
     });
@@ -208,11 +242,45 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
             polygon.setOptions({ ...parcelStyle(parcel.status, selected, false, false), zIndex: selected ? 20 : 1, visible: true });
           });
         }
+
+        // Reference-style point lights: every visible parcel corner receives a
+        // tiny cyan light with a soft halo. They are kept as separate markers
+        // so the satellite imagery remains untouched.
+        const positions = cornerPositions(maps, geometry);
+        let cornerMarkers = cornerMarkersRef.current.get(parcel.id);
+        if (!cornerMarkers || cornerMarkers.length !== positions.length) {
+          cornerMarkers?.forEach((marker) => marker.setMap(null));
+          cornerMarkers = positions.map((position) => {
+            const marker = new maps.Marker({
+              map: mapInstanceRef.current,
+              position,
+              icon: cornerLightIcon(maps, selected),
+              clickable: true,
+              zIndex: selected ? 30 : 10,
+            });
+            marker.addListener("click", () => onSelectRef.current(parcel.id));
+            return marker;
+          });
+          cornerMarkersRef.current.set(parcel.id, cornerMarkers);
+        } else {
+          positions.forEach((position, index) => {
+            cornerMarkers![index].setPosition(position);
+            cornerMarkers![index].setIcon(cornerLightIcon(maps, selected));
+            cornerMarkers![index].setZIndex(selected ? 30 : 10);
+            cornerMarkers![index].setMap(mapInstanceRef.current);
+          });
+        }
+
         const oldMarker = markersRef.current.get(parcel.id);
         if (oldMarker) { oldMarker.setMap(null); markersRef.current.delete(parcel.id); }
         return;
       }
 
+      const oldCornerMarkers = cornerMarkersRef.current.get(parcel.id);
+      if (oldCornerMarkers) {
+        oldCornerMarkers.forEach((marker) => marker.setMap(null));
+        cornerMarkersRef.current.delete(parcel.id);
+      }
       const existingMarker = markersRef.current.get(parcel.id);
       const icon = markerIcon(maps, parcel.tier, selected);
       const markerOpacity = parcel.status === "sold" ? 0.42 : parcel.status === "reserved" ? 0.68 : 1;
@@ -237,8 +305,10 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
 
   useEffect(() => () => {
     markersRef.current.forEach((marker) => marker.setMap(null));
+    cornerMarkersRef.current.forEach((markers) => markers.forEach((marker) => marker.setMap(null)));
     polygonsRef.current.forEach((polygons) => polygons.forEach((polygon) => polygon.setMap(null)));
     markersRef.current.clear();
+    cornerMarkersRef.current.clear();
     polygonsRef.current.clear();
     mapInstanceRef.current = null;
   }, []);
