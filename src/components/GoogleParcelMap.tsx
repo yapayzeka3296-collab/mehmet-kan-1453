@@ -10,8 +10,7 @@ type Props = {
   center: CityCenter;
 };
 
-type GoogleMapsApi = typeof window extends { google: infer G } ? G : any;
-
+type GoogleMapsApi = any;
 type GoogleMapInstance = any;
 type GoogleMarker = any;
 
@@ -34,11 +33,8 @@ function loadGoogleMaps(apiKey: string): Promise<GoogleMapsApi> {
 
     const finish = () => {
       const maps = (window as any).google?.maps;
-      if (maps) {
-        resolve(maps);
-      } else {
-        reject(new Error("Google Maps API yüklenemedi."));
-      }
+      if (maps) resolve(maps);
+      else reject(new Error("Google Maps API yüklenemedi."));
     };
 
     if (existing) {
@@ -191,7 +187,6 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, center }: Props
       markersRef.current.forEach((marker) => marker.setMap(null));
       markersRef.current.clear();
       mapInstanceRef.current = null;
-      setMapReady(false);
     };
   }, []);
 
