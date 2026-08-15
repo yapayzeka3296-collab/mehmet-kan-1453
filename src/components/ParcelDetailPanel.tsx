@@ -21,6 +21,7 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
   const [memoryIsPublic, setMemoryIsPublic] = useState(true);
   const [memoryMessage, setMemoryMessage] = useState<string | null>(null);
   const tierLabel = TIER_LABELS[parcel.tier];
+  const canManageMemory = parcel.status === 'sold' && isOwner;
 
   useEffect(() => {
     let cancelled = false;
@@ -93,7 +94,7 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
   async function handleMemorySave() {
     if (!user) { setMemoryMessage('Hatıra eklemek için giriş yapın.'); return; }
     if (!supabaseBrowser) { setMemoryMessage('Supabase yapılandırması eksik.'); return; }
-    if (!isOwner) { setMemoryMessage('Bu parsel için hatıra ekleme yetkiniz yok.'); return; }
+    if (parcel.status !== 'sold' || !isOwner) { setMemoryMessage('Hatıra eklemek için parsel satın alma işleminin tamamlanmış olması gerekir.'); return; }
     if (!memoryFile && !memory?.photo_path) { setMemoryMessage('Lütfen bir fotoğraf seçin.'); return; }
     if (memoryNote.trim().length > 300) { setMemoryMessage('Not en fazla 300 karakter olabilir.'); return; }
 
@@ -163,7 +164,7 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
         <section className="mt-5 rounded-xl border border-cyan-300/15 bg-cyan-950/10 p-4" aria-label="Parsel hatırası">
           <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200/65">Parsel Hatırası</p><p className="mt-1 text-sm font-semibold">1 fotoğraf + küçük bir not</p></div>{memory && <span className="rounded-full border border-cyan-300/20 px-2 py-1 text-[9px] font-semibold text-cyan-100/65">{memory.is_public ? 'HERKESE AÇIK' : 'SADECE BEN'}</span>}</div>
 
-          {memoryLoading ? <p className="mt-4 text-xs text-muted-foreground">Hatıra kontrol ediliyor...</p> : isOwner ? (
+          {memoryLoading ? <p className="mt-4 text-xs text-muted-foreground">Hatıra kontrol ediliyor...</p> : canManageMemory ? (
             <div className="mt-4 space-y-3">
               {memoryPhotoUrl && <img src={memoryPhotoUrl} alt={`${parcel.parcel_number} parsel hatırası`} className="max-h-48 w-full rounded-lg object-cover" loading="lazy" />}
               <label className="block cursor-pointer rounded-lg border border-dashed border-cyan-300/25 bg-white/[0.03] p-3"><span className="text-xs font-semibold">📷 {memory ? 'Fotoğrafı değiştir' : 'Fotoğraf ekle'}</span><span className="mt-1 block text-[10px] text-muted-foreground">JPG, PNG veya WebP · Maks. 5 MB · Parsel başına 1 fotoğraf</span><input className="mt-2 block w-full text-[10px]" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setMemoryFile(event.target.files?.[0] ?? null)} /></label>
@@ -174,7 +175,7 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
             </div>
           ) : memory ? (
             <div className="mt-4 space-y-3"><div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-200/60">👁 Herkese açık parsel hatırası</div>{memoryPhotoUrl && <img src={memoryPhotoUrl} alt={`${parcel.parcel_number} parsel hatırası`} className="max-h-52 w-full rounded-lg object-cover" loading="lazy" />}{memory.note && <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3"><p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-cyan-200/55">Not</p><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-white/75">{memory.note}</p></div>}</div>
-          ) : <p className="mt-4 text-xs leading-5 text-muted-foreground">Bu parselin sahibiysen bir fotoğraf ve kısa bir not ekleyebilirsin.</p>}
+          ) : <p className="mt-4 text-xs leading-5 text-muted-foreground">Satın alma tamamlandıktan sonra bu parsel için bir fotoğraf ve kısa bir not ekleyebilirsin.</p>}
         </section>
       </div>
     </aside>
