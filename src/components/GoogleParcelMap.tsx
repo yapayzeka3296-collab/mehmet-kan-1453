@@ -112,7 +112,7 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
         mapInstanceRef.current = new maps.Map(mapRef.current, {
           center,
           zoom: 11,
-          mapTypeId: "roadmap",
+          mapTypeId: "satellite",
           streetViewControl: false,
           fullscreenControl: false,
           mapTypeControl: false,
