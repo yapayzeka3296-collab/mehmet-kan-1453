@@ -5,7 +5,6 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { X } from 'lucide-react';
 
 const TIER_LABELS = { digital: 'Dijital', elite: 'Elit', premium: 'Premium' } as const;
-
 type Memory = { photo_path: string; note: string | null; updated_at?: string };
 
 export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Parcel; onClose: () => void; onReserved?: (p: Parcel) => void }) {
@@ -37,13 +36,13 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
         return;
       }
       try {
-        const [{ data: sessionData }, { data: ownerRow }, { data: memoryRow }] = await Promise.all([
+        const [{ data: sessionData }, { data: ownerData }, { data: memoryRow }] = await Promise.all([
           supabaseBrowser.auth.getSession(),
-          supabaseBrowser.from('parcels').select('owner_id').eq('id', parcel.id).maybeSingle(),
+          supabaseBrowser.rpc('is_parcel_owner', { p_parcel_id: parcel.id }),
           supabaseBrowser.from('parcel_memories').select('photo_path,note,updated_at').eq('parcel_id', parcel.id).maybeSingle(),
         ]);
         if (cancelled) return;
-        const owner = !!sessionData.session?.user && ownerRow?.owner_id === sessionData.session.user.id;
+        const owner = !!sessionData.session?.user && ownerData === true;
         setIsOwner(owner);
         const nextMemory = memoryRow?.photo_path && memoryRow.photo_path !== 'note-only' ? memoryRow as Memory : null;
         setMemory(nextMemory);
@@ -136,24 +135,24 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
     }
   }
 
+  const purchaseLabel = loading ? 'SATIN ALINIYOR...' : parcel.status === 'available' ? 'SATIN AL' : parcel.status === 'sold' ? 'SATILDI' : 'REZERVE';
+
   return (
     <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-auto bg-background p-6 shadow-lg md:relative md:w-auto md:max-w-none">
       <div className="flex items-start justify-between gap-4">
         <div><p className="text-xs text-muted-foreground">{parcel.city_name ?? 'MySkyParcel'}</p><h3 className="mt-1 font-display text-lg font-bold">PARSEL BİLGİSİ</h3></div>
         <button type="button" onClick={onClose} aria-label="Kapat" className="flex h-9 w-9 items-center justify-center rounded-full border border-input text-muted-foreground transition hover:bg-muted hover:text-foreground"><X className="h-5 w-5" /></button>
       </div>
-
       <div className="mt-5 rounded-xl border border-gold/20 bg-background/30 p-5">
         <dl className="space-y-4 text-sm">
           <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Parsel No</dt><dd className="font-semibold">{parcel.parcel_number}</dd></div>
           <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Kategori</dt><dd className="font-semibold">{tierLabel}</dd></div>
-          <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Durum</dt><dd className="font-semibold capitalize">{parcel.status}</dd></div>
+          <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Durum</dt><dd className="font-semibold capitalize">{parcel.status === 'sold' ? 'Satıldı' : parcel.status === 'reserved' ? 'Rezerve' : 'Satılık'}</dd></div>
           <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Fiyat</dt><dd className="font-semibold">{parcel.tier_price.toLocaleString('tr-TR')} TL</dd></div>
         </dl>
       </div>
-
-      <button id="myskyparcel-purchase-action" data-msp-purchase="1" type="button" onClick={handlePurchase} disabled={loading || parcel.status !== 'available'} className="btn-gold mt-6 w-full rounded-md py-3 text-sm font-semibold">
-        {loading ? 'SATIN ALINIYOR...' : parcel.status === 'available' ? 'SATIN AL' : 'SATIN ALINAMAZ'}
+      <button id="myskyparcel-purchase-action" data-msp-purchase="1" type="button" onClick={handlePurchase} disabled={loading || parcel.status !== 'available'} className="btn-gold mt-6 w-full rounded-md py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50">
+        {purchaseLabel}
       </button>
       {message && <p className="mt-3 text-center text-sm text-muted-foreground">{message}</p>}
 
