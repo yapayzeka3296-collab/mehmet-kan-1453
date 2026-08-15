@@ -160,10 +160,13 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
       elite: parcels.filter((p) => p.tier === "elite"),
       premium: parcels.filter((p) => p.tier === "premium"),
     };
-    const rings: Array<{ tier: Parcel["tier"]; items: ParcelWithGeometry[]; radius: number }> = [
-      { tier: "digital", items: groups.digital, radius: 0.105 },
-      { tier: "elite", items: groups.elite, radius: 0.062 },
-      { tier: "premium", items: groups.premium, radius: 0.028 },
+
+    // Her tier kendi içinde birden fazla bitişik dairesel sıra oluşturur.
+    // Dijital = 10 sıra, Elit = 6 sıra, Premium = 4 sıra.
+    const ringConfig: Array<{ tier: Parcel["tier"]; items: ParcelWithGeometry[]; rows: number; innerRadius: number; outerRadius: number }> = [
+      { tier: "digital", items: groups.digital, rows: 10, innerRadius: 0.055, outerRadius: 0.105 },
+      { tier: "elite", items: groups.elite, rows: 6, innerRadius: 0.027, outerRadius: 0.052 },
+      { tier: "premium", items: groups.premium, rows: 4, innerRadius: 0.008, outerRadius: 0.024 },
     ];
 
     const createPosition = (angle: number, radius: number) => {
@@ -173,15 +176,27 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
     };
 
     const layouts = new Map<string, { angle: number; radius: number; tier: Parcel["tier"] }>();
-    rings.forEach(({ tier, items, radius }) => {
-      items.forEach((parcel, index) => {
-        const angle = (index / Math.max(items.length, 1)) * Math.PI * 2;
-        layouts.set(parcel.id, { angle, radius, tier });
-        const position = createPosition(angle, radius);
-        positionsRef.current.set(parcel.id, position);
-        const marker = new maps.Marker({ map: mapInstanceRef.current, position, title: `${parcel.parcel_number} · ${tierLabel(tier)}`, icon: circularParcelIcon(maps, parcel, parcel.id === selectedId), optimized: true, zIndex: tier === "premium" ? 30 : tier === "elite" ? 20 : 10 });
-        marker.addListener("click", () => onSelectRef.current(parcel.id));
-        markersRef.current.set(parcel.id, marker);
+
+    ringConfig.forEach(({ tier, items, rows, innerRadius, outerRadius }) => {
+      if (!items.length) return;
+      const rowItems = Array.from({ length: rows }, () => [] as ParcelWithGeometry[]);
+      items.forEach((parcel, index) => rowItems[index % rows].push(parcel));
+
+      rowItems.forEach((row, rowIndex) => {
+        if (!row.length) return;
+        const radius = rows === 1 ? (innerRadius + outerRadius) / 2 : innerRadius + ((outerRadius - innerRadius) * rowIndex) / (rows - 1);
+        const count = row.length;
+        const angularStep = (Math.PI * 2) / count;
+        const rowOffset = (rowIndex % 2) * (angularStep / 2);
+        row.forEach((parcel, index) => {
+          const angle = index * angularStep + rowOffset;
+          layouts.set(parcel.id, { angle, radius, tier });
+          const position = createPosition(angle, radius);
+          positionsRef.current.set(parcel.id, position);
+          const marker = new maps.Marker({ map: mapInstanceRef.current, position, title: `${parcel.parcel_number} · ${tierLabel(tier)}`, icon: circularParcelIcon(maps, parcel, parcel.id === selectedId), optimized: true, zIndex: tier === "premium" ? 30 : tier === "elite" ? 20 : 10 });
+          marker.addListener("click", () => onSelectRef.current(parcel.id));
+          markersRef.current.set(parcel.id, marker);
+        });
       });
     });
 
