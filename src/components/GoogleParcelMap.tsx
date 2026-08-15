@@ -373,8 +373,7 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
       closeButton?.addEventListener("click", () => onSelectRef.current(""), { once: true });
       const buyButton = root.querySelector('[data-parcel-action="buy"]');
       buyButton?.addEventListener("click", () => {
-        // The existing parcel detail/purchase flow is opened without changing the map or parcel model.
-        onSelectRef.current(selected.id);
+        document.getElementById("myskyparcel-purchase-action")?.click();
       }, { once: true });
     });
 
