@@ -34,14 +34,12 @@ function isParcelPolygon(options: any) {
 }
 
 function applyZoom(entry: Entry, hovered = false) {
+  if (entry.polygon.__mspApplying) return;
   const zoom = Number(entry.map?.getZoom?.() ?? 14);
   const profile = zoomProfile(zoom, entry.isGlow);
   const selected = Number(entry.polygon?.get?.("zIndex") ?? 0) >= 300;
   const sold = entry.isSold;
-  const options: any = {
-    strokeWeight: profile.weight,
-    strokeOpacity: profile.opacity,
-  };
+  const options: any = { strokeWeight: profile.weight, strokeOpacity: profile.opacity };
 
   if (sold) {
     options.strokeColor = entry.baseColor;
@@ -55,52 +53,42 @@ function applyZoom(entry: Entry, hovered = false) {
     options.strokeColor = entry.baseColor;
   }
 
+  entry.polygon.__mspApplying = true;
   entry.polygon.setOptions(options);
+  entry.polygon.__mspApplying = false;
 }
 
 function registerPolygon(maps: MapsLike, polygon: PolygonLike, options: any) {
   if (!isParcelPolygon(options)) return;
-
   const map = options.map;
   const z = Number(options.zIndex ?? 0);
   const isGlow = z === 20 || z === 500;
   const isSold = z === 500 || z === 501;
   const baseColor = String(options.strokeColor ?? GOLD);
-  const entry: Entry = {
-    polygon,
-    map,
-    baseColor,
-    baseWeight: Number(options.strokeWeight ?? 1),
-    baseOpacity: Number(options.strokeOpacity ?? 0.6),
-    isGlow,
-    isSold,
-  };
+  const entry: Entry = { polygon, map, baseColor, baseWeight: Number(options.strokeWeight ?? 1), baseOpacity: Number(options.strokeOpacity ?? 0.6), isGlow, isSold };
 
   entries.add(entry);
   applyZoom(entry);
-
   polygon.addListener("mouseover", () => applyZoom(entry, true));
   polygon.addListener("mouseout", () => applyZoom(entry, false));
 
   let listener = mapListeners.get(map);
   if (!listener) {
     listener = maps.event.addListener(map, "zoom_changed", () => {
-      entries.forEach((item) => {
-        if (item.map === map) applyZoom(item);
-      });
+      entries.forEach((item) => { if (item.map === map) applyZoom(item); });
     });
     mapListeners.set(map, listener);
   }
 
   const originalSetOptions = polygon.setOptions.bind(polygon);
   polygon.setOptions = (next: any) => {
-    if (next && typeof next === "object") {
+    if (next && typeof next === "object" && !polygon.__mspApplying) {
       if (typeof next.strokeColor === "string") entry.baseColor = next.strokeColor;
       if (typeof next.strokeWeight === "number") entry.baseWeight = next.strokeWeight;
       if (typeof next.strokeOpacity === "number") entry.baseOpacity = next.strokeOpacity;
     }
     originalSetOptions(next);
-    applyZoom(entry);
+    if (!polygon.__mspApplying) applyZoom(entry);
   };
 }
 
@@ -119,10 +107,7 @@ function patchGoogleMaps(maps: MapsLike) {
 
 function start() {
   if (typeof window === "undefined") return;
-  const tryPatch = () => {
-    const maps = (window as any).google?.maps;
-    if (maps) patchGoogleMaps(maps);
-  };
+  const tryPatch = () => { const maps = (window as any).google?.maps; if (maps) patchGoogleMaps(maps); };
   tryPatch();
   const timer = window.setInterval(() => {
     tryPatch();
