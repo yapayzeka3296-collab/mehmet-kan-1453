@@ -326,7 +326,7 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
       {!user && <div className="mt-6 rounded-lg border border-gold/20 bg-background/30 p-4 text-xs text-muted-foreground">Parsel sahibi olduğunda not ve görsel ekleyebilmek için hesabınla giriş yapmalısın.</div>}
 
       <div className="mt-6">
-        <button onClick={handleReserve} disabled={loading || parcel.status !== 'available'} className="btn-gold w-full rounded-md py-3 text-sm">
+        <button id="myskyparcel-purchase-action" onClick={handleReserve} disabled={loading || parcel.status !== 'available'} className="btn-gold w-full rounded-md py-3 text-sm">
           {loading ? 'Rezervasyon yapılıyor...' : parcel.status === 'available' ? 'PARSELİ REZERVE ET' : 'REZERVE EDİLEMEZ'}
         </button>
         {message && <p className="mt-3 text-center text-sm text-muted-foreground">{message}</p>}
