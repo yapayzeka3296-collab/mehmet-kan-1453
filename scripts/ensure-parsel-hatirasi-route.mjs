@@ -1,9 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const file = path.resolve("src/routes/routeTree.gen.ts");
+const file = path.resolve("src/routeTree.gen.ts");
 if (!fs.existsSync(file)) process.exit(0);
 let s = fs.readFileSync(file, "utf8");
+
+const route = "/parsel-hatirasi";
+const typeLine = "  '/parsel-hatirasi': typeof ParselHatirasiRoute";
 
 if (!s.includes("ParselHatirasiRouteImport")) {
   s = s.replace(
@@ -19,32 +22,42 @@ if (!s.includes("const ParselHatirasiRoute =")) {
   );
 }
 
-const maps = ["FileRoutesByFullPath", "FileRoutesByTo"];
-for (const name of maps) {
+for (const name of ["FileRoutesByFullPath", "FileRoutesByTo"]) {
   const marker = `export interface ${name} {`;
-  if (s.includes(marker) && !s.includes(`${name} {\n  '/parsel-hatirasi'`)) {
-    s = s.replace(marker, `${marker}\n  '/parsel-hatirasi': typeof ParselHatirasiRoute`);
+  if (s.includes(marker) && !s.includes(`export interface ${name} {\n${typeLine}`)) {
+    s = s.replace(marker, `${marker}\n${typeLine}`);
   }
 }
 
-if (s.includes("export interface FileRoutesById {") && !s.includes("  '/parsel-hatirasi': typeof ParselHatirasiRoute\n  '/parsellerim'")) {
-  s = s.replace(
-    "export interface FileRoutesById {",
-    "export interface FileRoutesById {\n  '/parsel-hatirasi': typeof ParselHatirasiRoute"
-  );
+if (s.includes("export interface FileRoutesById {") && !s.includes(`export interface FileRoutesById {\n${typeLine}`)) {
+  s = s.replace("export interface FileRoutesById {", `export interface FileRoutesById {\n${typeLine}`);
 }
 
 if (s.includes("export interface RootRouteChildren {") && !s.includes("  ParselHatirasiRoute: typeof ParselHatirasiRoute")) {
+  s = s.replace("export interface RootRouteChildren {", "export interface RootRouteChildren {\n  ParselHatirasiRoute: typeof ParselHatirasiRoute");
+}
+
+const unionNeedles = [
+  "    | '/siparislerim'\n    | '/yonetim'",
+];
+for (const needle of unionNeedles) {
+  if (s.includes(needle) && !s.includes(`    | '${route}'\n    | '/yonetim'`)) {
+    s = s.replace(needle, `    | '/siparislerim'\n    | '${route}'\n    | '/yonetim'`);
+  }
+}
+
+const declareNeedle = "    '/yonetim': {\n      id: '/yonetim'";
+if (s.includes(declareNeedle) && !s.includes(`    '${route}': {`)) {
   s = s.replace(
-    "export interface RootRouteChildren {",
-    "export interface RootRouteChildren {\n  ParselHatirasiRoute: typeof ParselHatirasiRoute"
+    declareNeedle,
+    `    '${route}': {\n      id: '${route}'\n      path: '${route}'\n      fullPath: '${route}'\n      preLoaderRoute: typeof ParselHatirasiRouteImport\n      parentRoute: typeof rootRouteImport\n    }\n${declareNeedle}`
   );
 }
 
-if (s.includes("const rootRouteChildren = {") && !s.includes("ParselHatirasiRoute,")) {
+if (s.includes("const rootRouteChildren: RootRouteChildren = {") && !s.includes("  ParselHatirasiRoute: ParselHatirasiRoute,")) {
   s = s.replace(
-    "const rootRouteChildren = {",
-    "const rootRouteChildren = {\n  ParselHatirasiRoute,"
+    "  SiparislerimRoute: SiparislerimRoute,",
+    "  SiparislerimRoute: SiparislerimRoute,\n  ParselHatirasiRoute: ParselHatirasiRoute,"
   );
 }
 
