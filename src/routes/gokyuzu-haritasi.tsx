@@ -6,13 +6,14 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
 import { GoogleParcelMap } from "@/components/GoogleParcelMap";
 import { ParcelDetailPanel } from "@/components/ParcelDetailPanel";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import type { Parcel } from "@/types/parcel";
 
 type GeoJsonPolygon = { type: "Polygon"; coordinates: number[][][] };
 type GeoJsonMultiPolygon = { type: "MultiPolygon"; coordinates: number[][][][] };
 type MapParcel = Parcel & { geometry?: GeoJsonPolygon | GeoJsonMultiPolygon | null; layer_number?: number | null; sector_number?: number | null; local_parcel_number?: number | null; city_slug?: string | null };
+type ViewportBounds = { minLat: number; minLng: number; maxLat: number; maxLng: number };
 
 export const Route = createFileRoute("/gokyuzu-haritasi")({
   validateSearch: z.object({ city: z.string().optional() }),
@@ -62,6 +63,7 @@ function Harita() {
   const [citySearch, setCitySearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const selectedCityMeta = PILOT_CITIES.find((city) => city.code === selectedCity) ?? DEFAULT_CITY;
   const selectedParcel = useMemo(() => parcels.find((parcel) => parcel.id === selectedId) ?? null, [parcels, selectedId]);
@@ -83,53 +85,52 @@ function Harita() {
   }, [citySlug]);
 
   useEffect(() => {
-    let mounted = true;
-    async function loadParcels() {
-      if (!supabaseBrowser) {
-        setError("Supabase yapılandırması eksik.");
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      setError(null);
-      setSelectedId(null);
-      setLayerFilter(null);
-      setSectorFilter(null);
-      try {
-        const { data, error: parcelError } = await supabaseBrowser
-          .from("parcel_map_public")
-          .select("id, parcel_number, status, price, tier, tier_price, city_id, city_code, city_name, city_slug, layer_number, sector_number, local_parcel_number, latitude, longitude, geometry, created_at, updated_at")
-          .eq("city_slug", selectedCityMeta.slug)
-          .order("layer_number", { ascending: true })
-          .order("sector_number", { ascending: true })
-          .order("local_parcel_number", { ascending: true })
-          .limit(1000);
-        if (parcelError) throw parcelError;
-        const normalized = ((data ?? []) as PublicParcelRow[]).map((parcel) => {
-          const numericCode = Number(parcel.parcel_number.split("-").pop() ?? 0);
-          const tier = (parcel.tier ?? TIER_BY_NUMBER(numericCode)) as Tier;
-          return {
-            ...parcel,
-            owner_id: null,
-            tier,
-            tier_price: parcel.tier_price ?? TIER_PRICE[tier],
-            city_name: parcel.city_name ?? selectedCityMeta.name,
-            city_code: parcel.city_code ?? selectedCityMeta.code,
-          } as MapParcel;
-        });
-        if (mounted) setParcels(normalized);
-      } catch (err) {
-        console.error("Error loading public pilot city parcels", err);
-        if (mounted) setError("Şehrin herkese açık parsel verileri yüklenemedi. Supabase bağlantısını kontrol edin.");
-      } finally {
-        if (mounted) setLoading(false);
-      }
+    setSelectedId(null);
+    setLayerFilter(null);
+    setSectorFilter(null);
+    setParcels([]);
+  }, [selectedCityMeta.code]);
+
+  const loadViewportParcels = useCallback(async (bounds: ViewportBounds) => {
+    if (!supabaseBrowser) {
+      setError("Supabase yapılandırması eksik.");
+      setLoading(false);
+      return;
     }
-    void loadParcels();
-    return () => {
-      mounted = false;
-    };
-  }, [selectedCityMeta.code, selectedCityMeta.name, selectedCityMeta.slug]);
+    const requestId = ++requestIdRef.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: parcelError } = await supabaseBrowser.rpc("parcels_in_view", {
+        p_city_slug: selectedCityMeta.slug,
+        p_min_lat: bounds.minLat,
+        p_min_lng: bounds.minLng,
+        p_max_lat: bounds.maxLat,
+        p_max_lng: bounds.maxLng,
+      });
+      if (parcelError) throw parcelError;
+      if (requestId !== requestIdRef.current) return;
+      const normalized = ((data ?? []) as PublicParcelRow[]).map((parcel) => {
+        const numericCode = Number(parcel.parcel_number.split("-").pop() ?? 0);
+        const tier = (parcel.tier ?? TIER_BY_NUMBER(numericCode)) as Tier;
+        return {
+          ...parcel,
+          owner_id: null,
+          tier,
+          tier_price: parcel.tier_price ?? TIER_PRICE[tier],
+          city_name: parcel.city_name ?? selectedCityMeta.name,
+          city_code: parcel.city_code ?? selectedCityMeta.code,
+        } as MapParcel;
+      });
+      setParcels(normalized);
+      if (selectedId && !normalized.some((parcel) => parcel.id === selectedId)) setSelectedId(null);
+    } catch (err) {
+      console.error("Error loading viewport parcels", err);
+      if (requestId === requestIdRef.current) setError("Harita alanındaki parseller yüklenemedi. Supabase bağlantısını kontrol edin.");
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false);
+    }
+  }, [selectedCityMeta.code, selectedCityMeta.name, selectedCityMeta.slug, selectedId]);
 
   const selectCity = (code: typeof selectedCity) => {
     setSelectedCity(code);
@@ -162,7 +163,6 @@ function Harita() {
               <Search className="h-4 w-4 shrink-0 text-sky-100/60" />
               <input value={citySearch} onChange={(event) => setCitySearch(event.target.value)} placeholder="Şehir ara..." className="min-w-0 flex-1 bg-transparent py-3 text-sm text-white outline-none placeholder:text-white/40" aria-label="Pilot şehir ara" />
             </div>
-
             <div className="mt-5">
               <div className="mb-2 flex items-center justify-between"><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-100/55">Pilot şehirler</p><MapPin className="h-4 w-4 text-sky-200/55" /></div>
               <div className="grid gap-1.5">
@@ -173,47 +173,21 @@ function Harita() {
                 ))}
               </div>
             </div>
-
             <div className="mt-6 border-t border-white/10 pt-5">
               <div className="mb-3 flex items-center gap-2"><Layers3 className="h-4 w-4 text-sky-200/75" /><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-100/60">Parsel filtreleri</p></div>
               <label className="block text-xs text-white/45" htmlFor="map-layer">Katman</label>
-              <select id="map-layer" value={layerFilter ?? ""} onChange={(event) => handleLayerChange(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-white outline-none focus:border-sky-200/35">
-                <option value="">Tüm katmanlar</option>
-                {availableLayers.map((layer) => <option key={layer} value={layer}>Katman {layer}</option>)}
-              </select>
+              <select id="map-layer" value={layerFilter ?? ""} onChange={(event) => handleLayerChange(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-white outline-none focus:border-sky-200/35"><option value="">Tüm katmanlar</option>{availableLayers.map((layer) => <option key={layer} value={layer}>Katman {layer}</option>)}</select>
               <label className="mt-4 block text-xs text-white/45" htmlFor="map-sector">Sektör</label>
-              <select id="map-sector" value={sectorFilter ?? ""} onChange={(event) => setSectorFilter(event.target.value ? Number(event.target.value) : null)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-white outline-none focus:border-sky-200/35">
-                <option value="">Tüm sektörler</option>
-                {availableSectors.map((sector) => <option key={sector} value={sector}>Sektör {String(sector).padStart(2, "0")}</option>)}
-              </select>
+              <select id="map-sector" value={sectorFilter ?? ""} onChange={(event) => setSectorFilter(event.target.value ? Number(event.target.value) : null)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-white outline-none focus:border-sky-200/35"><option value="">Tüm sektörler</option>{availableSectors.map((sector) => <option key={sector} value={sector}>Sektör {String(sector).padStart(2, "0")}</option>)}</select>
             </div>
-
-            <div className="mt-6 rounded-2xl border border-white/10 bg-slate-900/65 p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-100/55">Parsel türleri</p>
-              <div className="mt-3 space-y-2 text-xs">
-                <div className="flex items-center justify-between text-white/70"><span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-sky-300" />Dijital</span><span>199 TL</span></div>
-                <div className="flex items-center justify-between text-white/70"><span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-violet-300" />Elit</span><span>499 TL</span></div>
-                <div className="flex items-center justify-between text-white/70"><span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-amber-300" />Premium</span><span>999 TL</span></div>
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-white/10 bg-slate-900/65 p-4 text-xs text-white/55">
-              <p className="font-semibold text-white/75">Harita kullanımı</p>
-              <p className="mt-2 leading-5">Haritayı parmağınla sürükle veya yakınlaştır. Renkli alanlar MySkyParcel parsellerini gösterir. Bir parsele dokununca parsel detay paneli açılır.</p>
-              <p className="mt-2 leading-5">Google Maps tabanı gerçek coğrafyayı gösterir; MySkyParcel katmanı dijital parsel alanlarını bunun üzerinde sunar.</p>
-            </div>
+            <div className="mt-6 rounded-2xl border border-white/10 bg-slate-900/65 p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-100/55">Parsel türleri</p><div className="mt-3 space-y-2 text-xs"><div className="flex items-center justify-between text-white/70"><span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-sky-300" />Dijital</span><span>199 TL</span></div><div className="flex items-center justify-between text-white/70"><span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-violet-300" />Elit</span><span>499 TL</span></div><div className="flex items-center justify-between text-white/70"><span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-amber-300" />Premium</span><span>999 TL</span></div></div></div>
+            <div className="mt-5 rounded-2xl border border-white/10 bg-slate-900/65 p-4 text-xs text-white/55"><p className="font-semibold text-white/75">Harita kullanımı</p><p className="mt-2 leading-5">Haritayı parmağınla sürükle veya yakınlaştır. Renkli alanlar MySkyParcel parsellerini gösterir. Bir parsele dokununca parsel detay paneli açılır.</p><p className="mt-2 leading-5">Google Maps tabanı gerçek coğrafyayı gösterir; MySkyParcel katmanı dijital parsel alanlarını bunun üzerinde sunar.</p></div>
           </aside>
-
           <div className="order-1 min-w-0 p-2 sm:p-3 lg:order-2 lg:p-4">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1 sm:px-2">
-              <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-1.5 text-xs text-white/75">{selectedCityMeta.name} · {filteredParcels.length.toLocaleString("tr-TR")} parsel</div>
-              {loading && <span className="text-xs text-white/45">Parseller yükleniyor...</span>}
-              {error && <span className="text-xs text-red-200">{error}</span>}
-            </div>
-            <GoogleParcelMap parcels={filteredParcels} selectedId={selectedId} onSelect={setSelectedId} center={selectedCityMeta.center} />
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1 sm:px-2"><div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-1.5 text-xs text-white/75">{selectedCityMeta.name} · {filteredParcels.length.toLocaleString("tr-TR")} parsel</div>{loading && <span className="text-xs text-white/45">Görünen alan yükleniyor...</span>}{error && <span className="text-xs text-red-200">{error}</span>}</div>
+            <GoogleParcelMap parcels={filteredParcels} selectedId={selectedId} onSelect={setSelectedId} onViewportChange={loadViewportParcels} center={selectedCityMeta.center} />
           </div>
         </section>
-
         {selectedParcel && <ParcelDetailPanel parcel={selectedParcel} onClose={() => setSelectedId(null)} onReserved={handleReserved} />}
       </main>
       <TrustBar />
