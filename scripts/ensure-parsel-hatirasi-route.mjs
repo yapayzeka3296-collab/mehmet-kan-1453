@@ -37,13 +37,9 @@ if (s.includes("export interface RootRouteChildren {") && !s.includes("  ParselH
   s = s.replace("export interface RootRouteChildren {", "export interface RootRouteChildren {\n  ParselHatirasiRoute: typeof ParselHatirasiRoute");
 }
 
-const unionNeedles = [
-  "    | '/siparislerim'\n    | '/yonetim'",
-];
-for (const needle of unionNeedles) {
-  if (s.includes(needle) && !s.includes(`    | '${route}'\n    | '/yonetim'`)) {
-    s = s.replace(needle, `    | '/siparislerim'\n    | '${route}'\n    | '/yonetim'`);
-  }
+const unionNeedle = "    | '/siparislerim'\n    | '/yonetim'";
+if (s.includes(unionNeedle)) {
+  s = s.replaceAll(unionNeedle, "    | '/siparislerim'\n    | '/parsel-hatirasi'\n    | '/yonetim'");
 }
 
 const declareNeedle = "    '/yonetim': {\n      id: '/yonetim'";
