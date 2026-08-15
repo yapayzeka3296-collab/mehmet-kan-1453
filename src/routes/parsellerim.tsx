@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { ArrowRight, Calendar, FileBadge, Globe, Grid2x2, Headphones, List, Lock, MoreVertical, ShieldCheck, Star, Truck } from "lucide-react";
+import { ArrowRight, Calendar, FileBadge, Globe, Grid2x2, Headphones, List, Lock, MoreVertical, ShieldCheck, Star, Truck, X } from "lucide-react";
 import heroCity from "@/assets/hero-city.jpg";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -45,6 +45,7 @@ function Parsellerim() {
   const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [sortNewest, setSortNewest] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [selectedCertificate, setSelectedCertificate] = useState<CollectionCertificate | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -68,6 +69,15 @@ function Parsellerim() {
     void load();
     return () => { mounted = false; };
   }, [user, authLoading]);
+
+  useEffect(() => {
+    if (!selectedCertificate) return;
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setSelectedCertificate(null); };
+    document.addEventListener("keydown", handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", handleKeyDown); document.body.style.overflow = previousOverflow; };
+  }, [selectedCertificate]);
 
   const filteredParcels = useMemo(() => {
     let result = parcels;
@@ -111,12 +121,14 @@ function Parsellerim() {
 
             <section className="mt-10">
               <div className="flex items-end justify-between gap-4"><div><h2 className="font-display text-2xl">SERTİFİKALARIM</h2><p className="mt-1 text-xs text-muted-foreground">Koleksiyonunuza bağlı oluşturulmuş sertifikalar burada görünür.</p></div><Link to="/paketler" className="text-xs text-gold hover:underline">SERTİFİKA SEÇENEKLERİ</Link></div>
-              {certificates.length === 0 ? <div className="panel mt-4 p-6 text-center text-sm text-muted-foreground">Henüz sertifika kaydınız yok. Satın alınmış parseliniz için Dijital Sertifika bölümünden uygun sertifikayı oluşturabilirsiniz.</div> : <ul className="mt-4 grid gap-4 sm:grid-cols-2">{certificates.filter((c) => c.status !== "revoked").map((certificate) => { const parcelNumber = certificate.parcel?.parcel_number || certificate.parcel_id; return <li key={certificate.id} className="panel overflow-hidden p-4"><CertificateArtwork tier={certificate.tier} name={displayName} parcelCode={parcelNumber} certificateNumber={certificate.certificate_number} issuedAt={certificate.issued_at || certificate.requested_at} cityName={parcelNumber.includes("-") ? parcelNumber.split("-")[0] : undefined} /><div className="pt-4"><p className="font-display text-lg">{TIER_LABELS[certificate.tier]} Parsel Sertifikası</p><p className="mt-1 text-xs text-gold">Parsel: {parcelNumber}</p><p className="mt-2 text-[11px] text-muted-foreground">Durum: {certificate.status} · {new Date(certificate.requested_at).toLocaleDateString("tr-TR")}</p>{certificate.certificate_number && <p className="mt-1 text-[11px] text-muted-foreground">Sertifika No: {certificate.certificate_number}</p>}</div></li>; })}</ul>}
+              {certificates.length === 0 ? <div className="panel mt-4 p-6 text-center text-sm text-muted-foreground">Henüz sertifika kaydınız yok. Satın alınmış parseliniz için Dijital Sertifika bölümünden uygun sertifikayı oluşturabilirsiniz.</div> : <ul className="mt-4 grid gap-4 sm:grid-cols-2">{certificates.filter((c) => c.status !== "revoked").map((certificate) => { const parcelNumber = certificate.parcel?.parcel_number || certificate.parcel_id; return <li key={certificate.id} className="panel overflow-hidden p-4"><div role="button" tabIndex={0} onClick={() => setSelectedCertificate(certificate)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedCertificate(certificate); } }} className="cursor-pointer rounded-lg outline-none transition hover:ring-1 hover:ring-gold/60 focus-visible:ring-2 focus-visible:ring-gold" aria-label={`${TIER_LABELS[certificate.tier]} sertifikasını görüntüle`}><CertificateArtwork tier={certificate.tier} name={displayName} parcelCode={parcelNumber} certificateNumber={certificate.certificate_number} issuedAt={certificate.issued_at || certificate.requested_at} cityName={parcelNumber.includes("-") ? parcelNumber.split("-")[0] : undefined} /></div><div className="pt-4"><p className="font-display text-lg">{TIER_LABELS[certificate.tier]} Parsel Sertifikası</p><p className="mt-1 text-xs text-gold">Parsel: {parcelNumber}</p><p className="mt-2 text-[11px] text-muted-foreground">Durum: {certificate.status} · {new Date(certificate.requested_at).toLocaleDateString("tr-TR")}</p>{certificate.certificate_number && <p className="mt-1 text-[11px] text-muted-foreground">Sertifika No: {certificate.certificate_number}</p>}<p className="mt-3 text-[11px] text-gold/80">Sertifikayı büyük görüntülemek için tıklayın.</p></div></li>; })}</ul>}
             </section>
           </div>
           <div className="grid content-start gap-6"><section className="panel p-5"><h2 className="text-xs font-semibold tracking-[0.1em] text-gold">KOLEKSİYON ÖZETİ</h2><dl className="mt-4 space-y-3 text-sm">{summaryCounts.map(([k, v]) => <div key={k} className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">{k}</dt><dd>{v}</dd></div>)}</dl></section><section className="panel p-5"><h2 className="text-xs font-semibold tracking-[0.1em]">YARDIMA MI İHTİYACINIZ VAR?</h2><p className="mt-2 text-xs text-muted-foreground">Parselleriniz veya sertifikalarınız hakkında sorularınız için bize ulaşabilirsiniz.</p><Link to="/iletisim" className="mt-4 flex items-center justify-center gap-2 rounded-md border border-gold/60 py-2.5 text-[11px] text-gold">İLETİŞİME GEÇ <Truck className="h-4 w-4" /></Link></section></div>
         </div>
-      </main><TrustBar items={FOOTER_TRUST} /><SiteFooter />
+      </main>
+      {selectedCertificate && (() => { const parcelNumber = selectedCertificate.parcel?.parcel_number || selectedCertificate.parcel_id; return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Sertifika görüntüleme" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedCertificate(null); }}><div className="relative flex max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-gold/30 bg-background shadow-2xl"><div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3"><div><p className="font-display text-lg">{TIER_LABELS[selectedCertificate.tier]} Parsel Sertifikası</p><p className="text-[11px] text-muted-foreground">{parcelNumber}{selectedCertificate.certificate_number ? ` · ${selectedCertificate.certificate_number}` : ""}</p></div><button type="button" onClick={() => setSelectedCertificate(null)} className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-gold" aria-label="Sertifikayı kapat"><X className="h-5 w-5" /></button></div><div className="min-h-0 overflow-auto p-3 sm:p-6"><div className="mx-auto max-w-5xl"><CertificateArtwork tier={selectedCertificate.tier} name={displayName} parcelCode={parcelNumber} certificateNumber={selectedCertificate.certificate_number} issuedAt={selectedCertificate.issued_at || selectedCertificate.requested_at} cityName={parcelNumber.includes("-") ? parcelNumber.split("-")[0] : undefined} /></div></div></div></div>; })()}
+      <TrustBar items={FOOTER_TRUST} /><SiteFooter />
     </div>
   );
 }
