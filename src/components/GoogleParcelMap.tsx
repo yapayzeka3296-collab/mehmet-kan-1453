@@ -6,11 +6,13 @@ type LatLng = { lat: number; lng: number };
 type GeoJsonPolygon = { type: "Polygon"; coordinates: number[][][] };
 type GeoJsonMultiPolygon = { type: "MultiPolygon"; coordinates: number[][][][] };
 type ParcelWithGeometry = Parcel & { geometry?: GeoJsonPolygon | GeoJsonMultiPolygon | null };
+type ViewportBounds = { minLat: number; minLng: number; maxLat: number; maxLng: number };
 
 type Props = {
   parcels: ParcelWithGeometry[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onViewportChange?: (bounds: ViewportBounds) => void;
   center: CityCenter;
 };
 
@@ -26,7 +28,6 @@ function loadGoogleMaps(apiKey: string): Promise<GoogleMapsApi> {
   if (typeof window === "undefined") return Promise.reject(new Error("Google Maps browser ortamında yüklenebilir."));
   if ((window as any).google?.maps) return Promise.resolve((window as any).google.maps);
   if (mapsPromise) return mapsPromise;
-
   mapsPromise = new Promise((resolve, reject) => {
     const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
     const finish = () => {
@@ -35,7 +36,6 @@ function loadGoogleMaps(apiKey: string): Promise<GoogleMapsApi> {
       else reject(new Error("Google Maps API yüklenemedi."));
     };
     if (existing) {
-      if ((window as any).google?.maps) return finish();
       existing.addEventListener("load", finish, { once: true });
       existing.addEventListener("error", () => reject(new Error("Google Maps script yüklenemedi.")), { once: true });
       return;
@@ -54,13 +54,7 @@ function loadGoogleMaps(apiKey: string): Promise<GoogleMapsApi> {
 
 function tierStyle(tier: Parcel["tier"], selected: boolean) {
   const color = tier === "premium" ? "#f6c453" : tier === "elite" ? "#b77cff" : "#55c9ff";
-  return {
-    strokeColor: selected ? "#ffffff" : color,
-    strokeOpacity: selected ? 1 : 0.9,
-    strokeWeight: selected ? 3 : 1.5,
-    fillColor: color,
-    fillOpacity: selected ? 0.42 : 0.18,
-  };
+  return { strokeColor: selected ? "#ffffff" : color, strokeOpacity: selected ? 1 : 0.9, strokeWeight: selected ? 3 : 1.5, fillColor: color, fillOpacity: selected ? 0.42 : 0.18 };
 }
 
 function polygonPaths(maps: any, geometry: GeoJsonPolygon | GeoJsonMultiPolygon): LatLng[][] {
@@ -76,16 +70,18 @@ function markerIcon(maps: any, tier: Parcel["tier"], selected: boolean) {
   return { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: new maps.Size(size + 8, size + 8), anchor: new maps.Point((size + 8) / 2, (size + 8) / 2) };
 }
 
-export function GoogleParcelMap({ parcels, selectedId, onSelect, center }: Props) {
+export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChange, center }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<GoogleMapInstance | null>(null);
   const markersRef = useRef<Map<string, GoogleMarker>>(new Map());
   const polygonsRef = useRef<Map<string, GooglePolygon[]>>(new Map());
   const onSelectRef = useRef(onSelect);
+  const onViewportChangeRef = useRef(onViewportChange);
   const [error, setError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
+  useEffect(() => { onViewportChangeRef.current = onViewportChange; }, [onViewportChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,11 +103,27 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, center }: Props
   }, [center.lat, center.lng]);
 
   useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !onViewportChangeRef.current) return;
+    const map = mapInstanceRef.current;
+    const emitBounds = () => {
+      const bounds = map.getBounds();
+      if (!bounds) return;
+      const ne = bounds.getNorthEast();
+      const sw = bounds.getSouthWest();
+      onViewportChangeRef.current?.({ minLat: sw.lat(), minLng: sw.lng(), maxLat: ne.lat(), maxLng: ne.lng() });
+    };
+    const maps = (window as any).google?.maps;
+    if (!maps) return;
+    const listener = maps.event.addListener(map, "idle", emitBounds);
+    emitBounds();
+    return () => maps.event.removeListener(listener);
+  }, [mapReady]);
+
+  useEffect(() => {
     if (!mapReady || !mapInstanceRef.current) return;
     const maps = (window as any).google?.maps;
     if (!maps) return;
     const ids = new Set(parcels.map((parcel) => parcel.id));
-
     markersRef.current.forEach((marker, id) => { if (!ids.has(id)) { marker.setMap(null); markersRef.current.delete(id); } });
     polygonsRef.current.forEach((polygons, id) => { if (!ids.has(id)) { polygons.forEach((polygon) => polygon.setMap(null)); polygonsRef.current.delete(id); } });
 
@@ -120,7 +132,6 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, center }: Props
       const opacity = parcel.status === "sold" ? 0.45 : parcel.status === "reserved" ? 0.7 : 1;
       const style = tierStyle(parcel.tier, selected);
       const geometry = parcel.geometry;
-
       if (geometry) {
         let polygons = polygonsRef.current.get(parcel.id);
         const paths = polygonPaths(maps, geometry);
@@ -128,18 +139,16 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, center }: Props
           polygons?.forEach((polygon) => polygon.setMap(null));
           polygons = paths.map((path) => {
             const polygon = new maps.Polygon({ map: mapInstanceRef.current, paths: path, ...style, clickable: true });
+            polygon.setOptions({ visible: opacity > 0 });
             polygon.addListener("click", () => onSelectRef.current(parcel.id));
             return polygon;
           });
           polygonsRef.current.set(parcel.id, polygons);
-        } else {
-          polygons.forEach((polygon, index) => { polygon.setPath(paths[index]); polygon.setOptions(style); });
-        }
+        } else polygons.forEach((polygon, index) => { polygon.setPath(paths[index]); polygon.setOptions({ ...style, visible: opacity > 0 }); });
         const oldMarker = markersRef.current.get(parcel.id);
         if (oldMarker) { oldMarker.setMap(null); markersRef.current.delete(parcel.id); }
         return;
       }
-
       const existingMarker = markersRef.current.get(parcel.id);
       const icon = markerIcon(maps, parcel.tier, selected);
       if (existingMarker) {
