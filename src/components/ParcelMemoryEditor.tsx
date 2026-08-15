@@ -73,20 +73,35 @@ export function ParcelMemoryEditor({ parcel }: Props) {
       const { data: sessionData } = await supabaseBrowser.auth.getSession();
       const user = sessionData.session?.user;
       if (!user) throw new Error("Oturum açmanız gerekiyor.");
+      const { data: ownerRow, error: ownerError } = await supabaseBrowser.from("parcels").select("owner_id").eq("id", memory.parcelId).maybeSingle();
+      if (ownerError) throw ownerError;
+      if (ownerRow?.owner_id !== user.id) throw new Error("Bu parselin sahibi değilsiniz.");
       if (note.length > 500) throw new Error("Not en fazla 500 karakter olabilir.");
+
       let nextPhotoPath = photoPath;
+      let uploadedPath: string | null = null;
       if (file) {
         if (!file.type.startsWith("image/")) throw new Error("Lütfen bir fotoğraf seçin.");
         if (file.size > 5 * 1024 * 1024) throw new Error("Fotoğraf en fazla 5 MB olabilir.");
         const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
         if (!["jpg", "jpeg", "png", "webp"].includes(ext)) throw new Error("JPG, PNG veya WebP kullanın.");
-        const path = `${user.id}/${memory.parcelId}/memory.${ext}`;
-        const { error: uploadError } = await supabaseBrowser.storage.from("parcel-memories").upload(path, file, { upsert: true, contentType: file.type, cacheControl: "3600" });
-        if (uploadError) throw uploadError;
+        // Upload to a new immutable path first. This avoids requiring UPDATE permission on storage objects.
+        const path = `${user.id}/${memory.parcelId}/memory-${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabaseBrowser.storage.from("parcel-memories").upload(path, file, { upsert: false, contentType: file.type, cacheControl: "3600" });
+        if (uploadError) throw new Error(`Fotoğraf yüklenemedi: ${uploadError.message}`);
+        uploadedPath = path;
         nextPhotoPath = path;
       }
+
       const { error } = await supabaseBrowser.from("parcel_memories").upsert({ parcel_id: memory.parcelId, user_id: user.id, photo_path: nextPhotoPath ?? "note-only", note: note.trim() || null, updated_at: new Date().toISOString() });
-      if (error) throw error;
+      if (error) {
+        if (uploadedPath) await supabaseBrowser.storage.from("parcel-memories").remove([uploadedPath]);
+        throw new Error(`Parsel hatırası kaydedilemedi: ${error.message}`);
+      }
+
+      if (uploadedPath && photoPath && photoPath !== uploadedPath) {
+        await supabaseBrowser.storage.from("parcel-memories").remove([photoPath]);
+      }
       setPhotoPath(nextPhotoPath); setFile(null); setMessage("Parsel hatıran kaydedildi.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Kaydetme sırasında hata oluştu."); }
     finally { setSaving(false); }
