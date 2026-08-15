@@ -1,16 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  Award,
-  ChevronRight,
-  CreditCard,
-  Gift,
-  Globe,
-  Headphones,
-  Mail,
-  ShieldCheck,
-  ShoppingCart,
-  Star,
-} from "lucide-react";
+import { CheckCircle2, Globe2, Heart, ShieldCheck, Sparkles } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
@@ -18,78 +7,64 @@ import { TrustBar } from "@/components/TrustBar";
 export const Route = createFileRoute("/nasil-calisir")({
   head: () => ({
     meta: [
-      { title: "Nasıl Çalışır? — MySkyParcel" },
-      {
-        name: "description",
-        content:
-          "Beş adımda gökyüzü parselini seç, siparişini oluştur, ödemeni yap, sertifikanı al ve hediyeni ulaştır.",
-      },
-      { property: "og:title", content: "Nasıl Çalışır? — MySkyParcel" },
-      { property: "og:description", content: "MySkyParcel süreci 5 basit adımda." },
+      { title: "MySkyParcel Nedir? — MySkyParcel" },
+      { name: "description", content: "MySkyParcel'in dijital ve sembolik parsel sistemi, sertifikaları ve platform kapsamı hakkında bilgi." },
+      { property: "og:title", content: "MySkyParcel Nedir?" },
+      { property: "og:description", content: "MySkyParcel'in dijital parsel deneyiminin nasıl çalıştığını ve ne ifade ettiğini öğrenin." },
     ],
   }),
-  component: NasilCalisir,
+  component: MySkyParcelNedir,
 });
 
-const STEPS = [
-  { n: 1, icon: Globe, title: "PARSELİNİ SEÇ", text: "Etkileşimli gökyüzü haritasından konumunu seç ve sana özel parselini belirle." },
-  { n: 2, icon: ShoppingCart, title: "SİPARİŞİNİ OLUŞTUR", text: "Seçtiğin parsel için paketini belirle, bilgilerini gir ve siparişini tamamla." },
-  { n: 3, icon: CreditCard, title: "ÖDEMENİ YAP", text: "Güvenli ödeme altyapımız ile ödemeni kolayca yap, siparişin onaylansın." },
-  { n: 4, icon: Award, title: "SERTİFİKANI AL", text: "Dijital sertifikan e-posta ile anında gönderilir. Dilersen çerçeveli baskını kargoyla alırsın." },
-  { n: 5, icon: Gift, title: "HEDİYEN HAZIR", text: "Sevdiklerine anlamlı, benzersiz ve unutulmaz bir hediye vermenin mutluluğunu yaşa." },
+const POINTS = [
+  { icon: Globe2, title: "DİJİTAL GÖKYÜZÜ HARİTASI", text: "Platformdaki şehirler ve parseller, etkileşimli dijital harita üzerinde keşfedilen sembolik alanlardır." },
+  { icon: Sparkles, title: "DİJİTAL KOLEKSİYON", text: "Satın alma tamamlandığında parsel kaydı hesabınıza bağlanır ve Koleksiyonum bölümünde görüntülenebilir." },
+  { icon: CheckCircle2, title: "SERTİFİKA DENEYİMİ", text: "Uygun paket kapsamında parsel bilgileriyle kişiselleştirilen dijital veya fiziksel sertifika seçenekleri sunulur." },
+  { icon: Heart, title: "ANLAMLI HATIRA", text: "Satın alınmış parsel sahipleri, platform kuralları kapsamında parsellerine kişisel bir hatıra ekleyebilir." },
+  { icon: ShieldCheck, title: "AÇIK SINIRLAR", text: "MySkyParcel gerçek bir taşınmaz, tapu sicili veya resmi mülkiyet sistemi değildir; parseller dijital ve semboliktir." },
 ];
 
-const WHY = [
-  { icon: ShieldCheck, title: "GÜVENLİ ALTYAPI", text: "256 Bit SSL ile tüm işlemleriniz güvende." },
-  { icon: Award, title: "RESMİ KAYIT", text: "Tüm parseller kaydedilir ve sertifikanız resmi olarak oluşturulur." },
-  { icon: Mail, title: "ANINDA TESLİMAT", text: "Dijital sertifikanız e-posta ile anında gönderilir." },
-  { icon: Headphones, title: "7/24 DESTEK", text: "Her zaman yanınızdayız. Sorularınız için bize ulaşın." },
-  { icon: Star, title: "BENZERSİZ HEDİYE", text: "Sevdiklerinize verebileceğiniz en özel ve anlamlı hediye." },
-];
-
-function NasilCalisir() {
+function MySkyParcelNedir() {
   return (
     <div className="starfield min-h-screen">
       <SiteHeader />
-      <main className="mx-auto max-w-[1600px] px-4 py-14 lg:px-8">
-        <div className="text-center">
-          <h1 className="font-display text-4xl font-bold sm:text-5xl">
-            NASIL <span className="text-gradient-gold">ÇALIŞIR?</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-sm text-muted-foreground">
-            Sadece birkaç adımda gökyüzünde sana özel bir parsel seç, anlamlı bir hediye ile
-            sevdiklerine unutulmaz bir deneyim yaşat.
+      <main className="mx-auto max-w-[1200px] px-4 py-12 lg:px-8 lg:py-16">
+        <header className="text-center">
+          <p className="text-xs font-semibold tracking-[0.2em] text-gold">MY SKY PARCEL</p>
+          <h1 className="mt-3 font-display text-4xl font-bold sm:text-5xl">MYSKYPARCEL NEDİR?</h1>
+          <p className="mx-auto mt-5 max-w-3xl text-sm leading-7 text-muted-foreground">
+            MySkyParcel, kullanıcıların dijital bir gökyüzü haritası üzerinde sembolik parselleri keşfetmesine, seçmesine ve satın alınan hizmet kapsamında dijital bir koleksiyon oluşturmasına imkân veren bir platformdur. Amaç, fiziksel bir taşınmaz sunmak değil; dijital dünyada kişisel anlam taşıyan bir parsel deneyimi ve sertifika sunmaktır.
           </p>
-        </div>
+        </header>
 
-        <ol className="mt-16 grid gap-6 md:grid-cols-2 xl:grid-cols-5">
-          {STEPS.map((s) => (
-            <li key={s.n} className="panel relative flex flex-col items-center p-6 pt-10 text-center">
-              <span className="absolute -top-5 grid h-10 w-10 place-items-center rounded-full border-2 border-gold bg-background font-display text-lg text-gold">
-                {s.n}
-              </span>
-              <h2 className="font-display text-base">{s.title}</h2>
-              <s.icon className="my-8 h-16 w-16 text-gold" />
-              <p className="text-xs text-muted-foreground">{s.text}</p>
-              <ChevronRight className="absolute -right-5 top-1/2 hidden h-6 w-6 -translate-y-1/2 text-gold xl:block" />
-            </li>
+        <section className="mt-10 grid gap-5 md:grid-cols-2">
+          {POINTS.map((point) => (
+            <article key={point.title} className="panel p-6">
+              <point.icon className="h-8 w-8 text-gold" />
+              <h2 className="mt-4 font-display text-lg">{point.title}</h2>
+              <p className="mt-3 text-sm leading-7 text-muted-foreground">{point.text}</p>
+            </article>
           ))}
-        </ol>
+        </section>
 
-        <h2 className="mt-16 text-center font-display text-lg tracking-[0.1em] text-gold">
-          NEDEN MY SKYPARCEL?
-        </h2>
-        <div className="panel mt-6 grid gap-6 p-7 sm:grid-cols-2 lg:grid-cols-5">
-          {WHY.map((w) => (
-            <div key={w.title} className="flex min-w-0 items-start gap-3">
-              <w.icon className="mt-0.5 h-6 w-6 shrink-0 text-gold" />
-              <div className="min-w-0">
-                <p className="text-xs font-semibold tracking-[0.06em]">{w.title}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{w.text}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+        <section className="panel mt-6 border-gold/20 p-6 sm:p-8">
+          <h2 className="font-display text-xl text-gold">ÖNEMLİ: PARSELİN HUKUKİ NİTELİĞİ</h2>
+          <div className="mt-4 space-y-4 text-sm leading-7 text-muted-foreground">
+            <p>MySkyParcel'deki parseller gerçek bir arsa, arazi, taşınmaz veya tapu değildir. Platformdaki "parsel" ve "sahiplik" ifadeleri yalnızca dijital hizmet ve kullanıcı hesabı kapsamındaki kayıt ilişkisini anlatır.</p>
+            <p>Bir parselin satın alınması; tapu devri, taşınmaz mülkiyeti, ayni hak, imar hakkı, arsa tahsisi veya devlet nezdinde herhangi bir taşınmaz kaydı oluşturmaz. MySkyParcel bir devlet kurumu, tapu sicili veya resmi taşınmaz kayıt sistemi değildir.</p>
+            <p>Sertifikalar da bu dijital hizmet kapsamındaki kayıtları belgeleyen ürünlerdir; resmi tapu veya devlet tarafından düzenlenmiş mülkiyet belgesi niteliğinde değildir.</p>
+            <p className="text-xs text-muted-foreground/80">Bu metin genel kullanıcı bilgilendirmesi amacıyla hazırlanmıştır ve hukuki danışmanlık veya somut bir hukuki görüş olarak değerlendirilmemelidir. İşlemler için yürürlükteki sözleşme ve ilgili mevzuat hükümleri geçerlidir.</p>
+          </div>
+        </section>
+
+        <section className="mt-10 text-center">
+          <h2 className="font-display text-2xl">NASIL İLERLERSİNİZ?</h2>
+          <div className="mx-auto mt-6 grid max-w-4xl gap-3 sm:grid-cols-4">
+            {["Gökyüzü Haritasını Aç", "Parselini Seç", "Paketini Belirle", "Koleksiyonuna Ekle"].map((step, index) => (
+              <div key={step} className="panel p-4"><span className="text-xs text-gold">0{index + 1}</span><p className="mt-2 text-xs font-medium">{step}</p></div>
+            ))}
+          </div>
+        </section>
       </main>
       <TrustBar />
       <SiteFooter />
