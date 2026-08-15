@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Layers3, MapPin, Search } from "lucide-react";
 import { z } from "zod";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -54,6 +54,7 @@ type PublicParcelRow = Omit<Parcel, "owner_id"> & {
 
 function Harita() {
   const { city: citySlug } = Route.useSearch();
+  const navigate = useNavigate({ from: "/gokyuzu-haritasi" });
   const initialCity = PILOT_CITIES.find((city) => city.slug === citySlug) ?? DEFAULT_CITY;
   const [selectedCity, setSelectedCity] = useState(initialCity.code);
   const [parcels, setParcels] = useState<MapParcel[]>([]);
@@ -133,10 +134,12 @@ function Harita() {
   }, [selectedCityMeta.code, selectedCityMeta.name, selectedCityMeta.slug, selectedId]);
 
   const selectCity = (code: typeof selectedCity) => {
-    setSelectedCity(code);
+    const city = PILOT_CITIES.find((item) => item.code === code) ?? DEFAULT_CITY;
+    setSelectedCity(city.code);
     setSelectedId(null);
     setLayerFilter(null);
     setSectorFilter(null);
+    void navigate({ search: { city: city.slug }, replace: true });
   };
 
   const handleLayerChange = (value: string) => {
