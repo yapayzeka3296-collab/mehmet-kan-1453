@@ -39,8 +39,6 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
       try {
         const [{ data: sessionData }, { data: ownerData, error: ownerError }, { data: memoryRow, error: memoryError }] = await Promise.all([
           supabaseBrowser.auth.getSession(),
-          // parcels SELECT is intentionally restricted by RLS. Use the existing
-          // SECURITY DEFINER RPC so ownership can be checked without exposing owner_id.
           supabaseBrowser.rpc('is_parcel_owner', { p_parcel_id: parcel.id }),
           supabaseBrowser.from('parcel_memories').select('photo_path,note,updated_at').eq('parcel_id', parcel.id).maybeSingle(),
         ]);
@@ -48,7 +46,6 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
         if (ownerError) console.error('Parcel owner lookup error', ownerError);
         if (memoryError) console.error('Parcel memory lookup error', memoryError);
         const currentUserId = sessionData.session?.user?.id ?? null;
-        // Require an authenticated session as well as the server-side ownership check.
         const owner = !!currentUserId && ownerData === true;
         setIsOwner(owner);
         const nextMemory = memoryRow?.photo_path && memoryRow.photo_path !== 'note-only' ? memoryRow as Memory : null;
@@ -145,60 +142,63 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
   const purchaseLabel = loading ? 'SATIN ALINIYOR...' : parcel.status === 'available' ? 'SATIN AL' : parcel.status === 'sold' ? 'SATILDI' : 'REZERVE';
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-auto bg-background p-6 shadow-lg md:relative md:w-auto md:max-w-none">
-      <div className="flex items-start justify-between gap-4">
-        <div><p className="text-xs text-muted-foreground">{parcel.city_name ?? 'MySkyParcel'}</p><h3 className="mt-1 font-display text-lg font-bold">PARSEL BİLGİSİ</h3></div>
-        <button type="button" onClick={onClose} aria-label="Kapat" className="flex h-9 w-9 items-center justify-center rounded-full border border-input text-muted-foreground transition hover:bg-muted hover:text-foreground"><X className="h-5 w-5" /></button>
-      </div>
-      <div className="mt-5 rounded-xl border border-gold/20 bg-background/30 p-5">
-        <dl className="space-y-4 text-sm">
-          <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Parsel No</dt><dd className="font-semibold">{parcel.parcel_number}</dd></div>
-          <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Kategori</dt><dd className="font-semibold">{tierLabel}</dd></div>
-          <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Durum</dt><dd className="font-semibold capitalize">{parcel.status === 'sold' ? 'Satıldı' : parcel.status === 'reserved' ? 'Rezerve' : 'Satılık'}</dd></div>
-          <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Fiyat</dt><dd className="font-semibold">{parcel.tier_price.toLocaleString('tr-TR')} TL</dd></div>
-        </dl>
-      </div>
-      <button id="myskyparcel-purchase-action" data-msp-purchase="1" type="button" onClick={handlePurchase} disabled={loading || parcel.status !== 'available'} className="btn-gold mt-6 w-full rounded-md py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50">
-        {purchaseLabel}
-      </button>
-      {message && <p className="mt-3 text-center text-sm text-muted-foreground">{message}</p>}
-
-      <section className="mt-5 rounded-xl border border-cyan-300/15 bg-cyan-950/10 p-4" aria-label="Parsel hatırası">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200/65">Parsel Hatırası</p>
-            <p className="mt-1 text-sm font-semibold">Bir fotoğraf ve küçük bir not</p>
-          </div>
-          {memory && <span className="rounded-full border border-cyan-300/20 px-2 py-1 text-[9px] font-semibold text-cyan-100/65">1 FOTOĞRAF</span>}
+    <aside className="fixed inset-0 z-[100] grid place-items-center bg-black/45 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-label="Parsel bilgisi ve hatırası">
+      <div className="max-h-[92vh] w-full max-w-md overflow-auto rounded-2xl border border-cyan-300/20 bg-[#071a2d] p-5 shadow-2xl shadow-black/60 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div><p className="text-xs text-cyan-100/60">{parcel.city_name ?? 'MySkyParcel'}</p><h3 className="mt-1 font-display text-lg font-bold">PARSEL BİLGİSİ</h3></div>
+          <button type="button" onClick={onClose} aria-label="Kapat" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 text-muted-foreground transition hover:bg-white/10 hover:text-white"><X className="h-5 w-5" /></button>
         </div>
+        <div className="mt-5 rounded-xl border border-cyan-300/10 bg-black/15 p-4">
+          <dl className="space-y-3 text-sm">
+            <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Parsel No</dt><dd className="font-semibold">{parcel.parcel_number}</dd></div>
+            <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Şehir</dt><dd className="font-semibold">{parcel.city_name ?? '—'}</dd></div>
+            <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Kategori</dt><dd className="font-semibold">{tierLabel}</dd></div>
+            <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Durum</dt><dd className={`font-semibold ${parcel.status === 'sold' ? 'text-red-300' : parcel.status === 'reserved' ? 'text-amber-300' : 'text-cyan-200'}`}>{parcel.status === 'sold' ? 'Satıldı' : parcel.status === 'reserved' ? 'Rezerve' : 'Satılık'}</dd></div>
+            <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Fiyat</dt><dd className="font-semibold">{parcel.tier_price.toLocaleString('tr-TR')} TL</dd></div>
+          </dl>
+        </div>
+        <button id="myskyparcel-purchase-action" data-msp-purchase="1" type="button" onClick={handlePurchase} disabled={loading || parcel.status !== 'available'} className="btn-gold mt-5 w-full rounded-md py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50">
+          {purchaseLabel}
+        </button>
+        {message && <p className="mt-3 text-center text-sm text-muted-foreground">{message}</p>}
 
-        {memoryLoading ? (
-          <p className="mt-4 text-xs text-muted-foreground">Hatıra kontrol ediliyor...</p>
-        ) : isOwner ? (
-          <div className="mt-4 space-y-3">
-            {memoryPhotoUrl && <img src={memoryPhotoUrl} alt={`${parcel.parcel_number} parsel hatırası`} className="max-h-48 w-full rounded-lg object-cover" loading="lazy" />}
-            <label className="block cursor-pointer rounded-lg border border-dashed border-cyan-300/25 bg-white/[0.03] p-3">
-              <span className="text-xs font-semibold">📷 {memory ? 'Fotoğrafı değiştir' : 'Fotoğraf ekle'}</span>
-              <span className="mt-1 block text-[10px] text-muted-foreground">JPG, PNG veya WebP · Maks. 5 MB · Parsel başına 1 fotoğraf</span>
-              <input className="mt-2 block w-full text-[10px]" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setMemoryFile(event.target.files?.[0] ?? null)} />
-            </label>
-            <label className="block">
-              <span className="text-xs font-semibold">📝 Küçük not</span>
-              <textarea value={memoryNote} onChange={(event) => setMemoryNote(event.target.value.slice(0, 300))} maxLength={300} rows={3} placeholder="Bu parsel için kısa bir anı..." className="mt-2 w-full resize-none rounded-lg border border-white/10 bg-white/5 p-2.5 text-xs outline-none placeholder:text-white/30 focus:border-cyan-300/40" />
-              <span className="mt-1 block text-right text-[9px] text-muted-foreground">{memoryNote.length}/300</span>
-            </label>
-            {memoryMessage && <p className="rounded-lg bg-white/5 px-3 py-2 text-[10px] text-white/70">{memoryMessage}</p>}
-            <button type="button" disabled={memorySaving} onClick={handleMemorySave} className="h-9 w-full rounded-lg border border-cyan-300/25 bg-cyan-300/10 text-xs font-bold text-cyan-100 transition hover:bg-cyan-300/15 disabled:opacity-50">{memorySaving ? 'KAYDEDİLİYOR...' : memory ? 'HATIRAYI GÜNCELLE' : 'HATIRAYI KAYDET'}</button>
+        <section className="mt-5 rounded-xl border border-cyan-300/15 bg-cyan-950/10 p-4" aria-label="Parsel hatırası">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200/65">Parsel Hatırası</p>
+              <p className="mt-1 text-sm font-semibold">1 fotoğraf + küçük bir not</p>
+            </div>
+            {memory && <span className="rounded-full border border-cyan-300/20 px-2 py-1 text-[9px] font-semibold text-cyan-100/65">HATIRA VAR</span>}
           </div>
-        ) : memory ? (
-          <div className="mt-4 space-y-3">
-            {memoryPhotoUrl && <img src={memoryPhotoUrl} alt={`${parcel.parcel_number} parsel hatırası`} className="max-h-52 w-full rounded-lg object-cover" loading="lazy" />}
-            {memory.note && <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3"><p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-cyan-200/55">Not</p><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-white/75">{memory.note}</p></div>}
-          </div>
-        ) : (
-          <p className="mt-4 text-xs leading-5 text-muted-foreground">Bu parselin sahibiysen bir fotoğraf ve kısa bir not ekleyebilirsin.</p>
-        )}
-      </section>
+
+          {memoryLoading ? (
+            <p className="mt-4 text-xs text-muted-foreground">Hatıra kontrol ediliyor...</p>
+          ) : isOwner ? (
+            <div className="mt-4 space-y-3">
+              {memoryPhotoUrl && <img src={memoryPhotoUrl} alt={`${parcel.parcel_number} parsel hatırası`} className="max-h-48 w-full rounded-lg object-cover" loading="lazy" />}
+              <label className="block cursor-pointer rounded-lg border border-dashed border-cyan-300/25 bg-white/[0.03] p-3">
+                <span className="text-xs font-semibold">📷 {memory ? 'Fotoğrafı değiştir' : 'Fotoğraf ekle'}</span>
+                <span className="mt-1 block text-[10px] text-muted-foreground">JPG, PNG veya WebP · Maks. 5 MB · Parsel başına 1 fotoğraf</span>
+                <input className="mt-2 block w-full text-[10px]" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setMemoryFile(event.target.files?.[0] ?? null)} />
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold">📝 Küçük not</span>
+                <textarea value={memoryNote} onChange={(event) => setMemoryNote(event.target.value.slice(0, 300))} maxLength={300} rows={3} placeholder="Bu parsel için kısa bir anı..." className="mt-2 w-full resize-none rounded-lg border border-white/10 bg-white/5 p-2.5 text-xs outline-none placeholder:text-white/30 focus:border-cyan-300/40" />
+                <span className="mt-1 block text-right text-[9px] text-muted-foreground">{memoryNote.length}/300</span>
+              </label>
+              {memoryMessage && <p className="rounded-lg bg-white/5 px-3 py-2 text-[10px] text-white/70">{memoryMessage}</p>}
+              <button type="button" disabled={memorySaving} onClick={handleMemorySave} className="h-9 w-full rounded-lg border border-cyan-300/25 bg-cyan-300/10 text-xs font-bold text-cyan-100 transition hover:bg-cyan-300/15 disabled:opacity-50">{memorySaving ? 'KAYDEDİLİYOR...' : memory ? 'HATIRAYI GÜNCELLE' : 'HATIRAYI KAYDET'}</button>
+            </div>
+          ) : memory ? (
+            <div className="mt-4 space-y-3">
+              {memoryPhotoUrl && <img src={memoryPhotoUrl} alt={`${parcel.parcel_number} parsel hatırası`} className="max-h-52 w-full rounded-lg object-cover" loading="lazy" />}
+              {memory.note && <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3"><p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-cyan-200/55">Not</p><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-white/75">{memory.note}</p></div>}
+            </div>
+          ) : (
+            <p className="mt-4 text-xs leading-5 text-muted-foreground">Bu parselin sahibiysen bir fotoğraf ve kısa bir not ekleyebilirsin.</p>
+          )}
+        </section>
+      </div>
     </aside>
   );
 }
