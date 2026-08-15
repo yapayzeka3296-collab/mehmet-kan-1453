@@ -10,6 +10,10 @@ import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import type { Parcel } from "@/types/parcel";
 
+type GeoJsonPolygon = { type: "Polygon"; coordinates: number[][][] };
+type GeoJsonMultiPolygon = { type: "MultiPolygon"; coordinates: number[][][][] };
+type MapParcel = Parcel & { geometry?: GeoJsonPolygon | GeoJsonMultiPolygon | null; layer_number?: number | null; sector_number?: number | null; local_parcel_number?: number | null; city_slug?: string | null };
+
 export const Route = createFileRoute("/gokyuzu-haritasi")({
   validateSearch: z.object({ city: z.string().optional() }),
   head: () => ({
@@ -37,13 +41,21 @@ const DEFAULT_CITY = PILOT_CITIES[6];
 const TIER_BY_NUMBER = (number: number) => (number <= 500 ? "digital" : number <= 800 ? "elite" : "premium");
 const TIER_PRICE = { digital: 199, elite: 499, premium: 999 } as const;
 type Tier = keyof typeof TIER_PRICE;
-type PublicParcelRow = Omit<Parcel, "owner_id"> & { owner_id: null; city_slug?: string | null; layer_number?: number | null; sector_number?: number | null; local_parcel_number?: number | null };
+
+type PublicParcelRow = Omit<Parcel, "owner_id"> & {
+  owner_id: null;
+  city_slug?: string | null;
+  layer_number?: number | null;
+  sector_number?: number | null;
+  local_parcel_number?: number | null;
+  geometry?: GeoJsonPolygon | GeoJsonMultiPolygon | null;
+};
 
 function Harita() {
   const { city: citySlug } = Route.useSearch();
   const initialCity = PILOT_CITIES.find((city) => city.slug === citySlug) ?? DEFAULT_CITY;
   const [selectedCity, setSelectedCity] = useState(initialCity.code);
-  const [parcels, setParcels] = useState<Parcel[]>([]);
+  const [parcels, setParcels] = useState<MapParcel[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [layerFilter, setLayerFilter] = useState<number | null>(null);
   const [sectorFilter, setSectorFilter] = useState<number | null>(null);
@@ -86,7 +98,7 @@ function Harita() {
       try {
         const { data, error: parcelError } = await supabaseBrowser
           .from("parcel_map_public")
-          .select("id, parcel_number, status, price, tier, tier_price, city_id, city_code, city_name, city_slug, layer_number, sector_number, local_parcel_number, latitude, longitude, created_at, updated_at")
+          .select("id, parcel_number, status, price, tier, tier_price, city_id, city_code, city_name, city_slug, layer_number, sector_number, local_parcel_number, latitude, longitude, geometry, created_at, updated_at")
           .eq("city_slug", selectedCityMeta.slug)
           .order("layer_number", { ascending: true })
           .order("sector_number", { ascending: true })
@@ -103,7 +115,7 @@ function Harita() {
             tier_price: parcel.tier_price ?? TIER_PRICE[tier],
             city_name: parcel.city_name ?? selectedCityMeta.name,
             city_code: parcel.city_code ?? selectedCityMeta.code,
-          } as Parcel;
+          } as MapParcel;
         });
         if (mounted) setParcels(normalized);
       } catch (err) {
@@ -187,8 +199,8 @@ function Harita() {
 
             <div className="mt-5 rounded-2xl border border-white/10 bg-slate-900/65 p-4 text-xs text-white/55">
               <p className="font-semibold text-white/75">Harita kullanımı</p>
-              <p className="mt-2 leading-5">Haritayı parmağınla sürükle veya yakınlaştır. Renkli noktalar MySkyParcel parsellerini gösterir. Bir noktaya dokununca parsel detay paneli açılır.</p>
-              <p className="mt-2 leading-5">Google Maps tabanı gerçek coğrafyayı gösterir; MySkyParcel katmanı parsel verilerini bunun üzerinde sunar.</p>
+              <p className="mt-2 leading-5">Haritayı parmağınla sürükle veya yakınlaştır. Renkli alanlar MySkyParcel parsellerini gösterir. Bir parsele dokununca parsel detay paneli açılır.</p>
+              <p className="mt-2 leading-5">Google Maps tabanı gerçek coğrafyayı gösterir; MySkyParcel katmanı dijital parsel alanlarını bunun üzerinde sunar.</p>
             </div>
           </aside>
 
