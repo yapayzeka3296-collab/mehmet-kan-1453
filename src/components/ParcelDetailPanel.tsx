@@ -37,16 +37,19 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
         return;
       }
       try {
-        const [{ data: sessionData }, { data: ownerRow, error: ownerError }, { data: memoryRow, error: memoryError }] = await Promise.all([
+        const [{ data: sessionData }, { data: ownerData, error: ownerError }, { data: memoryRow, error: memoryError }] = await Promise.all([
           supabaseBrowser.auth.getSession(),
-          supabaseBrowser.from('parcels').select('owner_id').eq('id', parcel.id).maybeSingle(),
+          // parcels SELECT is intentionally restricted by RLS. Use the existing
+          // SECURITY DEFINER RPC so ownership can be checked without exposing owner_id.
+          supabaseBrowser.rpc('is_parcel_owner', { p_parcel_id: parcel.id }),
           supabaseBrowser.from('parcel_memories').select('photo_path,note,updated_at').eq('parcel_id', parcel.id).maybeSingle(),
         ]);
         if (cancelled) return;
         if (ownerError) console.error('Parcel owner lookup error', ownerError);
         if (memoryError) console.error('Parcel memory lookup error', memoryError);
         const currentUserId = sessionData.session?.user?.id ?? null;
-        const owner = !!currentUserId && ownerRow?.owner_id === currentUserId;
+        // Require an authenticated session as well as the server-side ownership check.
+        const owner = !!currentUserId && ownerData === true;
         setIsOwner(owner);
         const nextMemory = memoryRow?.photo_path && memoryRow.photo_path !== 'note-only' ? memoryRow as Memory : null;
         setMemory(nextMemory);
