@@ -6,15 +6,14 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
 import { GoogleParcelMap } from "@/components/GoogleParcelMap";
 import { ParcelDetailPanel } from "@/components/ParcelDetailPanel";
-import { ParcelMemoryEditor } from "@/components/ParcelMemoryEditor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import type { Parcel } from "@/types/parcel";
 
 type GeoJsonPolygon = { type: "Polygon"; coordinates: number[][][] };
 type GeoJsonMultiPolygon = { type: "MultiPolygon"; coordinates: number[][][][] };
-type MapParcel = Parcel & { geometry?: GeoJsonPolygon | GeoJsonMultiPolygon | null; layer_number?: number | null; sector_number?: number | null; local_parcel_number?: number | null; city_slug?: string | null };
 type ViewportBounds = { minLat: number; minLng: number; maxLat: number; maxLng: number };
+type MapParcel = Parcel & { geometry?: GeoJsonPolygon | GeoJsonMultiPolygon | null; layer_number?: number | null; sector_number?: number | null; local_parcel_number?: number | null; city_slug?: string | null };
 
 export const Route = createFileRoute("/gokyuzu-haritasi")({
   validateSearch: z.object({ city: z.string().optional() }),
@@ -97,7 +96,6 @@ function Harita() {
           <div className="order-1 min-w-0 p-2 sm:p-3 lg:order-2 lg:p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1 sm:px-2"><div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-1.5 text-xs text-white/75">{selectedCityMeta.name} · {filteredParcels.length.toLocaleString("tr-TR")} parsel</div>{loading && <span className="text-xs text-white/45">Görünen alan yükleniyor...</span>}{error && <span className="text-xs text-red-200">{error}</span>}</div><GoogleParcelMap parcels={filteredParcels} selectedId={selectedId} onSelect={setSelectedId} onViewportChange={loadViewportParcels} center={selectedCityMeta.center} /></div>
         </section>
         {selectedParcel && <ParcelDetailPanel parcel={selectedParcel} onClose={() => setSelectedId(null)} onReserved={handleReserved} />}
-        <ParcelMemoryEditor parcel={selectedParcel} />
       </main>
       <TrustBar /><SiteFooter />
     </div>
