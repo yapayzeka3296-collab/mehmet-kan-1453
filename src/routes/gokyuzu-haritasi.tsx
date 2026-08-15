@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Layers3, MapPin, Search } from "lucide-react";
 import { z } from "zod";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -6,6 +6,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
 import { GoogleParcelMap } from "@/components/GoogleParcelMap";
 import { ParcelDetailPanel } from "@/components/ParcelDetailPanel";
+import { ParcelMemoryEditor } from "@/components/ParcelMemoryEditor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import type { Parcel } from "@/types/parcel";
@@ -17,14 +18,12 @@ type ViewportBounds = { minLat: number; minLng: number; maxLat: number; maxLng: 
 
 export const Route = createFileRoute("/gokyuzu-haritasi")({
   validateSearch: z.object({ city: z.string().optional() }),
-  head: () => ({
-    meta: [
-      { title: "Gökyüzü Haritası — MySkyParcel" },
-      { name: "description", content: "MySkyParcel dijital parsellerini Google Maps üzerinde keşfet, seç ve detaylarını incele." },
-      { property: "og:title", content: "Gökyüzü Haritası — MySkyParcel" },
-      { property: "og:description", content: "MySkyParcel parsellerini gerçek harita üzerinde keşfet." },
-    ],
-  }),
+  head: () => ({ meta: [
+    { title: "Gökyüzü Haritası — MySkyParcel" },
+    { name: "description", content: "MySkyParcel dijital parsellerini Google Maps üzerinde keşfet, seç ve detaylarını incele." },
+    { property: "og:title", content: "Gökyüzü Haritası — MySkyParcel" },
+    { property: "og:description", content: "MySkyParcel parsellerini gerçek harita üzerinde keşfet." },
+  ] }),
   component: Harita,
 });
 
@@ -42,15 +41,7 @@ const DEFAULT_CITY = PILOT_CITIES[6];
 const TIER_BY_NUMBER = (number: number) => (number <= 500 ? "digital" : number <= 800 ? "elite" : "premium");
 const TIER_PRICE = { digital: 199, elite: 499, premium: 999 } as const;
 type Tier = keyof typeof TIER_PRICE;
-
-type PublicParcelRow = Omit<Parcel, "owner_id"> & {
-  owner_id: null;
-  city_slug?: string | null;
-  layer_number?: number | null;
-  sector_number?: number | null;
-  local_parcel_number?: number | null;
-  geometry?: GeoJsonPolygon | GeoJsonMultiPolygon | null;
-};
+type PublicParcelRow = Omit<Parcel, "owner_id"> & { owner_id: null; city_slug?: string | null; layer_number?: number | null; sector_number?: number | null; local_parcel_number?: number | null; geometry?: GeoJsonPolygon | GeoJsonMultiPolygon | null };
 
 function Harita() {
   const { city: citySlug } = Route.useSearch();
@@ -159,7 +150,6 @@ function Harita() {
           <h1 className="font-display text-3xl font-bold tracking-wide sm:text-5xl">GÖKYÜZÜ HARİTASI</h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground sm:text-base">MySkyParcel parsellerini gerçek Google Maps üzerinde keşfet. Haritayı taşı, yakınlaştır ve istediğin parsele dokun.</p>
         </div>
-
         <section className="grid overflow-hidden rounded-3xl border border-sky-200/15 bg-slate-900/70 shadow-2xl shadow-black/30 lg:grid-cols-[280px_1fr]">
           <aside className="order-2 border-t border-white/10 bg-slate-950/90 p-4 backdrop-blur-md lg:order-1 lg:border-r lg:border-t-0 lg:p-5">
             <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900/80 px-3">
@@ -192,6 +182,7 @@ function Harita() {
           </div>
         </section>
         {selectedParcel && <ParcelDetailPanel parcel={selectedParcel} onClose={() => setSelectedId(null)} onReserved={handleReserved} />}
+        <ParcelMemoryEditor />
       </main>
       <TrustBar />
       <SiteFooter />
