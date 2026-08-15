@@ -36,7 +36,7 @@ const PILOT_CITIES = [
   { code: "KAY", slug: "kayseri", name: "Kayseri", center: { lat: 38.7205, lng: 35.4826 } },
   { code: "GZT", slug: "gaziantep", name: "Gaziantep", center: { lat: 37.0662, lng: 37.3833 } },
 ] as const;
-const DEFAULT_CITY = PILOT_CITIES[6];
+const DEFAULT_CITY = PILOT_CITIES[0];
 const TIER_BY_NUMBER = (number: number) => (number <= 500 ? "digital" : number <= 800 ? "elite" : "premium");
 const TIER_PRICE = { digital: 199, elite: 499, premium: 999 } as const;
 type Tier = keyof typeof TIER_PRICE;
