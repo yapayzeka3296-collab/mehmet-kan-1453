@@ -59,6 +59,7 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, center }: Props
   const markersRef = useRef<Map<string, any>>(new Map());
   const selectedRef = useRef(selectedId);
   const [error, setError] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     selectedRef.current = selectedId;
@@ -103,6 +104,7 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, center }: Props
         } else {
           mapInstanceRef.current.setCenter(center);
         }
+        setMapReady(true);
       })
       .catch((err) => {
         console.error("Google Maps load error", err);
@@ -117,7 +119,7 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, center }: Props
   useEffect(() => {
     const maps = (window as any).google?.maps;
     const map = mapInstanceRef.current;
-    if (!maps || !map) return;
+    if (!maps || !map || !mapReady) return;
 
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current.clear();
@@ -138,7 +140,7 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, center }: Props
       markersRef.current.forEach((marker) => marker.setMap(null));
       markersRef.current.clear();
     };
-  }, [parcels, onSelect]);
+  }, [parcels, onSelect, mapReady]);
 
   return (
     <div className="relative h-[560px] w-full overflow-hidden rounded-2xl border border-sky-200/15 bg-[#071a2d] sm:h-[680px] lg:h-[760px]">
