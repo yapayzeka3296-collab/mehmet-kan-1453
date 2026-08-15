@@ -148,8 +148,9 @@ function parcelInfoHtml(parcel: ParcelWithGeometry) {
   const layer = parcel.layer_number ?? "—";
   const sector = parcel.sector_number ?? "—";
   const local = parcel.local_parcel_number ?? "—";
+  const isAvailable = parcel.status === "available";
   return `<div class="myskyparcel-info" style="--parcel-status:${color}">
-    <div class="myskyparcel-info__glow"></div>
+    <button type="button" class="myskyparcel-info__close" data-parcel-action="close" aria-label="Parsel bilgi kutusunu kapat">×</button>
     <div class="myskyparcel-info__head"><div><div class="myskyparcel-info__eyebrow">GÖKYÜZÜ PARSELİ</div><div class="myskyparcel-info__title">${parcel.parcel_number}</div></div><span class="myskyparcel-info__status">${statusLabel(parcel.status)}</span></div>
     <div class="myskyparcel-info__grid">
       <div><span>Şehir</span><strong>${city}</strong></div>
@@ -159,6 +160,7 @@ function parcelInfoHtml(parcel: ParcelWithGeometry) {
       <div><span>Parsel Tipi</span><strong>${tierLabel(parcel.tier)}</strong></div>
       <div><span>Fiyat</span><strong>${price}</strong></div>
     </div>
+    ${isAvailable ? `<button type="button" class="myskyparcel-info__buy" data-parcel-action="buy">SATIN AL</button>` : `<div class="myskyparcel-info__unavailable">${statusLabel(parcel.status)} olduğu için satın alınamaz.</div>`}
   </div>`;
 }
 
@@ -166,6 +168,7 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<GoogleMapInstance | null>(null);
   const infoWindowRef = useRef<any>(null);
+  const infoWindowDomListenerRef = useRef<any>(null);
   const markersRef = useRef<Map<string, GoogleMarker>>(new Map());
   const cornerMarkersRef = useRef<Map<string, GoogleMarker[]>>(new Map());
   const polygonsRef = useRef<Map<string, GooglePolygon[]>>(new Map());
@@ -182,7 +185,7 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
     if (document.getElementById(styleId)) return;
     const style = document.createElement("style");
     style.id = styleId;
-    style.textContent = `.gm-style .gm-style-iw-c{background:transparent!important;box-shadow:none!important;padding:0!important;border-radius:0!important}.gm-style .gm-style-iw-d{overflow:visible!important;padding:0!important}.gm-style .gm-style-iw-tc{display:none!important}.gm-style .gm-ui-hover-effect{top:4px!important;right:4px!important;width:28px!important;height:28px!important;opacity:.75!important}.gm-style .gm-ui-hover-effect>span{margin:6px!important}.myskyparcel-info{position:relative;width:300px;box-sizing:border-box;padding:14px;border:1px solid color-mix(in srgb,var(--parcel-status) 70%,white 10%);border-radius:16px;background:linear-gradient(145deg,rgba(5,18,35,.97),rgba(3,10,24,.94));color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.05),0 10px 35px rgba(0,0,0,.48),0 0 24px color-mix(in srgb,var(--parcel-status) 28%,transparent);font-family:Inter,system-ui,sans-serif}.myskyparcel-info:after{content:"";position:absolute;left:50%;bottom:-9px;width:16px;height:16px;transform:translateX(-50%) rotate(45deg);background:#071326;border-right:1px solid var(--parcel-status);border-bottom:1px solid var(--parcel-status);box-shadow:6px 6px 18px rgba(0,0,0,.3)}.myskyparcel-info__head{position:relative;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-bottom:11px;border-bottom:1px solid rgba(255,255,255,.10)}.myskyparcel-info__eyebrow{font-size:8px;letter-spacing:.16em;color:rgba(255,255,255,.52);font-weight:700}.myskyparcel-info__title{margin-top:3px;font-size:18px;line-height:1.1;font-weight:800;letter-spacing:.02em}.myskyparcel-info__status{display:inline-flex;align-items:center;white-space:nowrap;border:1px solid color-mix(in srgb,var(--parcel-status) 70%,transparent);border-radius:999px;padding:5px 8px;color:var(--parcel-status);font-size:9px;font-weight:800;background:color-mix(in srgb,var(--parcel-status) 12%,transparent)}.myskyparcel-info__grid{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;padding-top:11px}.myskyparcel-info__grid>div{min-width:0}.myskyparcel-info__grid span{display:block;font-size:8px;color:rgba(255,255,255,.45);margin-bottom:2px}.myskyparcel-info__grid strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:rgba(255,255,255,.92);font-weight:700}`;
+    style.textContent = `.gm-style .gm-style-iw-c{background:transparent!important;box-shadow:none!important;padding:0!important;border-radius:0!important}.gm-style .gm-style-iw-d{overflow:visible!important;padding:0!important}.gm-style .gm-style-iw-tc{display:none!important}.gm-style .gm-ui-hover-effect{display:none!important}.myskyparcel-info{position:relative;width:300px;box-sizing:border-box;padding:15px;border:1px solid color-mix(in srgb,var(--parcel-status) 70%,white 10%);border-radius:16px;background:linear-gradient(145deg,rgba(5,18,35,.97),rgba(3,10,24,.94));color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.05),0 10px 35px rgba(0,0,0,.48),0 0 24px color-mix(in srgb,var(--parcel-status) 28%,transparent);font-family:Inter,system-ui,sans-serif}.myskyparcel-info:after{content:"";position:absolute;left:50%;bottom:-9px;width:16px;height:16px;transform:translateX(-50%) rotate(45deg);background:#071326;border-right:1px solid var(--parcel-status);border-bottom:1px solid var(--parcel-status);box-shadow:6px 6px 18px rgba(0,0,0,.3)}.myskyparcel-info__close{position:absolute;right:9px;top:8px;z-index:5;width:26px;height:26px;border:1px solid rgba(255,255,255,.16);border-radius:50%;background:rgba(255,255,255,.06);color:rgba(255,255,255,.78);font-size:20px;line-height:22px;cursor:pointer;transition:.2s}.myskyparcel-info__close:hover{background:rgba(255,255,255,.14);color:#fff;border-color:var(--parcel-status)}.myskyparcel-info__head{position:relative;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:0 32px 11px 0;border-bottom:1px solid rgba(255,255,255,.10)}.myskyparcel-info__eyebrow{font-size:8px;letter-spacing:.16em;color:rgba(255,255,255,.52);font-weight:700}.myskyparcel-info__title{margin-top:3px;font-size:18px;line-height:1.1;font-weight:800;letter-spacing:.02em}.myskyparcel-info__status{display:inline-flex;align-items:center;white-space:nowrap;border:1px solid color-mix(in srgb,var(--parcel-status) 70%,transparent);border-radius:999px;padding:5px 8px;color:var(--parcel-status);font-size:9px;font-weight:800;background:color-mix(in srgb,var(--parcel-status) 12%,transparent)}.myskyparcel-info__grid{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;padding-top:11px}.myskyparcel-info__grid>div{min-width:0}.myskyparcel-info__grid span{display:block;font-size:8px;color:rgba(255,255,255,.45);margin-bottom:2px}.myskyparcel-info__grid strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:rgba(255,255,255,.92);font-weight:700}.myskyparcel-info__buy{position:relative;z-index:2;width:100%;margin-top:13px;border:1px solid color-mix(in srgb,var(--parcel-status) 75%,white 8%);border-radius:10px;padding:10px 12px;background:linear-gradient(135deg,color-mix(in srgb,var(--parcel-status) 78%,#071326 22%),color-mix(in srgb,var(--parcel-status) 52%,#071326 48%));color:#fff;font-size:11px;font-weight:800;letter-spacing:.08em;cursor:pointer;box-shadow:0 0 18px color-mix(in srgb,var(--parcel-status) 24%,transparent);transition:transform .15s,filter .15s}.myskyparcel-info__buy:hover{filter:brightness(1.12);transform:translateY(-1px)}.myskyparcel-info__unavailable{position:relative;z-index:1;margin-top:13px;padding-top:11px;border-top:1px solid rgba(255,255,255,.08);font-size:9px;line-height:1.4;color:rgba(255,255,255,.48);text-align:center}`;
     document.head.appendChild(style);
     return () => { style.remove(); };
   }, []);
@@ -358,10 +361,31 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
     infoWindowRef.current.setContent(parcelInfoHtml(selected));
     infoWindowRef.current.setPosition({ lat: selected.latitude, lng: selected.longitude });
     infoWindowRef.current.open({ map: mapInstanceRef.current });
+
+    if (infoWindowDomListenerRef.current) {
+      maps.event.removeListener(infoWindowDomListenerRef.current);
+      infoWindowDomListenerRef.current = null;
+    }
+    infoWindowDomListenerRef.current = maps.event.addListener(infoWindowRef.current, "domready", () => {
+      const root = document.querySelector(".myskyparcel-info");
+      if (!(root instanceof HTMLElement)) return;
+      const closeButton = root.querySelector('[data-parcel-action="close"]');
+      closeButton?.addEventListener("click", () => onSelectRef.current(""), { once: true });
+      const buyButton = root.querySelector('[data-parcel-action="buy"]');
+      buyButton?.addEventListener("click", () => {
+        // The existing parcel detail/purchase flow is opened without changing the map or parcel model.
+        onSelectRef.current(selected.id);
+      }, { once: true });
+    });
+
     mapInstanceRef.current.panTo({ lat: selected.latitude, lng: selected.longitude });
   }, [selectedId, parcels, mapReady]);
 
   useEffect(() => () => {
+    if (infoWindowDomListenerRef.current) {
+      const maps = (window as any).google?.maps;
+      maps?.event.removeListener(infoWindowDomListenerRef.current);
+    }
     infoWindowRef.current?.close();
     markersRef.current.forEach((marker) => marker.setMap(null));
     cornerMarkersRef.current.forEach((markers) => markers.forEach((marker) => marker.setMap(null)));
@@ -378,7 +402,12 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
       {error && <div className="absolute inset-0 grid place-items-center bg-[#071a2d] p-6 text-center"><div className="max-w-md rounded-2xl border border-amber-200/20 bg-slate-950/85 p-6 shadow-2xl backdrop-blur-md"><p className="text-sm font-semibold text-white">Google Maps hazır değil</p><p className="mt-2 text-xs leading-5 text-white/60">{error}</p></div></div>}
       {!error && parcels.length === 0 && <div className="absolute inset-0 grid place-items-center bg-[#071a2d]/35 text-sm text-white/60">Bu şehir için gösterilecek parsel bulunamadı.</div>}
       <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-cyan-200/20 bg-slate-950/70 px-3 py-2 text-xs font-medium text-white/90 shadow-lg backdrop-blur-md sm:left-5 sm:top-5">MySkyParcel · Gökten parsel görünümü</div>
-      <div className="pointer-events-none absolute bottom-4 left-4 flex flex-wrap gap-2 rounded-xl border border-white/10 bg-slate-950/75 p-2 text-[10px] text-white/80 backdrop-blur-md sm:left-5 sm:bottom-5 sm:text-xs"><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(88,230,255,0.9)]" />Parsel sınırı</span><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]" />Seçili parsel</span></div>
+      <div className="pointer-events-none absolute bottom-4 left-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-slate-950/80 p-2.5 text-[10px] text-white/80 shadow-lg backdrop-blur-md sm:left-5 sm:bottom-5 sm:gap-4 sm:text-xs">
+        <span className="font-semibold text-white/90">PARSEL DURUMU</span>
+        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(88,230,255,0.95)]" />Satışta</span>
+        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(246,196,83,0.9)]" />Rezerve</span>
+        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(255,77,109,0.9)]" />Satıldı</span>
+      </div>
     </div>
   );
 }
