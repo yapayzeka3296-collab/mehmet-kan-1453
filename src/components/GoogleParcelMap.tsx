@@ -55,15 +55,28 @@ function parseGeometry(value: ParcelWithGeometry["geometry"]): GeoJsonPolygon | 
   }
 }
 
-function tierStyle(tier: Parcel["tier"], status: Parcel["status"], selected: boolean, hovered: boolean) {
-  const color = tier === "premium" ? "#f6c453" : tier === "elite" ? "#b77cff" : "#55c9ff";
-  const statusOpacity = status === "sold" ? 0.42 : status === "reserved" ? 0.68 : 1;
+// Premium sky-map parcel language: cyan neon boundaries, subtle outer glow,
+// transparent fill, and a bright selected parcel. Tier colors remain available
+// in the legend/metadata, while the map geometry itself keeps one visual system.
+function parcelStyle(status: Parcel["status"], selected: boolean, hovered: boolean, glow = false) {
+  const statusOpacity = status === "sold" ? 0.38 : status === "reserved" ? 0.62 : 1;
+  if (glow) {
+    return {
+      strokeColor: "#00d9ff",
+      strokeOpacity: statusOpacity * (selected || hovered ? 0.42 : 0.18),
+      strokeWeight: selected ? 11 : hovered ? 8 : 6,
+      fillColor: "#00d9ff",
+      fillOpacity: 0,
+      clickable: false,
+    };
+  }
   return {
-    strokeColor: selected ? "#ffffff" : color,
-    strokeOpacity: statusOpacity * (selected || hovered ? 1 : 0.82),
-    strokeWeight: selected ? 3 : hovered ? 2.5 : 1.25,
-    fillColor: color,
-    fillOpacity: statusOpacity * (selected ? 0.48 : hovered ? 0.3 : 0.16),
+    strokeColor: selected ? "#ffffff" : "#58e6ff",
+    strokeOpacity: statusOpacity * (selected || hovered ? 1 : 0.9),
+    strokeWeight: selected ? 2.8 : hovered ? 2.1 : 1.35,
+    fillColor: selected ? "#38dfff" : "#00cfff",
+    fillOpacity: statusOpacity * (selected ? 0.28 : hovered ? 0.10 : 0.025),
+    clickable: true,
   };
 }
 
@@ -77,7 +90,7 @@ function polygonPathGroups(maps: any, geometry: GeoJsonPolygon | GeoJsonMultiPol
 }
 
 function markerIcon(maps: any, tier: Parcel["tier"], selected: boolean) {
-  const fill = tier === "premium" ? "#f6c453" : tier === "elite" ? "#b77cff" : "#55c9ff";
+  const fill = selected ? "#58e6ff" : tier === "premium" ? "#f6c453" : tier === "elite" ? "#b77cff" : "#55c9ff";
   const size = selected ? 18 : 12;
   const stroke = selected ? "#ffffff" : "#061a2f";
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size + 8}" height="${size + 8}" viewBox="0 0 ${size + 8} ${size + 8}"><circle cx="${(size + 8) / 2}" cy="${(size + 8) / 2}" r="${size / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2"/></svg>`;
@@ -166,20 +179,33 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
       if (geometry) {
         const pathGroups = polygonPathGroups(maps, geometry);
         let polygons = polygonsRef.current.get(parcel.id);
-        if (!polygons || polygons.length !== pathGroups.length) {
+        const expectedPolygonCount = pathGroups.length * 2;
+        if (!polygons || polygons.length !== expectedPolygonCount) {
           polygons?.forEach((polygon) => polygon.setMap(null));
-          polygons = pathGroups.map((paths) => {
-            const polygon = new maps.Polygon({ map: mapInstanceRef.current, paths, ...tierStyle(parcel.tier, parcel.status, selected, false), clickable: true, zIndex: selected ? 20 : 1 });
+          polygons = [];
+          pathGroups.forEach((paths) => {
+            const glow = new maps.Polygon({ map: mapInstanceRef.current, paths, ...parcelStyle(parcel.status, selected, false, true), zIndex: selected ? 19 : 0 });
+            const polygon = new maps.Polygon({ map: mapInstanceRef.current, paths, ...parcelStyle(parcel.status, selected, false, false), zIndex: selected ? 20 : 1 });
             polygon.addListener("click", () => onSelectRef.current(parcel.id));
-            polygon.addListener("mouseover", () => polygon.setOptions({ ...tierStyle(parcel.tier, parcel.status, parcel.id === selectedId, true), zIndex: 10 }));
-            polygon.addListener("mouseout", () => polygon.setOptions({ ...tierStyle(parcel.tier, parcel.status, parcel.id === selectedId, false), zIndex: parcel.id === selectedId ? 20 : 1 }));
-            return polygon;
+            polygon.addListener("mouseover", () => {
+              polygon.setOptions({ ...parcelStyle(parcel.status, parcel.id === selectedId, true, false), zIndex: 20 });
+              glow.setOptions({ ...parcelStyle(parcel.status, parcel.id === selectedId, true, true), zIndex: 19 });
+            });
+            polygon.addListener("mouseout", () => {
+              polygon.setOptions({ ...parcelStyle(parcel.status, parcel.id === selectedId, false, false), zIndex: parcel.id === selectedId ? 20 : 1 });
+              glow.setOptions({ ...parcelStyle(parcel.status, parcel.id === selectedId, false, true), zIndex: parcel.id === selectedId ? 19 : 0 });
+            });
+            polygons!.push(glow, polygon);
           });
           polygonsRef.current.set(parcel.id, polygons);
         } else {
-          polygons.forEach((polygon, index) => {
-            polygon.setPaths(pathGroups[index]);
-            polygon.setOptions({ ...tierStyle(parcel.tier, parcel.status, selected, false), zIndex: selected ? 20 : 1, visible: true });
+          pathGroups.forEach((paths, index) => {
+            const glow = polygons![index * 2];
+            const polygon = polygons![index * 2 + 1];
+            glow.setPaths(paths);
+            polygon.setPaths(paths);
+            glow.setOptions({ ...parcelStyle(parcel.status, selected, false, true), zIndex: selected ? 19 : 0, visible: true });
+            polygon.setOptions({ ...parcelStyle(parcel.status, selected, false, false), zIndex: selected ? 20 : 1, visible: true });
           });
         }
         const oldMarker = markersRef.current.get(parcel.id);
@@ -218,12 +244,12 @@ export function GoogleParcelMap({ parcels, selectedId, onSelect, onViewportChang
   }, []);
 
   return (
-    <div className="relative h-[560px] w-full overflow-hidden rounded-2xl border border-sky-200/15 bg-[#071a2d] sm:h-[680px] lg:h-[760px]">
+    <div className="relative h-[560px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[680px] lg:h-[760px]">
       <div ref={mapRef} className="absolute inset-0" aria-label="MySkyParcel Google Maps parsel haritası" />
       {error && <div className="absolute inset-0 grid place-items-center bg-[#071a2d] p-6 text-center"><div className="max-w-md rounded-2xl border border-amber-200/20 bg-slate-950/85 p-6 shadow-2xl backdrop-blur-md"><p className="text-sm font-semibold text-white">Google Maps hazır değil</p><p className="mt-2 text-xs leading-5 text-white/60">{error}</p></div></div>}
       {!error && parcels.length === 0 && <div className="absolute inset-0 grid place-items-center bg-[#071a2d]/35 text-sm text-white/60">Bu şehir için gösterilecek parsel bulunamadı.</div>}
-      <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/15 bg-slate-950/70 px-3 py-2 text-xs font-medium text-white/85 shadow-lg backdrop-blur-md sm:left-5 sm:top-5">Google Maps · MySkyParcel parselleri</div>
-      <div className="pointer-events-none absolute bottom-4 left-4 flex flex-wrap gap-2 rounded-xl border border-white/10 bg-slate-950/75 p-2 text-[10px] text-white/75 backdrop-blur-md sm:left-5 sm:bottom-5 sm:text-xs"><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-sky-300" />Dijital</span><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-violet-300" />Elit</span><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-amber-300" />Premium</span></div>
+      <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-cyan-200/20 bg-slate-950/70 px-3 py-2 text-xs font-medium text-white/90 shadow-lg backdrop-blur-md sm:left-5 sm:top-5">MySkyParcel · Gökten parsel görünümü</div>
+      <div className="pointer-events-none absolute bottom-4 left-4 flex flex-wrap gap-2 rounded-xl border border-white/10 bg-slate-950/75 p-2 text-[10px] text-white/80 backdrop-blur-md sm:left-5 sm:bottom-5 sm:text-xs"><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(88,230,255,0.9)]" />Parsel sınırı</span><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]" />Seçili parsel</span></div>
     </div>
   );
 }
