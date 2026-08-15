@@ -4,6 +4,7 @@ import { z } from "zod";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
+import "@/lib/parcelStrokeRenderer";
 import { GoogleParcelMap } from "@/components/GoogleParcelMap";
 import { ParcelDetailPanel } from "@/components/ParcelDetailPanel";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
