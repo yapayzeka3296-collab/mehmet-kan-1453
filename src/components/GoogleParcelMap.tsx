@@ -12,21 +12,21 @@ function statusColor(status:Parcel["status"]){return status==="sold"?"#ff1744":s
 function tierColor(tier:Parcel["tier"]){return tier==="premium"?"#f6c453":tier==="elite"?"#b77cff":"#55c9ff"}
 function cornerIcon(maps:Maps,color:string,selected:boolean){const s=selected?14:9;const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${s+14}" height="${s+14}" viewBox="0 0 ${s+14} ${s+14}"><defs><filter id="g"><feGaussianBlur stdDeviation="2.5"/></filter></defs><circle cx="${(s+14)/2}" cy="${(s+14)/2}" r="${s/2+3}" fill="${color}" opacity=".65" filter="url(#g)"/><circle cx="${(s+14)/2}" cy="${(s+14)/2}" r="${s/2}" fill="${color}" stroke="#fff" stroke-opacity=".8" stroke-width="${selected?1.8:1}"/></svg>`;return{url:`data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,scaledSize:new maps.Size(s+14,s+14),anchor:new maps.Point((s+14)/2,(s+14)/2)}}
 
-function domeCell(center:CityCenter,index:number,total:number,bandStart:number,bandEnd:number){
-  const cols=Math.max(8,Math.ceil(Math.sqrt(Math.max(total,1)*1.45)));
-  const rows=Math.max(4,Math.ceil(Math.max(total,1)/cols));
+function domeCell(center:CityCenter,index:number,total:number,innerRadius:number,outerRadius:number){
+  const rows=Math.max(1,Math.ceil(Math.sqrt(Math.max(total,1)/2)));
+  const cols=Math.max(8,Math.ceil(Math.max(total,1)/rows));
   const col=index%cols,row=Math.floor(index/cols);
-  const u0=col/cols,u1=(col+1)/cols;
-  const v0=bandStart+(row/rows)*(bandEnd-bandStart),v1=bandStart+((row+1)/rows)*(bandEnd-bandStart);
-  const project=(u:number,v:number)=>{
-    const x=u-.5,y=v-.5;
-    const radial=Math.min(1,Math.sqrt(x*x+y*y)*2);
+  const a0=(col/cols)*Math.PI*2-Math.PI/2,a1=((col+1)/cols)*Math.PI*2-Math.PI/2;
+  const r0=innerRadius+(row/rows)*(outerRadius-innerRadius),r1=innerRadius+((row+1)/rows)*(outerRadius-innerRadius);
+  const project=(angle:number,radius:number)=>{
+    const x=Math.cos(angle)*radius,y=Math.sin(angle)*radius;
+    const radial=Math.min(1,radius/outerRadius);
     const dome=Math.sqrt(Math.max(0,1-radial*radial));
     const lift=(1-dome)*0.010;
     const cos=Math.max(Math.cos(center.lat*Math.PI/180),.2);
-    return {lat:center.lat+y*0.16+lift,lng:center.lng+x*0.16/cos};
+    return {lat:center.lat+y+lift,lng:center.lng+x/cos};
   };
-  return {path:[project(u0,v0),project(u1,v0),project(u1,v1),project(u0,v1)],center:project((u0+u1)/2,(v0+v1)/2)};
+  return {path:[project(a0,r0),project(a1,r0),project(a1,r1),project(a0,r1)],center:project((a0+a1)/2,(r0+r1)/2)};
 }
 
 export function GoogleParcelMap({parcels,selectedId,onSelect,onViewportChange,center}:Props){const mapRef=useRef<HTMLDivElement|null>(null),mapObj=useRef<any>(null),cells=useRef<Map<string,Polygon[]>>(new Map()),corners=useRef<Map<string,Marker>>(new Map()),layouts=useRef<Map<string,{position:{lat:number;lng:number}}>>(new Map()),selectRef=useRef(onSelect),viewportRef=useRef(onViewportChange),info=useRef<any>(null);const[error,setError]=useState<string|null>(null),[ready,setReady]=useState(false);useEffect(()=>{selectRef.current=onSelect},[onSelect]);useEffect(()=>{viewportRef.current=onViewportChange},[onViewportChange]);
@@ -34,11 +34,11 @@ useEffect(()=>{let cancelled=false;const key=import.meta.env.VITE_GOOGLE_MAPS_AP
 useEffect(()=>{if(!ready||!mapObj.current||!viewportRef.current)return;const maps=(window as any).google.maps,map=mapObj.current;const emit=()=>{const b=map.getBounds();if(!b)return;const ne=b.getNorthEast(),sw=b.getSouthWest();viewportRef.current?.({minLat:sw.lat(),minLng:sw.lng(),maxLat:ne.lat(),maxLng:ne.lng()})};const l=maps.event.addListener(map,"idle",emit);emit();return()=>maps.event.removeListener(l)},[ready]);
 useEffect(()=>{if(!ready||!mapObj.current)return;const maps=(window as any).google.maps;cells.current.forEach(ps=>ps.forEach(p=>p.setMap(null)));cells.current.clear();corners.current.forEach(m=>m.setMap(null));corners.current.clear();layouts.current.clear();
 const configs=[
- {tier:"digital" as const,bandStart:0.04,bandEnd:0.56},
- {tier:"elite" as const,bandStart:0.59,bandEnd:0.79},
- {tier:"premium" as const,bandStart:0.82,bandEnd:0.94}
+ {tier:"digital" as const,innerRadius:0.095,outerRadius:0.165},
+ {tier:"elite" as const,innerRadius:0.050,outerRadius:0.080},
+ {tier:"premium" as const,innerRadius:0.012,outerRadius:0.035}
 ];
 const cornerKeys=new Set<string>();
-configs.forEach(cfg=>{const items=parcels.filter(p=>p.tier===cfg.tier),total=items.length;items.forEach((p,i)=>{const cell=domeCell(center,i,total,cfg.bandStart,cfg.bandEnd);layouts.current.set(p.id,{position:cell.center});const paths=cell.path.map(x=>new maps.LatLng(x.lat,x.lng)),sold=p.status==="sold",base=sold?statusColor(p.status):tierColor(p.tier),selected=p.id===selectedId;const glow=new maps.Polygon({map:mapObj.current,paths,geodesic:false,strokeColor:base,strokeOpacity:sold?.95:selected?.65:.28,strokeWeight:sold?7:selected?5:2.5,fillColor:base,fillOpacity:sold?.16:selected?.12:.025,zIndex:sold?500:selected?300:20,clickable:true});const main=new maps.Polygon({map:mapObj.current,paths,geodesic:false,strokeColor:base,strokeOpacity:1,strokeWeight:sold?3:selected?2.2:1.2,fillColor:base,fillOpacity:sold?.08:selected?.18:.015,zIndex:sold?501:selected?301:21,clickable:true});const click=()=>selectRef.current(p.id);glow.addListener("click",click);main.addListener("click",click);cells.current.set(p.id,[glow,main]);cell.path.forEach(pt=>{const key=`${pt.lat.toFixed(8)}:${pt.lng.toFixed(8)}`;if(cornerKeys.has(key))return;cornerKeys.add(key);corners.current.set(`${p.id}:${key}`,new maps.Marker({map:mapObj.current,position:pt,icon:cornerIcon(maps,base,selected),clickable:false,zIndex:sold?2000:1000,optimized:true}))})})});return()=>{cells.current.forEach(ps=>ps.forEach(p=>p.setMap(null)));corners.current.forEach(m=>m.setMap(null));cells.current.clear();corners.current.clear();layouts.current.clear()}},[parcels,ready,center.lat,center.lng,selectedId]);
+configs.forEach(cfg=>{const items=parcels.filter(p=>p.tier===cfg.tier),total=items.length;items.forEach((p,i)=>{const cell=domeCell(center,i,total,cfg.innerRadius,cfg.outerRadius);layouts.current.set(p.id,{position:cell.center});const paths=cell.path.map(x=>new maps.LatLng(x.lat,x.lng)),sold=p.status==="sold",base=sold?statusColor(p.status):tierColor(p.tier),selected=p.id===selectedId;const glow=new maps.Polygon({map:mapObj.current,paths,geodesic:false,strokeColor:base,strokeOpacity:sold?.95:selected?.65:.28,strokeWeight:sold?7:selected?5:2.5,fillColor:base,fillOpacity:sold?.16:selected?.12:.025,zIndex:sold?500:selected?300:20,clickable:true});const main=new maps.Polygon({map:mapObj.current,paths,geodesic:false,strokeColor:base,strokeOpacity:1,strokeWeight:sold?3:selected?2.2:1.2,fillColor:base,fillOpacity:sold?.08:selected?.18:.015,zIndex:sold?501:selected?301:21,clickable:true});const click=()=>selectRef.current(p.id);glow.addListener("click",click);main.addListener("click",click);cells.current.set(p.id,[glow,main]);cell.path.forEach(pt=>{const key=`${pt.lat.toFixed(8)}:${pt.lng.toFixed(8)}`;if(cornerKeys.has(key))return;cornerKeys.add(key);corners.current.set(`${p.id}:${key}`,new maps.Marker({map:mapObj.current,position:pt,icon:cornerIcon(maps,base,selected),clickable:false,zIndex:sold?2000:1000,optimized:true}))})})});return()=>{cells.current.forEach(ps=>ps.forEach(p=>p.setMap(null)));corners.current.forEach(m=>m.setMap(null));cells.current.clear();corners.current.clear();layouts.current.clear()}},[parcels,ready,center.lat,center.lng,selectedId]);
 useEffect(()=>{if(!ready||!mapObj.current||!selectedId)return;const maps=(window as any).google.maps,p=parcels.find(x=>x.id===selectedId),l=layouts.current.get(selectedId);if(!p||!l)return;if(!info.current)info.current=new maps.InfoWindow({disableAutoPan:true,pixelOffset:new maps.Size(0,-18)});info.current.setPosition(l.position);info.current.setContent(`<div style="padding:10px 12px;background:#071223;color:white;border:2px solid ${statusColor(p.status)};border-radius:10px;font:600 12px system-ui;box-shadow:0 0 18px ${statusColor(p.status)}66"><b>${p.parcel_number}</b><br/>${p.status}</div>`);info.current.open({map:mapObj.current})},[selectedId,parcels,ready,center.lat,center.lng]);
 useEffect(()=>()=>{info.current?.close();cells.current.forEach(ps=>ps.forEach(p=>p.setMap(null)));corners.current.forEach(m=>m.setMap(null));mapObj.current=null},[]);return <div className="relative h-[560px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[680px] lg:h-[760px]"><div ref={mapRef} className="absolute inset-0" aria-label="MySkyParcel kubbe parsel haritası"/>{error&&<div className="absolute inset-0 grid place-items-center bg-[#071a2d] p-6 text-center"><div className="rounded-2xl border border-amber-200/20 bg-slate-950/85 p-6"><p className="text-sm font-semibold text-white">Google Maps hazır değil</p><p className="mt-2 text-xs text-white/60">{error}</p></div></div>}</div>}
