@@ -29,6 +29,7 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
     setMemoryNote('');
     setMemoryFile(null);
     setMemoryMessage(null);
+    setIsOwner(false);
 
     const loadMemory = async () => {
       if (!supabaseBrowser) {
@@ -36,13 +37,16 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
         return;
       }
       try {
-        const [{ data: sessionData }, { data: ownerData }, { data: memoryRow }] = await Promise.all([
+        const [{ data: sessionData }, { data: ownerRow, error: ownerError }, { data: memoryRow, error: memoryError }] = await Promise.all([
           supabaseBrowser.auth.getSession(),
-          supabaseBrowser.rpc('is_parcel_owner', { p_parcel_id: parcel.id }),
+          supabaseBrowser.from('parcels').select('owner_id').eq('id', parcel.id).maybeSingle(),
           supabaseBrowser.from('parcel_memories').select('photo_path,note,updated_at').eq('parcel_id', parcel.id).maybeSingle(),
         ]);
         if (cancelled) return;
-        const owner = !!sessionData.session?.user && ownerData === true;
+        if (ownerError) console.error('Parcel owner lookup error', ownerError);
+        if (memoryError) console.error('Parcel memory lookup error', memoryError);
+        const currentUserId = sessionData.session?.user?.id ?? null;
+        const owner = !!currentUserId && ownerRow?.owner_id === currentUserId;
         setIsOwner(owner);
         const nextMemory = memoryRow?.photo_path && memoryRow.photo_path !== 'note-only' ? memoryRow as Memory : null;
         setMemory(nextMemory);
