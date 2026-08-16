@@ -7,9 +7,9 @@ import { X, ImagePlus, Pencil } from 'lucide-react';
 
 const TIER_LABELS = { digital: 'Dijital', elite: 'Elit', premium: 'Premium' } as const;
 type Memory = { photo_path: string | null; note: string | null; is_public: boolean; updated_at?: string };
-type ParcelDetailPanelProps = { parcel: Parcel; onClose: () => void; onReserved?: (p: Parcel) => void; onLocate?: (p: Parcel) => void };
+type Props = { parcel: Parcel; onClose: () => void; onReserved?: (p: Parcel) => void; onLocate?: (p: Parcel) => void };
 
-export function ParcelDetailPanel({ parcel, onClose }: ParcelDetailPanelProps) {
+export function ParcelDetailPanel({ parcel, onClose }: Props) {
   const { user } = useAuth();
   const [isOwner, setIsOwner] = useState(false);
   const [memoryLoading, setMemoryLoading] = useState(true);
@@ -22,9 +22,13 @@ export function ParcelDetailPanel({ parcel, onClose }: ParcelDetailPanelProps) {
   const [memoryMessage, setMemoryMessage] = useState<string | null>(null);
   const [editingMemory, setEditingMemory] = useState(false);
 
-  const tierLabel = TIER_LABELS[parcel.tier];
-  const canManageMemory = parcel.status === 'sold' && isOwner;
+  // Use the parcel data immediately. The previous implementation waited for
+  // the RPC result before showing the action, which made the button disappear
+  // when the async ownership check was delayed or returned an unexpected shape.
+  const ownsFromParcel = !!user && parcel.owner_id === user.id;
+  const canManageMemory = parcel.status === 'sold' && (ownsFromParcel || isOwner);
   const statusLabel = parcel.status === 'sold' ? 'Satıldı' : parcel.status === 'reserved' ? 'Rezerve' : 'Satılık';
+  const tierLabel = TIER_LABELS[parcel.tier];
   const priceLabel = typeof parcel.tier_price === 'number' ? `${parcel.tier_price.toLocaleString('tr-TR')} TL` : '—';
 
   useEffect(() => {
@@ -36,37 +40,28 @@ export function ParcelDetailPanel({ parcel, onClose }: ParcelDetailPanelProps) {
     setMemoryFile(null);
     setMemoryIsPublic(true);
     setMemoryMessage(null);
-    setIsOwner(false);
     setEditingMemory(false);
 
-    const loadMemory = async () => {
+    async function loadMemory() {
       if (!supabaseBrowser) {
         if (!cancelled) setMemoryLoading(false);
         return;
       }
-
       try {
         const [{ data: sessionData }, { data: ownerData, error: ownerError }, { data: memoryRow, error: memoryError }] = await Promise.all([
           supabaseBrowser.auth.getSession(),
           supabaseBrowser.rpc('is_parcel_owner', { p_parcel_id: parcel.id }),
           supabaseBrowser.from('parcel_memories').select('photo_path,note,is_public,updated_at').eq('parcel_id', parcel.id).maybeSingle(),
         ]);
-
         if (cancelled) return;
         if (ownerError) console.error('Parcel owner lookup error', ownerError);
         if (memoryError) console.error('Parcel memory lookup error', memoryError);
-
         const currentUserId = sessionData.session?.user?.id ?? null;
         setIsOwner(!!currentUserId && ownerData === true);
-
-        // A memory can contain only a note, so do not discard the row just
-        // because photo_path is null. This was the reason the edit/add state
-        // could disappear from the panel.
         const nextMemory = memoryRow ? (memoryRow as Memory) : null;
         setMemory(nextMemory);
         setMemoryNote(nextMemory?.note ?? '');
         setMemoryIsPublic(nextMemory?.is_public ?? true);
-
         if (nextMemory?.photo_path && nextMemory.photo_path !== 'note-only') {
           setMemoryPhotoUrl(supabaseBrowser.storage.from('parcel-memories').getPublicUrl(nextMemory.photo_path).data.publicUrl);
         }
@@ -75,11 +70,10 @@ export function ParcelDetailPanel({ parcel, onClose }: ParcelDetailPanelProps) {
       } finally {
         if (!cancelled) setMemoryLoading(false);
       }
-    };
-
+    }
     void loadMemory();
     return () => { cancelled = true; };
-  }, [parcel.id, user?.id]);
+  }, [parcel.id, parcel.owner_id, user?.id]);
 
   function startMemoryEditor() {
     setMemoryMessage(null);
@@ -105,7 +99,6 @@ export function ParcelDetailPanel({ parcel, onClose }: ParcelDetailPanelProps) {
     setMemorySaving(true);
     setMemoryMessage(null);
     let uploadedPath: string | null = null;
-
     try {
       let nextPhotoPath = memory?.photo_path ?? null;
       if (memoryFile) {
@@ -114,36 +107,31 @@ export function ParcelDetailPanel({ parcel, onClose }: ParcelDetailPanelProps) {
         const ext = (memoryFile.name.split('.').pop() || 'jpg').toLowerCase();
         if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) throw new Error('JPG, PNG veya WebP kullanın.');
         uploadedPath = `${user.id}/${parcel.id}/memory-${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabaseBrowser.storage.from('parcel-memories').upload(uploadedPath, memoryFile, { upsert: false, contentType: memoryFile.type, cacheControl: '3600' });
-        if (uploadError) throw new Error(`Fotoğraf yüklenemedi: ${uploadError.message}`);
+        const { error } = await supabaseBrowser.storage.from('parcel-memories').upload(uploadedPath, memoryFile, { upsert: false, contentType: memoryFile.type, cacheControl: '3600' });
+        if (error) throw new Error(`Fotoğraf yüklenemedi: ${error.message}`);
         nextPhotoPath = uploadedPath;
       }
-
       const { data: savedMemory, error: saveError } = await supabaseBrowser.rpc('save_parcel_memory', {
         p_parcel_id: parcel.id,
         p_photo_path: nextPhotoPath,
         p_note: memoryNote.trim(),
         p_is_public: memoryIsPublic,
       });
-
       if (saveError) {
         if (uploadedPath) await supabaseBrowser.storage.from('parcel-memories').remove([uploadedPath]);
         throw new Error(`Hatıra kaydedilemedi: ${saveError.message}`);
       }
-
       if (uploadedPath && memory?.photo_path && memory.photo_path !== uploadedPath) {
         await supabaseBrowser.storage.from('parcel-memories').remove([memory.photo_path]);
       }
-
       const nextMemory: Memory = savedMemory
         ? { photo_path: savedMemory.photo_path ?? nextPhotoPath, note: savedMemory.note ?? memoryNote.trim(), is_public: savedMemory.is_public ?? memoryIsPublic }
         : { photo_path: nextPhotoPath, note: memoryNote.trim(), is_public: memoryIsPublic };
-
       setMemory(nextMemory);
-      setMemoryIsPublic(nextMemory.is_public);
       setMemoryNote(nextMemory.note ?? '');
-      setMemoryPhotoUrl(nextMemory.photo_path && nextMemory.photo_path !== 'note-only' ? supabaseBrowser.storage.from('parcel-memories').getPublicUrl(nextMemory.photo_path).data.publicUrl : null);
+      setMemoryIsPublic(nextMemory.is_public);
       setMemoryFile(null);
+      setMemoryPhotoUrl(nextMemory.photo_path && nextMemory.photo_path !== 'note-only' ? supabaseBrowser.storage.from('parcel-memories').getPublicUrl(nextMemory.photo_path).data.publicUrl : null);
       setEditingMemory(false);
       setMemoryMessage(nextMemory.is_public ? 'Hatıran kaydedildi ve Gökyüzü Haritasında herkes görebilir.' : 'Hatıran kaydedildi. Sadece sen görebilirsin.');
     } catch (error) {
@@ -191,20 +179,14 @@ export function ParcelDetailPanel({ parcel, onClose }: ParcelDetailPanelProps) {
                 <label className="block"><span className="text-xs font-semibold">📝 Küçük not</span><textarea value={memoryNote} onChange={(event) => setMemoryNote(event.target.value.slice(0, 300))} maxLength={300} rows={3} placeholder="Bu parsel için kısa bir anı..." className="mt-2 w-full resize-none rounded-lg border border-white/10 bg-white/5 p-2.5 text-xs outline-none placeholder:text-white/30 focus:border-cyan-300/40" /><span className="mt-1 block text-right text-[9px] text-muted-foreground">{memoryNote.length}/300</span></label>
                 <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-cyan-300/10 bg-white/[0.03] p-3"><input type="checkbox" checked={memoryIsPublic} onChange={(event) => setMemoryIsPublic(event.target.checked)} className="mt-0.5 h-4 w-4 accent-cyan-300" /><span><span className="block text-xs font-semibold">🌍 Gökyüzü Haritasında herkes görebilsin</span><span className="mt-1 block text-[10px] leading-4 text-muted-foreground">Açık olduğunda diğer kullanıcılar bu fotoğraf ve notu parsel kutucuğundan görebilir.</span></span></label>
                 {memoryMessage && <p className="rounded-lg bg-white/5 px-3 py-2 text-[10px] text-white/70">{memoryMessage}</p>}
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button" disabled={memorySaving} onClick={cancelMemoryEditor} className="h-10 rounded-lg border border-white/10 bg-white/[0.03] text-xs font-semibold text-white/70 transition hover:bg-white/[0.07] disabled:opacity-50">VAZGEÇ</button>
-                  <button type="button" disabled={memorySaving} onClick={handleMemorySave} className="h-10 rounded-lg border border-cyan-300/25 bg-cyan-300/10 text-xs font-bold text-cyan-100 transition hover:bg-cyan-300/15 disabled:opacity-50">{memorySaving ? 'KAYDEDİLİYOR...' : 'HATIRAYI KAYDET'}</button>
-                </div>
+                <div className="grid grid-cols-2 gap-2"><button type="button" disabled={memorySaving} onClick={cancelMemoryEditor} className="h-10 rounded-lg border border-white/10 bg-white/[0.03] text-xs font-semibold text-white/70 transition hover:bg-white/[0.07] disabled:opacity-50">VAZGEÇ</button><button type="button" disabled={memorySaving} onClick={handleMemorySave} className="h-10 rounded-lg border border-cyan-300/25 bg-cyan-300/10 text-xs font-bold text-cyan-100 transition hover:bg-cyan-300/15 disabled:opacity-50">{memorySaving ? 'KAYDEDİLİYOR...' : 'HATIRAYI KAYDET'}</button></div>
               </div>
             ) : (
               <div className="mt-4 space-y-3">
                 {memoryPhotoUrl ? <img src={memoryPhotoUrl} alt={`${parcel.parcel_number} parsel hatırası`} className="max-h-52 w-full rounded-lg object-cover" loading="lazy" /> : <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.02] p-5 text-center text-xs text-white/40">Henüz parsel hatırası eklenmemiş.</div>}
                 {memory?.note && <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3"><p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-cyan-200/55">Not</p><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-white/75">{memory.note}</p></div>}
                 {memoryMessage && <p className="rounded-lg bg-white/5 px-3 py-2 text-[10px] text-white/70">{memoryMessage}</p>}
-                {canManageMemory && (
-                  <button type="button" onClick={startMemoryEditor} className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-300/10 text-xs font-bold text-cyan-100 transition hover:bg-cyan-300/15"><Pencil className="h-4 w-4" />{memory ? 'HATIRAYI DÜZENLE' : 'PARSEL HATIRASI EKLE'}</button>
-                )}
-                {!memory && !canManageMemory && <p className="text-xs leading-5 text-muted-foreground">Hatıra ekleme yalnızca parsel sahibi olduktan sonra kullanılabilir.</p>}
+                {canManageMemory ? <button type="button" onClick={startMemoryEditor} className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-300/10 text-xs font-bold text-cyan-100 transition hover:bg-cyan-300/15"><Pencil className="h-4 w-4" />{memory ? 'HATIRAYI DÜZENLE' : 'PARSEL HATIRASI EKLE'}</button> : <p className="text-xs leading-5 text-muted-foreground">Hatıra ekleme yalnızca parsel sahibi olduktan sonra kullanılabilir.</p>}
               </div>
             )}
           </div>
