@@ -248,7 +248,10 @@ export function GoogleParcelMap({ parcels, selectedId, selectedIds = new Set<str
     if (entries.length <= 180) return entries;
     const sampled: typeof entries = [];
     const step = entries.length / 180;
-    for (let i = 0; i < 180; i += 1) sampled.push(entries[Math.floor(i * step)]);
+    for (let i = 0; i < 180; i += 1) {
+      const entry = entries[Math.floor(i * step)];
+      if (entry) sampled.push(entry);
+    }
     return sampled;
   }, []);
 
