@@ -113,15 +113,22 @@ function compactSkyMapHeading() {
   const wrapper = heading.parentElement;
   if (!wrapper || wrapper.dataset.mspCompactHeading === "true") return;
   wrapper.dataset.mspCompactHeading = "true";
-  heading.style.fontSize = "clamp(1rem, 2vw, 1.5rem)";
-  heading.style.lineHeight = "1.2";
-  const description = wrapper.querySelector("p");
+
+  // Sadece başlık bloğunu küçült. Harita komponentinin boyutlarına dokunma.
+  heading.style.setProperty("font-size", "clamp(1rem, 2vw, 1.5rem)", "important");
+  heading.style.setProperty("line-height", "1.2", "important");
+  heading.style.setProperty("margin", "0", "important");
+
+  const description = wrapper.querySelector("p") as HTMLElement | null;
   if (description) {
-    description.style.marginTop = "0.375rem";
-    description.style.fontSize = "0.75rem";
-    description.style.lineHeight = "1.25rem";
+    description.style.setProperty("margin-top", "0.375rem", "important");
+    description.style.setProperty("font-size", "0.75rem", "important");
+    description.style.setProperty("line-height", "1.25rem", "important");
   }
-  wrapper.style.marginBottom = "0.75rem";
+
+  // Başlık bloğunun kapladığı dikey alanı yarıya yaklaştır ve haritayı yukarı al.
+  wrapper.style.setProperty("margin-bottom", "0.375rem", "important");
+  wrapper.style.setProperty("margin-top", "-0.75rem", "important");
 }
 
 function start() {
