@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import type { Parcel } from '@/types/parcel';
 import { useAuth } from '@/hooks/useAuth';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
-import { X } from 'lucide-react';
+import { X, MapPin } from 'lucide-react';
 
 const TIER_LABELS = { digital: 'Dijital', elite: 'Elit', premium: 'Premium' } as const;
 type Memory = { photo_path: string; note: string | null; is_public: boolean; updated_at?: string };
 
-export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Parcel; onClose: () => void; onReserved?: (p: Parcel) => void }) {
+type ParcelDetailPanelProps = { parcel: Parcel; onClose: () => void; onReserved?: (p: Parcel) => void; onLocate?: (p: Parcel) => void };
+
+export function ParcelDetailPanel({ parcel, onClose, onReserved, onLocate }: ParcelDetailPanelProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -160,7 +162,8 @@ export function ParcelDetailPanel({ parcel, onClose, onReserved }: { parcel: Par
             <div><span className="block text-[9px] uppercase tracking-[0.12em] text-white/40">Fiyat</span><strong className="mt-1 block text-white/90">{priceLabel}</strong></div>
           </div>
 
-          <button id="myskyparcel-purchase-action" data-msp-purchase="1" type="button" onClick={handlePurchase} disabled={loading || parcel.status !== 'available'} className="btn-gold mt-4 w-full rounded-md py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50">{purchaseLabel}</button>
+          {onLocate && <button type="button" onClick={() => onLocate(parcel)} className="mt-4 flex w-full items-center justify-center gap-2 rounded-md border border-red-400/35 bg-red-500/10 py-3 text-sm font-semibold text-red-100 transition hover:bg-red-500/20 hover:border-red-400/60"><MapPin className="h-4 w-4" />KONUMA GİT</button>}
+          <button id="myskyparcel-purchase-action" data-msp-purchase="1" type="button" onClick={handlePurchase} disabled={loading || parcel.status !== 'available'} className="btn-gold mt-3 w-full rounded-md py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50">{purchaseLabel}</button>
           {message && <p className="mt-3 text-center text-sm text-muted-foreground">{message}</p>}
 
           <div className="mt-5 border-t border-white/10 pt-4">
