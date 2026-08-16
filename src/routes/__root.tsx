@@ -84,13 +84,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "Gökyüzünde sembolik bir parsel seç, benzersiz sertifikanla bu anı ölümsüzleştir.",
       },
       { name: "author", content: "MySkyParcel" },
-      { property: "og:title", content: "MySkyParcel — Gökyüzünde Sana Özel Bir Yer" },
+      { name: "og:title", content: "MySkyParcel — Gökyüzünde Sana Özel Bir Yer" },
       {
         property: "og:description",
         content: "Sembolik gökyüzü parseli ve koleksiyon sertifikası.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "google", content: "notranslate" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -112,7 +113,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="tr" translate="yes">
+    <html lang="tr" translate="no">
       <head>
         <HeadContent />
         <meta
