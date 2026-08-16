@@ -105,34 +105,17 @@ function patchGoogleMaps(maps: MapsLike) {
   patchedMaps.add(maps);
 }
 
-function compactSkyMapHeading() {
+function removeSkyMapHeading() {
   if (typeof document === "undefined") return;
   const headings = Array.from(document.querySelectorAll("h1"));
   const heading = headings.find((item) => item.textContent?.trim() === "GÖKYÜZÜ HARİTASI");
   if (!heading) return;
-
   const wrapper = heading.parentElement;
   if (!wrapper) return;
-  wrapper.dataset.mspCompactHeading = "true";
 
-  // Yalnızca Gökyüzü Haritası başlık bloğunu yaklaşık %50 küçült.
-  // Harita komponentinin yüksekliği/genişliği ve parsel katmanı burada değiştirilmez.
-  heading.style.setProperty("font-size", "clamp(1rem, 2vw, 1.5rem)", "important");
-  heading.style.setProperty("line-height", "1.15", "important");
-  heading.style.setProperty("margin", "0", "important");
-  heading.style.setProperty("transform", "none", "important");
-
-  const description = wrapper.querySelector("p") as HTMLElement | null;
-  if (description) {
-    description.style.setProperty("margin-top", "0.25rem", "important");
-    description.style.setProperty("font-size", "0.72rem", "important");
-    description.style.setProperty("line-height", "1.15rem", "important");
-  }
-
-  wrapper.style.setProperty("margin-top", "-0.5rem", "important");
-  wrapper.style.setProperty("margin-bottom", "0.25rem", "important");
-  wrapper.style.setProperty("padding-top", "0", "important");
-  wrapper.style.setProperty("padding-bottom", "0", "important");
+  // Sadece Gökyüzü Haritası başlık bloğunu kaldır. Harita komponentine dokunma.
+  wrapper.style.setProperty("display", "none", "important");
+  wrapper.setAttribute("aria-hidden", "true");
 }
 
 function start() {
@@ -146,11 +129,10 @@ function start() {
   }, 100);
   window.setTimeout(() => window.clearInterval(timer), 30000);
 
-  compactSkyMapHeading();
-  const observer = new MutationObserver(() => compactSkyMapHeading());
+  removeSkyMapHeading();
+  const observer = new MutationObserver(() => removeSkyMapHeading());
   observer.observe(document.body, { childList: true, subtree: true });
-  // React route geçişlerinde başlık sonradan oluşabileceği için birkaç kez daha kesinleştir.
-  [100, 300, 700, 1500, 3000].forEach((delay) => window.setTimeout(compactSkyMapHeading, delay));
+  [100, 300, 700, 1500, 3000].forEach((delay) => window.setTimeout(removeSkyMapHeading, delay));
   window.setTimeout(() => observer.disconnect(), 10000);
 }
 
