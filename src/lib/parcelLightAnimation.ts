@@ -3,7 +3,9 @@ type Point = { lat: number; lng: number };
 type Segment = { a: Point; b: Point; color: string };
 type Particle = Segment & { t: number; speed: number; phase: number };
 
-const MAX_LIGHTS = 18;
+// Keep the animation deliberately small and independent of parcel count.
+const MAX_LIGHTS = 8;
+const FRAME_INTERVAL = 1000 / 30;
 
 function seededUnit(index: number) {
   const x = Math.sin(index * 12.9898 + 78.233) * 43758.5453;
@@ -11,10 +13,9 @@ function seededUnit(index: number) {
 }
 
 /**
- * Lightweight canvas-only light trails for the parcel grid.
- * It deliberately creates no Google Maps markers/polygons and pauses while
- * the map is being moved/zoomed. Parcel geometry is read only when refresh()
- * is called, so the animation loop never scans the parcel collection.
+ * Very lightweight canvas overlay for the moving parcel lights.
+ * It never creates Google Maps markers/polygons and it pauses while the map
+ * is being moved or zoomed. Only a small fixed number of lights are animated.
  */
 export function attachParcelLightAnimation(
   maps: Maps,
@@ -35,6 +36,7 @@ export function attachParcelLightAnimation(
     width = 0;
     height = 0;
     lastTime = 0;
+    lastFrame = 0;
 
     onAdd() {
       const canvas = document.createElement("canvas");
@@ -46,8 +48,10 @@ export function attachParcelLightAnimation(
       canvas.style.pointerEvents = "none";
       canvas.setAttribute("aria-hidden", "true");
       this.canvas = canvas;
-      this.ctx = canvas.getContext("2d");
-      this.getPanes()?.overlayLayer.appendChild(canvas);
+      this.ctx = canvas.getContext("2d", { alpha: true });
+      // Put the non-interactive visual layer above map polygons without
+      // affecting pointer/touch interaction.
+      this.getPanes()?.overlayMouseTarget.appendChild(canvas);
       this.resize();
       this.schedule();
     }
@@ -55,7 +59,7 @@ export function attachParcelLightAnimation(
     draw() {
       this.projection = this.getProjection();
       this.resize();
-      this.render();
+      if (!this.running) this.render();
     }
 
     onRemove() {
@@ -72,7 +76,9 @@ export function attachParcelLightAnimation(
       const host = map.getDiv?.() as HTMLElement | undefined;
       const width = Math.max(1, host?.clientWidth ?? this.canvas.clientWidth);
       const height = Math.max(1, host?.clientHeight ?? this.canvas.clientHeight);
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+      // Cap DPR: the effect is decorative and does not need a retina-sized
+      // full-map framebuffer on older phones/tablets.
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
       const pixelWidth = Math.round(width * dpr);
       const pixelHeight = Math.round(height * dpr);
       if (this.canvas.width !== pixelWidth || this.canvas.height !== pixelHeight) {
@@ -103,12 +109,12 @@ export function attachParcelLightAnimation(
           b: segment.b,
           color: segment.color,
           t: seededUnit(i + source.length * 0.013),
-          speed: 0.000075 + seededUnit(i + 21) * 0.000055,
+          speed: 0.00009 + seededUnit(i + 21) * 0.00006,
           phase: seededUnit(i + 47),
         });
       }
       this.particles = next;
-      this.render();
+      if (!this.running) this.render();
     }
 
     clear() {
@@ -130,7 +136,6 @@ export function attachParcelLightAnimation(
 
       ctx.clearRect(0, 0, this.width, this.height);
       ctx.lineCap = "round";
-      ctx.lineJoin = "round";
 
       for (const particle of this.particles) {
         const a = this.project(particle.a);
@@ -140,56 +145,46 @@ export function attachParcelLightAnimation(
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const length = Math.hypot(dx, dy);
-        if (length < 2) continue;
+        if (length < 3) continue;
         const ux = dx / length;
         const uy = dy / length;
         const px = a.x + dx * particle.t;
         const py = a.y + dy * particle.t;
-
-        const pulse = 0.62 + 0.38 * Math.sin((particle.t + particle.phase) * Math.PI * 2);
-        const trailLength = Math.min(28, Math.max(9, length * 0.22));
+        const pulse = 0.72 + 0.28 * Math.sin((particle.t + particle.phase) * Math.PI * 2);
+        const trailLength = Math.min(22, Math.max(7, length * 0.18));
         const tx = px - ux * trailLength;
         const ty = py - uy * trailLength;
 
-        ctx.save();
-        ctx.globalCompositeOperation = "lighter";
-        ctx.globalAlpha = 0.22 * pulse;
+        // One inexpensive trail stroke + one small head. Avoid per-frame
+        // blur/compositing operations which are costly over satellite tiles.
+        ctx.globalAlpha = 0.32 * pulse;
         ctx.strokeStyle = particle.color;
-        ctx.lineWidth = 3.2;
-        ctx.shadowColor = particle.color;
-        ctx.shadowBlur = 7;
+        ctx.lineWidth = 2.4;
         ctx.beginPath();
         ctx.moveTo(tx, ty);
         ctx.lineTo(px, py);
         ctx.stroke();
 
-        ctx.globalAlpha = 0.9 * pulse;
-        ctx.lineWidth = 1.2;
-        ctx.shadowBlur = 5;
-        ctx.beginPath();
-        ctx.moveTo(tx, ty);
-        ctx.lineTo(px, py);
-        ctx.stroke();
-
-        ctx.globalAlpha = 0.98 * pulse;
+        ctx.globalAlpha = 0.95 * pulse;
         ctx.fillStyle = "#ffffff";
-        ctx.shadowColor = particle.color;
-        ctx.shadowBlur = 8;
         ctx.beginPath();
-        ctx.arc(px, py, 1.65, 0, Math.PI * 2);
+        ctx.arc(px, py, 1.45, 0, Math.PI * 2);
         ctx.fill();
-        ctx.restore();
       }
+
+      ctx.globalAlpha = 1;
     }
 
     tick = (time: number) => {
       if (this.destroyed) return;
-      if (this.running) {
+      if (this.running && time - this.lastFrame >= FRAME_INTERVAL) {
+        const delta = Math.min(time - (this.lastTime || time), 48);
         for (const particle of this.particles) {
-          particle.t += particle.speed * Math.min(time - (this.lastTime || time), 32);
+          particle.t += particle.speed * delta;
           if (particle.t > 1) particle.t -= 1;
         }
         this.render();
+        this.lastFrame = time;
       }
       this.lastTime = time;
       this.raf = window.requestAnimationFrame(this.tick);
@@ -208,6 +203,7 @@ export function attachParcelLightAnimation(
       this.running = value;
       if (value) {
         this.lastTime = 0;
+        this.lastFrame = 0;
         this.schedule();
       }
     }
