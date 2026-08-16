@@ -1,11 +1,10 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { ArrowRight, Calendar, FileBadge, Globe, Grid2x2, Headphones, List, Lock, MapPin, MoreVertical, ShieldCheck, Star, Truck, X } from "lucide-react";
+import { ArrowRight, Calendar, FileBadge, Globe, Grid2x2, Headphones, List, Lock, MapPin, MoreVertical, ShieldCheck, Star, X } from "lucide-react";
 import heroCity from "@/assets/hero-city.jpg";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { UserSidebar } from "@/components/UserSidebar";
 import { TrustBar, type TrustItem } from "@/components/TrustBar";
-import { CertificateArtwork } from "@/components/CertificateArtwork";
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,7 +13,7 @@ import type { Parcel } from "@/types/parcel";
 export const Route = createFileRoute("/parsellerim")({
   head: () => ({ meta: [
     { title: "Koleksiyonum — MySkyParcel" },
-    { name: "description", content: "Satın aldığın gökyüzü parsellerini ve sertifikalarını tek koleksiyon alanında görüntüle." },
+    { name: "description", content: "Satın aldığın gökyüzü parsellerini tek koleksiyon alanında görüntüle." },
   ] }),
   component: Parsellerim,
 });
@@ -27,36 +26,33 @@ const FOOTER_TRUST: TrustItem[] = [
 ];
 const TIER_LABELS = { digital: "Dijital", elite: "Elit", premium: "Premium" } as const;
 type ViewMode = "grid" | "list";
-type CollectionCertificate = { id: string; parcel_id: string; tier: "digital" | "elite" | "premium"; status: "requested" | "approved" | "issued" | "rejected" | "revoked"; certificate_number: string | null; requested_at: string; issued_at: string | null; parcel?: { parcel_number?: string | null } | null };
 
 function Parsellerim() {
   const { user, loading: authLoading } = useAuth();
   const [parcels, setParcels] = useState<Parcel[]>([]);
-  const [certificates, setCertificates] = useState<CollectionCertificate[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortNewest, setSortNewest] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null);
-  const [selectedCertificate, setSelectedCertificate] = useState<CollectionCertificate | null>(null);
 
   useEffect(() => {
     let mounted = true;
     async function load() {
       if (!supabaseBrowser) { if (mounted) { setError("Supabase yapılandırması eksik"); setLoading(false); } return; }
-      if (!user) { if (!authLoading && mounted) { setParcels([]); setCertificates([]); } return; }
+      if (!user) { if (!authLoading && mounted) setParcels([]); return; }
       setLoading(true); setError(null);
       try {
-        const [{ data: parcelData, error: parcelError }, { data: certificateData, error: certificateError }] = await Promise.all([
-          // Koleksiyonum yalnızca gerçekten satın alınmış/satılmış parselleri gösterir.
-          supabaseBrowser.from("parcels").select("id, parcel_number, status, owner_id, price, tier, tier_price, city_id, latitude, longitude, created_at, updated_at, cities(name,code)").eq("owner_id", user.id).eq("status", "sold").order("created_at", { ascending: false }).limit(200),
-          supabaseBrowser.from("certificate_requests").select("id,parcel_id,tier,status,certificate_number,requested_at,issued_at,parcel:parcels(parcel_number)").eq("user_id", user.id).order("requested_at", { ascending: false }).limit(200),
-        ]);
+        const { data: parcelData, error: parcelError } = await supabaseBrowser
+          .from("parcels")
+          .select("id, parcel_number, status, owner_id, price, tier, tier_price, city_id, latitude, longitude, created_at, updated_at, cities(name,code)")
+          .eq("owner_id", user.id)
+          .eq("status", "sold")
+          .order("created_at", { ascending: false })
+          .limit(200);
         if (parcelError) throw parcelError;
         if (!mounted) return;
         setParcels(((parcelData ?? []) as any[]).map((p) => ({ ...p, city_name: p.cities?.name, city_code: p.cities?.code })) as Parcel[]);
-        if (certificateError) console.error("Collection certificate query failed", certificateError);
-        setCertificates((certificateData ?? []) as CollectionCertificate[]);
       } catch (err) { console.error(err); if (mounted) setError("Koleksiyon verileri yüklenirken hata oluştu"); }
       finally { if (mounted) setLoading(false); }
     }
@@ -65,13 +61,13 @@ function Parsellerim() {
   }, [user, authLoading]);
 
   useEffect(() => {
-    if (!selectedParcel && !selectedCertificate) return;
-    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") { setSelectedParcel(null); setSelectedCertificate(null); } };
+    if (!selectedParcel) return;
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setSelectedParcel(null); };
     document.addEventListener("keydown", handleKeyDown);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.removeEventListener("keydown", handleKeyDown); document.body.style.overflow = previousOverflow; };
-  }, [selectedParcel, selectedCertificate]);
+  }, [selectedParcel]);
 
   const purchasedParcels = useMemo(() => [...parcels].sort((a, b) => sortNewest ? new Date(b.created_at).getTime() - new Date(a.created_at).getTime() : new Date(a.created_at).getTime() - new Date(b.created_at).getTime()), [parcels, sortNewest]);
 
@@ -81,11 +77,8 @@ function Parsellerim() {
   const summaryCounts = [
     ["Satın Alınan Parsel", purchasedParcels.length],
     ["Aktif Sahiplik", purchasedParcels.length],
-    ["Sertifika", certificates.filter((c) => c.status !== "revoked").length],
     ["Hediye Edilen", 0],
   ];
-  const displayName = (() => { const metadata = user.user_metadata as Record<string, unknown> | undefined; const fullName = typeof metadata?.full_name === "string" ? metadata.full_name.trim() : ""; const name = typeof metadata?.name === "string" ? metadata.name.trim() : ""; return fullName || name || user.email?.split("@")[0] || "MySkyParcel Koleksiyoncusu"; })();
-  const statusLabel = (status: string) => status === "sold" ? "SATIN ALINDI" : status.toUpperCase();
 
   return (
     <div className="starfield min-h-screen">
@@ -107,19 +100,11 @@ function Parsellerim() {
                 </li>
               ))}
             </ul>
-
-            <section className="mt-10">
-              <div className="flex items-end justify-between gap-4"><div><h2 className="font-display text-2xl">SERTİFİKALARIM</h2><p className="mt-1 text-xs text-muted-foreground">Satın alınmış parsellerinize bağlı oluşturulmuş sertifikalar burada görünür.</p></div><Link to="/paketler" className="text-xs text-gold hover:underline">SERTİFİKA SEÇENEKLERİ</Link></div>
-              {certificates.length === 0 ? <div className="panel mt-4 p-6 text-center text-sm text-muted-foreground">Henüz sertifika kaydınız yok. Satın alınmış parseliniz için uygun sertifikayı oluşturabilirsiniz.</div> : <ul className="mt-4 grid gap-4 sm:grid-cols-2">{certificates.filter((c) => c.status !== "revoked").map((certificate) => { const parcelNumber = certificate.parcel?.parcel_number || certificate.parcel_id; return <li key={certificate.id} className="panel overflow-hidden p-4"><div role="button" tabIndex={0} onClick={() => setSelectedCertificate(certificate)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedCertificate(certificate); } }} className="cursor-pointer rounded-lg outline-none transition hover:ring-1 hover:ring-gold/60 focus-visible:ring-2 focus-visible:ring-gold" aria-label={`${TIER_LABELS[certificate.tier]} sertifikasını görüntüle`}><CertificateArtwork tier={certificate.tier} name={displayName} parcelCode={parcelNumber} certificateNumber={certificate.certificate_number} issuedAt={certificate.issued_at || certificate.requested_at} cityName={parcelNumber.includes("-") ? parcelNumber.split("-")[0] : undefined} /></div><div className="pt-4"><p className="font-display text-lg">{TIER_LABELS[certificate.tier]} Parsel Sertifikası</p><p className="mt-1 text-xs text-gold">Parsel: {parcelNumber}</p><p className="mt-2 text-[11px] text-muted-foreground">Durum: {certificate.status} · {new Date(certificate.requested_at).toLocaleDateString("tr-TR")}</p>{certificate.certificate_number && <p className="mt-1 text-[11px] text-muted-foreground">Sertifika No: {certificate.certificate_number}</p>}<p className="mt-3 text-[11px] text-gold/80">Sertifikayı büyük görüntülemek için tıklayın.</p></div></li>; })}</ul>}
-            </section>
           </div>
-          <div className="grid content-start gap-6"><section className="panel p-5"><h2 className="text-xs font-semibold tracking-[0.1em] text-gold">KOLEKSİYON ÖZETİ</h2><dl className="mt-4 space-y-3 text-sm">{summaryCounts.map(([k, v]) => <div key={k} className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">{k}</dt><dd>{v}</dd></div>)}</dl></section><section className="panel p-5"><h2 className="text-xs font-semibold tracking-[0.1em]">YARDIMA MI İHTİYACINIZ VAR?</h2><p className="mt-2 text-xs text-muted-foreground">Parselleriniz veya sertifikalarınız hakkında sorularınız için bize ulaşabilirsiniz.</p><Link to="/iletisim" className="mt-4 flex items-center justify-center gap-2 rounded-md border border-gold/60 py-2.5 text-[11px] text-gold">İLETİŞİME GEÇ <Truck className="h-4 w-4" /></Link></section></div>
+          <div className="grid content-start gap-6"><section className="panel p-5"><h2 className="text-xs font-semibold tracking-[0.1em] text-gold">KOLEKSİYON ÖZETİ</h2><div className="mt-4 grid gap-3">{summaryCounts.map(([label, value]) => <div key={label} className="flex items-center justify-between border-b border-border pb-3 text-sm last:border-0"><span className="text-muted-foreground">{label}</span><span className="font-semibold">{value}</span></div>)}</div></section><section className="panel p-5"><h2 className="text-xs font-semibold tracking-[0.1em] text-gold">SERTİFİKALARIM</h2><p className="mt-2 text-xs text-muted-foreground">Sertifikalarınızı ayrı bölümden görüntüleyebilir ve yönetebilirsiniz.</p><Link to="/sertifikalarim" className="mt-4 inline-flex items-center gap-2 text-xs text-gold hover:underline">SERTİFİKALARIMA GİT <ArrowRight className="h-4 w-4" /></Link></section></div>
         </div>
       </main>
-
       {selectedParcel && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Parsel detayları" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedParcel(null); }}><div className="relative max-h-[92vh] w-full max-w-2xl overflow-hidden rounded-xl border border-gold/30 bg-background shadow-2xl"><div className="flex items-center justify-between border-b border-border px-5 py-4"><div><p className="font-display text-xl">PARSEL DETAYLARI</p><p className="mt-1 text-xs text-gold">{selectedParcel.parcel_number}</p></div><button type="button" onClick={() => setSelectedParcel(null)} className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-gold" aria-label="Parsel detaylarını kapat"><X className="h-5 w-5" /></button></div><div className="max-h-[calc(92vh-76px)] overflow-auto p-5"><div className="relative overflow-hidden rounded-lg"><img src={heroCity} alt="" aria-hidden className="h-44 w-full object-cover opacity-70" /><div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" /><div className="absolute bottom-4 left-4"><p className="font-display text-2xl">{selectedParcel.parcel_number}</p><p className="text-xs text-gold">{selectedParcel.city_name || "—"} · {TIER_LABELS[selectedParcel.tier]}</p></div></div><dl className="mt-5 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-border p-4"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Parsel Numarası</dt><dd className="mt-1 font-semibold">{selectedParcel.parcel_number}</dd></div><div className="rounded-lg border border-border p-4"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Şehir</dt><dd className="mt-1 font-semibold">{selectedParcel.city_name || "—"}{selectedParcel.city_code ? ` (${selectedParcel.city_code})` : ""}</dd></div><div className="rounded-lg border border-border p-4"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Paket</dt><dd className="mt-1 font-semibold">{TIER_LABELS[selectedParcel.tier]}</dd></div><div className="rounded-lg border border-border p-4"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Durum</dt><dd className="mt-1 font-semibold text-success">SATIN ALINDI / SAHİBİSİNİZ</dd></div><div className="rounded-lg border border-border p-4"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Satın Alma Tarihi</dt><dd className="mt-1 font-semibold">{new Date(selectedParcel.created_at).toLocaleDateString("tr-TR")}</dd></div><div className="rounded-lg border border-border p-4"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Parsel Fiyatı</dt><dd className="mt-1 font-semibold">{Number(selectedParcel.tier_price ?? selectedParcel.price).toLocaleString("tr-TR")} TL</dd></div><div className="rounded-lg border border-border p-4"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Enlem</dt><dd className="mt-1 font-semibold">{Number(selectedParcel.latitude).toFixed(6)}</dd></div><div className="rounded-lg border border-border p-4"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Boylam</dt><dd className="mt-1 font-semibold">{Number(selectedParcel.longitude).toFixed(6)}</dd></div></dl><div className="mt-4 rounded-lg border border-gold/20 bg-gold/5 p-4"><div className="flex items-start gap-3"><MapPin className="mt-0.5 h-5 w-5 shrink-0 text-gold" /><div><p className="text-sm font-semibold">Parsel konumu</p><p className="mt-1 text-xs text-muted-foreground">Bu kayıt, satın aldığınız parselin sistemdeki koordinatlarını gösterir.</p><p className="mt-2 text-xs text-gold">{Number(selectedParcel.latitude).toFixed(6)}, {Number(selectedParcel.longitude).toFixed(6)}</p></div></div></div></div></div></div>}
-
-      {selectedCertificate && (() => { const parcelNumber = selectedCertificate.parcel?.parcel_number || selectedCertificate.parcel_id; return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Sertifika görüntüleme" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedCertificate(null); }}><div className="relative flex max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-gold/30 bg-background shadow-2xl"><div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3"><div><p className="font-display text-lg">{TIER_LABELS[selectedCertificate.tier]} Parsel Sertifikası</p><p className="text-[11px] text-muted-foreground">{parcelNumber}{selectedCertificate.certificate_number ? ` · ${selectedCertificate.certificate_number}` : ""}</p></div><button type="button" onClick={() => setSelectedCertificate(null)} className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-gold" aria-label="Sertifikayı kapat"><X className="h-5 w-5" /></button></div><div className="min-h-0 overflow-auto p-3 sm:p-6"><div className="mx-auto max-w-5xl"><CertificateArtwork tier={selectedCertificate.tier} name={displayName} parcelCode={parcelNumber} certificateNumber={selectedCertificate.certificate_number} issuedAt={selectedCertificate.issued_at || selectedCertificate.requested_at} cityName={parcelNumber.includes("-") ? parcelNumber.split("-")[0] : undefined} /></div></div></div></div>; })()}
       <TrustBar items={FOOTER_TRUST} /><SiteFooter />
     </div>
   );
