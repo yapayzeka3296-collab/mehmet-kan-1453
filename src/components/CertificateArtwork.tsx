@@ -11,6 +11,7 @@ type Props = {
   cityName?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  previewOnly?: boolean;
 };
 
 const LABEL = CERTIFICATE_TEMPLATE_LABELS;
@@ -233,7 +234,7 @@ async function render(
   return canvas;
 }
 
-export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, issuedAt, cityName, latitude, longitude }: Props) {
+export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, issuedAt, cityName, latitude, longitude, previewOnly = false }: Props) {
   const displayName = name?.trim() || "Ad Soyad";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -243,6 +244,7 @@ export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, 
   const verificationQr = certificateNumber ? qrUrl(certificateNumber, qrVersion) : "";
 
   useEffect(() => {
+    if (previewOnly) return;
     let mounted = true;
     void ensureCertificateFonts().finally(() => {
       if (mounted) setFontsReady(true);
@@ -250,7 +252,7 @@ export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [previewOnly]);
 
   const make = useCallback(
     () => render(tier, displayName, parcelCode || "—", dateTR(issuedAt), certificateNumber || "—", cityName || "", latitude, longitude, qrVersion),
@@ -283,6 +285,14 @@ export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, 
   }, [certificateNumber, make, tier]);
 
   const templateSrc = CERTIFICATE_TEMPLATE_IMAGES[tier];
+  if (previewOnly) {
+    return (
+      <article className="relative mx-auto w-full overflow-hidden rounded-xl bg-black shadow-2xl" aria-label={LABEL[tier]}>
+        <img src={templateSrc} alt={LABEL[tier]} onError={(event) => { const image = event.currentTarget; if (image.src.endsWith(CERTIFICATE_TEMPLATE_FALLBACK)) return; image.src = CERTIFICATE_TEMPLATE_FALLBACK; }} className="block aspect-[1600/1067] h-auto w-full object-cover" />
+      </article>
+    );
+  }
+
   return (
     <article className="relative mx-auto w-full overflow-hidden rounded-xl bg-black shadow-2xl" aria-label={LABEL[tier]}>
       <div className="relative">
