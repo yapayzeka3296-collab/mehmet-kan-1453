@@ -44,24 +44,33 @@ const qrUrl = (number: string, cacheKey?: string | null) => {
 };
 
 const CERTIFICATE_FONT_LINKS = [
-  { id: "my-skyparcel-great-vibes", href: "https://fonts.bunny.net/css?family=Great+Vibes:400&display=swap" },
-  { id: "my-skyparcel-brittany-signature", href: "https://fonts.cdnfonts.com/css/brittany-signature" },
+  { id: "my-skyparcel-pinyon-script", href: "https://fonts.googleapis.com/css2?family=Pinyon+Script&display=swap" },
+  { id: "my-skyparcel-great-vibes", href: "https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" },
 ] as const;
 
 async function ensureCertificateFonts() {
   if (typeof document === "undefined") return;
-  for (const font of CERTIFICATE_FONT_LINKS) {
-    if (!document.head.querySelector(`link[data-certificate-font="${font.id}"]`)) {
+  const loads = CERTIFICATE_FONT_LINKS.map((font) => {
+    return new Promise<void>((resolve) => {
+      const existing = document.head.querySelector<HTMLLinkElement>(`link[data-certificate-font="${font.id}"]`);
+      if (existing) {
+        if (existing.sheet) resolve();
+        else existing.addEventListener("load", () => resolve(), { once: true });
+        return;
+      }
       const link = document.createElement("link");
       link.rel = "stylesheet";
       link.href = font.href;
       link.dataset.certificateFont = font.id;
+      link.onload = () => resolve();
+      link.onerror = () => resolve();
       document.head.appendChild(link);
-    }
-  }
+    });
+  });
+  await Promise.all(loads);
   await Promise.allSettled([
+    document.fonts.load('400 64px "Pinyon Script"'),
     document.fonts.load('400 64px "Great Vibes"'),
-    document.fonts.load('400 64px "Brittany Signature"'),
   ]);
 }
 
@@ -116,9 +125,9 @@ const LAYOUT = {
   signature: { left: 61, width: 20, top: 75.0, height: 7.5 },
 } as const;
 
-const NAME_FONT = '"Great Vibes", cursive';
-const SIGNATURE_FONT = '"Brittany Signature", cursive';
-const SANS_FONT = 'Arial, sans-serif';
+const NAME_FONT = '"Pinyon Script", cursive';
+const SIGNATURE_FONT = '"Great Vibes", cursive';
+const SANS_FONT = "Arial, sans-serif";
 
 function fitFont(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, start: number, min: number, family: string) {
   let size = start;
