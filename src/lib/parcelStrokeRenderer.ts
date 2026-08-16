@@ -105,6 +105,25 @@ function patchGoogleMaps(maps: MapsLike) {
   patchedMaps.add(maps);
 }
 
+function compactSkyMapHeading() {
+  if (typeof document === "undefined") return;
+  const headings = Array.from(document.querySelectorAll("h1"));
+  const heading = headings.find((item) => item.textContent?.trim() === "GÖKYÜZÜ HARİTASI");
+  if (!heading) return;
+  const wrapper = heading.parentElement;
+  if (!wrapper || wrapper.dataset.mspCompactHeading === "true") return;
+  wrapper.dataset.mspCompactHeading = "true";
+  heading.style.fontSize = "clamp(1rem, 2vw, 1.5rem)";
+  heading.style.lineHeight = "1.2";
+  const description = wrapper.querySelector("p");
+  if (description) {
+    description.style.marginTop = "0.375rem";
+    description.style.fontSize = "0.75rem";
+    description.style.lineHeight = "1.25rem";
+  }
+  wrapper.style.marginBottom = "0.75rem";
+}
+
 function start() {
   if (typeof window === "undefined") return;
   const tryPatch = () => { const maps = (window as any).google?.maps; if (maps) patchGoogleMaps(maps); };
@@ -115,6 +134,11 @@ function start() {
     if (maps && patchedMaps.has(maps)) window.clearInterval(timer);
   }, 100);
   window.setTimeout(() => window.clearInterval(timer), 30000);
+
+  compactSkyMapHeading();
+  const observer = new MutationObserver(() => compactSkyMapHeading());
+  observer.observe(document.body, { childList: true, subtree: true });
+  window.setTimeout(() => observer.disconnect(), 10000);
 }
 
 start();
