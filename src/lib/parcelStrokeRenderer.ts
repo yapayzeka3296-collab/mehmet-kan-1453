@@ -108,14 +108,13 @@ function patchGoogleMaps(maps: MapsLike) {
 function removeSkyMapHeading() {
   if (typeof document === "undefined") return;
   const headings = Array.from(document.querySelectorAll("h1"));
-  const heading = headings.find((item) => item.textContent?.trim() === "GÖKYÜZÜ HARİTASI");
+  const heading = headings.find((item) => item.textContent?.replace(/\s+/g, " ").trim() === "GÖKYÜZÜ HARİTASI");
   if (!heading) return;
-  const wrapper = heading.parentElement;
-  if (!wrapper) return;
 
-  // Sadece Gökyüzü Haritası başlık bloğunu kaldır. Harita komponentine dokunma.
-  wrapper.style.setProperty("display", "none", "important");
-  wrapper.setAttribute("aria-hidden", "true");
+  // React sayfasındaki başlık bloğunu doğrudan DOM'dan kaldırıyoruz.
+  // Harita komponenti ve onun ölçüleri bu işlemden etkilenmez.
+  const wrapper = heading.parentElement;
+  if (wrapper) wrapper.remove();
 }
 
 function start() {
@@ -130,10 +129,9 @@ function start() {
   window.setTimeout(() => window.clearInterval(timer), 30000);
 
   removeSkyMapHeading();
-  const observer = new MutationObserver(() => removeSkyMapHeading());
+  const observer = new MutationObserver(removeSkyMapHeading);
   observer.observe(document.body, { childList: true, subtree: true });
-  [100, 300, 700, 1500, 3000].forEach((delay) => window.setTimeout(removeSkyMapHeading, delay));
-  window.setTimeout(() => observer.disconnect(), 10000);
+  window.setTimeout(() => observer.disconnect(), 15000);
 }
 
 start();
