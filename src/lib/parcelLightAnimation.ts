@@ -4,7 +4,6 @@ type Segment = { a: Point; b: Point; color: string };
 type Particle = Segment & { t: number; speed: number; phase: number };
 
 const MAX_LIGHTS = 18;
-const TRAIL_STEPS = 5;
 
 function seededUnit(index: number) {
   const x = Math.sin(index * 12.9898 + 78.233) * 43758.5453;
@@ -35,6 +34,7 @@ export function attachParcelLightAnimation(
     destroyed = false;
     width = 0;
     height = 0;
+    lastTime = 0;
 
     onAdd() {
       const canvas = document.createElement("canvas");
@@ -191,8 +191,6 @@ export function attachParcelLightAnimation(
       this.lastTime = time;
       this.raf = window.requestAnimationFrame(this.tick);
     };
-
-    lastTime = 0;
 
     schedule() {
       if (!this.raf) this.raf = window.requestAnimationFrame(this.tick);
