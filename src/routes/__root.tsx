@@ -84,7 +84,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "Gökyüzünde sembolik bir parsel seç, benzersiz sertifikanla bu anı ölümsüzleştir.",
       },
       { name: "author", content: "MySkyParcel" },
-      { name: "og:title", content: "MySkyParcel — Gökyüzünde Sana Özel Bir Yer" },
+      { property: "og:title", content: "MySkyParcel — Gökyüzünde Sana Özel Bir Yer" },
       {
         property: "og:description",
         content: "Sembolik gökyüzü parseli ve koleksiyon sertifikası.",
