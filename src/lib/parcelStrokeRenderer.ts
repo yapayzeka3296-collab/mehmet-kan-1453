@@ -110,25 +110,29 @@ function compactSkyMapHeading() {
   const headings = Array.from(document.querySelectorAll("h1"));
   const heading = headings.find((item) => item.textContent?.trim() === "GÖKYÜZÜ HARİTASI");
   if (!heading) return;
+
   const wrapper = heading.parentElement;
-  if (!wrapper || wrapper.dataset.mspCompactHeading === "true") return;
+  if (!wrapper) return;
   wrapper.dataset.mspCompactHeading = "true";
 
-  // Sadece başlık bloğunu küçült. Harita komponentinin boyutlarına dokunma.
+  // Yalnızca Gökyüzü Haritası başlık bloğunu yaklaşık %50 küçült.
+  // Harita komponentinin yüksekliği/genişliği ve parsel katmanı burada değiştirilmez.
   heading.style.setProperty("font-size", "clamp(1rem, 2vw, 1.5rem)", "important");
-  heading.style.setProperty("line-height", "1.2", "important");
+  heading.style.setProperty("line-height", "1.15", "important");
   heading.style.setProperty("margin", "0", "important");
+  heading.style.setProperty("transform", "none", "important");
 
   const description = wrapper.querySelector("p") as HTMLElement | null;
   if (description) {
-    description.style.setProperty("margin-top", "0.375rem", "important");
-    description.style.setProperty("font-size", "0.75rem", "important");
-    description.style.setProperty("line-height", "1.25rem", "important");
+    description.style.setProperty("margin-top", "0.25rem", "important");
+    description.style.setProperty("font-size", "0.72rem", "important");
+    description.style.setProperty("line-height", "1.15rem", "important");
   }
 
-  // Başlık bloğunun kapladığı dikey alanı yarıya yaklaştır ve haritayı yukarı al.
-  wrapper.style.setProperty("margin-bottom", "0.375rem", "important");
-  wrapper.style.setProperty("margin-top", "-0.75rem", "important");
+  wrapper.style.setProperty("margin-top", "-0.5rem", "important");
+  wrapper.style.setProperty("margin-bottom", "0.25rem", "important");
+  wrapper.style.setProperty("padding-top", "0", "important");
+  wrapper.style.setProperty("padding-bottom", "0", "important");
 }
 
 function start() {
@@ -145,6 +149,8 @@ function start() {
   compactSkyMapHeading();
   const observer = new MutationObserver(() => compactSkyMapHeading());
   observer.observe(document.body, { childList: true, subtree: true });
+  // React route geçişlerinde başlık sonradan oluşabileceği için birkaç kez daha kesinleştir.
+  [100, 300, 700, 1500, 3000].forEach((delay) => window.setTimeout(compactSkyMapHeading, delay));
   window.setTimeout(() => observer.disconnect(), 10000);
 }
 
