@@ -3,8 +3,8 @@ type Point = { lat: number; lng: number };
 type Segment = { a: Point; b: Point; color: string };
 type Particle = Segment & { t: number; speed: number; phase: number };
 
-// Keep the animation deliberately small and independent of parcel count.
-const MAX_LIGHTS = 8;
+// Keep the effect visually obvious while keeping the cost independent of parcel count.
+const MAX_LIGHTS = 12;
 const FRAME_INTERVAL = 1000 / 30;
 
 function seededUnit(index: number) {
@@ -13,9 +13,8 @@ function seededUnit(index: number) {
 }
 
 /**
- * Very lightweight canvas overlay for the moving parcel lights.
- * It never creates Google Maps markers/polygons and it pauses while the map
- * is being moved or zoomed. Only a small fixed number of lights are animated.
+ * Lightweight canvas overlay for the moving parcel lights.
+ * It never creates Google Maps markers/polygons and pauses while the map moves.
  */
 export function attachParcelLightAnimation(
   maps: Maps,
@@ -46,12 +45,15 @@ export function attachParcelLightAnimation(
       canvas.style.width = "100%";
       canvas.style.height = "100%";
       canvas.style.pointerEvents = "none";
+      canvas.style.zIndex = "20";
       canvas.setAttribute("aria-hidden", "true");
       this.canvas = canvas;
       this.ctx = canvas.getContext("2d", { alpha: true });
-      // Put the non-interactive visual layer above map polygons without
-      // affecting pointer/touch interaction.
-      this.getPanes()?.overlayMouseTarget.appendChild(canvas);
+
+      // This pane sits above Google Maps polygons but below the map controls.
+      const pane = this.getPanes()?.overlayMouseTarget;
+      if (pane) pane.appendChild(canvas);
+
       this.resize();
       this.schedule();
     }
@@ -59,6 +61,8 @@ export function attachParcelLightAnimation(
     draw() {
       this.projection = this.getProjection();
       this.resize();
+      // During pan/zoom the animation is paused, but redraw immediately so
+      // the visible lights stay locked to the moved parcel lines.
       if (!this.running) this.render();
     }
 
@@ -76,8 +80,6 @@ export function attachParcelLightAnimation(
       const host = map.getDiv?.() as HTMLElement | undefined;
       const width = Math.max(1, host?.clientWidth ?? this.canvas.clientWidth);
       const height = Math.max(1, host?.clientHeight ?? this.canvas.clientHeight);
-      // Cap DPR: the effect is decorative and does not need a retina-sized
-      // full-map framebuffer on older phones/tablets.
       const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
       const pixelWidth = Math.round(width * dpr);
       const pixelHeight = Math.round(height * dpr);
@@ -101,20 +103,24 @@ export function attachParcelLightAnimation(
       const count = Math.min(MAX_LIGHTS, source.length);
       const next: Particle[] = [];
       for (let i = 0; i < count; i += 1) {
-        const index = Math.floor((i * source.length) / count);
+        // Spread the lights over the available parcel edges instead of using
+        // only the first few edges, so they are visible across the whole map.
+        const index = Math.min(source.length - 1, Math.floor(((i + 0.37) * source.length) / count));
         const segment = source[index];
         if (!segment) continue;
         next.push({
           a: segment.a,
           b: segment.b,
           color: segment.color,
-          t: seededUnit(i + source.length * 0.013),
-          speed: 0.00009 + seededUnit(i + 21) * 0.00006,
+          // Start at different positions so several lights are visible at once.
+          t: (seededUnit(i + source.length * 0.013) + i * 0.071) % 1,
+          // About 2.5–4.0 seconds per edge: clearly moving, but not frantic.
+          speed: 0.00025 + seededUnit(i + 21) * 0.00015,
           phase: seededUnit(i + 47),
         });
       }
       this.particles = next;
-      if (!this.running) this.render();
+      this.render();
     }
 
     clear() {
@@ -145,30 +151,37 @@ export function attachParcelLightAnimation(
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const length = Math.hypot(dx, dy);
-        if (length < 3) continue;
+        if (length < 6) continue;
+
         const ux = dx / length;
         const uy = dy / length;
         const px = a.x + dx * particle.t;
         const py = a.y + dy * particle.t;
-        const pulse = 0.72 + 0.28 * Math.sin((particle.t + particle.phase) * Math.PI * 2);
-        const trailLength = Math.min(22, Math.max(7, length * 0.18));
+        const pulse = 0.82 + 0.18 * Math.sin((particle.t + particle.phase) * Math.PI * 2);
+        const trailLength = Math.min(34, Math.max(12, length * 0.24));
         const tx = px - ux * trailLength;
         const ty = py - uy * trailLength;
 
-        // One inexpensive trail stroke + one small head. Avoid per-frame
-        // blur/compositing operations which are costly over satellite tiles.
-        ctx.globalAlpha = 0.32 * pulse;
+        // Bright colored trail.
+        ctx.globalAlpha = 0.88 * pulse;
         ctx.strokeStyle = particle.color;
-        ctx.lineWidth = 2.4;
+        ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(tx, ty);
         ctx.lineTo(px, py);
         ctx.stroke();
 
-        ctx.globalAlpha = 0.95 * pulse;
+        // White-hot head with a small colored halo. No shadowBlur or
+        // compositing is used, keeping this cheap on satellite maps.
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = particle.color;
+        ctx.beginPath();
+        ctx.arc(px, py, 4.2, 0, Math.PI * 2);
+        ctx.fill();
+
         ctx.fillStyle = "#ffffff";
         ctx.beginPath();
-        ctx.arc(px, py, 1.45, 0, Math.PI * 2);
+        ctx.arc(px, py, 2.1, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -205,6 +218,8 @@ export function attachParcelLightAnimation(
         this.lastTime = 0;
         this.lastFrame = 0;
         this.schedule();
+      } else {
+        this.render();
       }
     }
   }
