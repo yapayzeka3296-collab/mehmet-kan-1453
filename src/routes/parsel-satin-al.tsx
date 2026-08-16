@@ -38,6 +38,10 @@ function SatinAl() {
         <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_360px]">
           <section className="panel grid gap-5 p-6">
             <h2 className="font-display text-lg">PARSEL BİLGİLERİ</h2>
+            <div className="rounded-xl border border-gold/20 bg-gold/[0.04] p-4">
+              <p className="text-sm font-semibold text-gold">Bu parsel size özel olacaktır.</p>
+              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">Bu parselin kendine özel parsel kodu bulunur. Satın alma tamamlandığında parsel hesabınıza kaydedilir ve aynı parsel başka bir kullanıcıya satılamaz veya yeniden oluşturulamaz.</p>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {[{ l: "Şehir", v: "Gaziantep" }, { l: "Katman", v: "K05 (5. Katman)" }, { l: "Sektör", v: "S042 (42. Sektör)" }, { l: "Parsel", v: "P07 (7. Parsel)" }].map((f) => (
                 <label key={f.l} className="block"><span className="text-xs text-muted-foreground">{f.l}</span><input defaultValue={f.v} className="mt-1.5 w-full rounded-md border border-input bg-background/50 px-3 py-2.5 text-sm outline-none focus:border-gold" /></label>
