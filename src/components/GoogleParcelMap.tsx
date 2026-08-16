@@ -232,8 +232,8 @@ export function GoogleParcelMap({ parcels, selectedId, selectedIds = new Set<str
     const core = sold ? base : reserved ? base : mode === "selected" ? SELECTED_CORE : NEON_CORE;
     const glow = sold ? base : reserved ? base : mode === "selected" ? SELECTED_GLOW : NEON_GLOW;
     const isActive = mode !== "normal";
-    const glowOpacity = sold ? 0.72 : mode === "selected" ? 0.52 : mode === "hover" ? 0.34 : 0.18;
-    const glowWeight = sold ? 6 : mode === "selected" ? 7 : mode === "hover" ? 6 : 4.5;
+    const glowOpacity = sold ? 0.72 : mode === "selected" ? 0.78 : mode === "hover" ? 0.34 : 0.18;
+    const glowWeight = sold ? 6 : mode === "selected" ? 10.5 : mode === "hover" ? 6 : 4.5;
     const mainOpacity = sold ? 1 : mode === "selected" ? 1 : mode === "hover" ? 0.92 : 0.78;
     const mainWeight = sold ? 2.5 : mode === "selected" ? 1.9 : mode === "hover" ? 1.6 : 1.1;
     const fillOpacity = sold ? 0.08 : mode === "selected" ? 0.17 : mode === "hover" ? 0.035 : 0.008;
@@ -322,8 +322,6 @@ export function GoogleParcelMap({ parcels, selectedId, selectedIds = new Set<str
     const maps = (window as any).google.maps;
     const signature = geometrySignature(parcels, center);
 
-    // The grid geometry depends only on city center and the ordered parcel IDs
-    // per tier. Status/price/selection changes reuse existing map objects.
     if (signature !== renderedGeometrySignatureRef.current) rebuildGeometry(maps);
     else {
       parcels.forEach((parcel) => {
