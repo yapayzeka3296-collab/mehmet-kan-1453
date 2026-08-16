@@ -37,7 +37,19 @@ function MySkyParcelNedir() {
           </p>
         </header>
 
-        <section className="mt-10 grid gap-5 md:grid-cols-2">
+        <section className="panel mt-8 border-cyan-300/20 bg-slate-950/45 p-5 shadow-lg backdrop-blur-sm sm:p-6">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 h-6 w-6 shrink-0 text-gold" />
+            <div>
+              <h2 className="font-display text-base font-bold tracking-[0.08em] text-cyan-100">81 MİLYON BENZERSİZ PARSEL</h2>
+              <p className="mt-2 text-sm font-semibold leading-6 text-white">
+                Her parsel kendine özel bir parsel koduyla oluşturulur. Bir parsel yalnızca bir kişi tarafından satın alınabilir. Satın alınan parsel, sahibinin hesabına kaydedilir ve aynı parsel kodu başka bir parsel için yeniden oluşturulamaz.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8 grid gap-5 md:grid-cols-2">
           {POINTS.map((point) => (
             <article key={point.title} className="panel p-6">
               <point.icon className="h-8 w-8 text-gold" />
