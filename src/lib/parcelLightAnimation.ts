@@ -97,8 +97,11 @@ export function attachParcelLightAnimation(
       for (let i = 0; i < count; i += 1) {
         const index = Math.floor((i * source.length) / count);
         const segment = source[index];
+        if (!segment) continue;
         next.push({
-          ...segment,
+          a: segment.a,
+          b: segment.b,
+          color: segment.color,
           t: seededUnit(i + source.length * 0.013),
           speed: 0.000075 + seededUnit(i + 21) * 0.000055,
           phase: seededUnit(i + 47),
