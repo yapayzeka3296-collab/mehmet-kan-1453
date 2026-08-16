@@ -69,5 +69,5 @@ export function GoogleParcelMap({ parcels, selectedId, selectedIds = new Set<str
   }, [selectedId, selectedIds, ready, multiSelect]);
 
   useEffect(() => () => { cells.current.forEach((items) => items.forEach((polygon) => polygon.setMap(null))); corners.current.forEach((marker) => marker.setMap(null)); mapObj.current = null; }, []);
-  return <div className="relative h-[560px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[680px] lg:h-[760px]"><div ref={mapRef} className="absolute inset-0" aria-label="MySkyParcel kubbe parsel haritası" />{error && <div className="absolute inset-0 grid place-items-center bg-[#071a2d] p-6 text-center"><div><p className="text-sm font-semibold text-white">Google Maps hazır değil</p><p className="mt-2 text-xs text-white/60">{error}</p></div></div>}</div>;
+  return <div className="relative h-[500px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[600px] lg:h-[670px]"><div ref={mapRef} className="absolute inset-0" aria-label="MySkyParcel kubbe parsel haritası" />{error && <div className="absolute inset-0 grid place-items-center bg-[#071a2d] p-6 text-center"><div><p className="text-sm font-semibold text-white">Google Maps hazır değil</p><p className="mt-2 text-xs text-white/60">{error}</p></div></div>}</div>;
 }
