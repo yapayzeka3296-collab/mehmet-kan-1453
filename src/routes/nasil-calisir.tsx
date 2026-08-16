@@ -5,14 +5,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
 
 export const Route = createFileRoute("/nasil-calisir")({
-  head: () => ({
-    meta: [
-      { title: "MySkyParcel Nedir? — MySkyParcel" },
-      { name: "description", content: "MySkyParcel'in dijital ve sembolik parsel sistemi, sertifikaları ve platform kapsamı hakkında bilgi." },
-      { property: "og:title", content: "MySkyParcel Nedir?" },
-      { property: "og:description", content: "MySkyParcel'in dijital parsel deneyiminin nasıl çalıştığını ve ne ifade ettiğini öğrenin." },
-    ],
-  }),
+  head: () => ({ meta: [{ title: "MySkyParcel Nedir? — MySkyParcel" }, { name: "description", content: "MySkyParcel'in dijital ve sembolik parsel sistemi, sertifikaları ve platform kapsamı hakkında bilgi." }, { property: "og:title", content: "MySkyParcel Nedir?" }, { property: "og:description", content: "MySkyParcel'in dijital parsel deneyiminin nasıl çalıştığını ve ne ifade ettiğini öğrenin." }] }),
   component: MySkyParcelNedir,
 });
 
@@ -32,22 +25,8 @@ function MySkyParcelNedir() {
         <header className="text-center">
           <p className="text-xs font-semibold tracking-[0.2em] text-gold">MY SKY PARCEL</p>
           <h1 className="mt-3 font-display text-4xl font-bold sm:text-5xl">MYSKYPARCEL NEDİR?</h1>
-          <p className="mx-auto mt-5 max-w-3xl text-sm leading-7 text-muted-foreground">
-            MySkyParcel, kullanıcıların dijital bir gökyüzü haritası üzerinde sembolik parselleri keşfetmesine, seçmesine ve satın alınan hizmet kapsamında dijital bir koleksiyon oluşturmasına imkân veren bir platformdur. Amaç, fiziksel bir taşınmaz sunmak değil; dijital dünyada kişisel anlam taşıyan bir parsel deneyimi ve sertifika sunmaktır.
-          </p>
+          <p className="mx-auto mt-5 max-w-3xl text-sm leading-7 text-muted-foreground">MySkyParcel, kullanıcıların dijital bir gökyüzü haritası üzerinde sembolik parselleri keşfetmesine, seçmesine ve satın alınan hizmet kapsamında dijital bir koleksiyon oluşturmasına imkân veren bir platformdur. Amaç, fiziksel bir taşınmaz sunmak değil; dijital dünyada kişisel anlam taşıyan bir parsel deneyimi ve sertifika sunmaktır.</p>
         </header>
-
-        <section className="panel mt-8 border-cyan-300/20 bg-slate-950/45 p-5 shadow-lg backdrop-blur-sm sm:p-6">
-          <div className="flex items-start gap-3">
-            <ShieldCheck className="mt-0.5 h-6 w-6 shrink-0 text-gold" />
-            <div>
-              <h2 className="font-display text-base font-bold tracking-[0.08em] text-cyan-100">81 MİLYON BENZERSİZ PARSEL</h2>
-              <p className="mt-2 text-sm font-semibold leading-6 text-white">
-                Her parsel kendine özel bir parsel koduyla oluşturulur. Bir parsel yalnızca bir kişi tarafından satın alınabilir. Satın alınan parsel, sahibinin hesabına kaydedilir ve aynı parsel kodu başka bir parsel için yeniden oluşturulamaz.
-              </p>
-            </div>
-          </div>
-        </section>
 
         <section className="mt-8 grid gap-5 md:grid-cols-2">
           {POINTS.map((point) => (
@@ -57,6 +36,16 @@ function MySkyParcelNedir() {
               <p className="mt-3 text-sm leading-7 text-muted-foreground">{point.text}</p>
             </article>
           ))}
+        </section>
+
+        <section className="panel mt-6 border-cyan-300/20 bg-slate-950/45 p-6 shadow-lg backdrop-blur-sm">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 h-6 w-6 shrink-0 text-gold" />
+            <div className="min-w-0">
+              <h2 className="font-display text-base font-bold tracking-[0.08em] text-cyan-100">81 MİLYON BENZERSİZ PARSEL</h2>
+              <p className="mt-2 text-sm font-semibold leading-6 text-white">Her parsel kendine özel bir parsel koduyla oluşturulur. Bir parsel yalnızca bir kişi tarafından satın alınabilir. Satın alınan parsel, sahibinin hesabına kaydedilir ve aynı parsel kodu başka bir parsel için yeniden oluşturulamaz.</p>
+            </div>
+          </div>
         </section>
 
         <section className="panel mt-6 border-gold/20 p-6 sm:p-8">
@@ -71,11 +60,7 @@ function MySkyParcelNedir() {
 
         <section className="mt-10 text-center">
           <h2 className="font-display text-2xl">NASIL İLERLERSİNİZ?</h2>
-          <div className="mx-auto mt-6 grid max-w-4xl gap-3 sm:grid-cols-4">
-            {["Gökyüzü Haritasını Aç", "Parselini Seç", "Paketini Belirle", "Koleksiyonuna Ekle"].map((step, index) => (
-              <div key={step} className="panel p-4"><span className="text-xs text-gold">0{index + 1}</span><p className="mt-2 text-xs font-medium">{step}</p></div>
-            ))}
-          </div>
+          <div className="mx-auto mt-6 grid max-w-4xl gap-3 sm:grid-cols-4">{["Gökyüzü Haritasını Aç", "Parselini Seç", "Paketini Belirle", "Koleksiyonuna Ekle"].map((step, index) => <div key={step} className="panel p-4"><span className="text-xs text-gold">0{index + 1}</span><p className="mt-2 text-xs font-medium">{step}</p></div>)}</div>
         </section>
       </main>
       <TrustBar />
