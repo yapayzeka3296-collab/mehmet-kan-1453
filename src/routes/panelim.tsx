@@ -39,7 +39,7 @@ function Panelim() {
     let cancelled = false;
     const loadDashboard = async () => {
       const [parcelResult, certificateResult] = await Promise.all([
-        client.from("parcels").select("id, parcel_number, status, price, city_id, tier", { count: "exact" }).eq("owner_id", userId).eq("status", "sold").order("updated_at", { ascending: false }).limit(6),
+        client.from("parcels").select("id, parcel_number, status, price, city_id, tier", { count: "exact" }).eq("owner_id", userId).eq("status", "sold").order("updated_at", { ascending: false }).order("parcel_number", { ascending: true }).limit(100),
         client.from("certificate_requests").select("id, parcel_id, tier, status, certificate_number, created_at", { count: "exact" }).eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
       ]);
       if (cancelled) return;
