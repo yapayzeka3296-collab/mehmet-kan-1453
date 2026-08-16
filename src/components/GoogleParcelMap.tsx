@@ -29,11 +29,11 @@ function statusColor(status: Parcel["status"]) { return status === "sold" ? "#ff
 function tierColor(tier: Parcel["tier"]) { return tier === "premium" ? "#f6c453" : tier === "elite" ? "#b77cff" : "#55c9ff"; }
 function cornerIcon(maps: Maps, color: string, selected: boolean) {
   const key = `${color}:${selected ? 1 : 0}`; const cached = cornerIconCache.get(key); if (cached) return cached;
-  const s = selected ? 25.5 : 9;
-  const blur = selected ? 4.8 : 2.5;
+  const s = selected ? 12.75 : 4.5;
+  const blur = selected ? 2.4 : 1.5;
   const opacity = selected ? 0.95 : 0.65;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s + 20}" height="${s + 20}" viewBox="0 0 ${s + 20} ${s + 20}"><defs><filter id="g"><feGaussianBlur stdDeviation="${blur}"/></filter></defs><circle cx="${(s + 20) / 2}" cy="${(s + 20) / 2}" r="${s / 2 + 6}" fill="${color}" opacity="${opacity}" filter="url(#g)"/><circle cx="${(s + 20) / 2}" cy="${(s + 20) / 2}" r="${s / 2}" fill="${color}" stroke="#fff" stroke-opacity=".95" stroke-width="${selected ? 2.5 : 1}"/></svg>`;
-  const icon = { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: new maps.Size(s + 20, s + 20), anchor: new maps.Point((s + 20) / 2, (s + 20) / 2) }; cornerIconCache.set(key, icon); return icon;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s + 10}" height="${s + 10}" viewBox="0 0 ${s + 10} ${s + 10}"><defs><filter id="g"><feGaussianBlur stdDeviation="${blur}"/></filter></defs><circle cx="${(s + 10) / 2}" cy="${(s + 10) / 2}" r="${s / 2 + 3}" fill="${color}" opacity="${opacity}" filter="url(#g)"/><circle cx="${(s + 10) / 2}" cy="${(s + 10) / 2}" r="${s / 2}" fill="${color}" stroke="#fff" stroke-opacity=".95" stroke-width="${selected ? 1.25 : 0.5}"/></svg>`;
+  const icon = { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: new maps.Size(s + 10, s + 10), anchor: new maps.Point((s + 10) / 2, (s + 10) / 2) }; cornerIconCache.set(key, icon); return icon;
 }
 function domeCell(center: CityCenter, index: number, total: number, innerRadius: number, outerRadius: number) {
   const rows = Math.max(1, Math.ceil(Math.sqrt(Math.max(total, 1) / 2))); const cols = Math.max(8, Math.ceil(Math.max(total, 1) / rows)); const col = index % cols; const row = Math.floor(index / cols);
