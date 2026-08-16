@@ -18,185 +18,25 @@ function loadMaps(key: string) {
   mapsPromise = new Promise((resolve, reject) => {
     const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
     const finish = () => ((window as any).google?.maps ? resolve((window as any).google.maps) : reject(new Error("Google Maps yüklenemedi.")));
-    if (existing) {
-      existing.addEventListener("load", finish, { once: true });
-      existing.addEventListener("error", () => reject(new Error("Google Maps yüklenemedi.")), { once: true });
-      return;
-    }
-    const s = document.createElement("script");
-    s.id = SCRIPT_ID;
-    s.async = true;
-    s.defer = true;
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}`;
-    s.onload = finish;
-    s.onerror = () => reject(new Error("Google Maps yüklenemedi."));
-    document.head.appendChild(s);
+    if (existing) { existing.addEventListener("load", finish, { once: true }); existing.addEventListener("error", () => reject(new Error("Google Maps yüklenemedi.")), { once: true }); return; }
+    const s = document.createElement("script"); s.id = SCRIPT_ID; s.async = true; s.defer = true; s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}`; s.onload = finish; s.onerror = () => reject(new Error("Google Maps yüklenemedi.")); document.head.appendChild(s);
   });
   return mapsPromise;
 }
 
 const color = (p: Parcel) => p.status === "sold" ? "#ff1744" : p.tier === "premium" ? "#f6c453" : p.tier === "elite" ? "#b77cff" : "#55c9ff";
-
-function grid(center: CityCenter, total: number, inner: number, outer: number) {
-  if (!total) return [];
-  const cos = Math.max(Math.cos(center.lat * Math.PI / 180), .2);
-  let n = Math.max(2, Math.ceil(Math.sqrt(total)));
-  const make = () => {
-    const size = outer * 2 / n;
-    const ratio = inner / outer;
-    const a: any[] = [];
-    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
-      const x0 = -outer + c * size, y0 = -outer + r * size, x1 = x0 + size, y1 = y0 + size;
-      const cx = (x0 + x1) / 2 / outer, cy = (y0 + y1) / 2 / outer;
-      if (Math.max(Math.abs(cx), Math.abs(cy)) >= ratio) a.push({ x0, y0, x1, y1 });
-    }
-    return a;
-  };
-  let a = make();
-  while (a.length < total) { n++; a = make(); }
-  const point = (x: number, y: number) => ({ lat: center.lat + y, lng: center.lng + x / cos });
-  return a.slice(0, total).map(x => ({ path: [point(x.x0, x.y0), point(x.x1, x.y0), point(x.x1, x.y1), point(x.x0, x.y1)] }));
-}
-
-function focusParcelShape(center: CityCenter) {
-  const dLat = 0.0042;
-  const dLng = 0.0055 / Math.max(Math.cos(center.lat * Math.PI / 180), 0.25);
-  return [
-    { lat: center.lat - dLat, lng: center.lng - dLng },
-    { lat: center.lat - dLat, lng: center.lng + dLng },
-    { lat: center.lat + dLat, lng: center.lng + dLng },
-    { lat: center.lat + dLat, lng: center.lng - dLng },
-  ];
-}
-
+function grid(center: CityCenter, total: number, inner: number, outer: number) { if (!total) return []; const cos = Math.max(Math.cos(center.lat * Math.PI / 180), .2); let n = Math.max(2, Math.ceil(Math.sqrt(total))); const make = () => { const size = outer * 2 / n; const ratio = inner / outer; const a: any[] = []; for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) { const x0 = -outer + c * size, y0 = -outer + r * size, x1 = x0 + size, y1 = y0 + size; const cx = (x0 + x1) / 2 / outer, cy = (y0 + y1) / 2 / outer; if (Math.max(Math.abs(cx), Math.abs(cy)) >= ratio) a.push({ x0, y0, x1, y1 }); } return a; }; let a = make(); while (a.length < total) { n++; a = make(); } const point = (x: number, y: number) => ({ lat: center.lat + y, lng: center.lng + x / cos }); return a.slice(0, total).map(x => ({ path: [point(x.x0, x.y0), point(x.x1, x.y0), point(x.x1, x.y1), point(x.x0, x.y1)] })); }
+function focusParcelShape(center: CityCenter) { const dLat = 0.0042; const dLng = 0.0055 / Math.max(Math.cos(center.lat * Math.PI / 180), 0.25); return [{ lat: center.lat - dLat, lng: center.lng - dLng }, { lat: center.lat - dLat, lng: center.lng + dLng }, { lat: center.lat + dLat, lng: center.lng + dLng }, { lat: center.lat + dLat, lng: center.lng - dLng }]; }
 const easeInOut = (t: number) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-
-function animateCamera(map: any, from: Camera, to: Camera, duration: number, maps: any, onDone?: () => void) {
-  let frame = 0;
-  const started = performance.now();
-  const step = (now: number) => {
-    const raw = Math.min(1, (now - started) / duration);
-    const t = easeInOut(raw);
-    map.moveCamera({
-      center: new maps.LatLng(lerp(from.lat, to.lat, t), lerp(from.lng, to.lng, t)),
-      zoom: lerp(from.zoom, to.zoom, t),
-      tilt: 0,
-      heading: 0,
-    });
-    if (raw < 1) frame = requestAnimationFrame(step);
-    else onDone?.();
-  };
-  frame = requestAnimationFrame(step);
-  return () => cancelAnimationFrame(frame);
-}
+function animateCamera(map: any, from: Camera, to: Camera, duration: number, maps: any, onDone?: () => void) { let frame = 0; const started = performance.now(); const step = (now: number) => { const raw = Math.min(1, (now - started) / duration); const t = easeInOut(raw); map.moveCamera({ center: new maps.LatLng(lerp(from.lat, to.lat, t), lerp(from.lng, to.lng, t)), zoom: lerp(from.zoom, to.zoom, t), tilt: 0, heading: 0 }); if (raw < 1) frame = requestAnimationFrame(step); else onDone?.(); }; frame = requestAnimationFrame(step); return () => cancelAnimationFrame(frame); }
 
 export function FocusedGoogleParcelMap({ parcels, selectedId, selectedIds = new Set(), multiSelect = false, onSelect, onToggleSelect, onViewportChange, center, focusTarget }: Props) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const map = useRef<any>(null);
-  const focused = useRef<string | null>(null);
-  const focusOverlay = useRef<any>(null);
-  const animationCancel = useRef<(() => void) | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (!key) { setError("Google Maps API anahtarı eksik."); return; }
-    loadMaps(key).then((maps) => {
-      if (!ref.current) return;
-      map.current ||= new maps.Map(ref.current, {
-        center: TURKEY_CENTER,
-        zoom: 5,
-        mapTypeId: "satellite",
-        streetViewControl: false,
-        fullscreenControl: false,
-        mapTypeControl: false,
-        gestureHandling: "greedy",
-        clickableIcons: false,
-        tilt: 0,
-        heading: 0,
-      });
-      setReady(true);
-    }).catch(e => setError(e.message));
-  }, []);
-
-  useEffect(() => {
-    if (!ready || !map.current || !focusTarget || focused.current === focusTarget.token) return;
-    focused.current = focusTarget.token;
-    const maps = (window as any).google.maps;
-    animationCancel.current?.();
-    if (focusOverlay.current) { focusOverlay.current.setMap(null); focusOverlay.current = null; }
-
-    // 1) Start from Turkey, fully zoomed out.
-    const turkey: Camera = { ...TURKEY_CENTER, zoom: 5 };
-    map.current.moveCamera({ center: turkey, zoom: turkey.zoom, tilt: 0, heading: 0 });
-
-    // 2) Turkey -> city: deliberately slow, about 3.2 seconds.
-    const cityCamera: Camera = { ...focusTarget.city, zoom: 8.5 };
-    animationCancel.current = animateCamera(map.current, turkey, cityCamera, 3200, maps, () => {
-      // 3) City -> parcel area: another slow 4.8 seconds. Stop at zoom 13
-      // so the camera does not enter the exact parcel location.
-      const parcelCamera: Camera = { ...focusTarget.parcel, zoom: 13 };
-      animationCancel.current = animateCamera(map.current, cityCamera, parcelCamera, 4800, maps, () => {
-        focusOverlay.current = new maps.Polygon({
-          map: map.current,
-          paths: focusParcelShape(focusTarget.parcel),
-          strokeColor: "#ff1744",
-          strokeOpacity: 1,
-          strokeWeight: 3,
-          fillColor: "#ff1744",
-          fillOpacity: .38,
-          clickable: false,
-          zIndex: 1000,
-        });
-      });
-    });
-
-    return () => {
-      animationCancel.current?.();
-      animationCancel.current = null;
-    };
-  }, [ready, focusTarget]);
-
-  useEffect(() => {
-    if (!ready || !map.current || !onViewportChange) return;
-    const maps = (window as any).google.maps;
-    const emit = () => {
-      const b = map.current.getBounds();
-      if (!b) return;
-      const ne = b.getNorthEast(), sw = b.getSouthWest();
-      onViewportChange({ minLat: sw.lat(), minLng: sw.lng(), maxLat: ne.lat(), maxLng: ne.lng() });
-    };
-    const l = maps.event.addListener(map.current, "idle", () => setTimeout(emit, 100));
-    emit();
-    return () => maps.event.removeListener(l);
-  }, [ready, onViewportChange]);
-
-  useEffect(() => {
-    if (!ready || !map.current) return;
-    const maps = (window as any).google.maps;
-    const all: any[] = [];
-    const configs: any[] = [["digital", .095, .165], ["elite", .05, .08], ["premium", .012, .035]];
-    configs.forEach(([tier, inner, outer]) => {
-      const ps = parcels.filter(p => p.tier === tier), cells = grid(center, ps.length, inner, outer);
-      ps.forEach((p, i) => {
-        const cell = cells[i]; if (!cell) return;
-        const paths = cell.path.map((x: any) => new maps.LatLng(x.lat, x.lng));
-        const c = color(p), sel = multiSelect ? selectedIds.has(p.id) : selectedId === p.id;
-        const poly = new maps.Polygon({ map: map.current, paths, strokeColor: sel ? "#fff4b0" : c, strokeOpacity: 1, strokeWeight: sel ? 2.5 : p.status === "sold" ? 2.5 : 1.1, fillColor: c, fillOpacity: sel ? .17 : p.status === "sold" ? .08 : .008, clickable: true, zIndex: sel ? 501 : p.status === "sold" ? 500 : 21 });
-        poly.addListener("click", () => multiSelect && p.status === "available" ? onToggleSelect?.(p.id) : onSelect(p.id));
-        all.push(poly);
-      });
-    });
-    return () => all.forEach(p => p.setMap(null));
-  }, [ready, parcels, center.lat, center.lng, selectedId, selectedIds, multiSelect, onSelect, onToggleSelect]);
-
-  useEffect(() => () => {
-    animationCancel.current?.();
-    if (focusOverlay.current) focusOverlay.current.setMap(null);
-    map.current = null;
-  }, []);
-
+  const ref = useRef<HTMLDivElement | null>(null); const map = useRef<any>(null); const focused = useRef<string | null>(null); const focusOverlay = useRef<any>(null); const animationCancel = useRef<(() => void) | null>(null); const [error, setError] = useState<string | null>(null); const [ready, setReady] = useState(false);
+  useEffect(() => { const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY; if (!key) { setError("Google Maps API anahtarı eksik."); return; } loadMaps(key).then((maps) => { if (!ref.current) return; map.current ||= new maps.Map(ref.current, { center: TURKEY_CENTER, zoom: 5, mapTypeId: "satellite", streetViewControl: false, fullscreenControl: false, mapTypeControl: false, gestureHandling: "greedy", clickableIcons: false, tilt: 0, heading: 0 }); setReady(true); }).catch(e => setError(e.message)); }, []);
+  useEffect(() => { if (!ready || !map.current || !focusTarget || focused.current === focusTarget.token) return; focused.current = focusTarget.token; const maps = (window as any).google.maps; animationCancel.current?.(); if (focusOverlay.current) { focusOverlay.current.setMap(null); focusOverlay.current = null; } const turkey: Camera = { ...TURKEY_CENTER, zoom: 5 }; map.current.moveCamera({ center: turkey, zoom: turkey.zoom, tilt: 0, heading: 0 }); const cityCamera: Camera = { ...focusTarget.city, zoom: 8.5 }; animationCancel.current = animateCamera(map.current, turkey, cityCamera, 3200, maps, () => { const parcelCamera: Camera = { ...focusTarget.parcel, zoom: 13 }; animationCancel.current = animateCamera(map.current, cityCamera, parcelCamera, 4800, maps, () => { focusOverlay.current = new maps.Polygon({ map: map.current, paths: focusParcelShape(focusTarget.parcel), strokeColor: "#ff1744", strokeOpacity: 1, strokeWeight: 3, fillColor: "#ff1744", fillOpacity: .38, clickable: true, zIndex: 1000 }); const focusParcelId = focusTarget.token.split(":")[0]; if (focusParcelId) focusOverlay.current.addListener("click", () => onSelect(focusParcelId)); }); }); return () => { animationCancel.current?.(); animationCancel.current = null; }; }, [ready, focusTarget, onSelect]);
+  useEffect(() => { if (!ready || !map.current || !onViewportChange) return; const maps = (window as any).google.maps; const emit = () => { const b = map.current.getBounds(); if (!b) return; const ne = b.getNorthEast(), sw = b.getSouthWest(); onViewportChange({ minLat: sw.lat(), minLng: sw.lng(), maxLat: ne.lat(), maxLng: ne.lng() }); }; const l = maps.event.addListener(map.current, "idle", () => setTimeout(emit, 100)); emit(); return () => maps.event.removeListener(l); }, [ready, onViewportChange]);
+  useEffect(() => { if (!ready || !map.current) return; const maps = (window as any).google.maps; const all: any[] = []; const configs: any[] = [["digital", .095, .165], ["elite", .05, .08], ["premium", .012, .035]]; configs.forEach(([tier, inner, outer]) => { const ps = parcels.filter(p => p.tier === tier), cells = grid(center, ps.length, inner, outer); ps.forEach((p, i) => { const cell = cells[i]; if (!cell) return; const paths = cell.path.map((x: any) => new maps.LatLng(x.lat, x.lng)); const c = color(p), sel = multiSelect ? selectedIds.has(p.id) : selectedId === p.id; const poly = new maps.Polygon({ map: map.current, paths, strokeColor: sel ? "#fff4b0" : c, strokeOpacity: 1, strokeWeight: sel ? 2.5 : p.status === "sold" ? 2.5 : 1.1, fillColor: c, fillOpacity: sel ? .17 : p.status === "sold" ? .08 : .008, clickable: true, zIndex: sel ? 501 : p.status === "sold" ? 500 : 21 }); poly.addListener("click", () => multiSelect && p.status === "available" ? onToggleSelect?.(p.id) : onSelect(p.id)); all.push(poly); }); }); return () => all.forEach(p => p.setMap(null)); }, [ready, parcels, center.lat, center.lng, selectedId, selectedIds, multiSelect, onSelect, onToggleSelect]);
+  useEffect(() => () => { animationCancel.current?.(); if (focusOverlay.current) focusOverlay.current.setMap(null); map.current = null; }, []);
   return <div className="relative h-[500px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[600px] lg:h-[670px]"><div ref={ref} className="absolute inset-0" aria-label="MySkyParcel parsel haritası" />{error && <div className="absolute inset-0 grid place-items-center bg-[#071a2d] p-6 text-center"><p className="text-xs text-white/70">{error}</p></div>}</div>;
 }
