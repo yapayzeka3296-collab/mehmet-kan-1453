@@ -19,10 +19,7 @@ function loadGoogleMaps(apiKey: string): Promise<Maps> {
   if (mapsPromise) return mapsPromise;
   mapsPromise = new Promise((resolve, reject) => {
     const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
-    const finish = () => {
-      const maps = (window as any).google?.maps;
-      if (maps) resolve(maps); else reject(new Error("Google Maps API yüklenemedi."));
-    };
+    const finish = () => { const maps = (window as any).google?.maps; if (maps) resolve(maps); else reject(new Error("Google Maps API yüklenemedi.")); };
     if (existing) { existing.addEventListener("load", finish, { once: true }); existing.addEventListener("error", () => reject(new Error("Google Maps script yüklenemedi.")), { once: true }); return; }
     const script = document.createElement("script"); script.id = SCRIPT_ID; script.async = true; script.defer = true; script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`; script.onload = finish; script.onerror = () => reject(new Error("Google Maps script yüklenemedi.")); document.head.appendChild(script);
   });
@@ -61,10 +58,44 @@ export function GoogleParcelMap({ parcels, selectedId, selectedIds = new Set<str
     return () => { cells.current.forEach((items) => items.forEach((polygon) => polygon.setMap(null))); corners.current.forEach((marker) => marker.setMap(null)); cells.current.clear(); corners.current.clear(); };
   }, [parcels, ready, center.lat, center.lng, multiSelect]);
 
-  useEffect(() => { if (!ready || !mapObj.current) return; const maps = (window as any).google.maps; const previous = selectedRef.current;
-    if (previous && previous !== selectedId) { const old = parcelsRef.current.find((parcel) => parcel.id === previous); const oldCells = cells.current.get(previous); if (old && oldCells) { const color = old.status === "sold" ? statusColor(old.status) : tierColor(old.tier); const line = old.status === "sold" ? color : "#e8c66a"; oldCells.forEach((polygon, index) => polygon.setOptions({ strokeOpacity: old.status === "sold" ? (index === 0 ? 0.95 : 1) : (index === 0 ? 0.20 : 0.68), strokeWeight: old.status === "sold" ? (index === 0 ? 7 : 3) : (index === 0 ? 4 : 1), fillOpacity: old.status === "sold" ? (index === 0 ? 0.16 : 0.08) : (index === 0 ? 0.025 : 0.015), zIndex: old.status === "sold" ? (index === 0 ? 500 : 501) : (index === 0 ? 20 : 21), strokeColor: line, fillColor: color })); const prefix = `${previous}:`; corners.current.forEach((marker, key) => { if (key.startsWith(prefix) && !selectedIdsRef.current.has(previous)) marker.setIcon(cornerIcon(maps, color, false)); }); } }
-    if (selectedId && !multiSelect) { const parcel = parcelsRef.current.find((item) => item.id === selectedId); const selectedCells = cells.current.get(selectedId); if (parcel && selectedCells) { const color = parcel.status === "sold" ? statusColor(parcel.status) : tierColor(parcel.tier); const line = parcel.status === "sold" ? color : "#ffd978"; selectedCells.forEach((polygon, index) => polygon.setOptions({ strokeOpacity: parcel.status === "sold" ? (index === 0 ? 0.95 : 1) : (index === 0 ? 0.34 : 0.95), strokeWeight: parcel.status === "sold" ? (index === 0 ? 7 : 3) : (index === 0 ? 5 : 1.5), fillOpacity: parcel.status === "sold" ? (index === 0 ? 0.16 : 0.08) : (index === 0 ? 0.12 : 0.18), zIndex: parcel.status === "sold" ? (index === 0 ? 500 : 501) : (index === 0 ? 300 : 301), strokeColor: line, fillColor: color })); const prefix = `${selectedId}:`; corners.current.forEach((marker, key) => { if (key.startsWith(prefix)) marker.setIcon(cornerIcon(maps, color, true)); }); } }
-    if (multiSelect) { selectedIdsRef.current.forEach((id) => { const parcel = parcelsRef.current.find((item) => item.id === id); const selectedCells = cells.current.get(id); if (!parcel || !selectedCells) return; const color = parcel.status === "sold" ? statusColor(parcel.status) : tierColor(parcel.tier); const line = parcel.status === "sold" ? color : "#ffd978"; selectedCells.forEach((polygon, index) => polygon.setOptions({ strokeOpacity: index === 0 ? 0.34 : 0.95, strokeWeight: index === 0 ? 5 : 1.5, fillOpacity: index === 0 ? 0.12 : 0.18, zIndex: index === 0 ? 300 : 301, strokeColor: line, fillColor: color })); const prefix = `${id}:`; corners.current.forEach((marker, key) => { if (key.startsWith(prefix)) marker.setIcon(cornerIcon(maps, color, true)); }); }); }
+  useEffect(() => {
+    if (!ready || !mapObj.current) return;
+    const maps = (window as any).google.maps;
+    const applyNormal = (parcel: ParcelWithGeometry) => {
+      const parcelCells = cells.current.get(parcel.id);
+      if (!parcelCells) return;
+      const color = parcel.status === "sold" ? statusColor(parcel.status) : tierColor(parcel.tier);
+      const line = parcel.status === "sold" ? color : "#e8c66a";
+      parcelCells.forEach((polygon, index) => polygon.setOptions({
+        strokeOpacity: parcel.status === "sold" ? (index === 0 ? 0.95 : 1) : (index === 0 ? 0.20 : 0.68),
+        strokeWeight: parcel.status === "sold" ? (index === 0 ? 7 : 3) : (index === 0 ? 4 : 1),
+        fillOpacity: parcel.status === "sold" ? (index === 0 ? 0.16 : 0.08) : (index === 0 ? 0.025 : 0.015),
+        zIndex: parcel.status === "sold" ? (index === 0 ? 500 : 501) : (index === 0 ? 20 : 21),
+        strokeColor: line,
+        fillColor: color,
+      }));
+      const prefix = `${parcel.id}:`;
+      corners.current.forEach((marker, key) => { if (key.startsWith(prefix)) marker.setIcon(cornerIcon(maps, color, false)); });
+    };
+    const applySelected = (parcel: ParcelWithGeometry) => {
+      const selectedCells = cells.current.get(parcel.id);
+      if (!selectedCells) return;
+      const color = parcel.status === "sold" ? statusColor(parcel.status) : tierColor(parcel.tier);
+      const line = parcel.status === "sold" ? color : "#ffd978";
+      selectedCells.forEach((polygon, index) => polygon.setOptions({ strokeOpacity: parcel.status === "sold" ? (index === 0 ? 0.95 : 1) : (index === 0 ? 0.34 : 0.95), strokeWeight: parcel.status === "sold" ? (index === 0 ? 7 : 3) : (index === 0 ? 5 : 1.5), fillOpacity: parcel.status === "sold" ? (index === 0 ? 0.16 : 0.08) : (index === 0 ? 0.12 : 0.18), zIndex: parcel.status === "sold" ? (index === 0 ? 500 : 501) : (index === 0 ? 300 : 301), strokeColor: line, fillColor: color }));
+      const prefix = `${parcel.id}:`;
+      corners.current.forEach((marker, key) => { if (key.startsWith(prefix)) marker.setIcon(cornerIcon(maps, color, true)); });
+    };
+    if (!multiSelect) {
+      const previous = selectedRef.current;
+      if (previous && previous !== selectedId) { const old = parcelsRef.current.find((parcel) => parcel.id === previous); if (old) applyNormal(old); }
+      if (selectedId) { const parcel = parcelsRef.current.find((item) => item.id === selectedId); if (parcel) applySelected(parcel); }
+    } else {
+      parcelsRef.current.forEach((parcel) => {
+        if (selectedIds.has(parcel.id)) applySelected(parcel);
+        else applyNormal(parcel);
+      });
+    }
     selectedRef.current = selectedId;
   }, [selectedId, selectedIds, ready, multiSelect]);
 
