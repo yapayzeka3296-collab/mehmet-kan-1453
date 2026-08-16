@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Parcel } from "@/types/parcel";
-import { attachParcelLightAnimation } from "@/lib/parcelLightAnimation";
 
 type CityCenter = { lat: number; lng: number };
 type ParcelWithGeometry = Parcel & { geometry?: unknown };
@@ -138,7 +137,6 @@ export function GoogleParcelMap({ parcels, selectedId, selectedIds = new Set<str
   const cells = useRef<Map<string, Polygon[]>>(new Map());
   const corners = useRef<Map<string, Marker>>(new Map());
   const parcelByIdRef = useRef<Map<string, ParcelWithGeometry>>(new Map());
-  const lightAnimationRef = useRef<{ refresh: () => void; destroy: () => void } | null>(null);
   const selectRef = useRef(onSelect);
   const toggleRef = useRef(onToggleSelect);
   const multiSelectRef = useRef(multiSelect);
@@ -223,48 +221,6 @@ export function GoogleParcelMap({ parcels, selectedId, selectedIds = new Set<str
       if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [ready]);
-
-  const getLightSegments = useCallback(() => {
-    const entries: Array<{ a: { lat: number; lng: number }; b: { lat: number; lng: number }; color: string }> = [];
-    cells.current.forEach((parcelCells, id) => {
-      const parcel = parcelByIdRef.current.get(id);
-      if (!parcel) return;
-      const polygon = parcelCells[1];
-      const path = polygon?.getPath?.();
-      if (!path) return;
-      const points = path.getArray?.() ?? [];
-      if (points.length < 2) return;
-      const color = parcel.status === "sold" ? statusColor(parcel.status) : tierColor(parcel.tier);
-      for (let i = 0; i < points.length; i += 1) {
-        const a = points[i];
-        const b = points[(i + 1) % points.length];
-        entries.push({
-          a: { lat: a.lat(), lng: a.lng() },
-          b: { lat: b.lat(), lng: b.lng() },
-          color,
-        });
-      }
-    });
-    if (entries.length <= 180) return entries;
-    const sampled: typeof entries = [];
-    const step = entries.length / 180;
-    for (let i = 0; i < 180; i += 1) {
-      const entry = entries[Math.floor(i * step)];
-      if (entry) sampled.push(entry);
-    }
-    return sampled;
-  }, []);
-
-  useEffect(() => {
-    if (!ready || !mapObj.current) return;
-    const maps = (window as any).google.maps;
-    lightAnimationRef.current?.destroy();
-    lightAnimationRef.current = attachParcelLightAnimation(maps, mapObj.current, getLightSegments);
-    return () => {
-      lightAnimationRef.current?.destroy();
-      lightAnimationRef.current = null;
-    };
-  }, [ready, getLightSegments]);
 
   const applyParcelStyle = useCallback((id: string, mode: "normal" | "hover" | "selected") => {
     const parcel = parcelByIdRef.current.get(id);
@@ -359,7 +315,6 @@ export function GoogleParcelMap({ parcels, selectedId, selectedIds = new Set<str
     renderedGeometrySignatureRef.current = geometrySignature(parcelsRef.current, center);
     selectedIdsRef.current.forEach((id) => applyParcelStyle(id, "selected"));
     if (selectedRef.current) applyParcelStyle(selectedRef.current, "selected");
-    lightAnimationRef.current?.refresh();
   }, [applyParcelStyle, center]);
 
   useEffect(() => {
@@ -399,8 +354,6 @@ export function GoogleParcelMap({ parcels, selectedId, selectedIds = new Set<str
   }, [selectedId, selectedIds, ready, multiSelect, applyParcelStyle]);
 
   useEffect(() => () => {
-    lightAnimationRef.current?.destroy();
-    lightAnimationRef.current = null;
     cells.current.forEach((items) => items.forEach((polygon) => polygon.setMap(null)));
     corners.current.forEach((marker) => marker.setMap(null));
     cells.current.clear();
