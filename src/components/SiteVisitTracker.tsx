@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 const SESSION_KEY = "myskyparcel_visit_session";
+type SiteStats = { today: number; week: number; month: number; total: number; active_now: number; pages_today: number };
 
 function getSessionId() {
   try {
@@ -16,6 +17,8 @@ function getSessionId() {
 }
 
 export function SiteVisitTracker() {
+  const [stats, setStats] = useState<SiteStats | null>(null);
+
   useEffect(() => {
     if (!supabaseBrowser) return;
     const sessionId = getSessionId();
@@ -30,5 +33,27 @@ export function SiteVisitTracker() {
     return () => window.clearInterval(timer);
   }, []);
 
-  return null;
+  useEffect(() => {
+    if (!supabaseBrowser || window.location.pathname !== "/yonetim") return;
+    let cancelled = false;
+    const loadStats = async () => {
+      const { data: userData } = await supabaseBrowser.auth.getUser();
+      if (!userData.user || cancelled) return;
+      const { data: profile } = await supabaseBrowser.from("profiles").select("role").eq("id", userData.user.id).maybeSingle();
+      if (profile?.role !== "admin" || cancelled) return;
+      const { data } = await supabaseBrowser.rpc("admin_site_statistics");
+      if (!cancelled && data) setStats(data as SiteStats);
+    };
+    void loadStats();
+    const timer = window.setInterval(() => void loadStats(), 30_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, []);
+
+  if (!stats || typeof window === "undefined" || window.location.pathname !== "/yonetim") return null;
+
+  const cards = [["Şu an aktif", stats.active_now], ["Bugün", stats.today], ["Bu hafta", stats.week], ["Bu ay", stats.month], ["Toplam", stats.total], ["Bugünkü sayfa görüntüleme", stats.pages_today]] as const;
+  return <section className="mx-4 mt-4 rounded-xl border border-gold/30 bg-background/95 p-4 shadow-lg lg:ml-[266px] lg:mr-6 lg:mt-4 lg:p-5">
+    <div className="flex items-center justify-between gap-3"><div><h2 className="font-display text-lg font-semibold">Site İstatistikleri</h2><p className="mt-1 text-xs text-muted-foreground">Son 5 dakikadaki aktif ziyaretçiler ve toplam ziyaretler.</p></div><span className="rounded-full border border-green-500/30 px-2.5 py-1 text-[11px] text-green-500">CANLI</span></div>
+    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">{cards.map(([label, value]) => <div key={label} className="rounded-lg border border-border bg-accent/30 p-3"><p className="text-[11px] text-muted-foreground">{label}</p><p className="mt-1 font-display text-2xl">{Number(value).toLocaleString("tr-TR")}</p></div>)}</div>
+  </section>;
 }
