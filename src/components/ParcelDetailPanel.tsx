@@ -23,7 +23,7 @@ export function ParcelDetailPanel({ parcel, onClose }: Props) {
   const [editingMemory, setEditingMemory] = useState(false);
 
   const ownsFromParcel = !!user && parcel.owner_id === user.id;
-  const canManageMemory = parcel.status === 'sold' && (ownsFromParcel || isOwner);
+  const canManageMemory = ownsFromParcel || isOwner;
   const statusLabel = parcel.status === 'sold' ? 'Satıldı' : parcel.status === 'reserved' ? 'Rezerve' : 'Satılık';
   const tierLabel = TIER_LABELS[parcel.tier];
   const priceLabel = typeof parcel.tier_price === 'number' ? `${parcel.tier_price.toLocaleString('tr-TR')} TL` : '—';
@@ -34,17 +34,20 @@ export function ParcelDetailPanel({ parcel, onClose }: Props) {
     async function loadMemory() {
       if (!supabaseBrowser) { if (!cancelled) setMemoryLoading(false); return; }
       try {
-        const [{ data: sessionData }, { data: ownerData, error: ownerError }, { data: memoryRow, error: memoryError }] = await Promise.all([
+        const [{ data: sessionData }, { data: ownerData, error: ownerError }, { data: parcelOwnerRow, error: parcelOwnerError }, { data: memoryRow, error: memoryError }] = await Promise.all([
           supabaseBrowser.auth.getSession(),
           supabaseBrowser.rpc('is_parcel_owner', { p_parcel_id: parcel.id }),
+          supabaseBrowser.from('parcels').select('owner_id').eq('id', parcel.id).maybeSingle(),
           supabaseBrowser.from('parcel_memories').select('photo_path,note,is_public,updated_at').eq('parcel_id', parcel.id).maybeSingle(),
         ]);
         if (cancelled) return;
-        if (ownerError) console.error('Parcel owner lookup error', ownerError);
+        if (ownerError) console.error('Parcel owner RPC error', ownerError);
+        if (parcelOwnerError) console.error('Parcel owner row error', parcelOwnerError);
         if (memoryError) console.error('Parcel memory lookup error', memoryError);
         const currentUserId = sessionData.session?.user?.id ?? user?.id ?? null;
         const rpcOwner = ownerData === true || ownerData === 'true';
-        setIsOwner(!!currentUserId && rpcOwner);
+        const databaseOwner = !!currentUserId && parcelOwnerRow?.owner_id === currentUserId;
+        setIsOwner(rpcOwner || databaseOwner);
         const nextMemory = memoryRow ? (memoryRow as Memory) : null;
         setMemory(nextMemory); setMemoryNote(nextMemory?.note ?? ''); setMemoryIsPublic(nextMemory?.is_public ?? true);
         if (nextMemory?.photo_path && nextMemory.photo_path !== 'note-only') setMemoryPhotoUrl(supabaseBrowser.storage.from('parcel-memories').getPublicUrl(nextMemory.photo_path).data.publicUrl);
