@@ -92,7 +92,7 @@ export function ParcelDetailPanel({ parcel, onClose }: Props) {
   async function handleMemorySave() {
     if (!user) { setMemoryMessage('Hatıra eklemek için giriş yapın.'); return; }
     if (!supabaseBrowser) { setMemoryMessage('Supabase yapılandırması eksik.'); return; }
-    if (!canManageMemory) { setMemoryMessage('Hatıra eklemek için bu parselin sahibi olmanız gerekir.'); return; }
+    if (!canManageMemory) { setMemoryMessage('Hatıra eklenemedi.'); return; }
     if (!memoryFile && !memory?.photo_path) { setMemoryMessage('Lütfen bir fotoğraf seçin.'); return; }
     if (memoryNote.trim().length > 300) { setMemoryMessage('Not en fazla 300 karakter olabilir.'); return; }
 
@@ -186,7 +186,7 @@ export function ParcelDetailPanel({ parcel, onClose }: Props) {
                 {memoryPhotoUrl ? <img src={memoryPhotoUrl} alt={`${parcel.parcel_number} parsel hatırası`} className="max-h-52 w-full rounded-lg object-cover" loading="lazy" /> : <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.02] p-5 text-center text-xs text-white/40">Henüz parsel hatırası eklenmemiş.</div>}
                 {memory?.note && <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3"><p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-cyan-200/55">Not</p><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-white/75">{memory.note}</p></div>}
                 {memoryMessage && <p className="rounded-lg bg-white/5 px-3 py-2 text-[10px] text-white/70">{memoryMessage}</p>}
-                {canManageMemory ? <button type="button" onClick={startMemoryEditor} className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-300/10 text-xs font-bold text-cyan-100 transition hover:bg-cyan-300/15"><Pencil className="h-4 w-4" />{memory ? 'HATIRAYI DÜZENLE' : 'PARSEL HATIRASI EKLE'}</button> : <p className="text-xs leading-5 text-muted-foreground">Hatıra ekleme yalnızca parsel sahibi olduktan sonra kullanılabilir.</p>}
+                {canManageMemory ? <button type="button" onClick={startMemoryEditor} className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-300/10 text-xs font-bold text-cyan-100 transition hover:bg-cyan-300/15"><Pencil className="h-4 w-4" />{memory ? 'HATIRAYI DÜZENLE' : 'PARSEL HATIRASI EKLE'}</button> : null}
               </div>
             )}
           </div>
