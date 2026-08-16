@@ -29,9 +29,11 @@ function statusColor(status: Parcel["status"]) { return status === "sold" ? "#ff
 function tierColor(tier: Parcel["tier"]) { return tier === "premium" ? "#f6c453" : tier === "elite" ? "#b77cff" : "#55c9ff"; }
 function cornerIcon(maps: Maps, color: string, selected: boolean) {
   const key = `${color}:${selected ? 1 : 0}`; const cached = cornerIconCache.get(key); if (cached) return cached;
-  const s = selected ? 14 : 9;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s + 14}" height="${s + 14}" viewBox="0 0 ${s + 14} ${s + 14}"><defs><filter id="g"><feGaussianBlur stdDeviation="2.5"/></filter></defs><circle cx="${(s + 14) / 2}" cy="${(s + 14) / 2}" r="${s / 2 + 3}" fill="${color}" opacity=".65" filter="url(#g)"/><circle cx="${(s + 14) / 2}" cy="${(s + 14) / 2}" r="${s / 2}" fill="${color}" stroke="#fff" stroke-opacity=".8" stroke-width="${selected ? 1.8 : 1}"/></svg>`;
-  const icon = { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: new maps.Size(s + 14, s + 14), anchor: new maps.Point((s + 14) / 2, (s + 14) / 2) }; cornerIconCache.set(key, icon); return icon;
+  const s = selected ? 17 : 9;
+  const blur = selected ? 3.2 : 2.5;
+  const opacity = selected ? 0.82 : 0.65;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s + 16}" height="${s + 16}" viewBox="0 0 ${s + 16} ${s + 16}"><defs><filter id="g"><feGaussianBlur stdDeviation="${blur}"/></filter></defs><circle cx="${(s + 16) / 2}" cy="${(s + 16) / 2}" r="${s / 2 + 4}" fill="${color}" opacity="${opacity}" filter="url(#g)"/><circle cx="${(s + 16) / 2}" cy="${(s + 16) / 2}" r="${s / 2}" fill="${color}" stroke="#fff" stroke-opacity=".9" stroke-width="${selected ? 2 : 1}"/></svg>`;
+  const icon = { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: new maps.Size(s + 16, s + 16), anchor: new maps.Point((s + 16) / 2, (s + 16) / 2) }; cornerIconCache.set(key, icon); return icon;
 }
 function domeCell(center: CityCenter, index: number, total: number, innerRadius: number, outerRadius: number) {
   const rows = Math.max(1, Math.ceil(Math.sqrt(Math.max(total, 1) / 2))); const cols = Math.max(8, Math.ceil(Math.max(total, 1) / rows)); const col = index % cols; const row = Math.floor(index / cols);
@@ -43,11 +45,8 @@ function domeCell(center: CityCenter, index: number, total: number, innerRadius:
 export function GoogleParcelMap({ parcels, selectedId, selectedIds = new Set<string>(), multiSelect = false, onSelect, onToggleSelect, onViewportChange, center }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null); const mapObj = useRef<any>(null); const cells = useRef<Map<string, Polygon[]>>(new Map()); const corners = useRef<Map<string, Marker>>(new Map()); const selectRef = useRef(onSelect); const toggleRef = useRef(onToggleSelect); const viewportRef = useRef(onViewportChange); const selectedRef = useRef<string | null>(selectedId); const selectedIdsRef = useRef<Set<string>>(selectedIds); const parcelsRef = useRef(parcels); const lastViewportKeyRef = useRef(""); const [error, setError] = useState<string | null>(null); const [ready, setReady] = useState(false);
   useEffect(() => { selectRef.current = onSelect; }, [onSelect]); useEffect(() => { toggleRef.current = onToggleSelect; }, [onToggleSelect]); useEffect(() => { viewportRef.current = onViewportChange; }, [onViewportChange]); useEffect(() => { parcelsRef.current = parcels; }, [parcels]); useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
-
   useEffect(() => { let cancelled = false; const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY; if (!key) { setError("Google Maps API anahtarı eksik."); return; } if (!mapRef.current) return; loadGoogleMaps(key).then((maps) => { if (cancelled || !mapRef.current) return; if (!mapObj.current) mapObj.current = new maps.Map(mapRef.current, { center, zoom: 12, mapTypeId: "satellite", streetViewControl: false, fullscreenControl: false, mapTypeControl: false, gestureHandling: "greedy", clickableIcons: false, backgroundColor: "#071a2d" }); else mapObj.current.setCenter(center); setError(null); setReady(true); }).catch((err) => { console.error(err); if (!cancelled) setError("Google Maps yüklenemedi. API anahtarını kontrol edin."); }); return () => { cancelled = true; }; }, [center.lat, center.lng]);
-
   useEffect(() => { if (!ready || !mapObj.current || !viewportRef.current) return; const maps = (window as any).google.maps; const map = mapObj.current; let timer: number | undefined; const emit = () => { const bounds = map.getBounds(); if (!bounds) return; const ne = bounds.getNorthEast(); const sw = bounds.getSouthWest(); const next = { minLat: sw.lat(), minLng: sw.lng(), maxLat: ne.lat(), maxLng: ne.lng() }; const key = [next.minLat, next.minLng, next.maxLat, next.maxLng].map((v) => v.toFixed(5)).join(","); if (key === lastViewportKeyRef.current) return; lastViewportKeyRef.current = key; viewportRef.current?.(next); }; const schedule = () => { if (timer !== undefined) window.clearTimeout(timer); timer = window.setTimeout(emit, 120); }; const listener = maps.event.addListener(map, "idle", schedule); schedule(); return () => { maps.event.removeListener(listener); if (timer !== undefined) window.clearTimeout(timer); }; }, [ready]);
-
   useEffect(() => { if (!ready || !mapObj.current) return; const maps = (window as any).google.maps; cells.current.forEach((items) => items.forEach((polygon) => polygon.setMap(null))); cells.current.clear(); corners.current.forEach((marker) => marker.setMap(null)); corners.current.clear();
     const configs = [{ tier: "digital" as const, innerRadius: 0.095, outerRadius: 0.165 }, { tier: "elite" as const, innerRadius: 0.05, outerRadius: 0.08 }, { tier: "premium" as const, innerRadius: 0.012, outerRadius: 0.035 }]; const cornerKeys = new Set<string>();
     configs.forEach((cfg) => { const items = parcels.filter((parcel) => parcel.tier === cfg.tier); items.forEach((parcel, index) => { const cell = domeCell(center, index, items.length, cfg.innerRadius, cfg.outerRadius); const paths = cell.path.map((point) => new maps.LatLng(point.lat, point.lng)); const sold = parcel.status === "sold"; const base = sold ? statusColor(parcel.status) : tierColor(parcel.tier); const line = sold ? base : "#e8c66a";
@@ -57,48 +56,12 @@ export function GoogleParcelMap({ parcels, selectedId, selectedIds = new Set<str
     }); });
     return () => { cells.current.forEach((items) => items.forEach((polygon) => polygon.setMap(null))); corners.current.forEach((marker) => marker.setMap(null)); cells.current.clear(); corners.current.clear(); };
   }, [parcels, ready, center.lat, center.lng, multiSelect]);
-
-  useEffect(() => {
-    if (!ready || !mapObj.current) return;
-    const maps = (window as any).google.maps;
-    const applyNormal = (parcel: ParcelWithGeometry) => {
-      const parcelCells = cells.current.get(parcel.id);
-      if (!parcelCells) return;
-      const color = parcel.status === "sold" ? statusColor(parcel.status) : tierColor(parcel.tier);
-      const line = parcel.status === "sold" ? color : "#e8c66a";
-      parcelCells.forEach((polygon, index) => polygon.setOptions({
-        strokeOpacity: parcel.status === "sold" ? (index === 0 ? 0.95 : 1) : (index === 0 ? 0.20 : 0.68),
-        strokeWeight: parcel.status === "sold" ? (index === 0 ? 7 : 3) : (index === 0 ? 4 : 1),
-        fillOpacity: parcel.status === "sold" ? (index === 0 ? 0.16 : 0.08) : (index === 0 ? 0.025 : 0.015),
-        zIndex: parcel.status === "sold" ? (index === 0 ? 500 : 501) : (index === 0 ? 20 : 21),
-        strokeColor: line,
-        fillColor: color,
-      }));
-      const prefix = `${parcel.id}:`;
-      corners.current.forEach((marker, key) => { if (key.startsWith(prefix)) marker.setIcon(cornerIcon(maps, color, false)); });
-    };
-    const applySelected = (parcel: ParcelWithGeometry) => {
-      const selectedCells = cells.current.get(parcel.id);
-      if (!selectedCells) return;
-      const color = parcel.status === "sold" ? statusColor(parcel.status) : tierColor(parcel.tier);
-      const line = parcel.status === "sold" ? color : "#ffd978";
-      selectedCells.forEach((polygon, index) => polygon.setOptions({ strokeOpacity: parcel.status === "sold" ? (index === 0 ? 0.95 : 1) : (index === 0 ? 0.34 : 0.95), strokeWeight: parcel.status === "sold" ? (index === 0 ? 7 : 3) : (index === 0 ? 5 : 1.5), fillOpacity: parcel.status === "sold" ? (index === 0 ? 0.16 : 0.08) : (index === 0 ? 0.12 : 0.18), zIndex: parcel.status === "sold" ? (index === 0 ? 500 : 501) : (index === 0 ? 300 : 301), strokeColor: line, fillColor: color }));
-      const prefix = `${parcel.id}:`;
-      corners.current.forEach((marker, key) => { if (key.startsWith(prefix)) marker.setIcon(cornerIcon(maps, color, true)); });
-    };
-    if (!multiSelect) {
-      const previous = selectedRef.current;
-      if (previous && previous !== selectedId) { const old = parcelsRef.current.find((parcel) => parcel.id === previous); if (old) applyNormal(old); }
-      if (selectedId) { const parcel = parcelsRef.current.find((item) => item.id === selectedId); if (parcel) applySelected(parcel); }
-    } else {
-      parcelsRef.current.forEach((parcel) => {
-        if (selectedIds.has(parcel.id)) applySelected(parcel);
-        else applyNormal(parcel);
-      });
-    }
+  useEffect(() => { if (!ready || !mapObj.current) return; const maps = (window as any).google.maps; const previous = selectedRef.current;
+    if (previous && previous !== selectedId) { const old = parcelsRef.current.find((parcel) => parcel.id === previous); const oldCells = cells.current.get(previous); if (old && oldCells) { const color = old.status === "sold" ? statusColor(old.status) : tierColor(old.tier); const line = old.status === "sold" ? color : "#e8c66a"; oldCells.forEach((polygon, index) => polygon.setOptions({ strokeOpacity: old.status === "sold" ? (index === 0 ? 0.95 : 1) : (index === 0 ? 0.20 : 0.68), strokeWeight: old.status === "sold" ? (index === 0 ? 7 : 3) : (index === 0 ? 4 : 1), fillOpacity: old.status === "sold" ? (index === 0 ? 0.16 : 0.08) : (index === 0 ? 0.025 : 0.015), zIndex: old.status === "sold" ? (index === 0 ? 500 : 501) : (index === 0 ? 20 : 21), strokeColor: line, fillColor: color })); const prefix = `${previous}:`; corners.current.forEach((marker, key) => { if (key.startsWith(prefix) && !selectedIdsRef.current.has(previous)) marker.setIcon(cornerIcon(maps, color, false)); }); } }
+    if (selectedId && !multiSelect) { const parcel = parcelsRef.current.find((item) => item.id === selectedId); const selectedCells = cells.current.get(selectedId); if (parcel && selectedCells) { const color = parcel.status === "sold" ? statusColor(parcel.status) : tierColor(parcel.tier); const line = parcel.status === "sold" ? color : "#ffd978"; selectedCells.forEach((polygon, index) => polygon.setOptions({ strokeOpacity: parcel.status === "sold" ? (index === 0 ? 0.95 : 1) : (index === 0 ? 0.34 : 0.95), strokeWeight: parcel.status === "sold" ? (index === 0 ? 7 : 3) : (index === 0 ? 5 : 1.5), fillOpacity: parcel.status === "sold" ? (index === 0 ? 0.16 : 0.08) : (index === 0 ? 0.12 : 0.18), zIndex: parcel.status === "sold" ? (index === 0 ? 500 : 501) : (index === 0 ? 300 : 301), strokeColor: line, fillColor: color })); const prefix = `${selectedId}:`; corners.current.forEach((marker, key) => { if (key.startsWith(prefix)) marker.setIcon(cornerIcon(maps, color, true)); }); } }
+    if (multiSelect) { selectedIdsRef.current.forEach((id) => { const parcel = parcelsRef.current.find((item) => item.id === id); const selectedCells = cells.current.get(id); if (!parcel || !selectedCells) return; const color = parcel.status === "sold" ? statusColor(parcel.status) : tierColor(parcel.tier); const line = parcel.status === "sold" ? color : "#ffd978"; selectedCells.forEach((polygon, index) => polygon.setOptions({ strokeOpacity: index === 0 ? 0.42 : 1, strokeWeight: index === 0 ? 6 : 1.8, fillOpacity: index === 0 ? 0.14 : 0.20, zIndex: index === 0 ? 300 : 301, strokeColor: line, fillColor: color })); const prefix = `${id}:`; corners.current.forEach((marker, key) => { if (key.startsWith(prefix)) marker.setIcon(cornerIcon(maps, color, true)); }); }); }
     selectedRef.current = selectedId;
   }, [selectedId, selectedIds, ready, multiSelect]);
-
   useEffect(() => () => { cells.current.forEach((items) => items.forEach((polygon) => polygon.setMap(null))); corners.current.forEach((marker) => marker.setMap(null)); mapObj.current = null; }, []);
   return <div className="relative h-[500px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[600px] lg:h-[670px]"><div ref={mapRef} className="absolute inset-0" aria-label="MySkyParcel kubbe parsel haritası" />{error && <div className="absolute inset-0 grid place-items-center bg-[#071a2d] p-6 text-center"><div><p className="text-sm font-semibold text-white">Google Maps hazır değil</p><p className="mt-2 text-xs text-white/60">{error}</p></div></div>}</div>;
 }
