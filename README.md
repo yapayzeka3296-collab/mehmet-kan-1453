@@ -11,7 +11,7 @@ This project was built with [Lovable](https://lovable.dev).
 Continue developing this project in the [Lovable editor](https://lovable.dev/projects/54d5a010-a5b9-4276-b604-8fa1ab1aa349).
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Stay in sync**: every change made in Lovable is committed straight into this repository.
 - **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
@@ -24,3 +24,5 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+<!-- Vercel deployment trigger: 2026-08-17 -->
