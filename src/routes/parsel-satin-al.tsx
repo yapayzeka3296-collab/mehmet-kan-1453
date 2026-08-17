@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Check, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Sparkles, X, Maximize2 } from "lucide-react";
 import { useState } from "react";
 import { getCertificateTemplateImage } from "@/lib/certificateTemplate";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -26,6 +26,7 @@ function SatinAl() {
   const [certificateName, setCertificateName] = useState("");
   const [message, setMessage] = useState("");
   const [certificateCreated, setCertificateCreated] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const selectedParcel = parcels?.split(",").filter(Boolean)[0] || "GZ-K05-S042-P07";
   const certificateImage = getCertificateTemplateImage("premium");
@@ -37,27 +38,13 @@ function SatinAl() {
       document.getElementById("certificate-name")?.focus();
       return;
     }
-
-    const purchase = {
-      parcels,
-      name: cleanName,
-      message: cleanMessage,
-      tier: "premium",
-      certificateCreated: true,
-      createdAt: new Date().toISOString(),
-    };
-
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("myskyparcel_purchase", JSON.stringify(purchase));
-    }
+    const purchase = { parcels, name: cleanName, message: cleanMessage, tier: "premium", certificateCreated: true, createdAt: new Date().toISOString() };
+    if (typeof window !== "undefined") sessionStorage.setItem("myskyparcel_purchase", JSON.stringify(purchase));
     setCertificateCreated(true);
   }
 
   function handleContinue() {
-    if (!certificateCreated) {
-      handleCreateCertificate();
-      return;
-    }
+    if (!certificateCreated) { handleCreateCertificate(); return; }
     void navigate({ to: "/odeme", search: { parcels } });
   }
 
@@ -86,15 +73,15 @@ function SatinAl() {
           </section>
 
           <aside className="panel h-fit p-4 sm:p-6 lg:sticky lg:top-6">
-            <div className="flex items-center justify-between"><h2 className="font-display text-base">SERTİFİKA ÖNİZLEME</h2><span className="rounded-full border border-gold/25 px-2 py-1 text-[9px] text-gold">CANLI ÖNİZLEME</span></div>
-            <div className="relative mt-4 overflow-hidden rounded-lg border border-gold/30 bg-white shadow-lg">
+            <div className="flex items-center justify-between"><h2 className="font-display text-base">SERTİFİKA ÖNİZLEME</h2><button type="button" onClick={() => setPreviewOpen(true)} className="inline-flex items-center gap-1 rounded-full border border-gold/25 px-2 py-1 text-[9px] text-gold transition hover:bg-gold/10" aria-label="Sertifikayı büyük önizle"> <Maximize2 className="h-3 w-3" /> BÜYÜT</button></div>
+            <button type="button" onClick={() => setPreviewOpen(true)} className="relative mt-4 block w-full overflow-hidden rounded-lg border border-gold/30 bg-white text-left shadow-lg" aria-label="Sertifikayı büyük görüntüle">
               <img src={certificateImage} alt="Premium sertifika şablonu önizlemesi" width={1600} height={1067} loading="eager" decoding="async" className="block aspect-[1600/1067] w-full object-cover" />
               <div className="pointer-events-none absolute inset-x-[12%] bottom-[7%] text-center">
                 <p className="mx-auto max-w-[85%] truncate text-[clamp(8px,1.4vw,15px)] font-semibold text-black/80">{certificateName.trim() || "Ad Soyad"}</p>
                 <p className="mx-auto mt-1 max-w-[78%] break-words text-[clamp(6px,0.9vw,10px)] leading-tight text-black/70">{message.trim() || "Özel mesajınız QR kodunun altında burada görünecek."}</p>
               </div>
-            </div>
-            <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Ad soyad ve mesajınızı yazdıkça sertifika önizlemesi anında güncellenir. Gerçek QR kodu ödeme tamamlandıktan sonra oluşturulan sertifikaya bağlanacaktır.</p>
+            </button>
+            <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Sertifikaya tıklayarak büyük önizlemeyi açabilirsiniz.</p>
             <ul className="mt-5 space-y-2 text-sm">{["Premium Sertifika", "QR doğrulama", "E-posta ile anında teslim"].map((i) => <li key={i} className="flex items-start gap-2 text-muted-foreground"><Check className="mt-0.5 h-4 w-4 shrink-0 text-gold" /> {i}</li>)}</ul>
             <div className="mt-5 flex items-center justify-between border-t border-border pt-4"><span className="text-sm text-muted-foreground">Toplam</span><span className="font-display text-2xl text-gold">499 TL</span></div>
             <p className="mt-3 text-center text-[10px] text-muted-foreground">Parsel: {selectedParcel}</p>
@@ -102,6 +89,19 @@ function SatinAl() {
         </div>
       </main>
       <TrustBar /><SiteFooter />
+
+      {previewOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Sertifika büyük önizleme">
+        <button type="button" onClick={() => setPreviewOpen(false)} className="absolute right-4 top-4 z-10 rounded-full border border-white/20 bg-black/60 p-2 text-white hover:bg-black/80" aria-label="Önizlemeyi kapat"><X className="h-5 w-5" /></button>
+        <div className="relative max-h-[92vh] max-w-[96vw] overflow-auto rounded-xl bg-white shadow-2xl">
+          <div className="relative w-[min(1500px,94vw)]">
+            <img src={certificateImage} alt="Büyük sertifika önizlemesi" width={1600} height={1067} className="block h-auto w-full" />
+            <div className="pointer-events-none absolute inset-x-[12%] bottom-[7%] text-center">
+              <p className="mx-auto max-w-[85%] truncate text-[clamp(16px,2.1vw,32px)] font-semibold text-black/85">{certificateName.trim() || "Ad Soyad"}</p>
+              <p className="mx-auto mt-2 max-w-[78%] break-words text-[clamp(11px,1.35vw,20px)] leading-tight text-black/75">{message.trim() || "Özel mesajınız QR kodunun altında burada görünecek."}</p>
+            </div>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 }
