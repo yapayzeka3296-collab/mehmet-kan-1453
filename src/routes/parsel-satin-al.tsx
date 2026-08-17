@@ -20,6 +20,44 @@ export const Route = createFileRoute("/parsel-satin-al")({
 const STEPS = ["Parsel Seçimi", "Bilgiler", "Ödeme"];
 const MAX_MESSAGE_LENGTH = 180;
 
+// Certificate artwork is 1600x1067. Keep text positions in the artwork's
+// coordinate system so the small preview and large preview stay aligned.
+const CERTIFICATE_FIELDS = {
+  name: { left: "50%", top: "55%", width: "68%" },
+  message: { left: "50%", top: "82%", width: "64%" },
+};
+
+function CertificateTextOverlay({ name, message, large = false }: { name: string; message: string; large?: boolean }) {
+  const displayName = name.trim() || "Ad Soyad";
+  const displayMessage = message.trim() || "Özel mesajınız burada görünecek.";
+  return (
+    <>
+      <div
+        className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 text-center"
+        style={{ left: CERTIFICATE_FIELDS.name.left, top: CERTIFICATE_FIELDS.name.top, width: CERTIFICATE_FIELDS.name.width }}
+      >
+        <p
+          className={large ? "text-[clamp(18px,2.25vw,34px)]" : "text-[clamp(8px,1.25vw,15px)]"}
+          style={{ fontFamily: '"Cinzel", Georgia, serif', fontWeight: 600, letterSpacing: "0.035em", color: "#171717", lineHeight: 1.15 }}
+        >
+          {displayName}
+        </p>
+      </div>
+      <div
+        className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 text-center"
+        style={{ left: CERTIFICATE_FIELDS.message.left, top: CERTIFICATE_FIELDS.message.top, width: CERTIFICATE_FIELDS.message.width }}
+      >
+        <p
+          className={large ? "text-[clamp(11px,1.25vw,19px)]" : "text-[clamp(6px,0.82vw,10px)]"}
+          style={{ fontFamily: '"Jost", Arial, sans-serif', fontWeight: 400, letterSpacing: "0.01em", color: "#222", lineHeight: 1.25, overflowWrap: "anywhere" }}
+        >
+          {displayMessage}
+        </p>
+      </div>
+    </>
+  );
+}
+
 function SatinAl() {
   const navigate = useNavigate({ from: "/parsel-satin-al" });
   const { parcels } = Route.useSearch();
@@ -76,10 +114,7 @@ function SatinAl() {
             <div className="flex items-center justify-between"><h2 className="font-display text-base">SERTİFİKA ÖNİZLEME</h2><button type="button" onClick={() => setPreviewOpen(true)} className="inline-flex items-center gap-1 rounded-full border border-gold/25 px-2 py-1 text-[9px] text-gold transition hover:bg-gold/10" aria-label="Sertifikayı büyük önizle"> <Maximize2 className="h-3 w-3" /> BÜYÜT</button></div>
             <button type="button" onClick={() => setPreviewOpen(true)} className="relative mt-4 block w-full overflow-hidden rounded-lg border border-gold/30 bg-white text-left shadow-lg" aria-label="Sertifikayı büyük görüntüle">
               <img src={certificateImage} alt="Premium sertifika şablonu önizlemesi" width={1600} height={1067} loading="eager" decoding="async" className="block aspect-[1600/1067] w-full object-cover" />
-              <div className="pointer-events-none absolute inset-x-[12%] bottom-[7%] text-center">
-                <p className="mx-auto max-w-[85%] truncate text-[clamp(8px,1.4vw,15px)] font-semibold text-black/80">{certificateName.trim() || "Ad Soyad"}</p>
-                <p className="mx-auto mt-1 max-w-[78%] break-words text-[clamp(6px,0.9vw,10px)] leading-tight text-black/70">{message.trim() || "Özel mesajınız QR kodunun altında burada görünecek."}</p>
-              </div>
+              <CertificateTextOverlay name={certificateName} message={message} />
             </button>
             <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Sertifikaya tıklayarak büyük önizlemeyi açabilirsiniz.</p>
             <ul className="mt-5 space-y-2 text-sm">{["Premium Sertifika", "QR doğrulama", "E-posta ile anında teslim"].map((i) => <li key={i} className="flex items-start gap-2 text-muted-foreground"><Check className="mt-0.5 h-4 w-4 shrink-0 text-gold" /> {i}</li>)}</ul>
@@ -95,10 +130,7 @@ function SatinAl() {
         <div className="relative max-h-[92vh] max-w-[96vw] overflow-auto rounded-xl bg-white shadow-2xl">
           <div className="relative w-[min(1500px,94vw)]">
             <img src={certificateImage} alt="Büyük sertifika önizlemesi" width={1600} height={1067} className="block h-auto w-full" />
-            <div className="pointer-events-none absolute inset-x-[12%] bottom-[7%] text-center">
-              <p className="mx-auto max-w-[85%] truncate text-[clamp(16px,2.1vw,32px)] font-semibold text-black/85">{certificateName.trim() || "Ad Soyad"}</p>
-              <p className="mx-auto mt-2 max-w-[78%] break-words text-[clamp(11px,1.35vw,20px)] leading-tight text-black/75">{message.trim() || "Özel mesajınız QR kodunun altında burada görünecek."}</p>
-            </div>
+            <CertificateTextOverlay name={certificateName} message={message} large />
           </div>
         </div>
       </div>}
