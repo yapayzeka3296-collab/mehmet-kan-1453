@@ -6,10 +6,10 @@ type ViewportBounds = { minLat: number; minLng: number; maxLat: number; maxLng: 
 type FocusTarget = { city: CityCenter; parcel: CityCenter; token: string };
 type Props = { parcels: Parcel[]; selectedId: string | null; selectedIds?: Set<string>; multiSelect?: boolean; onSelect: (id: string | null) => void; onToggleSelect?: (id: string) => void; onViewportChange?: (bounds: ViewportBounds) => void; center: CityCenter; focusTarget?: FocusTarget | null };
 type Camera = { lat: number; lng: number; zoom: number };
-
 type ParcelPolygon = { polygon: any; parcel: Parcel };
 
 const SCRIPT_ID = "myskyparcel-google-maps";
+const EMPTY_SELECTED_IDS = new Set<string>();
 let mapsPromise: Promise<any> | null = null;
 const TURKEY_CENTER = { lat: 39, lng: 35 };
 const INITIAL_ISTANBUL_ZOOM = 9.5;
@@ -35,10 +35,10 @@ const easeInOut = (t: number) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 function animateCamera(map: any, from: Camera, to: Camera, duration: number, maps: any, onDone?: () => void) { let frame = 0; const started = performance.now(); const step = (now: number) => { const raw = Math.min(1, (now - started) / duration); const t = easeInOut(raw); map.moveCamera({ center: new maps.LatLng(lerp(from.lat, to.lat, t), lerp(from.lng, to.lng, t)), zoom: lerp(from.zoom, to.zoom, t), tilt: 0, heading: 0 }); if (raw < 1) frame = requestAnimationFrame(step); else onDone?.(); }; frame = requestAnimationFrame(step); return () => cancelAnimationFrame(frame); }
 
-export function FocusedGoogleParcelMap({ parcels, selectedId, selectedIds = new Set(), multiSelect = false, onSelect, onToggleSelect, onViewportChange, center, focusTarget }: Props) {
-  const ref = useRef<HTMLDivElement | null>(null); const map = useRef<any>(null); const focused = useRef<string | null>(null); const focusOverlay = useRef<any>(null); const animationCancel = useRef<(() => void) | null>(null); const lastCityCenter = useRef<CityCenter | null>(null); const hasInitialAnimation = useRef(false); const polygons = useRef<Map<string, ParcelPolygon>>(new Map()); const selectedIdRef = useRef(selectedId); const selectedIdsRef = useRef(selectedIds); const multiSelectRef = useRef(multiSelect); const onSelectRef = useRef(onSelect); const onToggleSelectRef = useRef(onToggleSelect); const [error, setError] = useState<string | null>(null); const [ready, setReady] = useState(false);
+export function FocusedGoogleParcelMap({ parcels, selectedId, selectedIds = EMPTY_SELECTED_IDS, multiSelect = false, onSelect, onToggleSelect, onViewportChange, center, focusTarget }: Props) {
+  const ref = useRef<HTMLDivElement | null>(null); const map = useRef<any>(null); const focused = useRef<string | null>(null); const focusOverlay = useRef<any>(null); const animationCancel = useRef<(() => void) | null>(null); const lastCityCenter = useRef<CityCenter | null>(null); const hasInitialAnimation = useRef(false); const polygons = useRef<Map<string, ParcelPolygon>>(new Map()); const multiSelectRef = useRef(multiSelect); const onSelectRef = useRef(onSelect); const onToggleSelectRef = useRef(onToggleSelect); const [error, setError] = useState<string | null>(null); const [ready, setReady] = useState(false);
 
-  useEffect(() => { selectedIdRef.current = selectedId; selectedIdsRef.current = selectedIds; multiSelectRef.current = multiSelect; onSelectRef.current = onSelect; onToggleSelectRef.current = onToggleSelect; }, [selectedId, selectedIds, multiSelect, onSelect, onToggleSelect]);
+  useEffect(() => { multiSelectRef.current = multiSelect; onSelectRef.current = onSelect; onToggleSelectRef.current = onToggleSelect; }, [multiSelect, onSelect, onToggleSelect]);
 
   useEffect(() => { const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY; if (!key) { setError("Google Maps API anahtarı eksik."); return; } loadMaps(key).then((maps) => { if (!ref.current) return; map.current ||= new maps.Map(ref.current, { center: TURKEY_CENTER, zoom: 5, mapTypeId: "satellite", streetViewControl: false, fullscreenControl: false, mapTypeControl: false, gestureHandling: "greedy", clickableIcons: false, tilt: 0, heading: 0 }); setReady(true); }).catch(e => setError(e.message)); }, []);
   useEffect(() => { if (!ready || !map.current || hasInitialAnimation.current || focusTarget) return; hasInitialAnimation.current = true; lastCityCenter.current = center; const maps = (window as any).google.maps; animationCancel.current?.(); const turkey: Camera = { ...TURKEY_CENTER, zoom: 5 }; const istanbul: Camera = { ...center, zoom: INITIAL_ISTANBUL_ZOOM }; map.current.moveCamera({ center: new maps.LatLng(turkey.lat, turkey.lng), zoom: turkey.zoom, tilt: 0, heading: 0 }); animationCancel.current = animateCamera(map.current, turkey, istanbul, 8000, maps); return () => { animationCancel.current?.(); animationCancel.current = null; }; }, [ready, center.lat, center.lng, focusTarget]);
@@ -46,14 +46,11 @@ export function FocusedGoogleParcelMap({ parcels, selectedId, selectedIds = new 
   useEffect(() => { if (!ready || !map.current || !focusTarget || focused.current === focusTarget.token) return; focused.current = focusTarget.token; const maps = (window as any).google.maps; animationCancel.current?.(); if (focusOverlay.current) { focusOverlay.current.setMap(null); focusOverlay.current = null; } const turkey: Camera = { ...TURKEY_CENTER, zoom: 5 }; map.current.moveCamera({ center: turkey, zoom: turkey.zoom, tilt: 0, heading: 0 }); const cityCamera: Camera = { ...focusTarget.city, zoom: INITIAL_ISTANBUL_ZOOM }; animationCancel.current = animateCamera(map.current, turkey, cityCamera, 8000, maps, () => { const parcelCamera: Camera = { ...focusTarget.parcel, zoom: PARCEL_OVERVIEW_ZOOM }; animationCancel.current = animateCamera(map.current, cityCamera, parcelCamera, 5500, maps, () => { focusOverlay.current = new maps.Polygon({ map: map.current, paths: focusParcelShape(focusTarget.parcel), strokeColor: "#ff1744", strokeOpacity: 1, strokeWeight: 3, fillColor: "#ff1744", fillOpacity: .38, clickable: true, zIndex: 1000 }); const focusParcelId = focusTarget.token.split(":")[0]; if (focusParcelId) focusOverlay.current.addListener("click", () => onSelectRef.current(focusParcelId)); }); }); return () => { animationCancel.current?.(); animationCancel.current = null; }; }, [ready, focusTarget]);
   useEffect(() => { if (!ready || !map.current || !onViewportChange) return; const maps = (window as any).google.maps; let timer: ReturnType<typeof setTimeout> | null = null; const emit = () => { const b = map.current.getBounds(); if (!b) return; const ne = b.getNorthEast(), sw = b.getSouthWest(); onViewportChange({ minLat: sw.lat(), minLng: sw.lng(), maxLat: ne.lat(), maxLng: ne.lng() }); }; const l = maps.event.addListener(map.current, "idle", () => { timer = setTimeout(emit, 100); }); emit(); return () => { maps.event.removeListener(l); if (timer) clearTimeout(timer); }; }, [ready, onViewportChange]);
 
-  // Build map polygons only when the parcel dataset/city changes. Selection changes update
-  // existing polygons instead of destroying and recreating every polygon on the map.
   useEffect(() => {
     if (!ready || !map.current) return;
     const maps = (window as any).google.maps;
     polygons.current.forEach(({ polygon }) => polygon.setMap(null));
     polygons.current.clear();
-
     const configs: any[] = [["digital", .095, .165], ["elite", .05, .08], ["premium", .012, .035]];
     configs.forEach(([tier, inner, outer]) => {
       const ps = parcels.filter(p => p.tier === tier);
@@ -72,14 +69,9 @@ export function FocusedGoogleParcelMap({ parcels, selectedId, selectedIds = new 
         polygons.current.set(p.id, { polygon, parcel: p });
       });
     });
-
-    return () => {
-      polygons.current.forEach(({ polygon }) => polygon.setMap(null));
-      polygons.current.clear();
-    };
+    return () => { polygons.current.forEach(({ polygon }) => polygon.setMap(null)); polygons.current.clear(); };
   }, [ready, parcels, center.lat, center.lng]);
 
-  // Selection/filter changes now only update the existing Google Maps polygons.
   useEffect(() => {
     if (!ready || !map.current) return;
     const currentSelectedId = selectedId;
