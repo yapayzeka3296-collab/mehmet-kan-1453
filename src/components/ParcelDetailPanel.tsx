@@ -91,13 +91,44 @@ export function ParcelDetailPanel({ parcel, onClose }: Props) {
         if (error) throw new Error(`Fotoğraf yüklenemedi: ${error.message}`);
         nextPhotoPath = uploadedPath;
       }
-      const { data: savedMemory, error: saveError } = await supabaseBrowser.rpc('save_parcel_memory', { p_parcel_id: parcel.id, p_photo_path: nextPhotoPath, p_note: memoryNote.trim(), p_is_public: memoryIsPublic });
-      if (saveError) { if (uploadedPath) await supabaseBrowser.storage.from('parcel-memories').remove([uploadedPath]); throw new Error(`Hatıra kaydedilemedi: ${saveError.message}`); }
-      if (uploadedPath && memory?.photo_path && memory.photo_path !== uploadedPath) await supabaseBrowser.storage.from('parcel-memories').remove([memory.photo_path]);
-      const nextMemory: Memory = savedMemory ? { photo_path: savedMemory.photo_path ?? nextPhotoPath, note: savedMemory.note ?? memoryNote.trim(), is_public: savedMemory.is_public ?? memoryIsPublic } : { photo_path: nextPhotoPath, note: memoryNote.trim(), is_public: memoryIsPublic };
-      setMemory(nextMemory); setMemoryNote(nextMemory.note ?? ''); setMemoryIsPublic(nextMemory.is_public); setMemoryFile(null); setMemoryPhotoUrl(nextMemory.photo_path && nextMemory.photo_path !== 'note-only' ? supabaseBrowser.storage.from('parcel-memories').getPublicUrl(nextMemory.photo_path).data.publicUrl : null); setEditingMemory(false); setMemoryMessage(nextMemory.is_public ? 'Hatıran kaydedildi ve Gökyüzü Haritasında herkes görebilir.' : 'Hatıran kaydedildi. Sadece sen görebilirsin.');
-    } catch (error) { setMemoryMessage(error instanceof Error ? error.message : 'Hatıran kaydedilemedi.'); }
-    finally { setMemorySaving(false); }
+
+      const { error: saveError } = await supabaseBrowser.rpc('save_parcel_memory', {
+        p_parcel_id: parcel.id,
+        p_photo_path: nextPhotoPath,
+        p_note: memoryNote.trim(),
+        p_is_public: memoryIsPublic,
+      });
+      if (saveError) {
+        if (uploadedPath) await supabaseBrowser.storage.from('parcel-memories').remove([uploadedPath]);
+        throw new Error(`Hatıra kaydedilemedi: ${saveError.message}`);
+      }
+
+      // Always read the saved row back from Supabase so the UI reflects the
+      // persistent database state, rather than assuming the RPC response.
+      const { data: persistedMemory, error: reloadError } = await supabaseBrowser
+        .from('parcel_memories')
+        .select('photo_path,note,is_public,updated_at')
+        .eq('parcel_id', parcel.id)
+        .maybeSingle();
+      if (reloadError || !persistedMemory) {
+        if (uploadedPath) await supabaseBrowser.storage.from('parcel-memories').remove([uploadedPath]);
+        throw new Error(reloadError?.message || 'Hatıra kaydı doğrulanamadı.');
+      }
+
+      const nextMemory = persistedMemory as Memory;
+      if (uploadedPath && memory?.photo_path && memory.photo_path !== uploadedPath) {
+        await supabaseBrowser.storage.from('parcel-memories').remove([memory.photo_path]);
+      }
+      setMemory(nextMemory);
+      setMemoryNote(nextMemory.note ?? '');
+      setMemoryIsPublic(nextMemory.is_public);
+      setMemoryFile(null);
+      setMemoryPhotoUrl(nextMemory.photo_path && nextMemory.photo_path !== 'note-only' ? supabaseBrowser.storage.from('parcel-memories').getPublicUrl(nextMemory.photo_path).data.publicUrl : null);
+      setEditingMemory(false);
+      setMemoryMessage(nextMemory.is_public ? 'Hatıran kaydedildi. Herkes görebilir.' : 'Hatıran kaydedildi. Sadece sen görebilirsin.');
+    } catch (error) {
+      setMemoryMessage(error instanceof Error ? error.message : 'Hatıran kaydedilemedi.');
+    } finally { setMemorySaving(false); }
   }
 
   function handleMemoryFileChange(event: ChangeEvent<HTMLInputElement>) { setMemoryFile(event.target.files?.[0] ?? null); setMemoryMessage(null); }
