@@ -46,7 +46,6 @@ const qrUrl = (number: string, cacheKey?: string | null) => {
 
 const CERTIFICATE_FONT_LINKS = [
   { id: "my-skyparcel-pinyon-script", href: "https://fonts.googleapis.com/css2?family=Pinyon+Script&display=swap" },
-  { id: "my-skyparcel-great-vibes", href: "https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" },
 ] as const;
 
 async function ensureCertificateFonts() {
@@ -67,10 +66,7 @@ async function ensureCertificateFonts() {
     document.head.appendChild(link);
   }));
   await Promise.all(loads);
-  await Promise.allSettled([
-    document.fonts.load('400 64px "Pinyon Script"'),
-    document.fonts.load('400 64px "Great Vibes"'),
-  ]);
+  await Promise.allSettled([document.fonts.load('400 64px "Pinyon Script"')]);
 }
 
 function loadImage(src: string, crossOrigin?: string) {
@@ -107,18 +103,17 @@ function save(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** Coordinates are the CENTER of each writable area in the 1600x1067 template. */
 const LAYOUT = {
-  name: { left: 24, width: 52, top: 43.5, height: 7 },
-  parcelField: { left: 34.5, width: 31, top: 57, height: 5.8 },
-  parcel: { left: 78.6, width: 15.7, top: 40.8, height: 4.1 },
-  date: { left: 78.6, width: 15.7, top: 48.8, height: 4.1 },
-  number: { left: 78.6, width: 15.7, top: 56.7, height: 4.1 },
-  qr: { right: 7.5, top: 62.0, size: 10.8 },
-  signature: { left: 61, width: 20, top: 75.0, height: 7.5 },
+  name: { x: 49.2, y: 50.7, width: 52, height: 8 },
+  parcelField: { x: 49.2, y: 60.1, width: 31, height: 5.8 },
+  parcel: { x: 85.4, y: 44.4, width: 15.7, height: 4.1 },
+  date: { x: 85.4, y: 57.3, width: 15.7, height: 4.1 },
+  number: { x: 85.4, y: 68.1, width: 15.7, height: 4.1 },
+  qr: { x: 87.3, y: 78.9, size: 11.7 },
 } as const;
 
 const NAME_FONT = '"Pinyon Script", cursive';
-const SIGNATURE_FONT = '"Great Vibes", cursive';
 const SANS_FONT = "Arial, sans-serif";
 
 function fitFont(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, start: number, min: number, family: string) {
@@ -131,7 +126,7 @@ function fitFont(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, 
   return size;
 }
 
-function fitRightValue(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, start: number, min: number) {
+function fitValue(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, start: number, min: number) {
   let size = start;
   while (size > min) {
     ctx.font = `600 ${size}px ${SANS_FONT}`;
@@ -151,63 +146,50 @@ async function render(tier: Tier, name: string, parcel: string, date: string, nu
   if (!ctx) throw new Error("canvas");
   ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
   ctx.textAlign = "center";
-
-  const nameMax = canvas.width * 0.44;
-  const nameSize = fitFont(ctx, name || "Ad Soyad", nameMax, canvas.width * 0.05025, canvas.width * 0.018, NAME_FONT);
-  ctx.font = `400 ${nameSize}px ${NAME_FONT}`;
   ctx.textBaseline = "middle";
+
+  const nameMax = canvas.width * (LAYOUT.name.width / 100) * 0.92;
+  const nameSize = fitFont(ctx, name || "Ad Soyad", nameMax, canvas.width * 0.045, canvas.width * 0.018, NAME_FONT);
+  ctx.font = `400 ${nameSize}px ${NAME_FONT}`;
   ctx.fillStyle = "#c79b38";
   ctx.shadowColor = "rgba(0,0,0,.20)";
   ctx.shadowBlur = canvas.width * 0.0012;
-  ctx.fillText(name || "Ad Soyad", canvas.width * ((LAYOUT.name.left + LAYOUT.name.width / 2) / 100), canvas.height * ((LAYOUT.name.top + LAYOUT.name.height / 2) / 100));
+  ctx.fillText(name || "Ad Soyad", canvas.width * (LAYOUT.name.x / 100), canvas.height * (LAYOUT.name.y / 100));
   ctx.shadowBlur = 0;
 
-  const drawValue = (value: string, box: { left: number; width: number; top: number; height: number }, min: number) => {
-    const valueX = canvas.width * ((box.left + box.width / 2) / 100);
-    const max = canvas.width * (box.width / 100) * 0.96;
-    const size = fitRightValue(ctx, value || "—", max, canvas.width * 0.0089, min);
+  const drawValue = (value: string, box: { x: number; y: number; width: number; height: number }, start: number, min: number) => {
+    const max = canvas.width * (box.width / 100) * 0.92;
+    const size = fitValue(ctx, value || "—", max, start, min);
     ctx.font = `600 ${size}px ${SANS_FONT}`;
-    ctx.textBaseline = "middle";
-    ctx.fillText(value || "—", valueX, canvas.height * ((box.top + box.height / 2) / 100));
+    ctx.fillStyle = "#1e2f46";
+    ctx.fillText(value || "—", canvas.width * (box.x / 100), canvas.height * (box.y / 100));
   };
 
-  ctx.fillStyle = "#1e2f46";
-  drawValue(parcel, LAYOUT.parcel, canvas.width * 0.0055);
-  drawValue(date, LAYOUT.date, canvas.width * 0.0055);
-  drawValue(number, LAYOUT.number, canvas.width * 0.0042);
+  drawValue(parcel, LAYOUT.parcel, canvas.width * 0.0082, canvas.width * 0.0045);
+  drawValue(date, LAYOUT.date, canvas.width * 0.0082, canvas.width * 0.0045);
+  drawValue(number, LAYOUT.number, canvas.width * 0.0072, canvas.width * 0.0038);
 
+  // The template contains a dedicated rounded field above the sentence.
+  // Put the compact parcel identifier there instead of over the owner's name.
   const parcelField = parcelFieldText(parcel, city);
-  const fieldMax = canvas.width * (LAYOUT.parcelField.width / 100) * 0.93;
-  let fieldSize = canvas.width * 0.0195;
-  while (fieldSize > canvas.width * 0.0105) {
-    ctx.font = `600 ${fieldSize}px ${SANS_FONT}`;
-    if (ctx.measureText(parcelField).width <= fieldMax) break;
-    fieldSize -= 1;
-  }
+  const fieldMax = canvas.width * (LAYOUT.parcelField.width / 100) * 0.90;
+  const fieldSize = fitValue(ctx, parcelField, fieldMax, canvas.width * 0.018, canvas.width * 0.010);
   ctx.font = `600 ${fieldSize}px ${SANS_FONT}`;
   ctx.fillStyle = "#20324a";
-  ctx.textBaseline = "middle";
-  ctx.fillText(parcelField, canvas.width * ((LAYOUT.parcelField.left + LAYOUT.parcelField.width / 2) / 100), canvas.height * ((LAYOUT.parcelField.top + LAYOUT.parcelField.height / 2) / 100));
-
-  ctx.font = `400 ${canvas.width * 0.0205}px ${SIGNATURE_FONT}`;
-  ctx.fillStyle = "#1e2f46";
-  ctx.save();
-  ctx.translate(canvas.width * ((LAYOUT.signature.left + LAYOUT.signature.width / 2) / 100), canvas.height * ((LAYOUT.signature.top + LAYOUT.signature.height / 2) / 100));
-  ctx.rotate(-0.055);
-  ctx.textBaseline = "middle";
-  ctx.fillText("MySkyParcel", 0, 0);
-  ctx.restore();
+  ctx.fillText(parcelField, canvas.width * (LAYOUT.parcelField.x / 100), canvas.height * (LAYOUT.parcelField.y / 100));
 
   const qr = qrUrl(number, qrVersion);
   if (qr) {
     const image = await loadQrImage(qr);
     const size = Math.round(canvas.width * (LAYOUT.qr.size / 100));
-    const qx = Math.round(canvas.width * (1 - LAYOUT.qr.right / 100) - size);
-    const qy = Math.round(canvas.height * (LAYOUT.qr.top / 100));
+    const qx = Math.round(canvas.width * (LAYOUT.qr.x / 100) - size / 2);
+    const qy = Math.round(canvas.height * (LAYOUT.qr.y / 100) - size / 2);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(image, qx, qy, size, size);
     ctx.imageSmoothingEnabled = true;
   }
+  // MySkyParcel / Kurucu is already printed in the supplied certificate template.
+  // Do not paint a second signature over it.
   return canvas;
 }
 
@@ -216,6 +198,7 @@ export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, setFontsReady] = useState(false);
+  const [qrPreviewSrc, setQrPreviewSrc] = useState("");
   const qrVersion = issuedAt || certificateNumber || "1";
   const parcelField = parcelFieldText(parcelCode, cityName);
   const verificationQr = certificateNumber ? qrUrl(certificateNumber, qrVersion) : "";
@@ -226,6 +209,31 @@ export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, 
     void ensureCertificateFonts().finally(() => { if (mounted) setFontsReady(true); });
     return () => { mounted = false; };
   }, [previewOnly]);
+
+  useEffect(() => {
+    if (!verificationQr) {
+      setQrPreviewSrc("");
+      return;
+    }
+    let active = true;
+    let objectUrl = "";
+    void (async () => {
+      try {
+        const response = await fetch(verificationQr, { method: "GET", cache: "no-store", headers: { Accept: "image/svg+xml,image/*" } });
+        if (!response.ok) throw new Error(`QR HTTP ${response.status}`);
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (active) setQrPreviewSrc(objectUrl);
+      } catch (err) {
+        console.error("Certificate QR preview failed", err);
+        if (active) setQrPreviewSrc(verificationQr);
+      }
+    })();
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [verificationQr]);
 
   const make = useCallback(() => render(tier, displayName, parcelCode || "—", dateTR(issuedAt), certificateNumber || "—", cityName || "", latitude, longitude, qrVersion), [tier, displayName, parcelCode, issuedAt, certificateNumber, cityName, latitude, longitude, qrVersion]);
 
@@ -266,19 +274,16 @@ export function CertificateArtwork({ tier, name, parcelCode, certificateNumber, 
       <div className="relative aspect-[1600/1067] w-full overflow-hidden">
         <img src={templateSrc} alt={LABEL[tier]} onError={(event) => { const image = event.currentTarget; if (image.src.endsWith(CERTIFICATE_TEMPLATE_FALLBACK)) return; image.src = CERTIFICATE_TEMPLATE_FALLBACK; }} className="absolute inset-0 block h-full w-full object-fill" />
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-[24%] top-[43.5%] flex h-[7%] w-[52%] -translate-y-1/2 items-center justify-center text-center">
+          <div className="absolute left-0 top-[50.7%] flex h-[8%] w-full -translate-y-1/2 items-center justify-center px-[24%] text-center">
             <span style={{ fontFamily: NAME_FONT, fontStyle: "normal", fontWeight: 400, letterSpacing: "-0.01em" }} className="text-[clamp(16px,4.5vw,46px)] leading-none text-[#c79b38] drop-shadow-[0_1px_2px_rgba(0,0,0,.22)]">{displayName}</span>
           </div>
-          <div className="absolute left-[34.5%] top-[57%] flex h-[5.8%] w-[31%] -translate-y-1/2 items-center justify-center text-center">
+          <div className="absolute left-[33.7%] top-[60.1%] flex h-[5.8%] w-[31%] -translate-y-1/2 items-center justify-center text-center">
             <span className="font-sans text-[clamp(10px,1.35vw,22px)] font-semibold leading-none tracking-[.18em] text-[#20324a]">{parcelField}</span>
           </div>
-          <div className="absolute left-[78.6%] top-[42.85%] flex h-[4.1%] w-[15.7%] -translate-y-1/2 items-center justify-center overflow-hidden text-center"><span className="whitespace-nowrap font-sans text-[clamp(6px,.82vw,12px)] font-semibold leading-none text-[#1e2f46]">{parcelCode || "—"}</span></div>
-          <div className="absolute left-[78.6%] top-[50.85%] flex h-[4.1%] w-[15.7%] -translate-y-1/2 items-center justify-center overflow-hidden text-center"><span className="whitespace-nowrap font-sans text-[clamp(6px,.82vw,12px)] font-semibold leading-none text-[#1e2f46]">{dateTR(issuedAt)}</span></div>
-          <div className="absolute left-[78.6%] top-[58.75%] flex h-[4.1%] w-[15.7%] -translate-y-1/2 items-center justify-center overflow-hidden text-center"><span className="whitespace-nowrap font-sans text-[clamp(5px,.62vw,10px)] font-semibold leading-none tracking-[-0.02em] text-[#1e2f46]">{certificateNumber || "—"}</span></div>
-          <div className="absolute left-[61%] top-[78.75%] flex h-[7.5%] w-[20%] -translate-y-1/2 items-center justify-center text-center">
-            <span style={{ fontFamily: SIGNATURE_FONT, fontStyle: "normal", fontWeight: 400, letterSpacing: "-0.025em", transform: "rotate(-3deg)" }} className="text-[clamp(17px,2.15vw,33px)] leading-none text-[#1e2f46]">MySkyParcel</span>
-          </div>
-          {verificationQr && <div className="absolute right-[7.5%] top-[62%] flex aspect-square w-[10.8%] -translate-y-1/2 items-center justify-center overflow-hidden rounded-[2px] bg-transparent p-0"><img key={verificationQr} src={verificationQr} alt="Sertifika doğrulama QR kodu" className="block h-full w-full object-fill" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} /></div>}
+          <div className="absolute left-[77.5%] top-[44.4%] flex h-[4.1%] w-[15.7%] -translate-y-1/2 items-center justify-center overflow-hidden text-center"><span className="whitespace-nowrap font-sans text-[clamp(6px,.82vw,12px)] font-semibold leading-none text-[#1e2f46]">{parcelCode || "—"}</span></div>
+          <div className="absolute left-[77.5%] top-[57.3%] flex h-[4.1%] w-[15.7%] -translate-y-1/2 items-center justify-center overflow-hidden text-center"><span className="whitespace-nowrap font-sans text-[clamp(6px,.82vw,12px)] font-semibold leading-none text-[#1e2f46]">{dateTR(issuedAt)}</span></div>
+          <div className="absolute left-[77.5%] top-[68.1%] flex h-[4.1%] w-[15.7%] -translate-y-1/2 items-center justify-center overflow-hidden text-center"><span className="whitespace-nowrap font-sans text-[clamp(5px,.62vw,10px)] font-semibold leading-none tracking-[-0.02em] text-[#1e2f46]">{certificateNumber || "—"}</span></div>
+          {qrPreviewSrc && <div className="absolute left-[81.45%] top-[73.05%] flex aspect-square w-[11.7%] -translate-y-1/2 items-center justify-center overflow-hidden rounded-[2px] bg-white"><img key={qrPreviewSrc} src={qrPreviewSrc} alt="Sertifika doğrulama QR kodu" className="block h-full w-full object-fill" /></div>}
         </div>
       </div>
       {certificateNumber && <div className="relative z-10 flex flex-wrap justify-end gap-2 border-t border-white/10 bg-[#06162d] p-2"><button type="button" onClick={() => void download("png")} disabled={busy}>PNG</button><button type="button" onClick={() => void download("jpg")} disabled={busy}>JPG</button><button type="button" onClick={() => void download("pdf")} disabled={busy}>PDF / YAZDIR</button></div>}
