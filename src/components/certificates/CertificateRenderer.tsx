@@ -1,11 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  certificateTierLabel,
-  downloadSvg,
-  printCertificate,
-  renderCertificateSvg,
-  templateTypeForTier,
-} from "@/lib/certificateTemplates";
+import { certificateTierLabel, downloadSvg, printCertificate, renderCertificateSvg, templateTypeForTier } from "@/lib/certificateTemplates";
 
 type CertificateRendererCertificate = {
   id: string;
@@ -42,7 +36,7 @@ export function CertificateRenderer({ certificate }: { certificate: CertificateR
           cityName: certificate.city_name_snapshot || "Türkiye",
           certificateNumber: certificate.certificate_number,
           issueDate: certificate.issued_at ? new Date(certificate.issued_at).toLocaleDateString("tr-TR") : "—",
-          fingerprint: certificate.certificate_fingerprint,
+          fingerprint: certificate.certificate_fingerprint ?? null,
           verificationUrl,
         });
         if (!cancelled) setSvg(result);
