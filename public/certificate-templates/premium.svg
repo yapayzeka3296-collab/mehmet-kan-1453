@@ -14,7 +14,7 @@
   <text x="561" y="101" text-anchor="middle" fill="#fff1b0" font-family="Georgia,serif" font-size="30" letter-spacing="7">MY SKY PARCEL</text>
   <text x="561" y="169" text-anchor="middle" fill="#d7b85b" font-family="Arial,sans-serif" font-size="15" letter-spacing="10">PREMIUM COLLECTION</text>
   <text x="561" y="245" text-anchor="middle" fill="#fff2b5" font-family="Georgia,serif" font-size="17" letter-spacing="5">CERTIFICATE OF DIGITAL OWNERSHIP</text>
-  <text x="561" y="350" text-anchor="middle" fill="#ffffff" font-family="Georgia,serif" font-size="56" font-style="italic">{{HOLDER_NAME}}</text>
+  <text x="561" y="350" text-anchor="middle" fill="#ffffff" font-family="Georgia,serif" font-size="{{HOLDER_NAME_FONT_SIZE}}" font-style="italic">{{HOLDER_NAME}}</text>
   <path d="M235 380H887" stroke="url(#platinum)" stroke-width="2"/>
   <text x="561" y="430" text-anchor="middle" fill="#f0d98e" font-family="monospace" font-size="25" letter-spacing="3">{{PARCEL_CODE}}</text>
   <text x="561" y="468" text-anchor="middle" fill="#c8d0dc" font-family="Arial,sans-serif" font-size="15" letter-spacing="2">{{CITY_NAME}} • PREMIUM</text>
