@@ -32,19 +32,18 @@ export function ParcelDetailPanel({ parcel, onClose }: Props) {
   const canBuy = parcel.status !== 'sold' && parcel.status !== 'reserved' && !ownsFromParcel;
 
   function handleBuy() {
-    const redirect = `/parsel-satin-al?parcelId=${encodeURIComponent(parcel.id)}`;
+    const redirect = `/parsel-satin-al?parcels=${encodeURIComponent(parcel.id)}`;
     if (!user) {
       void navigate({ to: '/giris', search: { redirect } });
       return;
     }
-    void navigate({ to: '/parsel-satin-al', search: { parcelId: parcel.id } });
+    void navigate({ to: '/parsel-satin-al', search: { parcels: parcel.id } });
   }
 
   useEffect(() => {
     let cancelled = false;
     setMemoryLoading(true); setMemory(null); setMemoryPhotoUrl(null); setMemoryNote(''); setMemoryFile(null); setMemoryIsPublic(true); setMemoryMessage(null); setEditingMemory(false);
     async function loadMemory() {
-      if (!supabaseBrowser) { if (!cancelled) setMemoryLoading(false); return; }
       try {
         const [{ data: sessionData }, { data: ownerData, error: ownerError }, { data: parcelOwnerRow, error: parcelOwnerError }, { data: memoryRow, error: memoryError }] = await Promise.all([
           supabaseBrowser.auth.getSession(),
@@ -74,7 +73,6 @@ export function ParcelDetailPanel({ parcel, onClose }: Props) {
 
   async function handleMemorySave() {
     if (!user) { setMemoryMessage('Hatıra eklemek için giriş yapın.'); return; }
-    if (!supabaseBrowser) { setMemoryMessage('Supabase yapılandırması eksik.'); return; }
     if (!canManageMemory) { setMemoryMessage('Hatıra eklenemedi.'); return; }
     if (!memoryFile && !memory?.photo_path) { setMemoryMessage('Lütfen bir fotoğraf seçin.'); return; }
     if (memoryNote.trim().length > 300) { setMemoryMessage('Not en fazla 300 karakter olabilir.'); return; }
@@ -103,8 +101,6 @@ export function ParcelDetailPanel({ parcel, onClose }: Props) {
         throw new Error(`Hatıra kaydedilemedi: ${saveError.message}`);
       }
 
-      // Always read the saved row back from Supabase so the UI reflects the
-      // persistent database state, rather than assuming the RPC response.
       const { data: persistedMemory, error: reloadError } = await supabaseBrowser
         .from('parcel_memories')
         .select('photo_path,note,is_public,updated_at')
