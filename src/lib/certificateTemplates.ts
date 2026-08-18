@@ -67,10 +67,10 @@ export function downloadSvg(svg: string, filename: string) {
 }
 
 export function printCertificate(svg: string, title = "MySkyParcel Sertifika") {
-  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1200,height=850");
+  const printWindow = window.open("", "_blank", "width=1200,height=850");
   if (!printWindow) throw new Error("print_window_blocked");
   printWindow.document.write(`<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>${xmlEscape(title)}</title><style>@page{size:A4 landscape;margin:0}html,body{margin:0;width:100%;height:100%;background:#fff}body{display:grid;place-items:center}svg{width:100vw;height:100vh;max-width:297mm;max-height:210mm}</style></head><body>${svg}</body></html>`);
   printWindow.document.close();
   printWindow.focus();
-  printWindow.addEventListener("load", () => printWindow.print(), { once: true });
+  window.setTimeout(() => printWindow.print(), 350);
 }
