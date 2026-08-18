@@ -26,7 +26,6 @@ export function CertificateTemplatePreview({ tier, className = "" }: Certificate
 
   useEffect(() => {
     let cancelled = false;
-    let objectUrl = "";
 
     async function loadPreview() {
       try {
@@ -35,38 +34,39 @@ export function CertificateTemplatePreview({ tier, className = "" }: Certificate
           ...DEMO_DATA,
         });
         if (cancelled) return;
-        const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-        objectUrl = URL.createObjectURL(blob);
-        setSrc(objectUrl);
+        setSrc(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
       } catch {
         if (!cancelled) setSrc("");
       }
     }
 
     void loadPreview();
-
     return () => {
       cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [templateType]);
 
   return (
-    <div className={`relative overflow-hidden rounded-lg border border-gold/30 bg-white shadow-lg ${className}`}>
-      {src ? (
-        <img
-          src={src}
-          alt={`${certificateTierLabel(tier)} MySkyParcel sertifika şablonu`}
-          className="block aspect-[297/210] h-auto w-full object-contain"
-        />
-      ) : (
-        <div className="flex aspect-[297/210] w-full items-center justify-center bg-slate-950 text-sm text-white/70">
-          Sertifika önizlemesi hazırlanıyor…
-        </div>
-      )}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-4 pb-3 pt-10">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white">{certificateTierLabel(tier)} Sertifika</p>
-        <p className="mt-0.5 text-[9px] text-white/80">Örnek tasarım önizlemesi</p>
+    <div className={`min-w-0 ${className}`}>
+      <div className="relative w-full overflow-hidden rounded-lg border border-gold/30 bg-slate-950 shadow-lg">
+        {src ? (
+          <img
+            src={src}
+            alt={`${certificateTierLabel(tier)} MySkyParcel sertifika şablonu`}
+            width={1122}
+            height={794}
+            decoding="async"
+            className="block h-auto w-full"
+          />
+        ) : (
+          <div className="flex aspect-[1122/794] w-full items-center justify-center text-sm text-white/70">
+            Sertifika önizlemesi hazırlanıyor…
+          </div>
+        )}
+      </div>
+      <div className="mt-2 text-center">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gold">{certificateTierLabel(tier)} Sertifika</p>
+        <p className="mt-0.5 text-[9px] text-muted-foreground">Örnek tasarım önizlemesi</p>
       </div>
     </div>
   );
