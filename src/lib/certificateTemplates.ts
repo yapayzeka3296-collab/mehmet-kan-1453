@@ -1,3 +1,5 @@
+import QRCode from "qrcode";
+
 export type CertificateTemplateType = "digital" | "special" | "premium";
 
 export const CERTIFICATE_TEMPLATE_PATHS: Record<CertificateTemplateType, string> = {
@@ -24,8 +26,13 @@ export function xmlEscape(value: string) {
     .replaceAll("'", "&apos;");
 }
 
-export function qrImageUrl(verificationUrl: string) {
-  return `https://quickchart.io/qr?text=${encodeURIComponent(verificationUrl)}&size=240&margin=2&ecLevel=M`;
+export async function qrDataUrl(verificationUrl: string) {
+  return QRCode.toDataURL(verificationUrl, {
+    errorCorrectionLevel: "M",
+    margin: 2,
+    width: 240,
+    color: { dark: "#000000", light: "#ffffff" },
+  });
 }
 
 export async function renderCertificateSvg(args: {
@@ -41,6 +48,7 @@ export async function renderCertificateSvg(args: {
   const response = await fetch(CERTIFICATE_TEMPLATE_PATHS[args.templateType]);
   if (!response.ok) throw new Error("certificate_template_unavailable");
   let svg = await response.text();
+  const qr = await qrDataUrl(args.verificationUrl);
   const values: Record<string, string> = {
     HOLDER_NAME: xmlEscape(args.holderName || "MySkyParcel Kullanıcısı"),
     PARCEL_CODE: xmlEscape(args.parcelCode),
@@ -48,7 +56,7 @@ export async function renderCertificateSvg(args: {
     CERTIFICATE_NUMBER: xmlEscape(args.certificateNumber),
     ISSUE_DATE: xmlEscape(args.issueDate),
     FINGERPRINT_SHORT: xmlEscape((args.fingerprint || "").slice(0, 18)),
-    QR_IMAGE_URL: xmlEscape(qrImageUrl(args.verificationUrl)),
+    QR_IMAGE_URL: xmlEscape(qr),
   };
   for (const [key, value] of Object.entries(values)) svg = svg.replaceAll(`{{${key}}}`, value);
   return svg;
