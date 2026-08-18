@@ -32,9 +32,7 @@ export function CertificateRenderer({ certificate }: { certificate: CertificateR
       setLoading(true);
       setError(null);
       try {
-        if (!certificate.certificate_number || certificate.status !== "issued") {
-          throw new Error("certificate_not_issued");
-        }
+        if (!certificate.certificate_number || certificate.status !== "issued") throw new Error("certificate_not_issued");
         const relativeVerificationUrl = certificate.verification_url || `/sertifika-dogrula?code=${encodeURIComponent(certificate.certificate_number)}`;
         const verificationUrl = new URL(relativeVerificationUrl, window.location.origin).toString();
         const result = await renderCertificateSvg({
@@ -65,15 +63,11 @@ export function CertificateRenderer({ certificate }: { certificate: CertificateR
   return (
     <div className="certificate-print-surface space-y-4">
       <div className="overflow-hidden rounded-xl border border-gold/30 bg-black/20 shadow-2xl">
-        <div className="aspect-[1122/794] w-full" dangerouslySetInnerHTML={{ __html: svg }} />
+        <div className="aspect-[1122/794] w-full [&>svg]:block [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />
       </div>
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="btn-gold rounded-md px-4 py-2 text-xs" onClick={() => printCertificate(svg, `${certificateTierLabel(certificate.tier)} Sertifika`)}>
-          PDF / Yazdır
-        </button>
-        <button type="button" className="rounded-md border border-input px-4 py-2 text-xs hover:bg-accent" onClick={() => downloadSvg(svg, `${certificate.certificate_number}.svg`)}>
-          SVG İndir
-        </button>
+        <button type="button" className="btn-gold rounded-md px-4 py-2 text-xs" onClick={() => printCertificate(svg, `${certificateTierLabel(certificate.tier)} Sertifika`)}>PDF / Yazdır</button>
+        <button type="button" className="rounded-md border border-input px-4 py-2 text-xs hover:bg-accent" onClick={() => downloadSvg(svg, `${certificate.certificate_number}.svg`)}>SVG İndir</button>
       </div>
       <p className="text-[11px] text-muted-foreground">PDF / Yazdır düğmesi tarayıcının yüksek kaliteli yazdırma ekranını açar; buradan “PDF olarak kaydet” seçilebilir. Sertifikanın QR kodu doğrulama adresine yönlendirir.</p>
     </div>
