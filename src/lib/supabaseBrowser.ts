@@ -24,14 +24,12 @@ function getSessionStorage(): Storage | undefined {
   }
 }
 
+// Both values always have production fallbacks, so this factory never returns
+// null. Keeping the client non-nullable also prevents every consumer from
+// having to duplicate defensive checks around an already guaranteed client.
 export function createBrowserSupabase() {
-  if (!url || !anonKey) return null;
-
   const client = createClient(url, anonKey, {
     auth: {
-      // Keep the session for the current browser tab/session, but do not
-      // persist it in localStorage. Closing the browser/restarting the
-      // computer therefore requires the user to authenticate again.
       storage: getSessionStorage(),
       persistSession: true,
       autoRefreshToken: true,
