@@ -6,7 +6,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
 
 export const Route = createFileRoute("/parsel-satin-al")({
-  validateSearch: (search: Record<string, unknown>) => ({ parcels: typeof search.parcels === "string" ? search.parcels : "" }),
+  validateSearch: (search: Record<string, unknown>) => ({ parcels: typeof search.parcels === "string" ? search.parcels : undefined }),
   head: () => ({ meta: [{ title: "Parsel Satın Al — MySkyParcel" }, { name: "description", content: "MySkyParcel parsel satın alma adımını tamamlayın." }] }),
   component: SatinAl,
 });
