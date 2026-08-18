@@ -35,6 +35,14 @@ export async function qrDataUrl(verificationUrl: string) {
   });
 }
 
+function holderFontSize(templateType: CertificateTemplateType, holderName: string) {
+  const base = { digital: 50, special: 48, premium: 56 }[templateType];
+  const minimum = { digital: 32, special: 30, premium: 34 }[templateType];
+  const length = Array.from(holderName.trim()).length;
+  if (length <= 18) return base;
+  return Math.max(minimum, Math.round(base - (length - 18) * 1.8));
+}
+
 export async function renderCertificateSvg(args: {
   templateType: CertificateTemplateType;
   holderName: string;
@@ -48,9 +56,11 @@ export async function renderCertificateSvg(args: {
   const response = await fetch(CERTIFICATE_TEMPLATE_PATHS[args.templateType]);
   if (!response.ok) throw new Error("certificate_template_unavailable");
   let svg = await response.text();
+  const holderName = args.holderName || "MySkyParcel Kullanıcısı";
   const qr = await qrDataUrl(args.verificationUrl);
   const values: Record<string, string> = {
-    HOLDER_NAME: xmlEscape(args.holderName || "MySkyParcel Kullanıcısı"),
+    HOLDER_NAME: xmlEscape(holderName),
+    HOLDER_NAME_FONT_SIZE: String(holderFontSize(args.templateType, holderName)),
     PARCEL_CODE: xmlEscape(args.parcelCode),
     CITY_NAME: xmlEscape(args.cityName || "Türkiye"),
     CERTIFICATE_NUMBER: xmlEscape(args.certificateNumber),
