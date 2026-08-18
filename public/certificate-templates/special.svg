@@ -14,7 +14,7 @@
   </g>
   <text x="561" y="94" text-anchor="middle" fill="#f2df9c" font-family="Georgia,serif" font-size="28" letter-spacing="5">MY SKY PARCEL</text>
   <text x="561" y="160" text-anchor="middle" fill="#c9aa5b" font-family="Georgia,serif" font-size="16" letter-spacing="6">ÖZEL SERTİFİKA</text>
-  <text x="561" y="278" text-anchor="middle" fill="#fffaf0" font-family="Georgia,serif" font-size="48" font-style="italic">{{HOLDER_NAME}}</text>
+  <text x="561" y="278" text-anchor="middle" fill="#fffaf0" font-family="Georgia,serif" font-size="{{HOLDER_NAME_FONT_SIZE}}" font-style="italic">{{HOLDER_NAME}}</text>
   <path d="M270 305H852" stroke="url(#gold)"/>
   <text x="561" y="362" text-anchor="middle" fill="#d7e0ea" font-family="Arial,sans-serif" font-size="15" letter-spacing="2">MY SKYPARCEL PARSELİ</text>
   <text x="561" y="410" text-anchor="middle" fill="#f0d88c" font-family="monospace" font-size="22" letter-spacing="2">{{PARCEL_CODE}}</text>
