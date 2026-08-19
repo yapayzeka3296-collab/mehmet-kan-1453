@@ -11,13 +11,12 @@ export default defineConfig({
   nitro: {
     preset: "node",
   },
+  // The Lovable wrapper's public config type does not expose Vite's build
+  // options, but it forwards them to Vite at runtime. Keep these options
+  // here so Netlen's shared-hosting build uses less peak memory.
   build: {
-    // Netlen's shared hosting has a tight build-time memory budget.
-    // Disabling JS/CSS minification reduces peak Vite/Rollup memory usage
-    // without changing application behavior. The output is still a normal
-    // production build and is served by the same Nitro Node preset.
     minify: false,
     cssMinify: false,
     reportCompressedSize: false,
   },
-});
+} as any);
