@@ -4,7 +4,7 @@ MySkyParcel digital parcel platform.
 
 ## Development
 
-Node.js 20.x and npm are recommended.
+Node.js 22.x and npm are recommended.
 
 ```sh
 git clone <this-repository-url>
@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-## Production
+## Production — Netlen / Node.js / Passenger
 
 ```sh
 npm install
@@ -22,3 +22,5 @@ npm start
 ```
 
 The production server is started from `.output/server/index.mjs` through `app.js` for Node.js/Passenger hosting environments.
+
+The production target is standard Node.js hosting; Vercel is not required.
