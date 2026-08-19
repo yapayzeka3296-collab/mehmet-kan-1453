@@ -1,6 +1,6 @@
 ---
 deployment:
   tasks:
-    - cd /home/myskypar/pixel-perfect-clone-14793 && npm install --include=dev --no-package-lock
-    - cd /home/myskypar/pixel-perfect-clone-14793 && npm run build
+    - cd /home/myskypar/pixel-perfect-clone-14793 && npm install --omit=dev --no-package-lock
+    - cd /home/myskypar/pixel-perfect-clone-14793 && test -f .output/server/index.mjs
     - cd /home/myskypar/pixel-perfect-clone-14793 && git checkout -- src/routeTree.gen.ts
