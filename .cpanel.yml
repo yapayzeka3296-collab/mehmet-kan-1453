@@ -3,3 +3,4 @@ deployment:
   tasks:
     - npm install --include=dev
     - npm run build
+    - git checkout -- src/routeTree.gen.ts
