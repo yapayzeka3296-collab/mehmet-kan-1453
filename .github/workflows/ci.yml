@@ -28,8 +28,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Production build
-        run: npm run build
+      - name: Production build with memory measurement
+        run: |
+          /usr/bin/time -v -o build-resource-usage.txt npm run build
+          echo "=== Build resource usage ==="
+          cat build-resource-usage.txt
 
       - name: Inspect build output
         run: |
