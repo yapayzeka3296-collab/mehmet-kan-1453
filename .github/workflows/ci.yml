@@ -32,6 +32,7 @@ jobs:
 
       - name: Production build with memory measurement
         run: |
+          set -e
           echo "Starting MySkyParcel production build with resource measurement..."
           /usr/bin/time -v -o build-resource-usage.txt npm run build
           echo "=== Build resource usage ==="
@@ -51,6 +52,7 @@ jobs:
         run: npm run lint
 
       - name: Commit production build for cPanel
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           set -e
           git config user.name "github-actions[bot]"
