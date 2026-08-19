@@ -30,6 +30,7 @@ jobs:
 
       - name: Production build with memory measurement
         run: |
+          echo "Starting MySkyParcel production build with resource measurement..."
           /usr/bin/time -v -o build-resource-usage.txt npm run build
           echo "=== Build resource usage ==="
           cat build-resource-usage.txt
