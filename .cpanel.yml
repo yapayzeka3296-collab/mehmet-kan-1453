@@ -1,6 +1,6 @@
 ---
 deployment:
   tasks:
-    - npm install --include=dev
+    - npm install --include=dev --no-package-lock
     - npm run build
     - git checkout -- src/routeTree.gen.ts
