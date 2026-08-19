@@ -6,9 +6,11 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '.output/**'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
@@ -37,38 +39,26 @@ jobs:
 
       - name: Inspect build output
         run: |
-          echo "Build output directories:"
-          find . -maxdepth 3 -type d \( -name '.output' -o -name 'dist' -o -name 'build' \) -print
-          echo "Top-level files/directories:"
-          ls -la
-
-      - name: Prepare production build artifact
-        run: |
           set -e
-          rm -rf production-build
-          if [ -d ".output" ]; then
-            cp -R .output production-build
-          elif [ -d "dist" ]; then
-            cp -R dist production-build
-          elif [ -d "build" ]; then
-            cp -R build production-build
-          else
-            echo "No supported production build directory was found."
-            exit 1
-          fi
-          echo "Prepared artifact:"
-          find production-build -maxdepth 3 -type f -print | head -200
-
-      - name: Upload production build
-        uses: actions/upload-artifact@v4
-        with:
-          name: myskyparcel-production-build
-          path: production-build/
-          if-no-files-found: error
-          retention-days: 7
+          test -f .output/server/index.mjs
+          echo "Production server entry exists: .output/server/index.mjs"
+          du -sh .output
 
       - name: TypeScript check
         run: npx tsc --noEmit
 
       - name: Lint
         run: npm run lint
+
+      - name: Commit production build for cPanel
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f .output
+          if git diff --cached --quiet; then
+            echo "Production build is already up to date."
+          else
+            git commit -m "chore: update Netlen production build [skip ci]"
+            git push origin HEAD:main
+          fi
