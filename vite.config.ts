@@ -11,4 +11,13 @@ export default defineConfig({
   nitro: {
     preset: "node",
   },
+  build: {
+    // Netlen's shared hosting has a tight build-time memory budget.
+    // Disabling JS/CSS minification reduces peak Vite/Rollup memory usage
+    // without changing application behavior. The output is still a normal
+    // production build and is served by the same Nitro Node preset.
+    minify: false,
+    cssMinify: false,
+    reportCompressedSize: false,
+  },
 });
