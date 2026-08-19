@@ -1,9 +1,0 @@
-[build]
-  command = "npm run build"
-  publish = "dist"
-
-[build.environment]
-  NODE_VERSION = "20.19.0"
-
-# Netlify deployment is kept separate from the self-hosted Node start command.
-# The application remains compatible with the existing Vercel deployment.
