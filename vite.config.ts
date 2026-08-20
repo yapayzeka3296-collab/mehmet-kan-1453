@@ -1,7 +1,7 @@
 // MySkyParcel production build target: standard Node.js/Passenger hosting.
 // The Lovable wrapper supplies TanStack Start, React, Tailwind, path aliases,
 // and Nitro. We explicitly select Nitro's Node preset so the production build
-// emits .output/server/index.mjs instead of the wrapper's default worker target.
+// emits .output/server/index.mjs for Netlen's Node.js hosting environment.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
@@ -11,12 +11,8 @@ export default defineConfig({
   nitro: {
     preset: "node",
   },
-  // The Lovable wrapper's public config type does not expose Vite's build
-  // options, but it forwards them to Vite at runtime. Keep these options
-  // here so Netlen's shared-hosting build uses less peak memory.
-  build: {
-    minify: false,
-    cssMinify: false,
-    reportCompressedSize: false,
-  },
+  // Netlen is now on the 4 GB Professional plan. Production builds are
+  // generated in GitHub Actions, not on the shared hosting account, so the
+  // previous low-memory workaround is no longer appropriate. Keep Vite's
+  // normal production minification enabled to reduce the runtime asset size.
 } as any);
