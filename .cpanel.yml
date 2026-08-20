@@ -1,4 +1,5 @@
 ---
 deployment:
   tasks:
-    - cd /home/myskypar/repositories/pixel-perfect-clone-14793 && test -f .output/server/index.mjs && test -f server.cjs
+    - test -f .output/server/index.mjs
+    - test -f app.js
