@@ -2,9 +2,8 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/myskypar/public_html/
-    - export REPOPATH=/home/myskypar/repositories/pixel-perfect-clone-14793/
     - /bin/rm -rf ${DEPLOYPATH}.output
-    - /bin/cp -R ${REPOPATH}.output ${DEPLOYPATH}
-    - /bin/cp ${REPOPATH}app.js ${DEPLOYPATH}
+    - /bin/cp -R .output ${DEPLOYPATH}
+    - /bin/cp app.js ${DEPLOYPATH}
     - /bin/mkdir -p ${DEPLOYPATH}tmp
     - /bin/touch ${DEPLOYPATH}tmp/restart.txt
