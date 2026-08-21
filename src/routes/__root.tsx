@@ -27,7 +27,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     { rel: "stylesheet", href: appCss },
     { rel: "stylesheet", href: "/login-background.css" },
     { rel: "preconnect", href: "https://fonts.googleapis.com" }, { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-    { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Jost:wght@300;400;500;600&display=swap" }, { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+    { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Jost:wght@300;400;500;600&display=swap" }, { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
   ] }),
   shellComponent: RootShell, component: RootComponent, notFoundComponent: NotFoundComponent, errorComponent: ErrorComponent,
 });
