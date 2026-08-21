@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 // The public anon/publishable key is safe to expose in browser code; database
 // access is still enforced by Supabase RLS and function privileges.
 const DEFAULT_SUPABASE_URL = 'https://agfxwddvobkhwbbrdzpt.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF1bm9uIiwiaWF0IjoxNzg2MjE4MTQwLCJleHAiOjIxMDE3OTQxNDB9.T_CEm6eUddkxL2mqDpSfHl5WJqw4uufLi5fRqueGm5s';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnZnh3ZGR2b2JraHdiYnJkenB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTgxNDAsImV4cCI6MjEwMTc5NDE0MH0.T_CEm6eUddkxL2mqDpSfHl5WJqw4uufLi5fRqueGm5s';
 
 const configuredUrl = import.meta.env['VITE_SUPABASE_URL'];
 const configuredAnonKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
@@ -32,7 +32,7 @@ export function createBrowserSupabase() {
     },
   });
 
-  // Admin RPC'leri artık browser'dan doğrudan Postgres'e çalıştırılmaz.
+  // Admin RPC'leri browser'dan doğrudan Postgres'e çalıştırılmaz.
   // Çağrı, JWT doğrulaması + is_admin() kontrolü yapan Edge Function'a gider.
   // Böylece authenticated rolünden admin RPC EXECUTE yetkisi kaldırılabilir.
   const originalRpc = client.rpc.bind(client);
