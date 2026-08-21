@@ -1,5 +1,11 @@
 ---
 deployment:
   tasks:
+    - export DEPLOYPATH=$HOME/public_html/
     - test -f .output/server/index.mjs
     - test -f app.js
+    - /bin/rm -rf $DEPLOYPATH/.output
+    - /bin/cp -R .output $DEPLOYPATH
+    - /bin/cp app.js $DEPLOYPATH
+    - /bin/mkdir -p $DEPLOYPATH/tmp
+    - /bin/touch $DEPLOYPATH/tmp/restart.txt
