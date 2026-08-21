@@ -1,6 +1,7 @@
 ---
 deployment:
   tasks:
+    # cPanel deployment configuration
     - export DEPLOYPATH=$HOME/public_html/
     - test -f .output/server/index.mjs
     - test -f app.js
