@@ -31,6 +31,8 @@ jobs:
         run: npm install
 
       - name: Production build with memory measurement
+        env:
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
         run: |
           set -e
           echo "Starting MySkyParcel production build with resource measurement..."
