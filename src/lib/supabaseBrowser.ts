@@ -4,14 +4,12 @@ import { createClient } from '@supabase/supabase-js';
 // The public anon/publishable key is safe to expose in browser code; database
 // access is still enforced by Supabase RLS and function privileges.
 const DEFAULT_SUPABASE_URL = 'https://agfxwddvobkhwbbrdzpt.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnZnh3ZGR2b2JraHdiYnJkenB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTgxNDAsImV4cCI6MjEwMTc5NDE0MH0.T_CEm6eUddkxL2mqDpSfHl5WJqw4uufLi5fRqueGm5s';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF1bm9uIiwiaWF0IjoxNzg2MjE4MTQwLCJleHAiOjIxMDE3OTQxNDB9.T_CEm6eUddkxL2mqDpSfHl5WJqw4uufLi5fRqueGm5s';
 
 const configuredUrl = import.meta.env['VITE_SUPABASE_URL'];
 const configuredAnonKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
 const configuredPublishableKey = import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY'];
 
-// Prefer an explicitly configured key, but never allow an unrelated Supabase
-// project URL to silently pair with the production credentials.
 const url = configuredUrl || DEFAULT_SUPABASE_URL;
 const anonKey = configuredAnonKey || configuredPublishableKey || DEFAULT_SUPABASE_ANON_KEY;
 
@@ -24,9 +22,6 @@ function getSessionStorage(): Storage | undefined {
   }
 }
 
-// Both values always have production fallbacks, so this factory never returns
-// null. Keeping the client non-nullable also prevents every consumer from
-// having to duplicate defensive checks around an already guaranteed client.
 export function createBrowserSupabase() {
   const client = createClient(url, anonKey, {
     auth: {
@@ -37,9 +32,22 @@ export function createBrowserSupabase() {
     },
   });
 
-  // Yönetim panelindeki "Çıkış Yap" yalnızca yönetim panelinden çıkar.
-  // Site oturumunu kapatmaz; böylece ana sayfaya dönen kullanıcı giriş yapmış
-  // olarak kalır. Diğer sayfalardaki gerçek signOut davranışı değişmez.
+  // Admin RPC'leri artık browser'dan doğrudan Postgres'e çalıştırılmaz.
+  // Çağrı, JWT doğrulaması + is_admin() kontrolü yapan Edge Function'a gider.
+  // Böylece authenticated rolünden admin RPC EXECUTE yetkisi kaldırılabilir.
+  const originalRpc = client.rpc.bind(client);
+  (client as any).rpc = (functionName: string, args?: Record<string, unknown>, options?: unknown) => {
+    if (functionName.startsWith('admin_')) {
+      return client.functions.invoke('admin-rpc-gateway', {
+        body: { rpc: functionName, args: args ?? {} },
+      }).then((response: any) => ({
+        data: response.data?.data ?? null,
+        error: response.error ?? null,
+      }));
+    }
+    return originalRpc(functionName as any, args as any, options as any);
+  };
+
   const originalSignOut = client.auth.signOut.bind(client.auth);
   client.auth.signOut = async (options) => {
     if (typeof window !== 'undefined' && window.location.pathname === '/yonetim') {
