@@ -12,10 +12,15 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: netlen-production
+  cancel-in-progress: false
+
 jobs:
   validate:
     name: Lint, TypeScript and Build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -44,7 +49,11 @@ jobs:
         run: |
           set -e
           test -f .output/server/index.mjs
+          test -f .output/nitro.json
+          test -d .output/public
           echo "Production server entry exists: .output/server/index.mjs"
+          echo "Nitro metadata exists: .output/nitro.json"
+          echo "Production public directory exists: .output/public"
           du -sh .output
 
       - name: TypeScript check
@@ -56,7 +65,7 @@ jobs:
       - name: Commit production build for cPanel
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
-          set -e
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f .output
@@ -66,26 +75,43 @@ jobs:
             git commit -m "chore: update Netlen production build [skip ci]"
             git push origin HEAD:main
           fi
+          echo "Deployment source commit: $(git rev-parse HEAD)"
 
   deploy-netlen:
     name: Trigger Netlen cPanel deployment
     needs: validate
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
-      - name: Trigger cPanel deployment webhook
+      - name: Validate Netlen deployment secret
         env:
           CPANEL_DEPLOY_WEBHOOK_URL: ${{ secrets.CPANEL_DEPLOY_WEBHOOK_URL }}
         run: |
           set -euo pipefail
           if [ -z "${CPANEL_DEPLOY_WEBHOOK_URL:-}" ]; then
-            echo "CPANEL_DEPLOY_WEBHOOK_URL GitHub secret is not configured."
+            echo "ERROR: CPANEL_DEPLOY_WEBHOOK_URL GitHub secret is not configured."
+            echo "Add the Netlen/cPanel deployment webhook as a repository Actions secret with this exact name."
             exit 1
           fi
-          curl --fail --show-error --silent \
-            --retry 3 --retry-delay 5 \
+
+      - name: Trigger cPanel deployment webhook
+        env:
+          CPANEL_DEPLOY_WEBHOOK_URL: ${{ secrets.CPANEL_DEPLOY_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          http_code="$(curl --fail-with-body --show-error --silent --output "$response_file" --write-out '%{http_code}' \
+            --retry 3 --retry-delay 5 --retry-all-errors \
+            --connect-timeout 15 --max-time 60 \
             -X POST \
             -H 'Accept: application/json' \
-            "$CPANEL_DEPLOY_WEBHOOK_URL"
+            "$CPANEL_DEPLOY_WEBHOOK_URL")"
+          echo "Netlen cPanel webhook HTTP status: ${http_code}"
+          if [ -s "$response_file" ]; then
+            echo "Netlen cPanel webhook response:"
+            cat "$response_file"
+          fi
           echo "Netlen cPanel deployment webhook triggered successfully."
+          rm -f "$response_file"
