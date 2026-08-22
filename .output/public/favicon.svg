@@ -1,17 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <title>MySkyParcel</title>
   <defs>
-    <linearGradient id="sky" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#6EC8FF"/>
-      <stop offset="1" stop-color="#102A5C"/>
+    <linearGradient id="bg" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E2A5A"/>
+      <stop offset="0.58" stop-color="#071B3A"/>
+      <stop offset="1" stop-color="#030A18"/>
     </linearGradient>
-    <linearGradient id="gold" x1="18" y1="18" x2="47" y2="48" gradientUnits="userSpaceOnUse">
+    <linearGradient id="gold" x1="18" y1="17" x2="47" y2="48" gradientUnits="userSpaceOnUse">
       <stop stop-color="#FFE9A3"/>
-      <stop offset="1" stop-color="#D6A63A"/>
+      <stop offset="0.5" stop-color="#F4C85A"/>
+      <stop offset="1" stop-color="#C58A27"/>
     </linearGradient>
   </defs>
-  <circle cx="32" cy="32" r="29" fill="#071326" stroke="url(#gold)" stroke-width="2.5"/>
-  <circle cx="32" cy="32" r="22" fill="url(#sky)" opacity=".95"/>
-  <path d="M10 32h44M32 10c7 7 10 14 10 22s-3 15-10 22M32 10c-7 7-10 14-10 22s3 15 10 22M14 21c11 4 25 4 36 0M14 43c11-4 25-4 36 0" stroke="#fff" stroke-opacity=".5" stroke-width="1.2"/>
-  <path d="M25 25h7v7h-7zM32 25h7v7h-7zM25 32h7v7h-7zM32 32h7v7h-7z" fill="url(#gold)" stroke="#fff" stroke-opacity=".7" stroke-width=".7"/>
-  <path d="M49 10l1.5 4.5L55 16l-4.5 1.5L49 22l-1.5-4.5L43 16l4.5-1.5L49 10z" fill="#FFE9A3"/>
+
+  <!-- Compact, high-contrast mark designed to remain recognizable at favicon sizes. -->
+  <circle cx="32" cy="32" r="29" fill="url(#bg)" stroke="#D9AD4A" stroke-width="2"/>
+
+  <!-- Stylized globe / sky reference. -->
+  <path d="M14 32h36M32 12c6 6 9 12 9 20s-3 14-9 20M32 12c-6 6-9 12-9 20s3 14 9 20" stroke="#B9D8F5" stroke-opacity=".48" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M17 21c9 4 21 5 30 0M17 43c9-4 21-5 30 0" stroke="#B9D8F5" stroke-opacity=".32" stroke-width="1.25" stroke-linecap="round"/>
+
+  <!-- The defining MySkyParcel symbol: one highlighted collectible sky parcel. -->
+  <path d="M22 24h20v20H22z" fill="#07152D" stroke="url(#gold)" stroke-width="2.5"/>
+  <path d="M32 24v20M22 34h20" stroke="url(#gold)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M32 27.5l1.35 3.15 3.15 1.35-3.15 1.35L32 36.5l-1.35-3.15-3.15-1.35 3.15-1.35L32 27.5z" fill="#FFF1B8"/>
+
+  <!-- Small star: sky / discovery / collection. -->
+  <path d="M48.5 9.5l1.35 4.15L54 15l-4.15 1.35L48.5 20.5l-1.35-4.15L43 15l4.15-1.35L48.5 9.5z" fill="#FFF1B8"/>
 </svg>
