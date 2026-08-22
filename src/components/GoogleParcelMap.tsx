@@ -32,13 +32,18 @@ const NEON_GLOW = "#5de2ff";
 const SELECTED_CORE = "#fff4b0";
 const SELECTED_GLOW = "#ffd35c";
 
-function loadGoogleMaps(apiKey: string): Promise<Maps> {
+function loadGoogleMaps(apiKey: string, onAuthFailure: () => void): Promise<Maps> {
   if (typeof window === "undefined") return Promise.reject(new Error("Google Maps browser ortamında yüklenebilir."));
   if ((window as any).google?.maps) return Promise.resolve((window as any).google.maps);
   if (mapsPromise) return mapsPromise;
 
   mapsPromise = new Promise((resolve, reject) => {
     const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
+    const previousAuthFailure = (window as any).gm_authFailure;
+    (window as any).gm_authFailure = () => {
+      onAuthFailure();
+      if (typeof previousAuthFailure === "function") previousAuthFailure();
+    };
     const finish = () => {
       const maps = (window as any).google?.maps;
       if (maps) resolve(maps);
@@ -53,7 +58,7 @@ function loadGoogleMaps(apiKey: string): Promise<Maps> {
     script.id = SCRIPT_ID;
     script.async = true;
     script.defer = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&loading=async`;
     script.onload = finish;
     script.onerror = () => reject(new Error("Google Maps script yüklenemedi."));
     document.head.appendChild(script);
@@ -166,9 +171,11 @@ export function GoogleParcelMap({ parcels, selectedId, selectedIds = new Set<str
   useEffect(() => {
     let cancelled = false;
     const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (!key) { setError("Google Maps API anahtarı eksik."); return; }
+    if (!key) { setError("Google Maps API anahtarı production build'ine aktarılmamış."); return; }
     if (!mapRef.current) return;
-    loadGoogleMaps(key).then((maps) => {
+    loadGoogleMaps(key, () => {
+      if (!cancelled) setError("Google Maps API anahtarı geçersiz, kısıtlı veya Maps JavaScript API etkin değil.");
+    }).then((maps) => {
       if (cancelled || !mapRef.current) return;
       if (!mapObj.current) {
         mapObj.current = new maps.Map(mapRef.current, {
@@ -189,7 +196,7 @@ export function GoogleParcelMap({ parcels, selectedId, selectedIds = new Set<str
       setReady(true);
     }).catch((err) => {
       console.error(err);
-      if (!cancelled) setError("Google Maps yüklenemedi. API anahtarını kontrol edin.");
+      if (!cancelled) setError("Google Maps yüklenemedi. API anahtarı ve Maps JavaScript API ayarlarını kontrol edin.");
     });
     return () => { cancelled = true; };
   }, [center.lat, center.lng]);
