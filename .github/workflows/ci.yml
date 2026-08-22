@@ -89,6 +89,19 @@ jobs:
           test -f .cpanel.yml
           du -sh .output
 
+      - name: Verify Google Maps production bundle
+        run: |
+          set -euo pipefail
+          if ! grep -R -q 'maps.googleapis.com/maps/api/js' .output/public .output/server 2>/dev/null; then
+            echo "ERROR: Google Maps loader was not embedded in the production output."
+            exit 1
+          fi
+          if ! grep -R -q 'VITE_GOOGLE_MAPS_API_KEY' .output/public .output/server 2>/dev/null && ! grep -R -q 'maps.googleapis.com/maps/api/js?key=' .output/public .output/server 2>/dev/null; then
+            echo "ERROR: Production output does not contain the Google Maps API loader with a build-time key."
+            exit 1
+          fi
+          echo "Google Maps loader and build-time key are present in production output."
+
       - name: TypeScript check
         run: npx tsc --noEmit
 
