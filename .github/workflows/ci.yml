@@ -11,6 +11,9 @@ on:
 permissions:
   contents: read
 
+env:
+  DEPLOY_TARGET: netlen-cpanel-git
+
 concurrency:
   group: netlen-production
   cancel-in-progress: false
@@ -222,4 +225,5 @@ jobs:
             echo "- GitHub source commit: \`${GITHUB_SHA}\`"
             echo "- Netlen repository branch: \`main\`"
             echo "- Netlen repository accepted SHA: \`${NETLEN_DEPLOYED_SHA:-not-confirmed}\`"
+            echo "- Deployment target: \`${DEPLOY_TARGET}\`"
           } >> "$GITHUB_STEP_SUMMARY"
