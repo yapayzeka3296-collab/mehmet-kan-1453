@@ -41,24 +41,34 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Validate production environment
+      - name: Resolve Google Maps production key
         env:
-          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          GOOGLE_MAPS_SECRET: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          GOOGLE_MAPS_VARIABLE: ${{ vars.VITE_GOOGLE_MAPS_API_KEY }}
         run: |
           set -euo pipefail
-          if [ -z "${VITE_GOOGLE_MAPS_API_KEY:-}" ]; then
-            echo "ERROR: GitHub Actions secret VITE_GOOGLE_MAPS_API_KEY is missing. Production deployment is blocked because the Google Maps JavaScript API key is required at Vite build time."
+          key="${GOOGLE_MAPS_SECRET:-}"
+          source="repository secret"
+          if [ -z "$key" ]; then
+            key="${GOOGLE_MAPS_VARIABLE:-}"
+            source="repository variable"
+          fi
+          if [ -z "$key" ]; then
+            echo "ERROR: VITE_GOOGLE_MAPS_API_KEY is not available to this workflow. Configure it under GitHub Settings > Secrets and variables > Actions as a repository secret (preferred)."
             exit 1
           fi
-          if [ "${#VITE_GOOGLE_MAPS_API_KEY}" -lt 20 ]; then
-            echo "ERROR: VITE_GOOGLE_MAPS_API_KEY is present but unexpectedly short. Check that the complete Google Maps browser key was saved."
+          if [ "${#key}" -lt 20 ]; then
+            echo "ERROR: VITE_GOOGLE_MAPS_API_KEY is present but unexpectedly short."
             exit 1
           fi
-          echo "Google Maps production key is configured and has a plausible length."
+          {
+            echo 'VITE_GOOGLE_MAPS_API_KEY<<__GOOGLE_MAPS_KEY__'
+            printf '%s\n' "$key"
+            echo '__GOOGLE_MAPS_KEY__'
+          } >> "$GITHUB_ENV"
+          echo "Google Maps production key resolved from $source."
 
       - name: Production build with memory measurement
-        env:
-          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
         run: |
           set -euo pipefail
           /usr/bin/time -v -o build-resource-usage.txt npm run build
