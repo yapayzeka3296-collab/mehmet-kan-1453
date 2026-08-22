@@ -5,6 +5,5 @@ deployment:
     - /bin/rm -rf ${DEPLOYPATH}.output
     - /bin/cp -R .output ${DEPLOYPATH}
     - /bin/cp app.js ${DEPLOYPATH}
-    - /bin/rm -f ${DEPLOYPATH}maps-config.json
     - /bin/mkdir -p ${DEPLOYPATH}tmp
     - /bin/touch ${DEPLOYPATH}tmp/restart.txt
