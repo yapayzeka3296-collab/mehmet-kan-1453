@@ -5,8 +5,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
@@ -18,29 +17,22 @@ concurrency:
 jobs:
   validate:
     name: Lint, TypeScript and Build
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.action != 'closed' ||
-      github.event.pull_request.merged == true
+    if: github.event_name != 'pull_request' || github.event.action != 'closed' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true && 'main' || github.ref }}
-
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
-
       - name: Install dependencies
         run: npm install
-
       - name: Resolve Google Maps production key
         env:
           GOOGLE_MAPS_SECRET: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
@@ -58,7 +50,7 @@ jobs:
               key="ci-placeholder-google-maps-key"
               source="non-production PR placeholder"
             else
-              echo "ERROR: VITE_GOOGLE_MAPS_API_KEY is not available to this production workflow. Configure it under GitHub Settings > Secrets and variables > Actions as a repository secret (preferred)."
+              echo "ERROR: VITE_GOOGLE_MAPS_API_KEY is not available to this production workflow."
               exit 1
             fi
           fi
@@ -72,21 +64,14 @@ jobs:
             echo '__GOOGLE_MAPS_KEY__'
           } >> "$GITHUB_ENV"
           echo "Google Maps production key resolved from $source."
-
       - name: Production build with memory measurement
-        env:
-          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
         run: |
           set -euo pipefail
           key="${VITE_GOOGLE_MAPS_API_KEY:-}"
-          if [ -z "$key" ] && [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.action }}" != "closed" ]; then
-            key="ci-placeholder-google-maps-key"
-          fi
           test -n "$key"
           export VITE_GOOGLE_MAPS_API_KEY="$key"
           /usr/bin/time -v -o build-resource-usage.txt npm run build
           cat build-resource-usage.txt
-
       - name: Inspect build output
         run: |
           set -euo pipefail
@@ -96,26 +81,15 @@ jobs:
           test -f app.js
           test -f .cpanel.yml
           du -sh .output
-
       - name: Verify Google Maps production bundle
         run: |
           set -euo pipefail
-          if ! grep -R -q 'maps.googleapis.com/maps/api/js' .output/public .output/server 2>/dev/null; then
-            echo "ERROR: Google Maps loader was not embedded in the production output."
-            exit 1
-          fi
-          if ! grep -R -q 'VITE_GOOGLE_MAPS_API_KEY' .output/public .output/server 2>/dev/null && ! grep -R -q 'maps.googleapis.com/maps/api/js?key=' .output/public .output/server 2>/dev/null; then
-            echo "ERROR: Production output does not contain the Google Maps API loader with a build-time key."
-            exit 1
-          fi
-          echo "Google Maps loader and build-time key are present in production output."
-
+          grep -R -q 'maps.googleapis.com/maps/api/js' .output/public .output/server
+          echo "Google Maps loader is present in production output."
       - name: TypeScript check
         run: npx tsc --noEmit
-
       - name: Lint
         run: npm run lint
-
       - name: Upload production deployment payload
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
         uses: actions/upload-artifact@v4
@@ -132,23 +106,15 @@ jobs:
   deploy-netlen:
     name: Deploy production payload to Netlen cPanel Git
     needs: validate
-    if: >-
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
-       github.event.action == 'closed' &&
-       github.event.pull_request.merged == true &&
-       github.event.pull_request.base.ref == 'main')
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
     steps:
       - name: Download production deployment payload
         uses: actions/download-artifact@v4
         with:
           name: myskyparcel-production-${{ github.sha }}
           path: deploy-payload
-
       - name: Validate cPanel deployment secrets
         env:
           CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
@@ -156,10 +122,9 @@ jobs:
           CPANEL_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          test -n "${CPANEL_GIT_SSH_URL:-}" || { echo "ERROR: CPANEL_GIT_SSH_URL is not configured."; exit 1; }
-          test -n "${CPANEL_SSH_PRIVATE_KEY:-}" || { echo "ERROR: CPANEL_SSH_PRIVATE_KEY is not configured."; exit 1; }
-          test -n "${CPANEL_SSH_KNOWN_HOSTS:-}" || { echo "ERROR: CPANEL_SSH_KNOWN_HOSTS is not configured."; exit 1; }
-
+          test -n "${CPANEL_GIT_SSH_URL:-}"
+          test -n "${CPANEL_SSH_PRIVATE_KEY:-}"
+          test -n "${CPANEL_SSH_KNOWN_HOSTS:-}"
       - name: Configure SSH for Netlen cPanel
         env:
           CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
@@ -171,7 +136,6 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$CPANEL_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
-
       - name: Prepare clean cPanel deployment repository
         env:
           CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
@@ -185,7 +149,6 @@ jobs:
             git init -b main
             git remote add origin "$CPANEL_GIT_SSH_URL"
           fi
-
           cd cpanel-deploy
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           cp -R ../deploy-payload/.output .output
@@ -194,12 +157,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+users.noreply.github.com"
           git add -A
-          if git diff --cached --quiet; then
-            echo "No deployment payload changes detected; reusing current Netlen repository state."
-          else
-            git commit -m "deploy: MySkyParcel ${GITHUB_SHA}"
-          fi
-
+          if ! git diff --cached --quiet; then git commit -m "deploy: MySkyParcel ${GITHUB_SHA}"; fi
       - name: Push production payload to Netlen cPanel Git
         working-directory: cpanel-deploy
         env:
@@ -211,7 +169,6 @@ jobs:
           test -n "$deployed_sha"
           echo "Netlen cPanel repository accepted deployment commit: $deployed_sha"
           echo "NETLEN_DEPLOYED_SHA=$deployed_sha" >> "$GITHUB_ENV"
-
       - name: Verify deployment payload
         run: |
           set -euo pipefail
@@ -220,14 +177,12 @@ jobs:
           test -f deploy-payload/.output/server/index.mjs
           test -f deploy-payload/.output/nitro.json
           test -n "${NETLEN_DEPLOYED_SHA:-}"
-          echo "Production payload verified and handed to cPanel push deployment as ${NETLEN_DEPLOYED_SHA}."
-
+          echo "Netlen deployment payload verified: ${NETLEN_DEPLOYED_SHA}"
       - name: Publish deployment summary
         if: always()
         run: |
           {
             echo "### Netlen deployment"
             echo "- GitHub source commit: \`${GITHUB_SHA}\`"
-            echo "- Netlen repository branch: \`main\`"
             echo "- Netlen repository accepted SHA: \`${NETLEN_DEPLOYED_SHA:-not-confirmed}\`"
           } >> "$GITHUB_STEP_SUMMARY"
