@@ -1,17 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <defs>
-    <linearGradient id="sky" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#6EC8FF"/>
-      <stop offset="1" stop-color="#102A5C"/>
+    <linearGradient id="sky" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7DD3FC"/>
+      <stop offset="0.55" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#071326"/>
     </linearGradient>
-    <linearGradient id="gold" x1="18" y1="18" x2="47" y2="48" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFE9A3"/>
-      <stop offset="1" stop-color="#D6A63A"/>
+    <linearGradient id="gold" x1="20" y1="18" x2="45" y2="47" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF1B8"/>
+      <stop offset="0.5" stop-color="#F5C85B"/>
+      <stop offset="1" stop-color="#B7791F"/>
     </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
   </defs>
-  <circle cx="32" cy="32" r="29" fill="#071326" stroke="url(#gold)" stroke-width="2.5"/>
-  <circle cx="32" cy="32" r="22" fill="url(#sky)" opacity=".95"/>
-  <path d="M10 32h44M32 10c7 7 10 14 10 22s-3 15-10 22M32 10c-7 7-10 14-10 22s3 15 10 22M14 21c11 4 25 4 36 0M14 43c11-4 25-4 36 0" stroke="#fff" stroke-opacity=".5" stroke-width="1.2"/>
-  <path d="M25 25h7v7h-7zM32 25h7v7h-7zM25 32h7v7h-7zM32 32h7v7h-7z" fill="url(#gold)" stroke="#fff" stroke-opacity=".7" stroke-width=".7"/>
-  <path d="M49 10l1.5 4.5L55 16l-4.5 1.5L49 22l-1.5-4.5L43 16l4.5-1.5L49 10z" fill="#FFE9A3"/>
+  <circle cx="32" cy="32" r="29" fill="#050D1C" stroke="url(#gold)" stroke-width="2.5"/>
+  <circle cx="32" cy="32" r="24" fill="url(#sky)"/>
+  <path d="M12 32h40M32 8c6 7 9 15 9 24s-3 17-9 24M32 8c-6 7-9 15-9 24s3 17 9 24M15 20c10 4 24 4 34 0M15 44c10-4 24-4 34 0" stroke="#EAF6FF" stroke-opacity=".42" stroke-width="1.1"/>
+  <path d="M22 24h10v10H22zM32 24h10v10H32zM22 34h10v10H22zM32 34h10v10H32z" fill="none" stroke="url(#gold)" stroke-width="2"/>
+  <path d="M27 29h5v5h-5zM32 29h5v5h-5zM27 34h5v5h-5zM32 34h5v5h-5z" fill="url(#gold)"/>
+  <path d="M49 9l1.7 5.1L56 16l-5.3 1.9L49 23l-1.7-5.1L42 16l5.3-1.9L49 9z" fill="#FFF1B8" filter="url(#glow)"/>
 </svg>
