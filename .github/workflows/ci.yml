@@ -54,9 +54,13 @@ jobs:
           test -f .output/server/index.mjs
           test -f .output/nitro.json
           test -d .output/public
+          test -f app.js
+          test -f .cpanel.yml
           echo "Production server entry exists: .output/server/index.mjs"
           echo "Nitro metadata exists: .output/nitro.json"
           echo "Production public directory exists: .output/public"
+          echo "Passenger entry exists: app.js"
+          echo "cPanel deployment manifest exists: .cpanel.yml"
           du -sh .output
 
       - name: TypeScript check
@@ -81,17 +85,29 @@ jobs:
           echo "Production deployment commit: $(git rev-parse HEAD)"
 
   deploy-netlen:
-    name: Push to Netlen cPanel Git repository
+    name: Push exact production commit to Netlen cPanel Git
     needs: validate
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Checkout production commit
+      - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      - name: Fetch the production commit created by validate
+        run: |
+          set -euo pipefail
+          git fetch origin main --force
+          git checkout --detach origin/main
+          production_sha="$(git rev-parse HEAD)"
+          echo "Production commit selected for Netlen: ${production_sha}"
+          test -f .output/server/index.mjs
+          test -f .output/nitro.json
+          test -f app.js
+          test -f .cpanel.yml
 
       - name: Validate cPanel deployment secrets
         env:
@@ -117,7 +133,7 @@ jobs:
           printf '%s\n' "$CPANEL_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Push exact production commit to cPanel-managed repository
+      - name: Verify Netlen cPanel remote and push exact production commit
         env:
           CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
         run: |
@@ -125,7 +141,12 @@ jobs:
           git remote remove cpanel 2>/dev/null || true
           git remote add cpanel "$CPANEL_GIT_SSH_URL"
           production_sha="$(git rev-parse HEAD)"
-          echo "Pushing production commit ${production_sha} to Netlen cPanel repository..."
-          git push cpanel HEAD:main
-          echo "Netlen cPanel repository accepted production commit ${production_sha}."
-          echo "cPanel's post-receive hook should now execute the checked-in .cpanel.yml automatically."
+          echo "Netlen remote: ${CPANEL_GIT_SSH_URL%@*}@***"
+          remote_main_sha="$(git ls-remote "$CPANEL_GIT_SSH_URL" refs/heads/main | awk '{print $1}')"
+          echo "Netlen main before push: ${remote_main_sha:-<unavailable>}"
+          echo "GitHub production commit: ${production_sha}"
+          git push cpanel "${production_sha}:refs/heads/main"
+          verified_remote_sha="$(git ls-remote "$CPANEL_GIT_SSH_URL" refs/heads/main | awk '{print $1}')"
+          test "$verified_remote_sha" = "$production_sha"
+          echo "Netlen cPanel repository now points to production commit: ${verified_remote_sha}"
+          echo "cPanel's post-receive hook is now responsible for executing .cpanel.yml."
