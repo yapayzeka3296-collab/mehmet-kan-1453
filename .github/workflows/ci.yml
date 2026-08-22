@@ -41,20 +41,39 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Validate production environment
+      - name: Resolve Google Maps production key
         env:
-          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          GOOGLE_MAPS_SECRET: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          GOOGLE_MAPS_VARIABLE: ${{ vars.VITE_GOOGLE_MAPS_API_KEY }}
         run: |
           set -euo pipefail
-          if [ -z "${VITE_GOOGLE_MAPS_API_KEY:-}" ]; then
-            echo "ERROR: GitHub Actions secret VITE_GOOGLE_MAPS_API_KEY is missing. Production deployment is blocked because the Google Maps JavaScript API key is required at Vite build time."
+          key="${GOOGLE_MAPS_SECRET:-}"
+          source="repository secret"
+          if [ -z "$key" ]; then
+            key="${GOOGLE_MAPS_VARIABLE:-}"
+            source="repository variable"
+          fi
+          if [ -z "$key" ]; then
+            if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.action }}" != "closed" ]; then
+              key="ci-placeholder-google-maps-key"
+              source="non-production PR placeholder"
+            else
+              echo "ERROR: VITE_GOOGLE_MAPS_API_KEY is not available to this production workflow. Configure it under GitHub Settings > Secrets and variables > Actions as a repository secret (preferred)."
+              exit 1
+            fi
+          fi
+          if [ "${#key}" -lt 20 ]; then
+            echo "ERROR: VITE_GOOGLE_MAPS_API_KEY is present but unexpectedly short."
             exit 1
           fi
-          echo "Google Maps production key is configured."
+          {
+            echo 'VITE_GOOGLE_MAPS_API_KEY<<__GOOGLE_MAPS_KEY__'
+            printf '%s\n' "$key"
+            echo '__GOOGLE_MAPS_KEY__'
+          } >> "$GITHUB_ENV"
+          echo "Google Maps production key resolved from $source."
 
       - name: Production build with memory measurement
-        env:
-          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
         run: |
           set -euo pipefail
           /usr/bin/time -v -o build-resource-usage.txt npm run build
@@ -152,7 +171,7 @@ jobs:
           cp ../deploy-payload/app.js app.js
           cp ../deploy-payload/.cpanel.yml .cpanel.yml
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+users.noreply.github.com"
           git add -A
           git commit -m "deploy: MySkyParcel ${GITHUB_SHA}"
 
