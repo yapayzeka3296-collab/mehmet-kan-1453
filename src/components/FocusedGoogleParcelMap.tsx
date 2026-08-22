@@ -4,319 +4,43 @@ import type { Parcel } from "@/types/parcel";
 type CityCenter = { lat: number; lng: number };
 type ViewportBounds = { minLat: number; minLng: number; maxLat: number; maxLng: number };
 type FocusTarget = { city: CityCenter; parcel: CityCenter; token: string };
-type MapParcel = Parcel & { geometry?: unknown };
-type Props = {
-  parcels: MapParcel[];
-  selectedId: string | null;
-  selectedIds?: Set<string>;
-  multiSelect?: boolean;
-  onSelect: (id: string | null) => void;
-  onToggleSelect?: (id: string) => void;
-  onViewportChange?: (bounds: ViewportBounds) => void;
-  center: CityCenter;
-  focusTarget?: FocusTarget | null;
-};
+type Props = { parcels: Parcel[]; selectedId: string | null; selectedIds?: Set<string>; multiSelect?: boolean; onSelect: (id: string | null) => void; onToggleSelect?: (id: string) => void; onViewportChange?: (bounds: ViewportBounds) => void; center: CityCenter; focusTarget?: FocusTarget | null };
 type Camera = { lat: number; lng: number; zoom: number };
 
-declare global {
-  interface Window {
-    google?: any;
-    __myskyparcelGoogleMapsPromise?: Promise<any>;
-  }
-}
-
 const SCRIPT_ID = "myskyparcel-google-maps";
+let mapsPromise: Promise<any> | null = null;
 const TURKEY_CENTER = { lat: 39, lng: 35 };
-const TURKEY_ZOOM = 5;
-const CITY_ZOOM = 11;
-const FOCUS_ZOOM = 16;
-const DEBOUNCE_MS = 180;
-const EMPTY_SELECTED_IDS = new Set<string>();
-const NEON_CORE = "#eafaff";
-const NEON_GLOW = "#5de2ff";
-const SELECTED_CORE = "#fff4b0";
-const SELECTED_GLOW = "#ffd35c";
+const INITIAL_ISTANBUL_ZOOM = 9.5;
+const PARCEL_OVERVIEW_ZOOM = 11;
 
-function loadMaps(key: string): Promise<any> {
-  if (typeof window === "undefined") return Promise.reject(new Error("Google Maps yalnızca tarayıcıda yüklenebilir."));
-  if (window.google?.maps) return Promise.resolve(window.google.maps);
-  if (window.__myskyparcelGoogleMapsPromise) return window.__myskyparcelGoogleMapsPromise;
-
-  window.__myskyparcelGoogleMapsPromise = new Promise((resolve, reject) => {
+function loadMaps(key: string) {
+  if (typeof window === "undefined") return Promise.reject(new Error("browser"));
+  if ((window as any).google?.maps) return Promise.resolve((window as any).google.maps);
+  if (mapsPromise) return mapsPromise;
+  mapsPromise = new Promise((resolve, reject) => {
     const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
-    const fail = () => {
-      window.__myskyparcelGoogleMapsPromise = undefined;
-      reject(new Error("Google Maps yüklenemedi. API anahtarı, Maps JavaScript API, billing ve domain kısıtlamalarını kontrol edin."));
-    };
-    const finish = () => (window.google?.maps ? resolve(window.google.maps) : fail());
-    if (existing) {
-      existing.addEventListener("load", finish, { once: true });
-      existing.addEventListener("error", fail, { once: true });
-      return;
-    }
-    const script = document.createElement("script");
-    script.id = SCRIPT_ID;
-    script.async = true;
-    script.defer = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}`;
-    script.onload = finish;
-    script.onerror = fail;
-    document.head.appendChild(script);
+    const finish = () => ((window as any).google?.maps ? resolve((window as any).google.maps) : reject(new Error("Google Maps yüklenemedi.")));
+    if (existing) { existing.addEventListener("load", finish, { once: true }); existing.addEventListener("error", () => reject(new Error("Google Maps yüklenemedi.")), { once: true }); return; }
+    const s = document.createElement("script"); s.id = SCRIPT_ID; s.async = true; s.defer = true; s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}`; s.onload = finish; s.onerror = () => reject(new Error("Google Maps yüklenemedi.")); document.head.appendChild(s);
   });
-  return window.__myskyparcelGoogleMapsPromise;
+  return mapsPromise;
 }
 
-function parcelColor(parcel: MapParcel) {
-  if (parcel.status === "sold") return "#ff1744";
-  if (parcel.status === "reserved") return "#f6c453";
-  if (parcel.tier === "premium") return "#f6c453";
-  if (parcel.tier === "elite") return "#b77cff";
-  return "#55c9ff";
-}
+const color = (p: Parcel) => p.status === "sold" ? "#ff1744" : p.tier === "premium" ? "#f6c453" : p.tier === "elite" ? "#b77cff" : "#55c9ff";
+function grid(center: CityCenter, total: number, inner: number, outer: number) { if (!total) return []; const cos = Math.max(Math.cos(center.lat * Math.PI / 180), .2); let n = Math.max(2, Math.ceil(Math.sqrt(total))); const make = () => { const size = outer * 2 / n; const ratio = inner / outer; const a: any[] = []; for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) { const x0 = -outer + c * size, y0 = -outer + r * size, x1 = x0 + size, y1 = y0 + size; const cx = (x0 + x1) / 2 / outer, cy = (y0 + y1) / 2 / outer; if (Math.max(Math.abs(cx), Math.abs(cy)) >= ratio) a.push({ x0, y0, x1, y1 }); } return a; }; let a = make(); while (a.length < total) { n++; a = make(); } const point = (x: number, y: number) => ({ lat: center.lat + y, lng: center.lng + x / cos }); return a.slice(0, total).map(x => ({ path: [point(x.x0, x.y0), point(x.x1, x.y0), point(x.x1, x.y1), point(x.x0, x.y1)] })); }
+function focusParcelShape(center: CityCenter) { const dLat = 0.0042; const dLng = 0.0055 / Math.max(Math.cos(center.lat * Math.PI / 180), 0.25); return [{ lat: center.lat - dLat, lng: center.lng - dLng }, { lat: center.lat - dLat, lng: center.lng + dLng }, { lat: center.lat + dLat, lng: center.lng + dLng }, { lat: center.lat + dLat, lng: center.lng - dLng }]; }
+const easeInOut = (t: number) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+function animateCamera(map: any, from: Camera, to: Camera, duration: number, maps: any, onDone?: () => void) { let frame = 0; const started = performance.now(); const step = (now: number) => { const raw = Math.min(1, (now - started) / duration); const t = easeInOut(raw); map.moveCamera({ center: new maps.LatLng(lerp(from.lat, to.lat, t), lerp(from.lng, to.lng, t)), zoom: lerp(from.zoom, to.zoom, t), tilt: 0, heading: 0 }); if (raw < 1) frame = requestAnimationFrame(step); else onDone?.(); }; frame = requestAnimationFrame(step); return () => cancelAnimationFrame(frame); }
 
-function animateCamera(map: any, from: Camera, to: Camera, duration: number, maps: any) {
-  const start = performance.now();
-  let frame = 0;
-  const ease = (t: number) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-  const step = (now: number) => {
-    const raw = Math.min(1, (now - start) / duration);
-    const t = ease(raw);
-    map.moveCamera({
-      center: new maps.LatLng(from.lat + (to.lat - from.lat) * t, from.lng + (to.lng - from.lng) * t),
-      zoom: from.zoom + (to.zoom - from.zoom) * t,
-      tilt: 0,
-      heading: 0,
-    });
-    if (raw < 1) frame = requestAnimationFrame(step);
-  };
-  frame = requestAnimationFrame(step);
-  return () => cancelAnimationFrame(frame);
-}
-
-function distanceInLatitudeDegrees(a: MapParcel, b: MapParcel) {
-  const lat = Number(a.latitude);
-  const lng = Number(a.longitude);
-  const lat2 = Number(b.latitude);
-  const lng2 = Number(b.longitude);
-  const cos = Math.max(Math.cos((lat * Math.PI) / 180), 0.25);
-  const dx = (lng2 - lng) * cos;
-  const dy = lat2 - lat;
-  return Math.hypot(dx, dy);
-}
-
-function estimateGridCellSize(parcels: MapParcel[]) {
-  const sample = parcels.filter((p) => Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude))).slice(0, 180);
-  if (sample.length < 2) return 0.0012;
-  const nearest: number[] = [];
-  for (let i = 0; i < sample.length; i += 1) {
-    let best = Number.POSITIVE_INFINITY;
-    for (let j = 0; j < sample.length; j += 1) {
-      if (i === j) continue;
-      best = Math.min(best, distanceInLatitudeDegrees(sample[i]!, sample[j]!));
-    }
-    if (Number.isFinite(best)) nearest.push(best);
-  }
-  nearest.sort((a, b) => a - b);
-  const median = nearest[Math.floor(nearest.length / 2)] ?? 0.0012;
-  return Math.min(0.003, Math.max(0.00025, median * 0.82));
-}
-
-function squarePath(parcel: MapParcel, halfLat: number, maps: any) {
-  const lat = Number(parcel.latitude);
-  const lng = Number(parcel.longitude);
-  const cos = Math.max(Math.cos((lat * Math.PI) / 180), 0.25);
-  const halfLng = halfLat / cos;
-  return [
-    new maps.LatLng(lat - halfLat, lng - halfLng),
-    new maps.LatLng(lat - halfLat, lng + halfLng),
-    new maps.LatLng(lat + halfLat, lng + halfLng),
-    new maps.LatLng(lat + halfLat, lng - halfLng),
-  ];
-}
-
-export function FocusedGoogleParcelMap({
-  parcels,
-  selectedId,
-  selectedIds = EMPTY_SELECTED_IDS,
-  multiSelect = false,
-  onSelect,
-  onToggleSelect,
-  onViewportChange,
-  center,
-  focusTarget,
-}: Props) {
-  const container = useRef<HTMLDivElement | null>(null);
-  const map = useRef<any>(null);
-  const overlays = useRef<Map<string, { glow: any; main: any }>>(new Map());
-  const animation = useRef<(() => void) | null>(null);
-  const selectedIdRef = useRef(selectedId);
-  const selectedIdsRef = useRef(selectedIds);
-  const multiRef = useRef(multiSelect);
-  const onSelectRef = useRef(onSelect);
-  const onToggleRef = useRef(onToggleSelect);
-  const parcelsRef = useRef(parcels);
-  const [ready, setReady] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    selectedIdRef.current = selectedId;
-    selectedIdsRef.current = selectedIds;
-    multiRef.current = multiSelect;
-    onSelectRef.current = onSelect;
-    onToggleRef.current = onToggleSelect;
-    parcelsRef.current = parcels;
-  }, [selectedId, selectedIds, multiSelect, onSelect, onToggleSelect, parcels]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (!key) {
-      setError("Google Maps API anahtarı eksik. GitHub Actions secret VITE_GOOGLE_MAPS_API_KEY kontrol edilmeli.");
-      return;
-    }
-    loadMaps(key).then((maps) => {
-      if (cancelled || !container.current) return;
-      if (!map.current) {
-        map.current = new maps.Map(container.current, {
-          center: TURKEY_CENTER,
-          zoom: TURKEY_ZOOM,
-          mapTypeId: "satellite",
-          streetViewControl: false,
-          fullscreenControl: false,
-          mapTypeControl: false,
-          gestureHandling: "greedy",
-          clickableIcons: false,
-          tilt: 0,
-          heading: 0,
-          backgroundColor: "#071a2d",
-        });
-      }
-      setError(null);
-      setReady(true);
-    }).catch((cause) => {
-      if (!cancelled) setError(cause instanceof Error ? cause.message : "Google Maps yüklenemedi.");
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    if (!ready || !map.current) return;
-    const maps = window.google?.maps;
-    if (!maps) return;
-    animation.current?.();
-    const current = map.current.getCenter?.();
-    const from: Camera = {
-      lat: current?.lat?.() ?? TURKEY_CENTER.lat,
-      lng: current?.lng?.() ?? TURKEY_CENTER.lng,
-      zoom: map.current.getZoom?.() ?? TURKEY_ZOOM,
-    };
-    animation.current = animateCamera(map.current, from, { ...center, zoom: CITY_ZOOM }, 1500, maps);
-    return () => animation.current?.();
-  }, [ready, center.lat, center.lng]);
-
-  useEffect(() => {
-    if (!ready || !map.current || !focusTarget) return;
-    const maps = window.google?.maps;
-    if (!maps) return;
-    animation.current?.();
-    const current = map.current.getCenter?.();
-    const from: Camera = {
-      lat: current?.lat?.() ?? center.lat,
-      lng: current?.lng?.() ?? center.lng,
-      zoom: map.current.getZoom?.() ?? CITY_ZOOM,
-    };
-    animation.current = animateCamera(map.current, from, { ...focusTarget.parcel, zoom: FOCUS_ZOOM }, 1900, maps);
-    return () => animation.current?.();
-  }, [ready, focusTarget?.token]);
-
-  useEffect(() => {
-    if (!ready || !map.current || !onViewportChange) return;
-    const maps = window.google?.maps;
-    if (!maps) return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let last = "";
-    const emit = () => {
-      const bounds = map.current?.getBounds?.();
-      if (!bounds) return;
-      const ne = bounds.getNorthEast();
-      const sw = bounds.getSouthWest();
-      const next = { minLat: sw.lat(), minLng: sw.lng(), maxLat: ne.lat(), maxLng: ne.lng() };
-      const key = `${next.minLat.toFixed(5)},${next.minLng.toFixed(5)},${next.maxLat.toFixed(5)},${next.maxLng.toFixed(5)}`;
-      if (key === last) return;
-      last = key;
-      onViewportChange(next);
-    };
-    const listener = maps.event.addListener(map.current, "idle", () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(emit, DEBOUNCE_MS);
-    });
-    timer = setTimeout(emit, DEBOUNCE_MS);
-    return () => {
-      maps.event.removeListener(listener);
-      if (timer) clearTimeout(timer);
-    };
-  }, [ready, onViewportChange]);
-
-  useEffect(() => {
-    if (!ready || !map.current) return;
-    const maps = window.google?.maps;
-    if (!maps) return;
-    overlays.current.forEach(({ glow, main }) => { glow.setMap(null); main.setMap(null); });
-    overlays.current.clear();
-
-    const validParcels = parcels.filter((parcel) => Number.isFinite(Number(parcel.latitude)) && Number.isFinite(Number(parcel.longitude)));
-    const halfLat = estimateGridCellSize(validParcels) / 2;
-
-    validParcels.forEach((parcel) => {
-      const selected = multiRef.current ? selectedIdsRef.current.has(parcel.id) : selectedIdRef.current === parcel.id;
-      const base = parcelColor(parcel);
-      const glowColor = selected ? SELECTED_GLOW : (parcel.status === "sold" || parcel.status === "reserved" ? base : NEON_GLOW);
-      const coreColor = selected ? SELECTED_CORE : (parcel.status === "sold" || parcel.status === "reserved" ? base : NEON_CORE);
-      const path = squarePath(parcel, halfLat, maps);
-      const glow = new maps.Polygon({ map: map.current, paths: path, geodesic: false, strokeColor: glowColor, strokeOpacity: selected ? 0.55 : 0.2, strokeWeight: selected ? 7 : 4.5, fillColor: base, fillOpacity: selected ? 0.12 : parcel.status === "sold" ? 0.08 : 0.008, clickable: false, zIndex: selected ? 300 : 20 });
-      const main = new maps.Polygon({ map: map.current, paths: path, geodesic: false, strokeColor: coreColor, strokeOpacity: selected ? 1 : 0.82, strokeWeight: selected ? 1.9 : parcel.status === "sold" ? 2.5 : 1.1, fillColor: base, fillOpacity: selected ? 0.17 : parcel.status === "sold" ? 0.1 : parcel.status === "reserved" ? 0.07 : 0.012, clickable: true, zIndex: selected ? 301 : 21 });
-      main.addListener("click", () => {
-        if (multiRef.current && parcel.status === "available") onToggleRef.current?.(parcel.id);
-        else onSelectRef.current(parcel.id);
-      });
-      main.addListener("mouseover", () => main.setOptions({ strokeColor: selected ? SELECTED_CORE : "#ffffff", strokeOpacity: 0.98, strokeWeight: selected ? 2.3 : 1.7, fillOpacity: selected ? 0.2 : 0.04, zIndex: 400 }));
-      main.addListener("mouseout", () => {
-        const active = multiRef.current ? selectedIdsRef.current.has(parcel.id) : selectedIdRef.current === parcel.id;
-        main.setOptions({ strokeColor: active ? SELECTED_CORE : coreColor, strokeOpacity: active ? 1 : 0.82, strokeWeight: active ? 1.9 : parcel.status === "sold" ? 2.5 : 1.1, fillOpacity: active ? 0.17 : parcel.status === "sold" ? 0.1 : parcel.status === "reserved" ? 0.07 : 0.012, zIndex: active ? 301 : 21 });
-      });
-      overlays.current.set(parcel.id, { glow, main });
-    });
-
-    return () => {
-      overlays.current.forEach(({ glow, main }) => { glow.setMap(null); main.setMap(null); });
-      overlays.current.clear();
-    };
-  }, [ready, parcels]);
-
-  useEffect(() => {
-    if (!ready) return;
-    overlays.current.forEach(({ glow, main }, id) => {
-      const parcel = parcelsRef.current.find((item) => item.id === id);
-      if (!parcel) return;
-      const selected = multiSelect ? selectedIds.has(id) : selectedId === id;
-      const base = parcelColor(parcel);
-      main.setOptions({ strokeColor: selected ? SELECTED_CORE : (parcel.status === "sold" || parcel.status === "reserved" ? base : NEON_CORE), strokeOpacity: selected ? 1 : 0.82, strokeWeight: selected ? 1.9 : parcel.status === "sold" ? 2.5 : 1.1, fillColor: base, fillOpacity: selected ? 0.17 : parcel.status === "sold" ? 0.1 : parcel.status === "reserved" ? 0.07 : 0.012, zIndex: selected ? 301 : 21 });
-      glow.setOptions({ strokeColor: selected ? SELECTED_GLOW : (parcel.status === "sold" || parcel.status === "reserved" ? base : NEON_GLOW), strokeOpacity: selected ? 0.55 : 0.2, strokeWeight: selected ? 7 : 4.5, fillColor: base, fillOpacity: selected ? 0.12 : parcel.status === "sold" ? 0.08 : 0.008, zIndex: selected ? 300 : 20 });
-    });
-  }, [ready, selectedId, selectedIds, multiSelect]);
-
-  useEffect(() => () => {
-    animation.current?.();
-    overlays.current.forEach(({ glow, main }) => { glow.setMap(null); main.setMap(null); });
-    overlays.current.clear();
-    map.current = null;
-  }, []);
-
-  return (
-    <div className="relative h-[500px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[600px] lg:h-[670px]">
-      <div ref={container} className="absolute inset-0" aria-label="MySkyParcel Türkiye dijital gökyüzü parsel haritası" />
-      <div className="pointer-events-none absolute left-3 top-3 rounded-xl border border-cyan-200/20 bg-slate-950/70 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/80 backdrop-blur-sm">Türkiye • Dijital Gökyüzü Parselleri</div>
-      {error && <div className="absolute inset-0 grid place-items-center bg-[#071a2d] p-6 text-center"><p className="max-w-xl text-xs leading-5 text-white/70">{error}</p></div>}
-    </div>
-  );
+export function FocusedGoogleParcelMap({ parcels, selectedId, selectedIds = new Set(), multiSelect = false, onSelect, onToggleSelect, onViewportChange, center, focusTarget }: Props) {
+  const ref = useRef<HTMLDivElement | null>(null); const map = useRef<any>(null); const focused = useRef<string | null>(null); const focusOverlay = useRef<any>(null); const animationCancel = useRef<(() => void) | null>(null); const lastCityCenter = useRef<CityCenter | null>(null); const hasInitialAnimation = useRef(false); const [error, setError] = useState<string | null>(null); const [ready, setReady] = useState(false);
+  useEffect(() => { const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY; if (!key) { setError("Google Maps API anahtarı eksik."); return; } loadMaps(key).then((maps) => { if (!ref.current) return; map.current ||= new maps.Map(ref.current, { center: TURKEY_CENTER, zoom: 5, mapTypeId: "satellite", streetViewControl: false, fullscreenControl: false, mapTypeControl: false, gestureHandling: "greedy", clickableIcons: false, tilt: 0, heading: 0 }); setReady(true); }).catch(e => setError(e.message)); }, []);
+  useEffect(() => { if (!ready || !map.current || hasInitialAnimation.current || focusTarget) return; hasInitialAnimation.current = true; lastCityCenter.current = center; const maps = (window as any).google.maps; animationCancel.current?.(); const turkey: Camera = { ...TURKEY_CENTER, zoom: 5 }; const istanbul: Camera = { ...center, zoom: INITIAL_ISTANBUL_ZOOM }; map.current.moveCamera({ center: new maps.LatLng(turkey.lat, turkey.lng), zoom: turkey.zoom, tilt: 0, heading: 0 }); animationCancel.current = animateCamera(map.current, turkey, istanbul, 8000, maps); return () => { animationCancel.current?.(); animationCancel.current = null; }; }, [ready, center.lat, center.lng, focusTarget]);
+  useEffect(() => { if (!ready || !map.current) return; if (!lastCityCenter.current) { lastCityCenter.current = center; return; } const previous = lastCityCenter.current; if (previous.lat === center.lat && previous.lng === center.lng) return; lastCityCenter.current = center; if (focusTarget) return; const maps = (window as any).google.maps; animationCancel.current?.(); const current = map.current.getCenter(); const from: Camera = { lat: current?.lat?.() ?? TURKEY_CENTER.lat, lng: current?.lng?.() ?? TURKEY_CENTER.lng, zoom: map.current.getZoom?.() ?? 5 }; const to: Camera = { lat: center.lat, lng: center.lng, zoom: INITIAL_ISTANBUL_ZOOM }; animationCancel.current = animateCamera(map.current, from, to, 7000, maps); return () => { animationCancel.current?.(); animationCancel.current = null; }; }, [ready, center.lat, center.lng, focusTarget]);
+  useEffect(() => { if (!ready || !map.current || !focusTarget || focused.current === focusTarget.token) return; focused.current = focusTarget.token; const maps = (window as any).google.maps; animationCancel.current?.(); if (focusOverlay.current) { focusOverlay.current.setMap(null); focusOverlay.current = null; } const turkey: Camera = { ...TURKEY_CENTER, zoom: 5 }; map.current.moveCamera({ center: turkey, zoom: turkey.zoom, tilt: 0, heading: 0 }); const cityCamera: Camera = { ...focusTarget.city, zoom: INITIAL_ISTANBUL_ZOOM }; animationCancel.current = animateCamera(map.current, turkey, cityCamera, 8000, maps, () => { const parcelCamera: Camera = { ...focusTarget.parcel, zoom: PARCEL_OVERVIEW_ZOOM }; animationCancel.current = animateCamera(map.current, cityCamera, parcelCamera, 5500, maps, () => { focusOverlay.current = new maps.Polygon({ map: map.current, paths: focusParcelShape(focusTarget.parcel), strokeColor: "#ff1744", strokeOpacity: 1, strokeWeight: 3, fillColor: "#ff1744", fillOpacity: .38, clickable: true, zIndex: 1000 }); const focusParcelId = focusTarget.token.split(":")[0]; if (focusParcelId) focusOverlay.current.addListener("click", () => onSelect(focusParcelId)); }); }); return () => { animationCancel.current?.(); animationCancel.current = null; }; }, [ready, focusTarget, onSelect]);
+  useEffect(() => { if (!ready || !map.current || !onViewportChange) return; const maps = (window as any).google.maps; const emit = () => { const b = map.current.getBounds(); if (!b) return; const ne = b.getNorthEast(), sw = b.getSouthWest(); onViewportChange({ minLat: sw.lat(), minLng: sw.lng(), maxLat: ne.lat(), maxLng: ne.lng() }); }; const l = maps.event.addListener(map.current, "idle", () => setTimeout(emit, 100)); emit(); return () => maps.event.removeListener(l); }, [ready, onViewportChange]);
+  useEffect(() => { if (!ready || !map.current) return; const maps = (window as any).google.maps; const all: any[] = []; const configs: any[] = [["digital", .095, .165], ["elite", .05, .08], ["premium", .012, .035]]; configs.forEach(([tier, inner, outer]) => { const ps = parcels.filter(p => p.tier === tier), cells = grid(center, ps.length, inner, outer); ps.forEach((p, i) => { const cell = cells[i]; if (!cell) return; const paths = cell.path.map((x: any) => new maps.LatLng(x.lat, x.lng)); const c = color(p), sel = multiSelect ? selectedIds.has(p.id) : selectedId === p.id; const poly = new maps.Polygon({ map: map.current, paths, strokeColor: sel ? "#fff4b0" : c, strokeOpacity: 1, strokeWeight: sel ? 2.5 : p.status === "sold" ? 2.5 : 1.1, fillColor: c, fillOpacity: sel ? .17 : p.status === "sold" ? .08 : .008, clickable: true, zIndex: sel ? 501 : p.status === "sold" ? 500 : 21 }); poly.addListener("click", () => multiSelect && p.status === "available" ? onToggleSelect?.(p.id) : onSelect(p.id)); all.push(poly); }); }); return () => all.forEach(p => p.setMap(null)); }, [ready, parcels, center.lat, center.lng, selectedId, selectedIds, multiSelect, onSelect, onToggleSelect]);
+  useEffect(() => () => { animationCancel.current?.(); if (focusOverlay.current) focusOverlay.current.setMap(null); map.current = null; }, []);
+  return <div className="relative h-[500px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[600px] lg:h-[670px]"><div ref={ref} className="absolute inset-0" aria-label="MySkyParcel parsel haritası" />{error && <div className="absolute inset-0 grid place-items-center bg-[#071a2d] p-6 text-center"><p className="text-xs text-white/70">{error}</p></div>}</div>;
 }
