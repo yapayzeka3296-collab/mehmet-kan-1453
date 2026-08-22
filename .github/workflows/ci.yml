@@ -1,17 +1,15 @@
-# MySkyParcel production deployment: GitHub Actions -> Netlen cPanel-managed Git -> .cpanel.yml
 name: CI
 
 on:
   workflow_dispatch:
   pull_request:
+    types: [opened, synchronize, reopened, closed]
   push:
     branches:
       - main
-    paths-ignore:
-      - '.output/**'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: netlen-production
@@ -20,6 +18,10 @@ concurrency:
 jobs:
   validate:
     name: Lint, TypeScript and Build
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.action != 'closed' ||
+      github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -28,6 +30,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true && 'main' || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -43,9 +46,7 @@ jobs:
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
         run: |
           set -euo pipefail
-          echo "Starting MySkyParcel production build with resource measurement..."
           /usr/bin/time -v -o build-resource-usage.txt npm run build
-          echo "=== Build resource usage ==="
           cat build-resource-usage.txt
 
       - name: Inspect build output
@@ -56,11 +57,6 @@ jobs:
           test -d .output/public
           test -f app.js
           test -f .cpanel.yml
-          echo "Production server entry exists: .output/server/index.mjs"
-          echo "Nitro metadata exists: .output/nitro.json"
-          echo "Production public directory exists: .output/public"
-          echo "Passenger entry exists: app.js"
-          echo "cPanel deployment manifest exists: .cpanel.yml"
           du -sh .output
 
       - name: TypeScript check
@@ -69,45 +65,39 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Commit production build for cPanel
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f .output
-          if git diff --cached --quiet; then
-            echo "Production build is already up to date."
-          else
-            git commit -m "chore: update Netlen production build [skip ci]"
-            git push origin HEAD:main
-          fi
-          echo "Production deployment commit: $(git rev-parse HEAD)"
+      - name: Upload production deployment payload
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+        uses: actions/upload-artifact@v4
+        with:
+          name: myskyparcel-production-${{ github.sha }}
+          include-hidden-files: true
+          path: |
+            .output/**
+            app.js
+            .cpanel.yml
+          if-no-files-found: error
+          retention-days: 7
 
   deploy-netlen:
-    name: Push exact production commit to Netlen cPanel Git
+    name: Deploy production payload to Netlen cPanel Git
     needs: validate
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    environment: production
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+      - name: Download production deployment payload
+        uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0
-
-      - name: Fetch the production commit created by validate
-        run: |
-          set -euo pipefail
-          git fetch origin main --force
-          git checkout --detach origin/main
-          production_sha="$(git rev-parse HEAD)"
-          echo "Production commit selected for Netlen: ${production_sha}"
-          test -f .output/server/index.mjs
-          test -f .output/nitro.json
-          test -f app.js
-          test -f .cpanel.yml
+          name: myskyparcel-production-${{ github.sha }}
+          path: deploy-payload
 
       - name: Validate cPanel deployment secrets
         env:
@@ -119,7 +109,6 @@ jobs:
           test -n "${CPANEL_GIT_SSH_URL:-}" || { echo "ERROR: CPANEL_GIT_SSH_URL is not configured."; exit 1; }
           test -n "${CPANEL_SSH_PRIVATE_KEY:-}" || { echo "ERROR: CPANEL_SSH_PRIVATE_KEY is not configured."; exit 1; }
           test -n "${CPANEL_SSH_KNOWN_HOSTS:-}" || { echo "ERROR: CPANEL_SSH_KNOWN_HOSTS is not configured."; exit 1; }
-          echo "cPanel deployment secrets are configured."
 
       - name: Configure SSH for Netlen cPanel
         env:
@@ -133,20 +122,46 @@ jobs:
           printf '%s\n' "$CPANEL_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Verify Netlen cPanel remote and push exact production commit
+      - name: Prepare clean cPanel deployment repository
         env:
           CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
         run: |
           set -euo pipefail
-          git remote remove cpanel 2>/dev/null || true
-          git remote add cpanel "$CPANEL_GIT_SSH_URL"
-          production_sha="$(git rev-parse HEAD)"
-          echo "Netlen remote: ${CPANEL_GIT_SSH_URL%@*}@***"
-          remote_main_sha="$(git ls-remote "$CPANEL_GIT_SSH_URL" refs/heads/main | awk '{print $1}')"
-          echo "Netlen main before push: ${remote_main_sha:-<unavailable>}"
-          echo "GitHub production commit: ${production_sha}"
-          git push cpanel "${production_sha}:refs/heads/main"
-          verified_remote_sha="$(git ls-remote "$CPANEL_GIT_SSH_URL" refs/heads/main | awk '{print $1}')"
-          test "$verified_remote_sha" = "$production_sha"
-          echo "Netlen cPanel repository now points to production commit: ${verified_remote_sha}"
-          echo "cPanel's post-receive hook is now responsible for executing .cpanel.yml."
+          if git ls-remote --exit-code "$CPANEL_GIT_SSH_URL" refs/heads/main >/dev/null 2>&1; then
+            git clone --branch main --single-branch "$CPANEL_GIT_SSH_URL" cpanel-deploy
+          else
+            mkdir cpanel-deploy
+            cd cpanel-deploy
+            git init -b main
+            git remote add origin "$CPANEL_GIT_SSH_URL"
+          fi
+
+          cd cpanel-deploy
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R ../deploy-payload/.output .output
+          cp ../deploy-payload/app.js app.js
+          cp ../deploy-payload/.cpanel.yml .cpanel.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "deploy: MySkyParcel ${GITHUB_SHA}"
+
+      - name: Push production payload to Netlen cPanel Git
+        working-directory: cpanel-deploy
+        env:
+          CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
+        run: |
+          set -euo pipefail
+          git push origin HEAD:main
+          deployed_sha="$(git ls-remote "$CPANEL_GIT_SSH_URL" refs/heads/main | awk '{print $1}')"
+          test -n "$deployed_sha"
+          echo "Netlen cPanel repository accepted deployment commit: $deployed_sha"
+
+      - name: Verify deployment payload
+        run: |
+          set -euo pipefail
+          test -f deploy-payload/.cpanel.yml
+          test -f deploy-payload/app.js
+          test -f deploy-payload/.output/server/index.mjs
+          test -f deploy-payload/.output/nitro.json
+          echo "Production payload verified and handed to cPanel push deployment."
