@@ -74,8 +74,16 @@ jobs:
           echo "Google Maps production key resolved from $source."
 
       - name: Production build with memory measurement
+        env:
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
         run: |
           set -euo pipefail
+          key="${VITE_GOOGLE_MAPS_API_KEY:-}"
+          if [ -z "$key" ] && [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.action }}" != "closed" ]; then
+            key="ci-placeholder-google-maps-key"
+          fi
+          test -n "$key"
+          export VITE_GOOGLE_MAPS_API_KEY="$key"
           /usr/bin/time -v -o build-resource-usage.txt npm run build
           cat build-resource-usage.txt
 
