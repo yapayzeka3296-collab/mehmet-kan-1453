@@ -41,6 +41,17 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Validate production environment
+        env:
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${VITE_GOOGLE_MAPS_API_KEY:-}" ]; then
+            echo "ERROR: GitHub Actions secret VITE_GOOGLE_MAPS_API_KEY is missing. Production deployment is blocked because the Google Maps JavaScript API key is required at Vite build time."
+            exit 1
+          fi
+          echo "Google Maps production key is configured."
+
       - name: Production build with memory measurement
         env:
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
