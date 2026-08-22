@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <title>MySkyParcel</title>
+  <defs>
+    <linearGradient id="sky" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#123B78"/>
+      <stop offset="0.58" stop-color="#071B3A"/>
+      <stop offset="1" stop-color="#020817"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="18" y1="17" x2="47" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF2B8"/>
+      <stop offset="0.5" stop-color="#F4C85A"/>
+      <stop offset="1" stop-color="#C58A27"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="29" fill="url(#sky)" stroke="#D9AD4A" stroke-width="2"/>
+  <path d="M14 32h36M32 12c6 6 9 12 9 20s-3 14-9 20M32 12c-6 6-9 12-9 20s3 14 9 20" stroke="#C9E4FF" stroke-opacity=".55" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M17 21c9 4 21 5 30 0M17 43c9-4 21-5 30 0" stroke="#C9E4FF" stroke-opacity=".35" stroke-width="1.25" stroke-linecap="round"/>
+  <path d="M22 24h20v20H22z" fill="#06152D" stroke="url(#gold)" stroke-width="2.5"/>
+  <path d="M32 24v20M22 34h20" stroke="url(#gold)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M32 27.5l1.35 3.15 3.15 1.35-3.15 1.35L32 36.5l-1.35-3.15-3.15-1.35 3.15-1.35L32 27.5z" fill="#FFF1B8"/>
+  <path d="M48.5 9.5l1.35 4.15L54 15l-4.15 1.35L48.5 20.5l-1.35-4.15L43 15l4.15-1.35L48.5 9.5z" fill="#FFF1B8"/>
+</svg>
