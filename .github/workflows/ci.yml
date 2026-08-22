@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -39,7 +41,7 @@ jobs:
         env:
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
         run: |
-          set -e
+          set -euo pipefail
           echo "Starting MySkyParcel production build with resource measurement..."
           /usr/bin/time -v -o build-resource-usage.txt npm run build
           echo "=== Build resource usage ==="
@@ -47,7 +49,7 @@ jobs:
 
       - name: Inspect build output
         run: |
-          set -e
+          set -euo pipefail
           test -f .output/server/index.mjs
           test -f .output/nitro.json
           test -d .output/public
@@ -75,43 +77,54 @@ jobs:
             git commit -m "chore: update Netlen production build [skip ci]"
             git push origin HEAD:main
           fi
-          echo "Deployment source commit: $(git rev-parse HEAD)"
+          echo "Production deployment commit: $(git rev-parse HEAD)"
 
   deploy-netlen:
-    name: Trigger Netlen cPanel deployment
+    name: Push to Netlen cPanel Git repository
     needs: validate
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Validate Netlen deployment secret
-        env:
-          CPANEL_DEPLOY_WEBHOOK_URL: ${{ secrets.CPANEL_DEPLOY_WEBHOOK_URL }}
-        run: |
-          set -euo pipefail
-          if [ -z "${CPANEL_DEPLOY_WEBHOOK_URL:-}" ]; then
-            echo "ERROR: CPANEL_DEPLOY_WEBHOOK_URL GitHub secret is not configured."
-            echo "Add the Netlen/cPanel deployment webhook as a repository Actions secret with this exact name."
-            exit 1
-          fi
+      - name: Checkout production commit
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
-      - name: Trigger cPanel deployment webhook
+      - name: Validate cPanel deployment secrets
         env:
-          CPANEL_DEPLOY_WEBHOOK_URL: ${{ secrets.CPANEL_DEPLOY_WEBHOOK_URL }}
+          CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
+          CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          CPANEL_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          response_file="$(mktemp)"
-          http_code="$(curl --fail-with-body --show-error --silent --output "$response_file" --write-out '%{http_code}' \
-            --retry 3 --retry-delay 5 --retry-all-errors \
-            --connect-timeout 15 --max-time 60 \
-            -X POST \
-            -H 'Accept: application/json' \
-            "$CPANEL_DEPLOY_WEBHOOK_URL")"
-          echo "Netlen cPanel webhook HTTP status: ${http_code}"
-          if [ -s "$response_file" ]; then
-            echo "Netlen cPanel webhook response:"
-            cat "$response_file"
-          fi
-          echo "Netlen cPanel deployment webhook triggered successfully."
-          rm -f "$response_file"
+          test -n "${CPANEL_GIT_SSH_URL:-}" || { echo "ERROR: CPANEL_GIT_SSH_URL is not configured."; exit 1; }
+          test -n "${CPANEL_SSH_PRIVATE_KEY:-}" || { echo "ERROR: CPANEL_SSH_PRIVATE_KEY is not configured."; exit 1; }
+          test -n "${CPANEL_SSH_KNOWN_HOSTS:-}" || { echo "ERROR: CPANEL_SSH_KNOWN_HOSTS is not configured."; exit 1; }
+          echo "cPanel deployment secrets are configured."
+
+      - name: Configure SSH for Netlen cPanel
+        env:
+          CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          CPANEL_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$CPANEL_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$CPANEL_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Push exact production commit to cPanel-managed repository
+        env:
+          CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
+        run: |
+          set -euo pipefail
+          git remote remove cpanel 2>/dev/null || true
+          git remote add cpanel "$CPANEL_GIT_SSH_URL"
+          production_sha="$(git rev-parse HEAD)"
+          echo "Pushing production commit ${production_sha} to Netlen cPanel repository..."
+          git push cpanel HEAD:main
+          echo "Netlen cPanel repository accepted production commit ${production_sha}."
+          echo "cPanel's post-receive hook should now execute the checked-in .cpanel.yml automatically."
