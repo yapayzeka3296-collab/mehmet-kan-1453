@@ -54,8 +54,13 @@ jobs:
             source="repository variable"
           fi
           if [ -z "$key" ]; then
-            echo "ERROR: VITE_GOOGLE_MAPS_API_KEY is not available to this workflow. Configure it under GitHub Settings > Secrets and variables > Actions as a repository secret (preferred)."
-            exit 1
+            if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.action }}" != "closed" ]; then
+              key="ci-placeholder-google-maps-key"
+              source="non-production PR placeholder"
+            else
+              echo "ERROR: VITE_GOOGLE_MAPS_API_KEY is not available to this production workflow. Configure it under GitHub Settings > Secrets and variables > Actions as a repository secret (preferred)."
+              exit 1
+            fi
           fi
           if [ "${#key}" -lt 20 ]; then
             echo "ERROR: VITE_GOOGLE_MAPS_API_KEY is present but unexpectedly short."
@@ -166,7 +171,7 @@ jobs:
           cp ../deploy-payload/app.js app.js
           cp ../deploy-payload/.cpanel.yml .cpanel.yml
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+users.noreply.github.com"
           git add -A
           git commit -m "deploy: MySkyParcel ${GITHUB_SHA}"
 
