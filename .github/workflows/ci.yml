@@ -125,12 +125,12 @@ jobs:
     name: Deploy production payload to Netlen cPanel Git
     needs: validate
     if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/main' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.base.ref == 'main'
+      (github.event_name == 'pull_request' &&
+       github.event.action == 'closed' &&
+       github.event.pull_request.merged == true &&
+       github.event.pull_request.base.ref == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -186,7 +186,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+users.noreply.github.com"
           git add -A
-          git commit -m "deploy: MySkyParcel ${GITHUB_SHA}"
+          if git diff --cached --quiet; then
+            echo "No deployment payload changes detected; reusing current Netlen repository state."
+          else
+            git commit -m "deploy: MySkyParcel ${GITHUB_SHA}"
+          fi
 
       - name: Push production payload to Netlen cPanel Git
         working-directory: cpanel-deploy
@@ -198,6 +202,7 @@ jobs:
           deployed_sha="$(git ls-remote "$CPANEL_GIT_SSH_URL" refs/heads/main | awk '{print $1}')"
           test -n "$deployed_sha"
           echo "Netlen cPanel repository accepted deployment commit: $deployed_sha"
+          echo "NETLEN_DEPLOYED_SHA=$deployed_sha" >> "$GITHUB_ENV"
 
       - name: Verify deployment payload
         run: |
@@ -206,4 +211,15 @@ jobs:
           test -f deploy-payload/app.js
           test -f deploy-payload/.output/server/index.mjs
           test -f deploy-payload/.output/nitro.json
-          echo "Production payload verified and handed to cPanel push deployment."
+          test -n "${NETLEN_DEPLOYED_SHA:-}"
+          echo "Production payload verified and handed to cPanel push deployment as ${NETLEN_DEPLOYED_SHA}."
+
+      - name: Publish deployment summary
+        if: always()
+        run: |
+          {
+            echo "### Netlen deployment"
+            echo "- GitHub source commit: \`${GITHUB_SHA}\`"
+            echo "- Netlen repository branch: \`main\`"
+            echo "- Netlen repository accepted SHA: \`${NETLEN_DEPLOYED_SHA:-not-confirmed}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
