@@ -50,7 +50,11 @@ jobs:
             echo "ERROR: GitHub Actions secret VITE_GOOGLE_MAPS_API_KEY is missing. Production deployment is blocked because the Google Maps JavaScript API key is required at Vite build time."
             exit 1
           fi
-          echo "Google Maps production key is configured."
+          if [ "${#VITE_GOOGLE_MAPS_API_KEY}" -lt 20 ]; then
+            echo "ERROR: VITE_GOOGLE_MAPS_API_KEY is present but unexpectedly short. Check that the complete Google Maps browser key was saved."
+            exit 1
+          fi
+          echo "Google Maps production key is configured and has a plausible length."
 
       - name: Production build with memory measurement
         env:
