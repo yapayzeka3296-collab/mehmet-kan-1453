@@ -1,3 +1,4 @@
+# MySkyParcel production deployment: GitHub Actions -> Netlen cPanel-managed Git -> .cpanel.yml
 name: CI
 
 on:
