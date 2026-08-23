@@ -1,0 +1,17 @@
+name: Netlen UAPI Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-cpanel-uapi:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test cPanel VersionControlDeployment API access
+        env:
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS \
+            -u "myskypar:${CPANEL_API_TOKEN}" \
+            "https://jupiter.netlen.com.tr:2083/execute/VersionControlDeployment/retrieve"
