@@ -15,6 +15,10 @@ concurrency:
   group: netlen-production
   cancel-in-progress: false
 
+env:
+  NETLEN_DEPLOY_PATH: /home/myskypar/public_html
+  NETLEN_SSH_PORT: '22'
+
 jobs:
   validate:
     name: Lint, TypeScript and Build
@@ -56,7 +60,6 @@ jobs:
           test -f .output/nitro.json
           test -d .output/public
           test -f app.js
-          test -f .cpanel.yml
           du -sh .output
 
       - name: TypeScript check
@@ -74,12 +77,11 @@ jobs:
           path: |
             .output/**
             app.js
-            .cpanel.yml
           if-no-files-found: error
           retention-days: 7
 
   deploy-netlen:
-    name: Deploy production payload to Netlen cPanel Git
+    name: Deploy production to Netlen via SSH
     needs: validate
     if: >-
       github.event_name == 'push' && github.ref == 'refs/heads/main' ||
@@ -90,6 +92,8 @@ jobs:
       github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment:
+      name: production
 
     steps:
       - name: Download production deployment payload
@@ -98,69 +102,105 @@ jobs:
           name: myskyparcel-production-${{ github.sha }}
           path: deploy-payload
 
-      - name: Validate cPanel deployment secrets
+      - name: Validate Netlen SSH configuration
         env:
-          CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
-          CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
-          CPANEL_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+          NETLEN_SSH_HOST: ${{ vars.NETLEN_SSH_HOST }}
+          NETLEN_SSH_USER: ${{ vars.NETLEN_SSH_USER }}
+          NETLEN_SSH_PRIVATE_KEY: ${{ secrets.NETLEN_SSH_PRIVATE_KEY }}
+          NETLEN_SSH_KNOWN_HOSTS: ${{ secrets.NETLEN_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          test -n "${CPANEL_GIT_SSH_URL:-}" || { echo "ERROR: CPANEL_GIT_SSH_URL is not configured."; exit 1; }
-          test -n "${CPANEL_SSH_PRIVATE_KEY:-}" || { echo "ERROR: CPANEL_SSH_PRIVATE_KEY is not configured."; exit 1; }
-          test -n "${CPANEL_SSH_KNOWN_HOSTS:-}" || { echo "ERROR: CPANEL_SSH_KNOWN_HOSTS is not configured."; exit 1; }
+          test -n "${NETLEN_SSH_HOST:-}" || { echo "ERROR: NETLEN_SSH_HOST is not configured."; exit 1; }
+          test -n "${NETLEN_SSH_USER:-}" || { echo "ERROR: NETLEN_SSH_USER is not configured."; exit 1; }
+          test -n "${NETLEN_SSH_PRIVATE_KEY:-}" || { echo "ERROR: NETLEN_SSH_PRIVATE_KEY is not configured."; exit 1; }
+          test -n "${NETLEN_SSH_KNOWN_HOSTS:-}" || { echo "ERROR: NETLEN_SSH_KNOWN_HOSTS is not configured."; exit 1; }
 
-      - name: Configure SSH for Netlen cPanel
+      - name: Configure SSH
         env:
-          CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
-          CPANEL_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+          NETLEN_SSH_PRIVATE_KEY: ${{ secrets.NETLEN_SSH_PRIVATE_KEY }}
+          NETLEN_SSH_KNOWN_HOSTS: ${{ secrets.NETLEN_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           install -d -m 700 ~/.ssh
-          printf '%s\n' "$CPANEL_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$CPANEL_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$NETLEN_SSH_PRIVATE_KEY" > ~/.ssh/netlen_deploy_key
+          chmod 600 ~/.ssh/netlen_deploy_key
+          printf '%s\n' "$NETLEN_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Prepare clean cPanel deployment repository
+      - name: Test SSH connection
         env:
-          CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
+          NETLEN_SSH_HOST: ${{ vars.NETLEN_SSH_HOST }}
+          NETLEN_SSH_USER: ${{ vars.NETLEN_SSH_USER }}
         run: |
           set -euo pipefail
-          if git ls-remote --exit-code "$CPANEL_GIT_SSH_URL" refs/heads/main >/dev/null 2>&1; then
-            git clone --branch main --single-branch "$CPANEL_GIT_SSH_URL" cpanel-deploy
-          else
-            mkdir cpanel-deploy
-            cd cpanel-deploy
-            git init -b main
-            git remote add origin "$CPANEL_GIT_SSH_URL"
-          fi
+          ssh -i ~/.ssh/netlen_deploy_key \
+            -p "$NETLEN_SSH_PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            "$NETLEN_SSH_USER@$NETLEN_SSH_HOST" \
+            'printf "Netlen SSH authentication OK\\n"'
 
-          cd cpanel-deploy
-          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          cp -R ../deploy-payload/.output .output
-          cp ../deploy-payload/app.js app.js
-          cp ../deploy-payload/.cpanel.yml .cpanel.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "deploy: MySkyParcel ${GITHUB_SHA}"
-
-      - name: Push production payload to Netlen cPanel Git
-        working-directory: cpanel-deploy
+      - name: Upload deployment payload to Netlen
         env:
-          CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
+          NETLEN_SSH_HOST: ${{ vars.NETLEN_SSH_HOST }}
+          NETLEN_SSH_USER: ${{ vars.NETLEN_SSH_USER }}
         run: |
           set -euo pipefail
-          git push origin HEAD:main
-          deployed_sha="$(git ls-remote "$CPANEL_GIT_SSH_URL" refs/heads/main | awk '{print $1}')"
-          test -n "$deployed_sha"
-          echo "Netlen cPanel repository accepted deployment commit: $deployed_sha"
+          ssh -i ~/.ssh/netlen_deploy_key \
+            -p "$NETLEN_SSH_PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            "$NETLEN_SSH_USER@$NETLEN_SSH_HOST" \
+            "mkdir -p '$NETLEN_DEPLOY_PATH/.deploy/${GITHUB_SHA}'"
 
-      - name: Verify deployment payload
+          tar -C deploy-payload -czf - . | \
+            ssh -i ~/.ssh/netlen_deploy_key \
+              -p "$NETLEN_SSH_PORT" \
+              -o BatchMode=yes \
+              -o IdentitiesOnly=yes \
+              "$NETLEN_SSH_USER@$NETLEN_SSH_HOST" \
+              "tar -xzf - -C '$NETLEN_DEPLOY_PATH/.deploy/${GITHUB_SHA}'"
+
+      - name: Activate deployment on Netlen
+        env:
+          NETLEN_SSH_HOST: ${{ vars.NETLEN_SSH_HOST }}
+          NETLEN_SSH_USER: ${{ vars.NETLEN_SSH_USER }}
         run: |
           set -euo pipefail
-          test -f deploy-payload/.cpanel.yml
-          test -f deploy-payload/app.js
-          test -f deploy-payload/.output/server/index.mjs
-          test -f deploy-payload/.output/nitro.json
-          echo "Production payload verified and handed to cPanel push deployment."
+          ssh -i ~/.ssh/netlen_deploy_key \
+            -p "$NETLEN_SSH_PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            "$NETLEN_SSH_USER@$NETLEN_SSH_HOST" \
+            "DEPLOY_PATH='$NETLEN_DEPLOY_PATH' DEPLOY_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          RELEASE="$DEPLOY_PATH/.deploy/$DEPLOY_SHA"
+          test -f "$RELEASE/app.js"
+          test -f "$RELEASE/.output/server/index.mjs"
+          test -f "$RELEASE/.output/nitro.json"
+
+          rm -rf "$DEPLOY_PATH/.output.next"
+          mv "$RELEASE/.output" "$DEPLOY_PATH/.output.next"
+          rm -rf "$DEPLOY_PATH/.output"
+          mv "$DEPLOY_PATH/.output.next" "$DEPLOY_PATH/.output"
+          cp "$RELEASE/app.js" "$DEPLOY_PATH/app.js"
+
+          mkdir -p "$DEPLOY_PATH/tmp"
+          touch "$DEPLOY_PATH/tmp/restart.txt"
+          rm -rf "$DEPLOY_PATH/.deploy/$DEPLOY_SHA"
+          rmdir "$DEPLOY_PATH/.deploy" 2>/dev/null || true
+          echo "Netlen deployment activated: $DEPLOY_SHA"
+          REMOTE
+
+      - name: Verify Netlen deployment
+        env:
+          NETLEN_SSH_HOST: ${{ vars.NETLEN_SSH_HOST }}
+          NETLEN_SSH_USER: ${{ vars.NETLEN_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/netlen_deploy_key \
+            -p "$NETLEN_SSH_PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            "$NETLEN_SSH_USER@$NETLEN_SSH_HOST" \
+            "test -f '$NETLEN_DEPLOY_PATH/app.js' && test -f '$NETLEN_DEPLOY_PATH/.output/server/index.mjs' && test -f '$NETLEN_DEPLOY_PATH/.output/nitro.json' && echo 'Netlen public_html deployment verified.'"
