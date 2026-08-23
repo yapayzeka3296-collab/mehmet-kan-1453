@@ -1,9 +1,7 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/myskypar/public_html/
-    - /bin/rm -rf ${DEPLOYPATH}.output
-    - /bin/cp -R .output ${DEPLOYPATH}
-    - /bin/cp app.js ${DEPLOYPATH}
-    - /bin/mkdir -p ${DEPLOYPATH}tmp
-    - /bin/touch ${DEPLOYPATH}tmp/restart.txt
+    - /usr/bin/npm ci
+    - /usr/bin/npm run build
+    - /bin/mkdir -p tmp
+    - /bin/touch tmp/restart.txt
