@@ -48,111 +48,88 @@ jobs:
           test -f .cpanel.yml
           du -sh .output
 
-      - name: Validate cPanel SSH secret
+      - name: Read cPanel repository state
         env:
-          CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: |
           set -euo pipefail
-          test -n "${CPANEL_SSH_PRIVATE_KEY:-}" || {
-            echo "ERROR: CPANEL_SSH_PRIVATE_KEY is not configured."
-            exit 1
-          }
-          echo "cPanel SSH deployment key is configured."
+          test -n "${CPANEL_API_TOKEN:-}" || { echo "ERROR: CPANEL_API_TOKEN is not configured."; exit 1; }
+          curl --fail-with-body -sS \
+            -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" \
+            "https://jupiter.netlen.com.tr:2083/execute/VersionControl/retrieve?fields=name,repository_root,branch,last_update,url" \
+            | tee "$RUNNER_TEMP/cpanel-repositories.json"
+          python - <<'PY'
+          import json, pathlib
+          data = json.loads(pathlib.Path("/home/runner/work/_temp/cpanel-repositories.json").read_text())
+          result = data.get("result", {})
+          if result.get("status") != 1:
+              raise SystemExit(json.dumps(result, indent=2))
+          target = next((r for r in result.get("data", []) if r.get("repository_root") == "/home/myskypar/repositories/pixel-perfect-clone-14793"), None)
+          if not target:
+              raise SystemExit("cPanel repository not found")
+          print("Target cPanel repository:")
+          print(json.dumps(target, indent=2))
+          PY
 
-      - name: Configure SSH for Netlen cPanel
+      - name: Update cPanel repository from GitHub
         env:
-          CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: |
           set -euo pipefail
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$CPANEL_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -p 22 -H jupiter.netlen.com.tr >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          response="$(curl --fail-with-body -sS -G \
+            -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" \
+            --data-urlencode "repository_root=/home/myskypar/repositories/pixel-perfect-clone-14793" \
+            --data-urlencode "branch=netlen-deploy" \
+            "https://jupiter.netlen.com.tr:2083/execute/VersionControl/update")"
+          printf '%s\n' "$response"
+          python - <<'PY' "$response"
+          import json, sys
+          data = json.loads(sys.argv[1])
+          result = data.get("result", {})
+          if result.get("status") != 1:
+              text = json.dumps(result.get("errors") or result.get("messages") or result, indent=2)
+              if "fast-forward" in text.lower() or "diverging" in text.lower():
+                  raise SystemExit("CPANEL_DIVERGED: cPanel netlen-deploy and GitHub netlen-deploy have diverged. cPanel UAPI deliberately refuses a non-fast-forward update; the one-time reconciliation must be performed on the cPanel repository before automated deployment can continue.")
+              raise SystemExit(text)
+          print("cPanel netlen-deploy updated successfully.")
+          PY
 
-      - name: Prepare deployment commit from current cPanel branch
+      - name: Start cPanel deployment through UAPI
+        env:
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: |
           set -euo pipefail
-          deploy_branch="netlen-deploy"
-          cpanel_remote="ssh://myskypar@jupiter.netlen.com.tr:22/home/myskypar/repositories/pixel-perfect-clone-14793"
-          worktree="$RUNNER_TEMP/cpanel-deploy-worktree"
-          rm -rf "$worktree"
-
-          git remote remove cpanel 2>/dev/null || true
-          git remote add cpanel "$cpanel_remote"
-
-          remote_sha="$(git ls-remote "$cpanel_remote" "refs/heads/${deploy_branch}" | awk '{print $1}')"
-          test -n "$remote_sha" || {
-            echo "ERROR: cPanel repository does not expose refs/heads/${deploy_branch}."
-            exit 1
-          }
-          echo "cPanel ${deploy_branch} before push: ${remote_sha}"
-
-          git fetch cpanel "refs/heads/${deploy_branch}"
-          git worktree add --detach "$worktree" "FETCH_HEAD"
-          trap 'git worktree remove --force "$worktree" || true' EXIT
-
-          rm -rf "$worktree/.output"
-          cp -R .output "$worktree/.output"
-          cp app.js "$worktree/app.js"
-          cp .cpanel.yml "$worktree/.cpanel.yml"
-
-          cd "$worktree"
-          git add -A .output app.js .cpanel.yml
-          if git diff --cached --quiet; then
-            echo "No production payload changes to deploy."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "deploy: production $GITHUB_SHA"
-          production_sha="$(git rev-parse HEAD)"
-          echo "Prepared cPanel deployment commit: ${production_sha}"
-          echo "PRODUCTION_SHA=${production_sha}" >> "$GITHUB_ENV"
-          echo "DEPLOY_WORKTREE=${worktree}" >> "$GITHUB_ENV"
-          echo "CPANEL_REMOTE=${cpanel_remote}" >> "$GITHUB_ENV"
-
-      - name: Push production commit directly to existing cPanel Git
-        run: |
-          set -euo pipefail
-          test -n "${PRODUCTION_SHA:-}" || {
-            echo "No new deployment commit was created; deployment is already current."
-            exit 0
-          }
-
-          cd "$DEPLOY_WORKTREE"
-          git push "$CPANEL_REMOTE" "${PRODUCTION_SHA}:refs/heads/netlen-deploy"
-
-          verified_sha="$(git ls-remote "$CPANEL_REMOTE" refs/heads/netlen-deploy | awk '{print $1}')"
-          test "$verified_sha" = "$PRODUCTION_SHA" || {
-            echo "ERROR: cPanel branch verification failed."
-            echo "Expected: $PRODUCTION_SHA"
-            echo "Actual:   $verified_sha"
-            exit 1
-          }
-          echo "cPanel netlen-deploy now points to ${verified_sha}."
-          echo "Direct SSH push completed; cPanel post-receive hook should run .cpanel.yml automatically."
+          response="$(curl --fail-with-body -sS -G \
+            -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" \
+            --data-urlencode "repository_root=/home/myskypar/repositories/pixel-perfect-clone-14793" \
+            "https://jupiter.netlen.com.tr:2083/execute/VersionControlDeployment/create")"
+          printf '%s\n' "$response"
+          python - <<'PY' "$response"
+          import json, sys
+          data = json.loads(sys.argv[1])
+          result = data.get("result", {})
+          if result.get("status") != 1:
+              raise SystemExit(json.dumps(result, indent=2))
+          deployment = result.get("data") or {}
+          print("Deployment queued:", deployment.get("deploy_id"))
+          print("Log:", deployment.get("log_path"))
+          PY
 
       - name: Verify cPanel deployment state
         env:
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: |
           set -euo pipefail
-          test -n "${CPANEL_API_TOKEN:-}" || {
-            echo "ERROR: CPANEL_API_TOKEN is not configured."
-            exit 1
-          }
-          response="$(curl --fail-with-body -sS \
-            -u "myskypar:${CPANEL_API_TOKEN}" \
-            "https://jupiter.netlen.com.tr:2083/execute/VersionControlDeployment/retrieve")"
-          printf '%s\n' "$response" > "$RUNNER_TEMP/cpanel-deployment.json"
+          curl --fail-with-body -sS \
+            -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" \
+            "https://jupiter.netlen.com.tr:2083/execute/VersionControlDeployment/retrieve" \
+            | tee "$RUNNER_TEMP/cpanel-deployment.json"
           python - <<'PY'
           import json, pathlib
-          p = pathlib.Path("/home/runner/work/_temp/cpanel-deployment.json")
-          data = json.loads(p.read_text())
-          if data.get("result", {}).get("status") != 1:
-              raise SystemExit("cPanel deployment status API returned failure")
+          data = json.loads(pathlib.Path("/home/runner/work/_temp/cpanel-deployment.json").read_text())
+          result = data.get("result", {})
+          if result.get("status") != 1:
+              raise SystemExit(json.dumps(result, indent=2))
           print("cPanel deployment status API responded successfully.")
-          print(json.dumps(data.get("result", {}).get("data"), indent=2)[:12000])
+          print(json.dumps(result.get("data"), indent=2)[:12000])
           PY
