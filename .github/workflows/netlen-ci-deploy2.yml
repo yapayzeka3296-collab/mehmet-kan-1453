@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: netlen-production
@@ -47,6 +47,18 @@ jobs:
           test -f app.js
           test -f .cpanel.yml
           du -sh .output
+
+      - name: Publish generated deployment branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --orphan netlen-deploy
+          git rm -rf . >/dev/null 2>&1 || true
+          git clean -fdx
+          git add -f .output app.js .cpanel.yml
+          git commit -m "deploy: build $GITHUB_SHA"
+          git push --force origin HEAD:netlen-deploy
 
       - name: Repair cPanel repository working tree
         env:
