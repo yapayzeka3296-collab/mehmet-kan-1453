@@ -50,17 +50,19 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
 
           deploy_tmp="$RUNNER_TEMP/netlen-deploy"
-          rm -rf "$deploy_tmp"
+          worktree="$RUNNER_TEMP/netlen-deploy-worktree"
+          rm -rf "$deploy_tmp" "$worktree"
           mkdir -p "$deploy_tmp"
           cp -R .output "$deploy_tmp/.output"
           cp app.js "$deploy_tmp/app.js"
           cp .cpanel.yml "$deploy_tmp/.cpanel.yml"
 
           git fetch origin netlen-deploy
-          git switch --detach "origin/netlen-deploy"
-          git clean -fdx
-          git rm -rf . || true
+          git worktree add --detach "$worktree" origin/netlen-deploy
+          trap 'git worktree remove --force "$worktree" || true' EXIT
 
+          cd "$worktree"
+          git rm -rf . || true
           cp -R "$deploy_tmp/.output" .output
           cp "$deploy_tmp/app.js" app.js
           cp "$deploy_tmp/.cpanel.yml" .cpanel.yml
