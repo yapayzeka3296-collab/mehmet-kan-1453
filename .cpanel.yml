@@ -1,7 +1,5 @@
 ---
 deployment:
   tasks:
-    - source /home/myskypar/nodevenv/repositories/pixel-perfect-clone-14793/22/bin/activate && npm ci
-    - source /home/myskypar/nodevenv/repositories/pixel-perfect-clone-14793/22/bin/activate && npm run build
-    - /bin/mkdir -p tmp
-    - /bin/touch tmp/restart.txt
+    - /bin/mkdir -p /home/myskypar/repositories/pixel-perfect-clone-14793/tmp
+    - /bin/touch /home/myskypar/repositories/pixel-perfect-clone-14793/tmp/restart.txt
