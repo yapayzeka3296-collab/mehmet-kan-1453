@@ -69,13 +69,8 @@ jobs:
           install -d -m 700 ~/.ssh
           printf '%s\n' "$CPANEL_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh_opts=(
-            -i ~/.ssh/id_rsa
-            -o StrictHostKeyChecking=no
-            -o UserKnownHostsFile=/dev/null
-            -o ConnectTimeout=15
-          )
-          ssh "${ssh_opts[@]}" myskypar@jupiter.netlen.com.tr 'set -e; cd /home/myskypar/repositories/pixel-perfect-clone-14793; echo "Before repair:"; git status --short; git fetch origin netlen-deploy; git reset --hard origin/netlen-deploy; git clean -fd; echo "After repair:"; git status --short; echo "HEAD:"; git rev-parse HEAD'
+          ssh_opts=(-i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          ssh "${ssh_opts[@]}" myskypar@jupiter.netlen.com.tr 'set -e; cd /home/myskypar/repositories/pixel-perfect-clone-14793; git fetch origin netlen-deploy; git reset --hard origin/netlen-deploy; git clean -fd; test -z "$(git status --porcelain)"; test "$(git rev-parse HEAD)" = "$(git rev-parse origin/netlen-deploy)"; echo "cPanel repository synchronized"'
 
       - name: Read cPanel repository state
         env:
@@ -83,44 +78,20 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${CPANEL_API_TOKEN:-}" || { echo "ERROR: CPANEL_API_TOKEN is not configured."; exit 1; }
-          curl --fail-with-body -sS \
-            -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" \
-            "https://jupiter.netlen.com.tr:2083/execute/VersionControl/retrieve?fields=name,repository_root,branch,last_update,url" \
-            | tee "$RUNNER_TEMP/cpanel-repositories.json"
-          python - <<'PY'
-          import json, pathlib
-          data = json.loads(pathlib.Path("/home/runner/work/_temp/cpanel-repositories.json").read_text())
-          result = data.get("result", {})
-          if result.get("status") != 1:
-              raise SystemExit(json.dumps(result, indent=2))
-          target = next((r for r in result.get("data", []) if r.get("repository_root") == "/home/myskypar/repositories/pixel-perfect-clone-14793"), None)
-          if not target:
-              raise SystemExit("cPanel repository not found")
-          print("Target cPanel repository:")
-          print(json.dumps(target, indent=2))
-          PY
+          curl --fail-with-body -sS -G -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" --data-urlencode "repository_root=/home/myskypar/repositories/pixel-perfect-clone-14793" "https://jupiter.netlen.com.tr:2083/execute/VersionControl/retrieve" | tee "$RUNNER_TEMP/cpanel-repositories.json"
 
       - name: Update cPanel repository from GitHub
         env:
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: |
           set -euo pipefail
-          response="$(curl --fail-with-body -sS -G \
-            -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" \
-            --data-urlencode "repository_root=/home/myskypar/repositories/pixel-perfect-clone-14793" \
-            --data-urlencode "branch=netlen-deploy" \
-            "https://jupiter.netlen.com.tr:2083/execute/VersionControl/update")"
+          response="$(curl --fail-with-body -sS -G -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" --data-urlencode "repository_root=/home/myskypar/repositories/pixel-perfect-clone-14793" --data-urlencode "branch=netlen-deploy" "https://jupiter.netlen.com.tr:2083/execute/VersionControl/update")"
           printf '%s\n' "$response"
           python - <<'PY' "$response"
-          import json, sys
-          data = json.loads(sys.argv[1])
-          result = data.get("result", {})
+          import json,sys
+          result=json.loads(sys.argv[1]).get("result",{})
           if result.get("status") != 1:
-              text = json.dumps(result.get("errors") or result.get("messages") or result, indent=2)
-              if "fast-forward" in text.lower() or "diverging" in text.lower():
-                  raise SystemExit("CPANEL_DIVERGED: cPanel netlen-deploy and GitHub netlen-deploy have diverged. cPanel UAPI deliberately refuses a non-fast-forward update; the one-time reconciliation must be performed on the cPanel repository before automated deployment can continue.")
-              raise SystemExit(text)
-          print("cPanel netlen-deploy updated successfully.")
+              raise SystemExit(json.dumps(result.get("errors") or result, indent=2))
           PY
 
       - name: Start cPanel deployment through UAPI
@@ -128,20 +99,13 @@ jobs:
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: |
           set -euo pipefail
-          response="$(curl --fail-with-body -sS -G \
-            -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" \
-            --data-urlencode "repository_root=/home/myskypar/repositories/pixel-perfect-clone-14793" \
-            "https://jupiter.netlen.com.tr:2083/execute/VersionControlDeployment/create")"
+          response="$(curl --fail-with-body -sS -G -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" --data-urlencode "repository_root=/home/myskypar/repositories/pixel-perfect-clone-14793" "https://jupiter.netlen.com.tr:2083/execute/VersionControlDeployment/create")"
           printf '%s\n' "$response"
           python - <<'PY' "$response"
-          import json, sys
-          data = json.loads(sys.argv[1])
-          result = data.get("result", {})
+          import json,sys
+          result=json.loads(sys.argv[1]).get("result",{})
           if result.get("status") != 1:
               raise SystemExit(json.dumps(result, indent=2))
-          deployment = result.get("data") or {}
-          print("Deployment queued:", deployment.get("deploy_id"))
-          print("Log:", deployment.get("log_path"))
           PY
 
       - name: Verify cPanel deployment state
@@ -149,16 +113,4 @@ jobs:
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: |
           set -euo pipefail
-          curl --fail-with-body -sS \
-            -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" \
-            "https://jupiter.netlen.com.tr:2083/execute/VersionControlDeployment/retrieve" \
-            | tee "$RUNNER_TEMP/cpanel-deployment.json"
-          python - <<'PY'
-          import json, pathlib
-          data = json.loads(pathlib.Path("/home/runner/work/_temp/cpanel-deployment.json").read_text())
-          result = data.get("result", {})
-          if result.get("status") != 1:
-              raise SystemExit(json.dumps(result, indent=2))
-          print("cPanel deployment status API responded successfully.")
-          print(json.dumps(result.get("data"), indent=2)[:12000])
-          PY
+          curl --fail-with-body -sS -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" "https://jupiter.netlen.com.tr:2083/execute/VersionControlDeployment/retrieve"
