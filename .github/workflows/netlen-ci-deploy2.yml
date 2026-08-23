@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: netlen-production
@@ -14,7 +14,10 @@ concurrency:
 
 jobs:
   deploy:
+    name: Build and Deploy to Netlen cPanel
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
@@ -40,77 +43,97 @@ jobs:
           set -euo pipefail
           test -f .output/server/index.mjs
           test -f .output/nitro.json
+          test -d .output/public
           test -f app.js
           test -f .cpanel.yml
+          du -sh .output
 
-      - name: Publish deployment payload
+      - name: Validate cPanel push secrets
+        env:
+          CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
+          CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          CPANEL_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          test -n "${CPANEL_GIT_SSH_URL:-}" || { echo "ERROR: CPANEL_GIT_SSH_URL is not configured."; exit 1; }
+          test -n "${CPANEL_SSH_PRIVATE_KEY:-}" || { echo "ERROR: CPANEL_SSH_PRIVATE_KEY is not configured."; exit 1; }
+          test -n "${CPANEL_SSH_KNOWN_HOSTS:-}" || { echo "ERROR: CPANEL_SSH_KNOWN_HOSTS is not configured."; exit 1; }
+          echo "cPanel SSH deployment secrets are configured."
 
-          deploy_tmp="$RUNNER_TEMP/netlen-deploy"
-          worktree="$RUNNER_TEMP/netlen-deploy-worktree"
-          rm -rf "$deploy_tmp" "$worktree"
-          mkdir -p "$deploy_tmp"
-          cp -R .output "$deploy_tmp/.output"
-          cp app.js "$deploy_tmp/app.js"
-          cp .cpanel.yml "$deploy_tmp/.cpanel.yml"
+      - name: Configure SSH for Netlen cPanel
+        env:
+          CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          CPANEL_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$CPANEL_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$CPANEL_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
-          git fetch origin netlen-deploy
-          git worktree add --detach "$worktree" origin/netlen-deploy
+      - name: Prepare deployment commit from current cPanel branch
+        env:
+          CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
+        run: |
+          set -euo pipefail
+          deploy_branch="netlen-deploy"
+          worktree="$RUNNER_TEMP/cpanel-deploy-worktree"
+          rm -rf "$worktree"
+
+          git remote remove cpanel 2>/dev/null || true
+          git remote add cpanel "$CPANEL_GIT_SSH_URL"
+
+          remote_sha="$(git ls-remote "$CPANEL_GIT_SSH_URL" "refs/heads/${deploy_branch}" | awk '{print $1}')"
+          test -n "$remote_sha" || {
+            echo "ERROR: cPanel remote does not expose refs/heads/${deploy_branch}."
+            exit 1
+          }
+          echo "cPanel ${deploy_branch} before push: ${remote_sha}"
+
+          git fetch cpanel "refs/heads/${deploy_branch}"
+          git worktree add --detach "$worktree" "FETCH_HEAD"
           trap 'git worktree remove --force "$worktree" || true' EXIT
 
+          rm -rf "$worktree/.output"
+          cp -R .output "$worktree/.output"
+          cp app.js "$worktree/app.js"
+          cp .cpanel.yml "$worktree/.cpanel.yml"
+
           cd "$worktree"
-          git rm -rf . || true
-          cp -R "$deploy_tmp/.output" .output
-          cp "$deploy_tmp/app.js" app.js
-          cp "$deploy_tmp/.cpanel.yml" .cpanel.yml
-          git add .output app.js .cpanel.yml
-          git commit -m "deploy: build $GITHUB_SHA"
-          git push origin HEAD:netlen-deploy
-
-      - name: Update cPanel repository
-        env:
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          base="https://jupiter.netlen.com.tr:2083"
-          auth="Authorization: cpanel myskypar:${CPANEL_API_TOKEN}"
-          repo="/home/myskypar/repositories/pixel-perfect-clone-14793"
-          response="$(curl --fail-with-body --silent --show-error \
-            --header "$auth" --get \
-            --data-urlencode "repository_root=$repo" \
-            --data-urlencode "branch=netlen-deploy" \
-            "$base/execute/VersionControl/update")"
-          printf '%s\n' "$response"
-          if printf '%s' "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*0|"error"[[:space:]]*:'; then
-            echo 'cPanel repository update API reported an error.' >&2
-            exit 1
-          fi
-          if ! printf '%s' "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*1'; then
-            echo 'cPanel repository update API did not report status=1.' >&2
-            exit 1
+          git add -A .output app.js .cpanel.yml
+          if git diff --cached --quiet; then
+            echo "No production payload changes to deploy."
+            exit 0
           fi
 
-      - name: Trigger and validate cPanel deployment
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "deploy: production $GITHUB_SHA"
+          production_sha="$(git rev-parse HEAD)"
+          echo "Prepared cPanel deployment commit: ${production_sha}"
+          echo "PRODUCTION_SHA=${production_sha}" >> "$GITHUB_ENV"
+          echo "DEPLOY_WORKTREE=${worktree}" >> "$GITHUB_ENV"
+
+      - name: Push production commit directly to cPanel Git
         env:
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+          CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
         run: |
           set -euo pipefail
-          base="https://jupiter.netlen.com.tr:2083"
-          auth="Authorization: cpanel myskypar:${CPANEL_API_TOKEN}"
-          repo="/home/myskypar/repositories/pixel-perfect-clone-14793"
-          response="$(curl --fail-with-body --silent --show-error \
-            --header "$auth" --get \
-            --data-urlencode "repository_root=$repo" \
-            "$base/execute/VersionControlDeployment/create")"
-          printf '%s\n' "$response"
-          if printf '%s' "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*0|"error"[[:space:]]*:'; then
-            echo 'cPanel deployment API reported an error.' >&2
+          test -n "${PRODUCTION_SHA:-}" || {
+            echo "No new deployment commit was created; deployment is already current."
+            exit 0
+          }
+
+          cd "$DEPLOY_WORKTREE"
+          git push cpanel "${PRODUCTION_SHA}:refs/heads/netlen-deploy"
+
+          verified_sha="$(git ls-remote "$CPANEL_GIT_SSH_URL" refs/heads/netlen-deploy | awk '{print $1}')"
+          test "$verified_sha" = "$PRODUCTION_SHA" || {
+            echo "ERROR: cPanel branch verification failed."
+            echo "Expected: $PRODUCTION_SHA"
+            echo "Actual:   $verified_sha"
             exit 1
-          fi
-          if ! printf '%s' "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*1'; then
-            echo 'cPanel deployment API did not report status=1.' >&2
-            exit 1
-          fi
+          }
+          echo "cPanel netlen-deploy now points to ${verified_sha}."
+          echo "The cPanel post-receive hook is responsible for running .cpanel.yml."
