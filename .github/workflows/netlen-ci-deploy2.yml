@@ -1,10 +1,13 @@
 name: Netlen CI Build and Deploy
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -12,17 +15,23 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
+
       - run: npm install
       - run: npm run build
         env:
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
-      - run: test -f .output/server/index.mjs && test -f .output/nitro.json && test -f app.js
+
+      - name: Verify generated deployment
+        run: test -f .output/server/index.mjs && test -f .output/nitro.json && test -f app.js
+
       - name: Publish generated deployment branch
         run: |
+          set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git switch --orphan netlen-deploy
@@ -33,7 +42,8 @@ jobs:
           git add .output app.js .cpanel.yml
           git commit -m "deploy: build $GITHUB_SHA"
           git push --force origin HEAD:netlen-deploy
-      - name: Update and deploy Netlen
+
+      - name: Update cPanel to generated deployment branch
         env:
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: |
@@ -41,5 +51,21 @@ jobs:
           base="https://jupiter.netlen.com.tr:2083"
           auth="Authorization: cpanel myskypar:${CPANEL_API_TOKEN}"
           repo="/home/myskypar/repositories/pixel-perfect-clone-14793"
-          curl --fail-with-body --silent --show-error --header "$auth" --get --data-urlencode "repository_root=$repo" --data-urlencode "branch=netlen-deploy" "$base/execute/VersionControl/update"
-          curl --fail-with-body --silent --show-error --header "$auth" --get --data-urlencode "repository_root=$repo" "$base/execute/VersionControlDeployment/create"
+          curl --fail-with-body --silent --show-error \
+            --header "$auth" --get \
+            --data-urlencode "repository_root=$repo" \
+            --data-urlencode "branch=netlen-deploy" \
+            "$base/execute/VersionControl/update"
+
+      - name: Deploy generated build to public_html
+        env:
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          base="https://jupiter.netlen.com.tr:2083"
+          auth="Authorization: cpanel myskypar:${CPANEL_API_TOKEN}"
+          repo="/home/myskypar/repositories/pixel-perfect-clone-14793"
+          curl --fail-with-body --silent --show-error \
+            --header "$auth" --get \
+            --data-urlencode "repository_root=$repo" \
+            "$base/execute/VersionControlDeployment/create"
