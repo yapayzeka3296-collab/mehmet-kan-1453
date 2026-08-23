@@ -1,95 +1,16 @@
 name: Netlen Node.js Production Deploy
 
+# Temporarily disabled while the Netlen Node/Passenger deployment model is being corrected.
+# CI remains untouched.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
-  contents: write
-
-concurrency:
-  group: myskyparcel-netlen-production
-  cancel-in-progress: false
-
-env:
-  CPANEL_HOST: jupiter.netlen.com.tr
-  CPANEL_USER: myskypar
-  REPOSITORY_ROOT: /home/myskypar/repositories/pixel-perfect-clone-14793
-  PRODUCTION_BRANCH: netlen-production
+  contents: read
 
 jobs:
-  build-and-deploy:
-    name: Build and deploy to Netlen Node.js
+  disabled:
+    name: Deployment paused
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-
     steps:
-      - name: Checkout main
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build production output
-        env:
-          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
-        run: npm run build
-
-      - name: Verify production output
-        run: |
-          set -euo pipefail
-          test -f .output/server/index.mjs
-          test -f .output/nitro.json
-          test -f app.js
-          du -sh .output
-
-      - name: Prepare Netlen production branch
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          git checkout -B "$PRODUCTION_BRANCH" origin/main
-          mkdir -p tmp
-          touch tmp/restart.txt
-          git add -f .output app.js tmp/restart.txt
-          if git diff --cached --quiet; then
-            echo "No generated deployment changes to commit."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "chore(deploy): build production output for Netlen"
-          fi
-          git push origin "$PRODUCTION_BRANCH" --force
-
-      - name: Update cPanel repository to production branch
-        env:
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          curl --fail-with-body --silent --show-error \
-            -H "Authorization: cpanel ${CPANEL_USER}:${CPANEL_API_TOKEN}" \
-            --get "https://${CPANEL_HOST}:2083/execute/VersionControl/update" \
-            --data-urlencode "repository_root=${REPOSITORY_ROOT}" \
-            --data-urlencode "branch=${PRODUCTION_BRANCH}"
-
-      - name: Deploy cPanel repository
-        env:
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          curl --fail-with-body --silent --show-error \
-            -H "Authorization: cpanel ${CPANEL_USER}:${CPANEL_API_TOKEN}" \
-            --get "https://${CPANEL_HOST}:2083/execute/VersionControlDeployment/create" \
-            --data-urlencode "repository_root=${REPOSITORY_ROOT}"
-
-      - name: Confirm deployment request
-        run: echo "Netlen deployment requested for ${GITHUB_SHA} via ${PRODUCTION_BRANCH}."
+      - run: echo "Netlen automatic deployment is temporarily paused."
