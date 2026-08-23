@@ -76,13 +76,22 @@ jobs:
           base="https://jupiter.netlen.com.tr:2083"
           auth="Authorization: cpanel myskypar:${CPANEL_API_TOKEN}"
           repo="/home/myskypar/repositories/pixel-perfect-clone-14793"
-          curl --fail-with-body --silent --show-error \
+          response="$(curl --fail-with-body --silent --show-error \
             --header "$auth" --get \
             --data-urlencode "repository_root=$repo" \
             --data-urlencode "branch=netlen-deploy" \
-            "$base/execute/VersionControl/update"
+            "$base/execute/VersionControl/update")"
+          printf '%s\n' "$response"
+          if printf '%s' "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*0|"error"[[:space:]]*:'; then
+            echo 'cPanel repository update API reported an error.' >&2
+            exit 1
+          fi
+          if ! printf '%s' "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*1'; then
+            echo 'cPanel repository update API did not report status=1.' >&2
+            exit 1
+          fi
 
-      - name: Trigger cPanel deployment
+      - name: Trigger and validate cPanel deployment
         env:
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: |
@@ -90,7 +99,16 @@ jobs:
           base="https://jupiter.netlen.com.tr:2083"
           auth="Authorization: cpanel myskypar:${CPANEL_API_TOKEN}"
           repo="/home/myskypar/repositories/pixel-perfect-clone-14793"
-          curl --fail-with-body --silent --show-error \
+          response="$(curl --fail-with-body --silent --show-error \
             --header "$auth" --get \
             --data-urlencode "repository_root=$repo" \
-            "$base/execute/VersionControlDeployment/create"
+            "$base/execute/VersionControlDeployment/create")"
+          printf '%s\n' "$response"
+          if printf '%s' "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*0|"error"[[:space:]]*:'; then
+            echo 'cPanel deployment API reported an error.' >&2
+            exit 1
+          fi
+          if ! printf '%s' "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*1'; then
+            echo 'cPanel deployment API did not report status=1.' >&2
+            exit 1
+          fi
