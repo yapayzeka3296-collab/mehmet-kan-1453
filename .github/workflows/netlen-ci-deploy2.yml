@@ -21,6 +21,7 @@ jobs:
           node-version: 22
           cache: npm
 
+      # npm install intentionally regenerates package-lock.json from package.json.
       - run: npm install
 
       - name: Persist npm-generated lockfile
