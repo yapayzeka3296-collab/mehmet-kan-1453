@@ -48,45 +48,42 @@ jobs:
           test -f .cpanel.yml
           du -sh .output
 
-      - name: Validate cPanel push secrets
+      - name: Validate cPanel SSH secret
         env:
-          CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
           CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
-          CPANEL_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          test -n "${CPANEL_GIT_SSH_URL:-}" || { echo "ERROR: CPANEL_GIT_SSH_URL is not configured."; exit 1; }
-          test -n "${CPANEL_SSH_PRIVATE_KEY:-}" || { echo "ERROR: CPANEL_SSH_PRIVATE_KEY is not configured."; exit 1; }
-          test -n "${CPANEL_SSH_KNOWN_HOSTS:-}" || { echo "ERROR: CPANEL_SSH_KNOWN_HOSTS is not configured."; exit 1; }
-          echo "cPanel SSH deployment secrets are configured."
+          test -n "${CPANEL_SSH_PRIVATE_KEY:-}" || {
+            echo "ERROR: CPANEL_SSH_PRIVATE_KEY is not configured."
+            exit 1
+          }
+          echo "cPanel SSH deployment key is configured."
 
       - name: Configure SSH for Netlen cPanel
         env:
           CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
-          CPANEL_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           install -d -m 700 ~/.ssh
-          printf '%s\n' "$CPANEL_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$CPANEL_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$CPANEL_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p 22 -H jupiter.netlen.com.tr >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
       - name: Prepare deployment commit from current cPanel branch
-        env:
-          CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
         run: |
           set -euo pipefail
           deploy_branch="netlen-deploy"
+          cpanel_remote="ssh://myskypar@jupiter.netlen.com.tr:22/home/myskypar/repositories/pixel-perfect-clone-14793"
           worktree="$RUNNER_TEMP/cpanel-deploy-worktree"
           rm -rf "$worktree"
 
           git remote remove cpanel 2>/dev/null || true
-          git remote add cpanel "$CPANEL_GIT_SSH_URL"
+          git remote add cpanel "$cpanel_remote"
 
-          remote_sha="$(git ls-remote "$CPANEL_GIT_SSH_URL" "refs/heads/${deploy_branch}" | awk '{print $1}')"
+          remote_sha="$(git ls-remote "$cpanel_remote" "refs/heads/${deploy_branch}" | awk '{print $1}')"
           test -n "$remote_sha" || {
-            echo "ERROR: cPanel remote does not expose refs/heads/${deploy_branch}."
+            echo "ERROR: cPanel repository does not expose refs/heads/${deploy_branch}."
             exit 1
           }
           echo "cPanel ${deploy_branch} before push: ${remote_sha}"
@@ -114,10 +111,9 @@ jobs:
           echo "Prepared cPanel deployment commit: ${production_sha}"
           echo "PRODUCTION_SHA=${production_sha}" >> "$GITHUB_ENV"
           echo "DEPLOY_WORKTREE=${worktree}" >> "$GITHUB_ENV"
+          echo "CPANEL_REMOTE=${cpanel_remote}" >> "$GITHUB_ENV"
 
-      - name: Push production commit directly to cPanel Git
-        env:
-          CPANEL_GIT_SSH_URL: ${{ secrets.CPANEL_GIT_SSH_URL }}
+      - name: Push production commit directly to existing cPanel Git
         run: |
           set -euo pipefail
           test -n "${PRODUCTION_SHA:-}" || {
@@ -126,9 +122,9 @@ jobs:
           }
 
           cd "$DEPLOY_WORKTREE"
-          git push cpanel "${PRODUCTION_SHA}:refs/heads/netlen-deploy"
+          git push "$CPANEL_REMOTE" "${PRODUCTION_SHA}:refs/heads/netlen-deploy"
 
-          verified_sha="$(git ls-remote "$CPANEL_GIT_SSH_URL" refs/heads/netlen-deploy | awk '{print $1}')"
+          verified_sha="$(git ls-remote "$CPANEL_REMOTE" refs/heads/netlen-deploy | awk '{print $1}')"
           test "$verified_sha" = "$PRODUCTION_SHA" || {
             echo "ERROR: cPanel branch verification failed."
             echo "Expected: $PRODUCTION_SHA"
@@ -136,4 +132,27 @@ jobs:
             exit 1
           }
           echo "cPanel netlen-deploy now points to ${verified_sha}."
-          echo "The cPanel post-receive hook is responsible for running .cpanel.yml."
+          echo "Direct SSH push completed; cPanel post-receive hook should run .cpanel.yml automatically."
+
+      - name: Verify cPanel deployment state
+        env:
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${CPANEL_API_TOKEN:-}" || {
+            echo "ERROR: CPANEL_API_TOKEN is not configured."
+            exit 1
+          }
+          response="$(curl --fail-with-body -sS \
+            -u "myskypar:${CPANEL_API_TOKEN}" \
+            "https://jupiter.netlen.com.tr:2083/execute/VersionControlDeployment/retrieve")"
+          printf '%s\n' "$response" > "$RUNNER_TEMP/cpanel-deployment.json"
+          python - <<'PY'
+          import json, pathlib
+          p = pathlib.Path("/home/runner/work/_temp/cpanel-deployment.json")
+          data = json.loads(p.read_text())
+          if data.get("result", {}).get("status") != 1:
+              raise SystemExit("cPanel deployment status API returned failure")
+          print("cPanel deployment status API responded successfully.")
+          print(json.dumps(data.get("result", {}).get("data"), indent=2)[:12000])
+          PY
