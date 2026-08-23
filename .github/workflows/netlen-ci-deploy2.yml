@@ -49,11 +49,24 @@ jobs:
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+          # Preserve build output before replacing the Git worktree.
+          deploy_tmp="$RUNNER_TEMP/netlen-deploy"
+          rm -rf "$deploy_tmp"
+          mkdir -p "$deploy_tmp"
+          cp -R "$GITHUB_WORKSPACE/.output" "$deploy_tmp/.output"
+          cp "$GITHUB_WORKSPACE/app.js" "$deploy_tmp/app.js"
+          cp "$GITHUB_WORKSPACE/.cpanel.yml" "$deploy_tmp/.cpanel.yml"
+
+          # Clean generated/untracked files first so orphan checkout cannot fail.
+          git reset --hard HEAD
+          git clean -fdx
           git switch --orphan netlen-deploy
           git rm -rf . || true
-          cp -R "$GITHUB_WORKSPACE/.output" .output
-          cp "$GITHUB_WORKSPACE/app.js" app.js
-          cp "$GITHUB_WORKSPACE/.cpanel.yml" .cpanel.yml
+
+          cp -R "$deploy_tmp/.output" .output
+          cp "$deploy_tmp/app.js" app.js
+          cp "$deploy_tmp/.cpanel.yml" .cpanel.yml
           git add .output app.js .cpanel.yml
           git commit -m "deploy: build $GITHUB_SHA"
           git push --force origin HEAD:netlen-deploy
