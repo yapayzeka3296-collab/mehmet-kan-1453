@@ -1,20 +1,20 @@
-import { Award, Headphones, Lock, ShieldCheck, Truck } from "lucide-react";
+import { Headphones, Lock, ShieldCheck, Award } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type TrustItem = { icon: LucideIcon; title: string; text: string };
 
 export const DEFAULT_TRUST: TrustItem[] = [
-  { icon: Lock, title: "GÜVENLİ ALTYAPI", text: "Güvenlik altyapısı yayın öncesi ayrıca doğrulanmalıdır" },
-  { icon: Truck, title: "HIZLI TESLİMAT", text: "Dijital teslimat akışı yayın öncesi doğrulanmalıdır" },
-  { icon: Headphones, title: "DESTEK", text: "Destek bilgileri için iletişim sayfasını ziyaret edin" },
-  { icon: Award, title: "KOLEKSİYONUNA KAT", text: "Gökyüzündeki yerini koleksiyonuna ekle" },
+  { icon: ShieldCheck, title: "GÜVENLİ ÖDEME", text: "Ödeme, iyzico Link ödeme sayfasında güvenli şekilde tamamlanır." },
+  { icon: Lock, title: "SSL / HTTPS", text: "Site ve ödeme yönlendirmesi güvenli HTTPS bağlantısı üzerinden sunulur." },
+  { icon: Award, title: "SEMBOLİK PARSEL", text: "Satın alma gerçek taşınmaz veya gökyüzü mülkiyeti oluşturmaz." },
+  { icon: Headphones, title: "DESTEK", text: "Sipariş ve destek talepleri için İletişim sayfasından bize ulaşabilirsiniz." },
 ];
 
 export const SECURITY_TRUST: TrustItem[] = [
-  { icon: ShieldCheck, title: "GÜVENLİK ALTYAPISI", text: "Teknik güvenlik yapılandırması yayın öncesi doğrulanmalıdır." },
-  { icon: Lock, title: "GÜVENLİ ÖDEME", text: "Ödeme altyapısı ve sağlayıcı doğrulaması yayın öncesi tamamlanmalıdır." },
-  { icon: Truck, title: "HIZLI TESLİMAT", text: "Sertifika teslim akışı yayın öncesi doğrulanmalıdır." },
-  { icon: Headphones, title: "DESTEK", text: "Destek bilgileri için iletişim sayfasını ziyaret edin." },
+  { icon: ShieldCheck, title: "GÜVENLİ ÖDEME", text: "Ödeme işlemi iyzico Link ödeme sayfasında gerçekleştirilir." },
+  { icon: Lock, title: "3D SECURE", text: "iyzico Link ödeme yöntemi desteklediğinde 3D Secure güvenliği kullanır." },
+  { icon: Award, title: "AÇIK ÜRÜN TANIMI", text: "Sunulan parsel dijital ve sembolik bir koleksiyon kaydıdır." },
+  { icon: Headphones, title: "MÜŞTERİ DESTEĞİ", text: "İletişim kanallarımız ve satış sonrası destek bilgilerimiz sitede yer alır." },
 ];
 
 export function TrustBar({ items = DEFAULT_TRUST }: { items?: TrustItem[] }) {
