@@ -26,42 +26,12 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Production build
         run: npm run build
-
-      - name: Inspect build output
-        run: |
-          echo "Build output directories:"
-          find . -maxdepth 3 -type d \( -name '.output' -o -name 'dist' -o -name 'build' \) -print
-          echo "Top-level files/directories:"
-          ls -la
-
-      - name: Prepare production build artifact
-        run: |
-          set -e
-          rm -rf production-build
-          if [ -d ".output" ]; then
-            cp -R .output production-build
-          elif [ -d "dist" ]; then
-            cp -R dist production-build
-          elif [ -d "build" ]; then
-            cp -R build production-build
-          else
-            echo "No supported production build directory was found."
-            exit 1
-          fi
-          echo "Prepared artifact:"
-          find production-build -maxdepth 3 -type f -print | head -200
-
-      - name: Upload production build
-        uses: actions/upload-artifact@v4
-        with:
-          name: myskyparcel-production-build
-          path: production-build/
-          if-no-files-found: error
-          retention-days: 7
+        env:
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
 
       - name: TypeScript check
         run: npx tsc --noEmit
