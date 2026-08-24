@@ -32,13 +32,13 @@ function Iletisim() {
               <UserRound className="mt-0.5 h-5 w-5 shrink-0 text-gold" />
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">Satıcı / İşletme</p>
-                <p className="text-sm font-medium">Mehmet Kanuşağı — MySkyParcel</p>
+                <p className="text-sm font-medium">MySkyParcel</p>
               </div>
             </div>
             {[
-              { icon: Mail, t: "E-posta", v: "incememet3296@gmail.com" },
+              { icon: Mail, t: "E-posta", v: "info.myskyparcel@gmail.com" },
               { icon: Phone, t: "Telefon", v: "0541 615 97 43" },
-              { icon: MapPin, t: "Adres", v: "Barak Mah. 1000248 Sok. No: 26, Şahinbey / Gaziantep" },
+              { icon: MapPin, t: "Adres", v: "Kuştepe Mah. Mecidiyeköy Yolu Cad. No:18 34318 Şişli/İstanbul" },
             ].map((c) => (
               <div key={c.t} className="flex min-w-0 items-start gap-3">
                 <c.icon className="mt-0.5 h-5 w-5 shrink-0 text-gold" />
