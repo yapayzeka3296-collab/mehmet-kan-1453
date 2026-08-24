@@ -27,3 +27,24 @@
   font-weight: 700 !important;
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.65);
 }
+
+/* Mobil + tablet: giriş paneli en üstte. Masaüstünde mevcut iki sütun sırası korunur. */
+@media (max-width: 1023px) {
+  .starfield:has(#email) main > div.relative > div:first-child {
+    order: 2;
+  }
+
+  .starfield:has(#email) main > div.relative > div:nth-child(2) {
+    order: 1;
+  }
+}
+
+@media (min-width: 1024px) {
+  .starfield:has(#email) main > div.relative > div:first-child {
+    order: 1;
+  }
+
+  .starfield:has(#email) main > div.relative > div:nth-child(2) {
+    order: 2;
+  }
+}
