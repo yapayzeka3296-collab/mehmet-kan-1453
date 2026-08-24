@@ -11,7 +11,7 @@ type PurchaseSearch = { parcels?: string; tier?: Tier };
 export const Route = createFileRoute("/parsel-satin-al")({
   validateSearch: (search: Record<string, unknown>): PurchaseSearch => ({
     parcels: typeof search.parcels === "string" ? search.parcels : undefined,
-    tier: search.tier === "digital" || search.tier === "elite" || search.tier === "premium" ? search.tier : "elite",
+    tier: search.tier === "digital" || search.tier === "elite" || search.tier === "premium" ? search.tier : undefined,
   }),
   head: () => ({ meta: [{ title: "Parsel Satın Al — MySkyParcel" }, { name: "description", content: "MySkyParcel parsel satın alma adımını tamamlayın." }] }),
   component: SatinAl,
@@ -26,7 +26,9 @@ const PACKAGES: Record<Tier, { name: string; price: number }> = {
 
 function SatinAl() {
   const navigate = useNavigate({ from: "/parsel-satin-al" });
-  const { parcels, tier = "elite" } = Route.useSearch();
+  const { parcels, tier: queryTier } = Route.useSearch();
+  const storedTier = typeof window !== "undefined" ? window.localStorage.getItem("myskyparcel_selected_tier") : null;
+  const tier: Tier = queryTier ?? (storedTier === "digital" || storedTier === "elite" || storedTier === "premium" ? storedTier : "elite");
   const [accepted, setAccepted] = useState(false);
   const selectedParcel = parcels?.split(",").filter(Boolean)[0] || "GZ-K05-S042-P07";
   const pack = PACKAGES[tier];
