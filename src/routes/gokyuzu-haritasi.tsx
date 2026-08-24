@@ -3,7 +3,6 @@ import { Layers3, MapPin, Search, ListChecks, X, ShoppingCart, ShieldCheck } fro
 import { z } from "zod";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
-import "@/lib/parcelStrokeRenderer";
 import { FocusedGoogleParcelMap } from "@/components/FocusedGoogleParcelMap";
 import { ParcelDetailPanel } from "@/components/ParcelDetailPanel";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
