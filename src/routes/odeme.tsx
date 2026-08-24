@@ -3,8 +3,13 @@ import { ArrowLeft, ExternalLink, Lock, ShieldCheck } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 
+type Tier = "digital" | "elite" | "premium";
+
 export const Route = createFileRoute("/odeme")({
-  validateSearch: (search: Record<string, unknown>) => ({ parcels: typeof search.parcels === "string" ? search.parcels : "" }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    parcels: typeof search.parcels === "string" ? search.parcels : "",
+    tier: search.tier === "digital" || search.tier === "elite" || search.tier === "premium" ? search.tier : "elite",
+  }),
   head: () => ({
     meta: [
       { title: "Ödeme — MySkyParcel" },
@@ -15,12 +20,19 @@ export const Route = createFileRoute("/odeme")({
 });
 
 const STEPS = ["Parsel Seçimi", "Bilgiler", "Ödeme"];
+const PACKAGES: Record<Tier, { name: string; price: number; link: string }> = {
+  digital: { name: "Dijital", price: 199, link: import.meta.env.VITE_IYZICO_DIGITAL_LINK?.trim() ?? "" },
+  elite: { name: "Özel", price: 499, link: import.meta.env.VITE_IYZICO_ELITE_LINK?.trim() ?? "" },
+  premium: { name: "Premium", price: 999, link: import.meta.env.VITE_IYZICO_PREMIUM_LINK?.trim() ?? "" },
+};
 
 function Odeme() {
   const navigate = useNavigate({ from: "/odeme" });
-  const { parcels } = Route.useSearch();
-  const iyzicoLink = import.meta.env.VITE_IYZICO_PAYMENT_LINK?.trim() ?? "";
+  const { parcels, tier } = Route.useSearch();
+  const pack = PACKAGES[tier];
   const selectedParcelCount = parcels ? parcels.split(",").filter(Boolean).length : 0;
+  const total = pack.price * selectedParcelCount;
+  const paymentReady = Boolean(pack.link);
 
   return (
     <div className="starfield min-h-screen">
@@ -34,24 +46,19 @@ function Odeme() {
         <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_360px]">
           <section className="panel p-6 sm:p-8">
             <div className="mb-6 flex items-center gap-3"><Lock className="h-5 w-5 text-gold" /><div><h2 className="font-display text-lg">İYZİCO İLE GÜVENLİ ÖDEME</h2><p className="text-xs text-muted-foreground">Kart bilgilerinizi MySkyParcel üzerinde girmeyin. Ödeme işlemi iyzico'nun güvenli ödeme sayfasında tamamlanır.</p></div></div>
-
-            <div className="rounded-xl border border-gold/20 bg-gold/[0.04] p-5">
-              <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-gold" /><div><p className="text-sm font-semibold">Kart bilgileriniz bu sitede tutulmaz.</p><p className="mt-2 text-xs leading-5 text-muted-foreground">Ödeme butonuna bastığınızda iyzico ödeme bağlantısına yönlendirilirsiniz. Kart numarası, son kullanma tarihi ve CVV alanları bu sayfadan kaldırılmıştır.</p></div></div>
-            </div>
-
+            <div className="rounded-xl border border-gold/20 bg-gold/[0.04] p-5"><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-gold" /><div><p className="text-sm font-semibold">{pack.name} paketi · {pack.price} TL / parsel</p><p className="mt-2 text-xs leading-5 text-muted-foreground">Kart bilgileri MySkyParcel üzerinde alınmaz. Ödeme, iyzico'nun oluşturduğunuz resmi Link sayfasında tamamlanır.</p></div></div></div>
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-              <button type="button" onClick={() => void navigate({ to: "/parsel-satin-al", search: { parcels } })} className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-5 py-3 text-xs"><ArrowLeft className="h-4 w-4" /> BİLGİLERE DÖN</button>
-              {iyzicoLink ? (
-                <a href={iyzicoLink} target="_blank" rel="noopener noreferrer" className="btn-gold inline-flex items-center justify-center gap-2 rounded-md px-6 py-3 text-xs"><Lock className="h-4 w-4" /> İYZİCO İLE ÖDE <ExternalLink className="h-4 w-4" /></a>
+              <button type="button" onClick={() => void navigate({ to: "/parsel-satin-al", search: { parcels, tier } })} className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-5 py-3 text-xs"><ArrowLeft className="h-4 w-4" /> BİLGİLERE DÖN</button>
+              {paymentReady ? (
+                <a href={pack.link} target="_blank" rel="noopener noreferrer" className="btn-gold inline-flex items-center justify-center gap-2 rounded-md px-6 py-3 text-xs"><Lock className="h-4 w-4" /> İYZİCO İLE ÖDE <ExternalLink className="h-4 w-4" /></a>
               ) : (
-                <button type="button" disabled className="btn-gold inline-flex items-center justify-center gap-2 rounded-md px-6 py-3 text-xs disabled:cursor-not-allowed disabled:opacity-60"><Lock className="h-4 w-4" /> İYZİCO ÖDEME LİNKİ BEKLENİYOR</button>
+                <button type="button" disabled className="btn-gold inline-flex items-center justify-center gap-2 rounded-md px-6 py-3 text-xs disabled:cursor-not-allowed disabled:opacity-60"><Lock className="h-4 w-4" /> {pack.name.toUpperCase()} LİNKİ BEKLENİYOR</button>
               )}
             </div>
-
-            <div className="mt-6 rounded-lg border border-border p-4 text-xs text-muted-foreground"><p>Ödeme bağlantısı yalnızca iyzico panelinden oluşturulan resmi Link ile doldurulduğunda aktif olur. Link kod içine sabitlenmez; Vercel ortam değişkeninden verilir.</p></div>
+            <div className="mt-6 rounded-lg border border-border p-4 text-xs text-muted-foreground"><p>Seçilen paket için iyzico Link'i Vercel ortam değişkeninden okunur. Link kod içine veya GitHub'a yazılmaz.</p></div>
           </section>
 
-          <aside className="panel h-fit p-6"><h2 className="font-display text-base">SİPARİŞ ÖZETİ</h2><div className="mt-5 space-y-3 text-sm"><div className="flex justify-between"><span className="text-muted-foreground">Seçilen parseller</span><span className="font-semibold">{selectedParcelCount}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Sertifika paketi</span><span>Premium</span></div><div className="flex justify-between border-t border-border pt-4"><span className="text-muted-foreground">Toplam</span><span className="font-display text-2xl text-gold">499 TL</span></div></div></aside>
+          <aside className="panel h-fit p-6"><h2 className="font-display text-base">SİPARİŞ ÖZETİ</h2><div className="mt-5 space-y-3 text-sm"><div className="flex justify-between"><span className="text-muted-foreground">Seçilen parseller</span><span className="font-semibold">{selectedParcelCount}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Paket</span><span>{pack.name}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Birim fiyat</span><span>{pack.price} TL</span></div><div className="flex justify-between border-t border-border pt-4"><span className="font-semibold">Toplam</span><span className="font-display text-2xl text-gold">{total.toLocaleString("tr-TR")} TL</span></div></div></aside>
         </div>
       </main>
       <SiteFooter />
