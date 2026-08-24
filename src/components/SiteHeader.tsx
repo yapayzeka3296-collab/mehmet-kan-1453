@@ -82,12 +82,12 @@ export function SiteHeader() {
         </nav>
         <div className="hidden items-center gap-3 xl:flex 2xl:gap-4">
           <Link to="/pazar-yeri" aria-label="Pazar Yeri" title="Pazar Yeri" className="flex items-center gap-1.5 p-2 text-xs font-medium text-slate-300 transition-colors duration-200 hover:text-[#D4AF37] 2xl:text-sm"><Store className="h-5 w-5" /> <span>PAZAR YERİ</span></Link>
-          <button type="button" aria-label="Sepet (henüz etkin değil)" title="Sepet özelliği sonraki entegrasyonda etkinleştirilecek" className="p-2 text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]"><ShoppingCart className="h-5 w-5" /></button>
+          <Link to="/parsel-satin-al" aria-label="Sepetim" title="Sepetim" className="relative p-2 text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]"><ShoppingCart className="h-5 w-5" /></Link>
           {isAuthenticated ? (<><Link to="/panelim" className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition-colors duration-200 hover:border-[#D4AF37] hover:text-[#D4AF37]">Panelim</Link><button type="button" onClick={() => void handleSignOut()} className="rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-black transition-colors duration-200 hover:bg-[#c29f2e]">Çıkış Yap</button></>) : (<><Link to="/giris" className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition-colors duration-200 hover:border-[#D4AF37] hover:text-[#D4AF37]">Giriş Yap</Link><Link to="/kayit-ol" className="rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-black transition-colors duration-200 hover:bg-[#c29e2e]">Üye Ol</Link></>) }
         </div>
         <div className="flex items-center gap-2 xl:hidden">
           <Link to="/pazar-yeri" aria-label="Pazar Yeri" title="Pazar Yeri" className="p-2 text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]"><Store className="h-6 w-6" /></Link>
-          <button type="button" aria-label="Sepet (henüz etkin değil)" title="Sepet özelliği sonraki entegrasyonda etkinleştirilecek" className="p-2 text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]"><ShoppingCart className="h-6 w-6" /></button>
+          <Link to="/parsel-satin-al" aria-label="Sepetim" title="Sepetim" className="p-2 text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]"><ShoppingCart className="h-6 w-6" /></Link>
           {!open && <button ref={menuButtonRef} type="button" aria-label="Menüyü aç" aria-expanded="false" aria-controls="mobile-navigation" onClick={() => setOpen(true)} className="p-2 text-slate-300 transition-colors duration-200 hover:text-[#D4AF37]"><Menu className="h-7 w-7" /></button>}
         </div>
       </div>
