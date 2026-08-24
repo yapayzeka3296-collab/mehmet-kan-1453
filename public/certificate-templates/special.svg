@@ -2,17 +2,13 @@
   <title id="title">MySkyParcel Özel Sertifika</title>
   <desc id="desc">MySkyParcel special certificate template</desc>
   <defs>
-    <radialGradient id="bg" cx="50%" cy="45%" r="78%"><stop offset="0" stop-color="#f4f5f3"/><stop offset=".28" stop-color="#dbe4e9"/><stop offset=".55" stop-color="#24496e"/><stop offset="1" stop-color="#071426"/></radialGradient>
-    <radialGradient id="cloudGlow" cx="48%" cy="48%" r="62%"><stop offset="0" stop-color="#ffffff" stop-opacity=".92"/><stop offset=".45" stop-color="#edf2f4" stop-opacity=".5"/><stop offset="1" stop-color="#7f9db8" stop-opacity="0"/></radialGradient>
-    <radialGradient id="goldGlow" cx="50%" cy="50%"><stop offset="0" stop-color="#f1d486" stop-opacity=".4"/><stop offset="1" stop-color="#f1d486" stop-opacity="0"/></radialGradient>
-    <pattern id="stars" width="160" height="115" patternUnits="userSpaceOnUse"><circle cx="22" cy="26" r="1.1" fill="#fff" opacity=".72"/><circle cx="74" cy="74" r=".8" fill="#f0d88c" opacity=".72"/><circle cx="134" cy="36" r="1.2" fill="#fff" opacity=".58"/><circle cx="112" cy="100" r=".7" fill="#fff" opacity=".5"/></pattern>
+    <linearGradient id="bgOverlay" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#071426" stop-opacity=".25"/><stop offset=".5" stop-color="#071426" stop-opacity=".12"/><stop offset="1" stop-color="#071426" stop-opacity=".62"/></linearGradient>
+    <radialGradient id="goldGlow"><stop offset="0" stop-color="#f1d486" stop-opacity=".28"/><stop offset="1" stop-color="#f1d486" stop-opacity="0"/></radialGradient>
     <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8f6d2c"/><stop offset=".5" stop-color="#f0d88c"/><stop offset="1" stop-color="#9a7934"/></linearGradient>
   </defs>
-  <rect width="1122" height="794" fill="url(#bg)"/>
-  <rect width="1122" height="794" fill="url(#cloudGlow)"/>
-  <rect width="1122" height="794" fill="url(#stars)" opacity=".7"/>
-  <ellipse cx="105" cy="145" rx="280" ry="190" fill="#477ba4" opacity=".22"/>
-  <ellipse cx="1010" cy="690" rx="320" ry="180" fill="#315f86" opacity=".28"/>
+  <rect width="1122" height="794" fill="#24496e"/>
+  <image x="0" y="0" width="1122" height="794" preserveAspectRatio="xMidYMid slice" href="https://images.unsplash.com/photo-1513014939933-3b7e0cf15185?auto=format&amp;fit=crop&amp;w=1800&amp;q=90"/>
+  <rect width="1122" height="794" fill="url(#bgOverlay)"/>
   <ellipse cx="180" cy="670" rx="260" ry="125" fill="url(#goldGlow)"/>
   <path d="M55 55h1012v684H55z" fill="none" stroke="url(#gold)" stroke-width="3"/>
   <path d="M75 75h972v644H75z" fill="none" stroke="#d7bc70" stroke-opacity=".28"/>
