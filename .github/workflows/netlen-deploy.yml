@@ -1,0 +1,88 @@
+name: Deploy to Netlen cPanel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: netlen-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production
+        run: npm run build
+        env:
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+
+      - name: Verify production output
+        run: |
+          set -euo pipefail
+          test -f .output/server/index.mjs
+          test -f .output/nitro.json
+          test -d .output/public
+          test -f app.js
+          test -f .cpanel.yml
+
+      - name: Publish deployment branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --orphan netlen-deploy
+          git rm -rf . >/dev/null 2>&1 || true
+          git clean -fdx
+          git add -f .output app.js .cpanel.yml
+          git commit -m "deploy: build $GITHUB_SHA"
+          git push --force origin HEAD:netlen-deploy
+
+      - name: Synchronize cPanel repository
+        env:
+          CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${CPANEL_SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$CPANEL_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh_opts=(-i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          ssh "${ssh_opts[@]}" myskypar@jupiter.netlen.com.tr 'set -e; cd /home/myskypar/repositories/pixel-perfect-clone-14793; git fetch origin netlen-deploy; git reset --hard origin/netlen-deploy; git clean -fd; test -z "$(git status --porcelain)"'
+
+      - name: Trigger cPanel deployment
+        env:
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${CPANEL_API_TOKEN:-}"
+          response="$(curl --fail-with-body -sS -G \
+            -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" \
+            --data-urlencode "repository_root=/home/myskypar/repositories/pixel-perfect-clone-14793" \
+            "https://jupiter.netlen.com.tr:2083/execute/VersionControlDeployment/create")"
+          printf '%s\n' "$response"
+          python - <<'PY' "$response"
+          import json,sys
+          result=json.loads(sys.argv[1]).get("result",{})
+          if result.get("status") != 1:
+              raise SystemExit(json.dumps(result, indent=2))
+          PY
