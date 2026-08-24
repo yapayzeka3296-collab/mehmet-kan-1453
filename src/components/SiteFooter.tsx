@@ -36,8 +36,24 @@ export function SiteFooter() {
             <span className="rounded border border-white/15 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-900">Mastercard</span>
           </div>
           <ul className="flex items-center gap-3" aria-label="Sosyal medya">
-            {[Facebook, Instagram, Twitter, Youtube, Linkedin].map((Icon, i) => (
-              <li key={i}><span aria-label="Sosyal medya bağlantısı henüz tanımlı değil" title="Sosyal medya bağlantısı henüz tanımlı değil" className="grid h-8 w-8 place-items-center rounded-full border border-gold/50 text-gold/70"><Icon className="h-3.5 w-3.5" aria-hidden="true" /></span></li>
+            <li>
+              <a
+                href="https://www.instagram.com/myskyparcel/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="MySkyParcel Instagram"
+                title="MySkyParcel Instagram"
+                className="grid h-8 w-8 place-items-center rounded-full border border-gold/50 text-gold/70 transition-colors hover:text-gold hover:border-gold"
+              >
+                <Instagram className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+            </li>
+            {[Facebook, Twitter, Youtube, Linkedin].map((Icon, i) => (
+              <li key={i}>
+                <span aria-label="Sosyal medya bağlantısı henüz tanımlı değil" title="Sosyal medya bağlantısı henüz tanımlı değil" className="grid h-8 w-8 place-items-center rounded-full border border-gold/50 text-gold/70">
+                  <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                </span>
+              </li>
             ))}
           </ul>
         </div>
