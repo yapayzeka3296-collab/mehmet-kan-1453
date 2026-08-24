@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - /bin/mkdir -p /home/myskypar/repositories/pixel-perfect-clone-14793/tmp
+    - /bin/touch /home/myskypar/repositories/pixel-perfect-clone-14793/tmp/restart.txt
