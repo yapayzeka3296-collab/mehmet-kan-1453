@@ -2,20 +2,15 @@
   <title id="title">MySkyParcel Premium Sertifika</title>
   <desc id="desc">MySkyParcel premium certificate template</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#020711"/><stop offset=".28" stop-color="#102b4b"/><stop offset=".5" stop-color="#dbe5e9"/><stop offset=".68" stop-color="#163452"/><stop offset="1" stop-color="#020610"/></linearGradient>
-    <radialGradient id="halo"><stop offset="0" stop-color="#ffffff" stop-opacity=".9"/><stop offset=".34" stop-color="#e7eef1" stop-opacity=".5"/><stop offset="1" stop-color="#f2d37a" stop-opacity="0"/></radialGradient>
-    <radialGradient id="goldGlow"><stop offset="0" stop-color="#f6d879" stop-opacity=".48"/><stop offset="1" stop-color="#f6d879" stop-opacity="0"/></radialGradient>
-    <radialGradient id="blueGlow"><stop offset="0" stop-color="#77a8d0" stop-opacity=".3"/><stop offset="1" stop-color="#0a1b31" stop-opacity="0"/></radialGradient>
-    <pattern id="stars" width="135" height="100" patternUnits="userSpaceOnUse"><circle cx="15" cy="19" r="1.2" fill="#fff" opacity=".8"/><circle cx="62" cy="55" r=".9" fill="#ffe7a0" opacity=".78"/><circle cx="112" cy="25" r="1.1" fill="#fff" opacity=".62"/><circle cx="95" cy="82" r=".8" fill="#fff" opacity=".58"/></pattern>
+    <linearGradient id="bgOverlay" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#020711" stop-opacity=".58"/><stop offset=".5" stop-color="#102b4b" stop-opacity=".08"/><stop offset="1" stop-color="#020610" stop-opacity=".68"/></linearGradient>
+    <radialGradient id="goldGlow"><stop offset="0" stop-color="#f6d879" stop-opacity=".3"/><stop offset="1" stop-color="#f6d879" stop-opacity="0"/></radialGradient>
     <linearGradient id="platinum" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b6d30"/><stop offset=".25" stop-color="#fff0aa"/><stop offset=".5" stop-color="#b89342"/><stop offset=".75" stop-color="#fff0aa"/><stop offset="1" stop-color="#8b6d30"/></linearGradient>
   </defs>
-  <rect width="1122" height="794" fill="url(#bg)"/>
-  <ellipse cx="561" cy="350" rx="330" ry="300" fill="url(#halo)"/>
-  <rect width="1122" height="794" fill="url(#stars)" opacity=".78"/>
-  <ellipse cx="115" cy="160" rx="300" ry="210" fill="url(#blueGlow)"/>
-  <ellipse cx="1010" cy="650" rx="330" ry="220" fill="url(#blueGlow)"/>
+  <rect width="1122" height="794" fill="#020711"/>
+  <image x="0" y="0" width="1122" height="794" preserveAspectRatio="xMidYMid slice" href="https://images.unsplash.com/photo-1505322022379-7c3353ee6291?auto=format&amp;fit=crop&amp;w=1800&amp;q=90"/>
+  <rect width="1122" height="794" fill="url(#bgOverlay)"/>
   <ellipse cx="180" cy="710" rx="270" ry="135" fill="url(#goldGlow)"/>
-  <ellipse cx="930" cy="120" rx="230" ry="120" fill="url(#goldGlow)" opacity=".6"/>
+  <ellipse cx="930" cy="120" rx="230" ry="120" fill="url(#goldGlow)" opacity=".55"/>
   <rect x="24" y="24" width="1074" height="746" rx="22" fill="none" stroke="url(#platinum)" stroke-width="3"/>
   <rect x="40" y="40" width="1042" height="714" rx="17" fill="none" stroke="#e2c56c" stroke-opacity=".3"/>
   <g stroke="#d9bc63" fill="none" stroke-width="2" opacity=".7"><path d="M70 180V70h110M1052 180V70H942M70 614v110h110M1052 614v110H942"/><circle cx="561" cy="94" r="25"/><path d="M541 94h40M561 74v40"/></g>
