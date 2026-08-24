@@ -13,7 +13,7 @@ export const Route = createFileRoute("/mesafeli-satis-sozlesmesi")({
 });
 
 const sections = [
-  ["MADDE 1 — TARAFLAR", "SATICI: Mehmet Kanuşağı / MySkyParcel\nAdres: Barak Mah. 1000248 Sok. No: 26, Şahinbey / Gaziantep\nTelefon: 0541 615 97 43\nE-posta: incememet3296@gmail.com\nPlatform/marka adı: MySkyParcel\n\nALICI: MySkyParcel üzerinden sipariş oluşturan tüketicidir. Alıcının sipariş sırasında bildirdiği iletişim ve teslimat bilgileri esas alınır."],
+  ["MADDE 1 — TARAFLAR", "SATICI: MySkyParcel\nAdres: Kuştepe Mah. Mecidiyeköy Yolu Cad. No:18 34318 Şişli/İstanbul\nTelefon: 0541 615 97 43\nE-posta: info.myskyparcel@gmail.com\nPlatform/marka adı: MySkyParcel\n\nALICI: MySkyParcel üzerinden sipariş oluşturan tüketicidir. Alıcının sipariş sırasında bildirdiği iletişim ve teslimat bilgileri esas alınır."],
   ["MADDE 2 — SÖZLEŞMENİN KONUSU", "Bu sözleşmenin konusu, Alıcı'nın MySkyParcel platformu üzerinden seçtiği dijital ve sembolik gökyüzü parseli ile buna bağlı sertifika/hizmet paketinin satın alınması, bedelinin ödenmesi ve hizmetin ifasıdır."],
   ["MADDE 3 — HİZMETİN NİTELİĞİ", "MySkyParcel'de sunulan parseller dijital ve sembolik niteliktedir. Satın alma işlemi gerçek arsa, arazi, taşınmaz, gökyüzü veya astronomik cisim üzerinde mülkiyet, tapu, ayni hak ya da hukuki mülkiyet hakkı vermez. Alıcı bu niteliği bilerek satın alma işlemini gerçekleştirir."],
   ["MADDE 4 — PAKETLER VE BEDEL", "Dijital Parsel Sertifikası: 199 TL. Özel Parsel Sertifikası: 499 TL. Premium Parsel Sertifikası: 999 TL. Sipariş ekranında gösterilen güncel fiyat ve varsa kanunen uygulanması gereken vergiler toplam sipariş bedelini oluşturur. Alıcı ödeme öncesinde toplam bedeli görür ve onaylar."],
