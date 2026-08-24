@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Mail, MapPin, Phone } from "lucide-react";
+import { Mail, MapPin, Phone, UserRound } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
@@ -8,9 +8,9 @@ export const Route = createFileRoute("/iletisim")({
   head: () => ({
     meta: [
       { title: "İletişim — MySkyParcel" },
-      { name: "description", content: "MySkyParcel iletişim bilgileri ve destek kanalları." },
+      { name: "description", content: "MySkyParcel satıcı ve iletişim bilgileri, destek kanalları." },
       { property: "og:title", content: "İletişim — MySkyParcel" },
-      { property: "og:description", content: "MySkyParcel iletişim bilgileri ve destek formu." },
+      { property: "og:description", content: "MySkyParcel satıcı bilgileri, iletişim ve destek kanalları." },
     ],
   }),
   component: Iletisim,
@@ -23,11 +23,18 @@ function Iletisim() {
       <main className="mx-auto max-w-[1600px] px-4 py-14 lg:px-8">
         <h1 className="text-center font-display text-4xl font-bold sm:text-5xl">İLETİŞİM</h1>
         <p className="mx-auto mt-4 max-w-xl text-center text-sm text-muted-foreground">
-          Soru, görüş, destek ve sipariş talepleriniz için aşağıdaki iletişim kanallarından bize ulaşabilirsiniz.
+          Sipariş, ödeme, sertifika, teslimat ve diğer destek talepleriniz için aşağıdaki iletişim kanallarından bize ulaşabilirsiniz.
         </p>
 
         <div className="mt-10 grid gap-6 lg:grid-cols-[360px_1fr]">
           <aside className="panel grid content-start gap-5 p-6">
+            <div className="flex min-w-0 items-start gap-3">
+              <UserRound className="mt-0.5 h-5 w-5 shrink-0 text-gold" />
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Satıcı / İşletme</p>
+                <p className="text-sm font-medium">Mehmet Kanuşağı — MySkyParcel</p>
+              </div>
+            </div>
             {[
               { icon: Mail, t: "E-posta", v: "incememet3296@gmail.com" },
               { icon: Phone, t: "Telefon", v: "0541 615 97 43" },
