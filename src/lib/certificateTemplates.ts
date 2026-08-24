@@ -3,9 +3,9 @@ import QRCode from "qrcode";
 export type CertificateTemplateType = "digital" | "special" | "premium";
 
 export const CERTIFICATE_TEMPLATE_PATHS: Record<CertificateTemplateType, string> = {
-  digital: "/certificate-templates/digital.svg",
-  special: "/certificate-templates/special.svg",
-  premium: "/certificate-templates/premium.svg",
+  digital: "/certificate-templates/digital-v2.svg",
+  special: "/certificate-templates/special-v2.svg",
+  premium: "/certificate-templates/premium-v2.svg",
 };
 
 export function templateTypeForTier(tier: "digital" | "elite" | "premium"): CertificateTemplateType {
