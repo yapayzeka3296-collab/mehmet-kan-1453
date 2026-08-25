@@ -38,10 +38,16 @@ function slugify(value: string) {
     .replace(/^-|-$/g, "");
 }
 
+// GeoJSON is WGS84 [longitude, latitude]. Map it to the same equirectangular
+// orientation used by Three.js SphereGeometry so borders sit on the texture.
 function coordinateToVector3(lng: number, lat: number, radius = EARTH_RADIUS + 0.012) {
   const phi = THREE.MathUtils.degToRad(lat);
   const theta = THREE.MathUtils.degToRad(lng);
-  return new THREE.Vector3(radius * Math.cos(phi) * Math.cos(theta), radius * Math.sin(phi), radius * Math.cos(phi) * Math.sin(theta));
+  return new THREE.Vector3(
+    -radius * Math.cos(phi) * Math.cos(theta),
+    radius * Math.sin(phi),
+    radius * Math.cos(phi) * Math.sin(theta),
+  );
 }
 
 function featureName(feature: GeoJsonFeature, index: number) {
@@ -80,7 +86,11 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
     const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
     const turkeyLat = THREE.MathUtils.degToRad(39);
     const turkeyLng = THREE.MathUtils.degToRad(35);
-    const initialDirection = new THREE.Vector3(Math.cos(turkeyLat) * Math.cos(turkeyLng), Math.sin(turkeyLat), Math.cos(turkeyLat) * Math.sin(turkeyLng)).normalize();
+    const initialDirection = new THREE.Vector3(
+      -Math.cos(turkeyLat) * Math.cos(turkeyLng),
+      Math.sin(turkeyLat),
+      Math.cos(turkeyLat) * Math.sin(turkeyLng),
+    ).normalize();
     camera.position.copy(initialDirection.multiplyScalar(4.25));
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
