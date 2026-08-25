@@ -11,7 +11,6 @@ type Props = {
 type GeoJsonGeometry =
   | { type: "Polygon"; coordinates: number[][][] }
   | { type: "MultiPolygon"; coordinates: number[][][][] };
-
 type GeoJsonFeature = { type: "Feature"; properties?: Record<string, unknown>; geometry?: GeoJsonGeometry | null };
 type GeoJsonCollection = { type: "FeatureCollection"; features: GeoJsonFeature[] };
 
@@ -24,8 +23,10 @@ function slugify(value: string) {
   return value.toLocaleLowerCase("tr-TR").replace(/ı/g, "i").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ö/g, "o").replace(/ç/g, "c").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-// Three.js SphereGeometry uses longitude 0° on +X for its default equirectangular UV layout.
-// GeoJSON is WGS84 [longitude, latitude], so this is the direct geographic-to-sphere mapping.
+// Three.js SphereGeometry uses x = -cos(phi), z = sin(phi), with u=0 at the
+// left edge of an equirectangular map (-180°). Therefore WGS84 longitude
+// maps to x=cos(lon), z=-sin(lon) so the GeoJSON and NASA map share the
+// exact same geographic meridian convention.
 function coordinateToVector3(lng: number, lat: number, radius = EARTH_RADIUS + 0.012) {
   const latRad = THREE.MathUtils.degToRad(lat);
   const lonRad = THREE.MathUtils.degToRad(lng);
@@ -33,7 +34,7 @@ function coordinateToVector3(lng: number, lat: number, radius = EARTH_RADIUS + 0
   return new THREE.Vector3(
     radius * cosLat * Math.cos(lonRad),
     radius * Math.sin(latRad),
-    radius * cosLat * Math.sin(lonRad),
+    -radius * cosLat * Math.sin(lonRad),
   );
 }
 
@@ -69,8 +70,6 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x01040b);
     const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
-
-    // Start at the geographic center of Türkiye using the same mapping as province borders.
     camera.position.copy(coordinateToVector3(35, 39, 4.25).normalize().multiplyScalar(4.25));
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
