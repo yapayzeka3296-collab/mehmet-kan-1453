@@ -41,11 +41,12 @@ export const Route = createFileRoute('/api/earth-assets')({
             });
           }
 
+          const body = await upstream.arrayBuffer();
           const headers = new Headers();
           headers.set('content-type', asset.contentType);
           headers.set('cache-control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400');
           headers.set('access-control-allow-origin', '*');
-          return new Response(upstream.body, { status: 200, headers });
+          return new Response(body, { status: 200, headers });
         } catch (error) {
           console.error(`Earth asset proxy failed for ${type}`, error);
           return new Response(JSON.stringify({ ok: false, reason: 'proxy_error' }), {
