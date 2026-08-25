@@ -23,19 +23,11 @@ function slugify(value: string) {
   return value.toLocaleLowerCase("tr-TR").replace(/ı/g, "i").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ö/g, "o").replace(/ç/g, "c").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-// Three.js SphereGeometry uses x = -cos(phi), z = sin(phi), with u=0 at the
-// left edge of an equirectangular map (-180°). Therefore WGS84 longitude
-// maps to x=cos(lon), z=-sin(lon) so the GeoJSON and NASA map share the
-// exact same geographic meridian convention.
 function coordinateToVector3(lng: number, lat: number, radius = EARTH_RADIUS + 0.012) {
   const latRad = THREE.MathUtils.degToRad(lat);
   const lonRad = THREE.MathUtils.degToRad(lng);
   const cosLat = Math.cos(latRad);
-  return new THREE.Vector3(
-    radius * cosLat * Math.cos(lonRad),
-    radius * Math.sin(latRad),
-    -radius * cosLat * Math.sin(lonRad),
-  );
+  return new THREE.Vector3(radius * cosLat * Math.cos(lonRad), radius * Math.sin(latRad), -radius * cosLat * Math.sin(lonRad));
 }
 
 function featureName(feature: GeoJsonFeature, index: number) {
@@ -155,7 +147,12 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
       controls.update();
       let parcelCount: number | null = null;
       if (supabaseBrowser) {
-        try { const result = await supabaseBrowser.from("parcel_map_public").select("id", { count: "exact", head: true }).eq("city_slug", slug); if (!result.error) parcelCount = result.count ?? 0; } catch (error) { console.warn("Province parcel count lookup skipped", error); }
+        try {
+          const result = await supabaseBrowser.from("parcel_map_public").select("id", { count: "exact", head: true }).eq("city_slug", slug);
+          if (!result.error) parcelCount = result.count ?? 0;
+        } catch (error) {
+          console.warn("Province parcel count lookup skipped", error);
+        }
       }
       if (!disposed) onProvinceSelect?.({ name, slug, parcelCount });
     };
