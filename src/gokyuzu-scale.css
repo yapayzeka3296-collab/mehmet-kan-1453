@@ -1,0 +1,4 @@
+/* Gökyüzü Haritası: yalnızca sayfanın görsel ölçeğini %25 küçültür. */
+body:has(input[aria-label="Pilot şehir ara"]) main {
+  zoom: 0.75;
+}
