@@ -20,9 +20,9 @@ type GeoJsonFeature = {
 
 type GeoJsonCollection = { type: "FeatureCollection"; features: GeoJsonFeature[] };
 
-const EARTH_TEXTURE = "https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73826/world.topo.bathy.200410.3x5400x2700.jpg";
-const CLOUD_TEXTURE = "https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud_combined_2048.jpg";
-const PROVINCES_GEOJSON = "https://raw.githubusercontent.com/ttezer/turkiye-harita-verisi/master/dist/geojson/provinces.geojson";
+const EARTH_TEXTURE = "/api/earth-assets?type=earth";
+const CLOUD_TEXTURE = "/api/earth-assets?type=clouds";
+const PROVINCES_GEOJSON = "/api/earth-assets?type=provinces";
 const EARTH_RADIUS = 1.5;
 
 function slugify(value: string) {
@@ -41,17 +41,12 @@ function slugify(value: string) {
 function coordinateToVector3(lng: number, lat: number, radius = EARTH_RADIUS + 0.012) {
   const phi = THREE.MathUtils.degToRad(lat);
   const theta = THREE.MathUtils.degToRad(lng);
-  return new THREE.Vector3(
-    radius * Math.cos(phi) * Math.cos(theta),
-    radius * Math.sin(phi),
-    radius * Math.cos(phi) * Math.sin(theta),
-  );
+  return new THREE.Vector3(radius * Math.cos(phi) * Math.cos(theta), radius * Math.sin(phi), radius * Math.cos(phi) * Math.sin(theta));
 }
 
 function featureName(feature: GeoJsonFeature, index: number) {
   const properties = feature.properties ?? {};
-  const value = properties.name ?? properties.NAME_1 ?? properties.province ?? properties.il ?? properties.ad ?? `İl ${index + 1}`;
-  return String(value);
+  return String(properties.name ?? properties.NAME_1 ?? properties.province ?? properties.il ?? properties.ad ?? `İl ${index + 1}`);
 }
 
 function addFeatureLines(feature: GeoJsonFeature, index: number) {
@@ -60,12 +55,11 @@ function addFeatureLines(feature: GeoJsonFeature, index: number) {
   const group = new THREE.Group();
   group.name = name;
   group.userData = { provinceName: name, provinceSlug: slugify(name) };
-  const material = new THREE.LineBasicMaterial({ color: 0x55c8ff, transparent: true, opacity: 0.62 });
   const rings = feature.geometry.type === "Polygon" ? feature.geometry.coordinates : feature.geometry.coordinates.flat();
   for (const ring of rings) {
     const points = ring.map(([lng, lat]) => coordinateToVector3(lng, lat));
     if (points.length < 2) continue;
-    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), material));
+    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x55c8ff, transparent: true, opacity: 0.62 })));
   }
   return group.children.length ? group : null;
 }
@@ -86,11 +80,7 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
     const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
     const turkeyLat = THREE.MathUtils.degToRad(39);
     const turkeyLng = THREE.MathUtils.degToRad(35);
-    const initialDirection = new THREE.Vector3(
-      Math.cos(turkeyLat) * Math.cos(turkeyLng),
-      Math.sin(turkeyLat),
-      Math.cos(turkeyLat) * Math.sin(turkeyLng),
-    ).normalize();
+    const initialDirection = new THREE.Vector3(Math.cos(turkeyLat) * Math.cos(turkeyLng), Math.sin(turkeyLat), Math.cos(turkeyLat) * Math.sin(turkeyLng)).normalize();
     camera.position.copy(initialDirection.multiplyScalar(4.25));
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
@@ -133,7 +123,7 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
     );
     scene.add(earth);
 
-    const cloudTexture = textureLoader.load(CLOUD_TEXTURE);
+    const cloudTexture = textureLoader.load(CLOUD_TEXTURE, undefined, undefined, () => console.warn("Cloud texture could not be loaded"));
     cloudTexture.colorSpace = THREE.SRGBColorSpace;
     cloudTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
     const clouds = new THREE.Mesh(
@@ -191,7 +181,6 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
       const slug = String(group.userData.provinceSlug ?? slugify(name));
       setSelected(group);
       controls.autoRotate = false;
-
       const center = new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3()).normalize();
       camera.position.copy(center.multiplyScalar(3.15));
       controls.target.set(0, 0, 0);
@@ -200,10 +189,7 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
       let parcelCount: number | null = null;
       if (supabaseBrowser) {
         try {
-          const result = await supabaseBrowser
-            .from("parcel_map_public")
-            .select("id", { count: "exact", head: true })
-            .eq("city_slug", slug);
+          const result = await supabaseBrowser.from("parcel_map_public").select("id", { count: "exact", head: true }).eq("city_slug", slug);
           if (!result.error) parcelCount = result.count ?? 0;
         } catch (error) {
           console.warn("Province parcel count lookup skipped", error);
