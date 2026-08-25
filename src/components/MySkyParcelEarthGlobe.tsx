@@ -86,11 +86,12 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.055;
+    controls.rotateSpeed = 0.7;
     controls.enablePan = false;
     controls.minDistance = 2.35;
     controls.maxDistance = 7.5;
     controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.18;
+    controls.autoRotateSpeed = 0.126;
     controls.target.set(0, 0, 0);
     controls.update();
 
