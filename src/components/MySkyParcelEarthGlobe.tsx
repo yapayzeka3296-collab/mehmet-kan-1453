@@ -48,13 +48,6 @@ function coordinateToVector3(lng: number, lat: number, radius = EARTH_RADIUS + 0
   );
 }
 
-function ringToLine(ring: number[][]) {
-  const points = ring
-    .filter((coordinate) => Number.isFinite(coordinate[0]) && Number.isFinite(coordinate[1]))
-    .map(([lng, lat]) => coordinateToVector3(lng, lat));
-  return points.length > 1 ? new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x66d9ff, transparent: true, opacity: 0.9 })) : null;
-}
-
 function featureName(feature: GeoJsonFeature, index: number) {
   const properties = feature.properties ?? {};
   const value = properties.name ?? properties.NAME_1 ?? properties.province ?? properties.il ?? properties.ad ?? `İl ${index + 1}`;
@@ -72,8 +65,7 @@ function addFeatureLines(feature: GeoJsonFeature, index: number) {
   for (const ring of rings) {
     const points = ring.map(([lng, lat]) => coordinateToVector3(lng, lat));
     if (points.length < 2) continue;
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    group.add(new THREE.Line(geometry, material));
+    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), material));
   }
   return group.children.length ? group : null;
 }
@@ -86,6 +78,7 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
+    let disposed = false;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x01040b);
@@ -122,20 +115,18 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
     controls.target.set(0, 0, 0);
     controls.update();
 
-    const ambient = new THREE.AmbientLight(0x6e88ad, 0.48);
-    scene.add(ambient);
+    scene.add(new THREE.AmbientLight(0x6e88ad, 0.48));
     const sun = new THREE.DirectionalLight(0xffffff, 2.7);
     sun.position.set(5, 3, 5);
     scene.add(sun);
-    const coolFill = new THREE.DirectionalLight(0x3c6da8, 0.55);
-    coolFill.position.set(-4, -2, -3);
-    scene.add(coolFill);
+    const fill = new THREE.DirectionalLight(0x3c6da8, 0.55);
+    fill.position.set(-4, -2, -3);
+    scene.add(fill);
 
     const textureLoader = new THREE.TextureLoader();
     const earthTexture = textureLoader.load(EARTH_TEXTURE, () => setStatus("Dünya hazır"), undefined, () => setStatus("Dünya dokusu yüklenemedi"));
     earthTexture.colorSpace = THREE.SRGBColorSpace;
-    earthTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-
+    earthTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
     const earth = new THREE.Mesh(
       new THREE.SphereGeometry(EARTH_RADIUS, 128, 128),
       new THREE.MeshPhongMaterial({ map: earthTexture, shininess: 8, specular: new THREE.Color(0x1c3550) }),
@@ -146,17 +137,17 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
     cloudTexture.colorSpace = THREE.SRGBColorSpace;
     cloudTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
     const clouds = new THREE.Mesh(
-      new THREE.SphereGeometry(EARTH_RADIUS * 1.012, 96, 96),
-      new THREE.MeshPhongMaterial({ map: cloudTexture, transparent: true, opacity: 0.34, depthWrite: false, blending: THREE.AdditiveBlending }),
+      new THREE.SphereGeometry(EARTH_RADIUS * 1.014, 96, 96),
+      new THREE.MeshPhongMaterial({ color: 0xffffff, alphaMap: cloudTexture, transparent: true, opacity: 0.42, depthWrite: false }),
     );
     scene.add(clouds);
 
     const atmosphere = new THREE.Mesh(
-      new THREE.SphereGeometry(EARTH_RADIUS * 1.08, 96, 96),
+      new THREE.SphereGeometry(EARTH_RADIUS * 1.085, 96, 96),
       new THREE.ShaderMaterial({
-        uniforms: { glowColor: { value: new THREE.Color(0x4da3ff) }, viewVector: { value: camera.position } },
         vertexShader: `varying vec3 vNormal; varying vec3 vWorldPosition; void main(){ vNormal = normalize(normalMatrix * normal); vec4 worldPosition = modelMatrix * vec4(position,1.0); vWorldPosition = worldPosition.xyz; gl_Position = projectionMatrix * viewMatrix * worldPosition; }`,
-        fragmentShader: `uniform vec3 glowColor; varying vec3 vNormal; varying vec3 vWorldPosition; void main(){ vec3 viewDir = normalize(cameraPosition - vWorldPosition); float intensity = pow(0.72 - max(dot(vNormal, viewDir), 0.0), 3.0); gl_FragColor = vec4(glowColor, intensity * 0.72); }`,
+        fragmentShader: `uniform vec3 glowColor; varying vec3 vNormal; varying vec3 vWorldPosition; void main(){ vec3 viewDir = normalize(cameraPosition - vWorldPosition); float intensity = pow(0.76 - max(dot(vNormal, viewDir), 0.0), 3.0); gl_FragColor = vec4(glowColor, intensity * 0.78); }`,
+        uniforms: { glowColor: { value: new THREE.Color(0x4da3ff) } },
         side: THREE.BackSide,
         blending: THREE.AdditiveBlending,
         transparent: true,
@@ -188,41 +179,34 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
     raycaster.params.Line.threshold = 0.035;
     const pointer = new THREE.Vector2();
     let selectedGroup: THREE.Group | null = null;
-    let disposed = false;
 
     const setSelected = (group: THREE.Group | null) => {
-      if (selectedGroup) {
-        selectedGroup.traverse((child) => {
-          if (child instanceof THREE.Line && child.material instanceof THREE.LineBasicMaterial) child.material.color.setHex(0x55c8ff);
-        });
-      }
+      if (selectedGroup) selectedGroup.traverse((child) => { if (child instanceof THREE.Line && child.material instanceof THREE.LineBasicMaterial) child.material.color.setHex(0x55c8ff); });
       selectedGroup = group;
-      if (selectedGroup) {
-        selectedGroup.traverse((child) => {
-          if (child instanceof THREE.Line && child.material instanceof THREE.LineBasicMaterial) child.material.color.setHex(0xffffff);
-        });
-      }
+      if (selectedGroup) selectedGroup.traverse((child) => { if (child instanceof THREE.Line && child.material instanceof THREE.LineBasicMaterial) child.material.color.setHex(0xffffff); });
     };
 
     const selectProvince = async (group: THREE.Group) => {
       const name = String(group.userData.provinceName ?? "");
       const slug = String(group.userData.provinceSlug ?? slugify(name));
       setSelected(group);
+      controls.autoRotate = false;
+
+      const center = new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3()).normalize();
+      camera.position.copy(center.multiplyScalar(3.15));
+      controls.target.set(0, 0, 0);
+      controls.update();
+
       let parcelCount: number | null = null;
       if (supabaseBrowser) {
         try {
-          const box = new THREE.Box3().setFromObject(group);
-          const points = group.children.flatMap((child) => child instanceof THREE.Line ? Array.from((child.geometry.getAttribute("position") as THREE.BufferAttribute).array as ArrayLike<number>) : []);
-          void points;
-          const minLat = -90;
-          const maxLat = 90;
-          const minLng = -180;
-          const maxLng = 180;
-          const result = await supabaseBrowser.rpc("parcels_in_view", { p_city_slug: slug, p_min_lat: minLat, p_min_lng: minLng, p_max_lat: maxLat, p_max_lng: maxLng });
-          if (!result.error && Array.isArray(result.data)) parcelCount = result.data.length;
-          void box;
+          const result = await supabaseBrowser
+            .from("parcel_map_public")
+            .select("id", { count: "exact", head: true })
+            .eq("city_slug", slug);
+          if (!result.error) parcelCount = result.count ?? 0;
         } catch (error) {
-          console.warn("Province parcel lookup skipped", error);
+          console.warn("Province parcel count lookup skipped", error);
         }
       }
       if (!disposed) onProvinceSelect?.({ name, slug, parcelCount });
@@ -253,10 +237,10 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
         if (disposed) return;
         geojson.features.forEach((feature, index) => {
           const group = addFeatureLines(feature, index);
-          if (!group) return;
-          provinces.add(group);
+          if (group) provinces.add(group);
         });
         setProvinceCount(provinces.children.length);
+        if (provinces.children.length !== 81) setStatus(`Dünya hazır · ${provinces.children.length} il sınırı yüklendi`);
       })
       .catch((error) => {
         console.error("Turkey province GeoJSON load failed", error);
@@ -271,7 +255,7 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
       camera.updateProjectionMatrix();
       renderer.setSize(width, height, false);
     };
-    const onVisibility = () => { controls.autoRotate = document.visibilityState === "visible"; };
+    const onVisibility = () => { controls.autoRotate = document.visibilityState === "visible" && !selectedGroup; };
     window.addEventListener("resize", resize);
     document.addEventListener("visibilitychange", onVisibility);
     resize();
@@ -284,7 +268,6 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
       controls.update();
       clouds.rotation.y += delta * 0.004;
       stars.rotation.y += delta * 0.00012;
-      atmosphere.material.uniforms.viewVector.value.copy(camera.position);
       renderer.render(scene, camera);
     };
     animate();
@@ -308,12 +291,7 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
       (atmosphere.material as THREE.Material).dispose();
       starsGeometry.dispose();
       (stars.material as THREE.Material).dispose();
-      provinces.traverse((child) => {
-        if (child instanceof THREE.Line) {
-          child.geometry.dispose();
-          (child.material as THREE.Material).dispose();
-        }
-      });
+      provinces.traverse((child) => { if (child instanceof THREE.Line) { child.geometry.dispose(); (child.material as THREE.Material).dispose(); } });
       renderer.dispose();
       if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
     };
@@ -322,12 +300,8 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
   return (
     <div className={`relative h-[560px] w-full overflow-hidden rounded-3xl border border-sky-200/15 bg-[#01040b] shadow-2xl shadow-black/40 ${className}`}>
       <div ref={mountRef} className="absolute inset-0" aria-label="MySkyParcel gerçek 3D Dünya küresi" />
-      <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] font-medium tracking-[0.12em] text-white/75 backdrop-blur-md">
-        {status}{provinceCount ? ` · ${provinceCount}/81 il` : ""}
-      </div>
-      <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">
-        Döndür · yakınlaştır · uzaklaştır · Türkiye'den il seç
-      </div>
+      <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] font-medium tracking-[0.12em] text-white/75 backdrop-blur-md">{status}{provinceCount ? ` · ${provinceCount}/81 il` : ""}</div>
+      <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">Döndür · yakınlaştır · uzaklaştır · Türkiye'den il seç</div>
     </div>
   );
 }
