@@ -1,3 +1,4 @@
+// Restored baseline globe version for Vercel deployment.
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
