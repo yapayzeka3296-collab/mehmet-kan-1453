@@ -12,12 +12,7 @@ type GeoJsonGeometry =
   | { type: "Polygon"; coordinates: number[][][] }
   | { type: "MultiPolygon"; coordinates: number[][][][] };
 
-type GeoJsonFeature = {
-  type: "Feature";
-  properties?: Record<string, unknown>;
-  geometry?: GeoJsonGeometry | null;
-};
-
+type GeoJsonFeature = { type: "Feature"; properties?: Record<string, unknown>; geometry?: GeoJsonGeometry | null };
 type GeoJsonCollection = { type: "FeatureCollection"; features: GeoJsonFeature[] };
 
 const EARTH_TEXTURE = "/api/earth-assets?type=earth";
@@ -26,34 +21,25 @@ const PROVINCES_GEOJSON = "/api/earth-assets?type=provinces";
 const EARTH_RADIUS = 1.5;
 
 function slugify(value: string) {
-  return value
-    .toLocaleLowerCase("tr-TR")
-    .replace(/ı/g, "i")
-    .replace(/ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/ş/g, "s")
-    .replace(/ö/g, "o")
-    .replace(/ç/g, "c")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+  return value.toLocaleLowerCase("tr-TR").replace(/ı/g, "i").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ö/g, "o").replace(/ç/g, "c").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-// GeoJSON uses WGS84 [longitude, latitude]. Three.js SphereGeometry's
-// equirectangular UVs place longitude 0° on the +Z meridian, so the same
-// geographic coordinates must use the corresponding spherical conversion.
+// Three.js SphereGeometry uses longitude 0° on +X for its default equirectangular UV layout.
+// GeoJSON is WGS84 [longitude, latitude], so this is the direct geographic-to-sphere mapping.
 function coordinateToVector3(lng: number, lat: number, radius = EARTH_RADIUS + 0.012) {
-  const phi = THREE.MathUtils.degToRad(lat);
-  const theta = THREE.MathUtils.degToRad(lng);
+  const latRad = THREE.MathUtils.degToRad(lat);
+  const lonRad = THREE.MathUtils.degToRad(lng);
+  const cosLat = Math.cos(latRad);
   return new THREE.Vector3(
-    -radius * Math.cos(phi) * Math.sin(theta),
-    radius * Math.sin(phi),
-    radius * Math.cos(phi) * Math.cos(theta),
+    radius * cosLat * Math.cos(lonRad),
+    radius * Math.sin(latRad),
+    radius * cosLat * Math.sin(lonRad),
   );
 }
 
 function featureName(feature: GeoJsonFeature, index: number) {
-  const properties = feature.properties ?? {};
-  return String(properties.name ?? properties.NAME_1 ?? properties.province ?? properties.il ?? properties.ad ?? `İl ${index + 1}`);
+  const p = feature.properties ?? {};
+  return String(p.name ?? p.NAME_1 ?? p.province ?? p.il ?? p.ad ?? `İl ${index + 1}`);
 }
 
 function addFeatureLines(feature: GeoJsonFeature, index: number) {
@@ -80,19 +66,12 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
     const mount = mountRef.current;
     if (!mount) return;
     let disposed = false;
-
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x01040b);
-
     const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
-    const turkeyLat = THREE.MathUtils.degToRad(39);
-    const turkeyLng = THREE.MathUtils.degToRad(35);
-    const initialDirection = new THREE.Vector3(
-      -Math.cos(turkeyLat) * Math.sin(turkeyLng),
-      Math.sin(turkeyLat),
-      Math.cos(turkeyLat) * Math.cos(turkeyLng),
-    ).normalize();
-    camera.position.copy(initialDirection.multiplyScalar(4.25));
+
+    // Start at the geographic center of Türkiye using the same mapping as province borders.
+    camera.position.copy(coordinateToVector3(35, 39, 4.25).normalize().multiplyScalar(4.25));
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
@@ -128,43 +107,26 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
     const earthTexture = textureLoader.load(EARTH_TEXTURE, () => setStatus("Dünya hazır"), undefined, () => setStatus("Dünya dokusu yüklenemedi"));
     earthTexture.colorSpace = THREE.SRGBColorSpace;
     earthTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
-    const earth = new THREE.Mesh(
-      new THREE.SphereGeometry(EARTH_RADIUS, 128, 128),
-      new THREE.MeshPhongMaterial({ map: earthTexture, shininess: 8, specular: new THREE.Color(0x1c3550) }),
-    );
+    const earth = new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS, 128, 128), new THREE.MeshPhongMaterial({ map: earthTexture, shininess: 8, specular: new THREE.Color(0x1c3550) }));
     scene.add(earth);
 
     const cloudTexture = textureLoader.load(CLOUD_TEXTURE, undefined, undefined, () => console.warn("Cloud texture could not be loaded"));
     cloudTexture.colorSpace = THREE.SRGBColorSpace;
     cloudTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
-    const clouds = new THREE.Mesh(
-      new THREE.SphereGeometry(EARTH_RADIUS * 1.014, 96, 96),
-      new THREE.MeshPhongMaterial({ color: 0xffffff, alphaMap: cloudTexture, transparent: true, opacity: 0.42, depthWrite: false }),
-    );
+    const clouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS * 1.014, 96, 96), new THREE.MeshPhongMaterial({ color: 0xffffff, alphaMap: cloudTexture, transparent: true, opacity: 0.42, depthWrite: false }));
     scene.add(clouds);
 
-    const atmosphere = new THREE.Mesh(
-      new THREE.SphereGeometry(EARTH_RADIUS * 1.085, 96, 96),
-      new THREE.ShaderMaterial({
-        vertexShader: `varying vec3 vNormal; varying vec3 vWorldPosition; void main(){ vNormal = normalize(normalMatrix * normal); vec4 worldPosition = modelMatrix * vec4(position,1.0); vWorldPosition = worldPosition.xyz; gl_Position = projectionMatrix * viewMatrix * worldPosition; }`,
-        fragmentShader: `uniform vec3 glowColor; varying vec3 vNormal; varying vec3 vWorldPosition; void main(){ vec3 viewDir = normalize(cameraPosition - vWorldPosition); float intensity = pow(0.76 - max(dot(vNormal, viewDir), 0.0), 3.0); gl_FragColor = vec4(glowColor, intensity * 0.78); }`,
-        uniforms: { glowColor: { value: new THREE.Color(0x4da3ff) } },
-        side: THREE.BackSide,
-        blending: THREE.AdditiveBlending,
-        transparent: true,
-        depthWrite: false,
-      }),
-    );
+    const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS * 1.085, 96, 96), new THREE.ShaderMaterial({
+      vertexShader: `varying vec3 vNormal; varying vec3 vWorldPosition; void main(){ vNormal=normalize(normalMatrix*normal); vec4 worldPosition=modelMatrix*vec4(position,1.0); vWorldPosition=worldPosition.xyz; gl_Position=projectionMatrix*viewMatrix*worldPosition; }`,
+      fragmentShader: `varying vec3 vNormal; varying vec3 vWorldPosition; void main(){ vec3 viewDir=normalize(cameraPosition-vWorldPosition); float intensity=pow(0.76-max(dot(vNormal,viewDir),0.0),3.0); gl_FragColor=vec4(vec3(0.302,0.639,1.0),intensity*0.78); }`,
+      side: THREE.BackSide, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false,
+    }));
     scene.add(atmosphere);
 
     const starsGeometry = new THREE.BufferGeometry();
-    const starCount = 3200;
-    const positions = new Float32Array(starCount * 3);
-    for (let i = 0; i < starCount; i += 1) {
-      const radius = 11 + Math.random() * 28;
-      const theta = Math.random() * Math.PI * 2;
-      const z = Math.random() * 2 - 1;
-      const xy = Math.sqrt(1 - z * z);
+    const positions = new Float32Array(3200 * 3);
+    for (let i = 0; i < 3200; i += 1) {
+      const radius = 11 + Math.random() * 28, theta = Math.random() * Math.PI * 2, z = Math.random() * 2 - 1, xy = Math.sqrt(1 - z * z);
       positions[i * 3] = radius * xy * Math.cos(theta);
       positions[i * 3 + 1] = radius * z;
       positions[i * 3 + 2] = radius * xy * Math.sin(theta);
@@ -174,41 +136,29 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
     scene.add(stars);
 
     const provinces = new THREE.Group();
-    provinces.name = "TurkeyProvinces";
     scene.add(provinces);
     const raycaster = new THREE.Raycaster();
     raycaster.params.Line.threshold = 0.035;
     const pointer = new THREE.Vector2();
     let selectedGroup: THREE.Group | null = null;
-
     const setSelected = (group: THREE.Group | null) => {
       if (selectedGroup) selectedGroup.traverse((child) => { if (child instanceof THREE.Line && child.material instanceof THREE.LineBasicMaterial) child.material.color.setHex(0x55c8ff); });
       selectedGroup = group;
       if (selectedGroup) selectedGroup.traverse((child) => { if (child instanceof THREE.Line && child.material instanceof THREE.LineBasicMaterial) child.material.color.setHex(0xffffff); });
     };
-
     const selectProvince = async (group: THREE.Group) => {
-      const name = String(group.userData.provinceName ?? "");
-      const slug = String(group.userData.provinceSlug ?? slugify(name));
+      const name = String(group.userData.provinceName ?? ""), slug = String(group.userData.provinceSlug ?? slugify(name));
       setSelected(group);
       controls.autoRotate = false;
       const center = new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3()).normalize();
       camera.position.copy(center.multiplyScalar(3.15));
-      controls.target.set(0, 0, 0);
       controls.update();
-
       let parcelCount: number | null = null;
       if (supabaseBrowser) {
-        try {
-          const result = await supabaseBrowser.from("parcel_map_public").select("id", { count: "exact", head: true }).eq("city_slug", slug);
-          if (!result.error) parcelCount = result.count ?? 0;
-        } catch (error) {
-          console.warn("Province parcel count lookup skipped", error);
-        }
+        try { const result = await supabaseBrowser.from("parcel_map_public").select("id", { count: "exact", head: true }).eq("city_slug", slug); if (!result.error) parcelCount = result.count ?? 0; } catch (error) { console.warn("Province parcel count lookup skipped", error); }
       }
       if (!disposed) onProvinceSelect?.({ name, slug, parcelCount });
     };
-
     const onPointerDown = () => { renderer.domElement.style.cursor = "grabbing"; };
     const onPointerUp = () => { renderer.domElement.style.cursor = "grab"; };
     const onPointerClick = (event: MouseEvent) => {
@@ -216,89 +166,38 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect }: Prop
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
-      const hits = raycaster.intersectObjects(provinces.children, true);
-      const group = hits.find((hit) => hit.object.parent instanceof THREE.Group)?.object.parent;
+      const hit = raycaster.intersectObjects(provinces.children, true).find((item) => item.object.parent instanceof THREE.Group);
+      const group = hit?.object.parent;
       if (group instanceof THREE.Group) void selectProvince(group);
     };
-
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
     renderer.domElement.addEventListener("click", onPointerClick);
 
-    fetch(PROVINCES_GEOJSON)
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`GeoJSON HTTP ${response.status}`);
-        return (await response.json()) as GeoJsonCollection;
-      })
-      .then((geojson) => {
-        if (disposed) return;
-        geojson.features.forEach((feature, index) => {
-          const group = addFeatureLines(feature, index);
-          if (group) provinces.add(group);
-        });
-        setProvinceCount(provinces.children.length);
-        if (provinces.children.length !== 81) setStatus(`Dünya hazır · ${provinces.children.length} il sınırı yüklendi`);
-      })
-      .catch((error) => {
-        console.error("Turkey province GeoJSON load failed", error);
-        if (!disposed) setStatus("Dünya hazır · il sınırları yüklenemedi");
-      });
+    fetch(PROVINCES_GEOJSON).then(async (response) => { if (!response.ok) throw new Error(`GeoJSON HTTP ${response.status}`); return (await response.json()) as GeoJsonCollection; }).then((geojson) => {
+      if (disposed) return;
+      geojson.features.forEach((feature, index) => { const group = addFeatureLines(feature, index); if (group) provinces.add(group); });
+      setProvinceCount(provinces.children.length);
+      if (provinces.children.length !== 81) setStatus(`Dünya hazır · ${provinces.children.length} il sınırı yüklendi`);
+    }).catch((error) => { console.error("Turkey province GeoJSON load failed", error); if (!disposed) setStatus("Dünya hazır · il sınırları yüklenemedi"); });
 
-    const resize = () => {
-      const width = mount.clientWidth;
-      const height = mount.clientHeight;
-      if (!width || !height) return;
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height, false);
-    };
+    const resize = () => { const width = mount.clientWidth, height = mount.clientHeight; if (!width || !height) return; camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false); };
     const onVisibility = () => { controls.autoRotate = document.visibilityState === "visible" && !selectedGroup; };
     window.addEventListener("resize", resize);
     document.addEventListener("visibilitychange", onVisibility);
     resize();
-
     const clock = new THREE.Clock();
     let frame = 0;
-    const animate = () => {
-      frame = requestAnimationFrame(animate);
-      const delta = clock.getDelta();
-      controls.update();
-      clouds.rotation.y += delta * 0.004;
-      stars.rotation.y += delta * 0.00012;
-      renderer.render(scene, camera);
-    };
+    const animate = () => { frame = requestAnimationFrame(animate); const delta = clock.getDelta(); controls.update(); clouds.rotation.y += delta * 0.004; stars.rotation.y += delta * 0.00012; renderer.render(scene, camera); };
     animate();
 
     return () => {
-      disposed = true;
-      cancelAnimationFrame(frame);
-      window.removeEventListener("resize", resize);
-      document.removeEventListener("visibilitychange", onVisibility);
-      renderer.domElement.removeEventListener("pointerdown", onPointerDown);
-      renderer.domElement.removeEventListener("pointerup", onPointerUp);
-      renderer.domElement.removeEventListener("click", onPointerClick);
-      controls.dispose();
-      earthTexture.dispose();
-      cloudTexture.dispose();
-      earth.geometry.dispose();
-      (earth.material as THREE.Material).dispose();
-      clouds.geometry.dispose();
-      (clouds.material as THREE.Material).dispose();
-      atmosphere.geometry.dispose();
-      (atmosphere.material as THREE.Material).dispose();
-      starsGeometry.dispose();
-      (stars.material as THREE.Material).dispose();
-      provinces.traverse((child) => { if (child instanceof THREE.Line) { child.geometry.dispose(); (child.material as THREE.Material).dispose(); } });
-      renderer.dispose();
-      if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
+      disposed = true; cancelAnimationFrame(frame); window.removeEventListener("resize", resize); document.removeEventListener("visibilitychange", onVisibility);
+      renderer.domElement.removeEventListener("pointerdown", onPointerDown); renderer.domElement.removeEventListener("pointerup", onPointerUp); renderer.domElement.removeEventListener("click", onPointerClick);
+      controls.dispose(); earthTexture.dispose(); cloudTexture.dispose(); earth.geometry.dispose(); (earth.material as THREE.Material).dispose(); clouds.geometry.dispose(); (clouds.material as THREE.Material).dispose(); atmosphere.geometry.dispose(); (atmosphere.material as THREE.Material).dispose(); starsGeometry.dispose(); (stars.material as THREE.Material).dispose();
+      provinces.traverse((child) => { if (child instanceof THREE.Line) { child.geometry.dispose(); (child.material as THREE.Material).dispose(); } }); renderer.dispose(); if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
     };
   }, [onProvinceSelect]);
 
-  return (
-    <div className={`relative h-[560px] w-full overflow-hidden rounded-3xl border border-sky-200/15 bg-[#01040b] shadow-2xl shadow-black/40 ${className}`}>
-      <div ref={mountRef} className="absolute inset-0" aria-label="MySkyParcel gerçek 3D Dünya küresi" />
-      <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] font-medium tracking-[0.12em] text-white/75 backdrop-blur-md">{status}{provinceCount ? ` · ${provinceCount}/81 il` : ""}</div>
-      <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">Döndür · yakınlaştır · uzaklaştır · Türkiye'den il seç</div>
-    </div>
-  );
+  return <div className={`relative h-[560px] w-full overflow-hidden rounded-3xl border border-sky-200/15 bg-[#01040b] shadow-2xl shadow-black/40 ${className}`}><div ref={mountRef} className="absolute inset-0" aria-label="MySkyParcel gerçek 3D Dünya küresi" /><div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] font-medium tracking-[0.12em] text-white/75 backdrop-blur-md">{status}{provinceCount ? ` · ${provinceCount}/81 il` : ""}</div><div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">Döndür · yakınlaştır · uzaklaştır · Türkiye'den il seç</div></div>;
 }
