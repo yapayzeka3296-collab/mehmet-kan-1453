@@ -31,3 +31,5 @@ export function SkyParcelMap({parcels,selectedId,selectedIds=new Set(),multiSele
   <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/10 bg-black/30 px-4 py-2 text-[10px] text-white/55 backdrop-blur-md">{parcels.length.toLocaleString("tr-TR")} parsel</div>
  </div>;
 }
+
+// Redeploy trigger only: restored baseline SkyParcelMap.
