@@ -28,15 +28,12 @@ export function SiteVisitTracker() {
         p_path: window.location.pathname,
       });
     };
-    // Do not compete with the homepage's first paint for an analytics RPC.
-    const idle = "requestIdleCallback" in window
-      ? window.requestIdleCallback(record, { timeout: 2000 })
-      : window.setTimeout(record, 1500);
-    const timer = window.setInterval(record, 60_000);
+    // Keep analytics non-blocking without mixing requestIdleCallback and timer handles.
+    const timer = window.setTimeout(record, 1500);
+    const interval = window.setInterval(record, 60_000);
     return () => {
-      if ("cancelIdleCallback" in window && typeof idle === "number") window.cancelIdleCallback(idle);
-      else window.clearTimeout(idle);
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
+      window.clearInterval(interval);
     };
   }, []);
 
