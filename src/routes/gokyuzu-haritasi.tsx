@@ -1,4 +1,4 @@
-import { createFileRoute, useSearch } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { MySkyParcelEarthGlobe } from "@/components/MySkyParcelEarthGlobe";
 import { LegacySkyMapView } from "@/components/LegacySkyMapView";
@@ -14,18 +14,17 @@ export const Route = createFileRoute("/gokyuzu-haritasi")({
 });
 
 function Harita() {
-  const search = useSearch({ from: "/gokyuzu-haritasi" }) as { view?: string };
   const [zoomHint, setZoomHint] = useState(false);
+  const legacyView = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "legacy";
 
-  if (search.view === "legacy") return <LegacySkyMapView />;
+  if (legacyView) return <LegacySkyMapView />;
 
   return (
     <main className="min-h-screen bg-[#01040b]">
       <div
         className="relative"
         onWheel={(event) => {
-          if (event.deltaY > 0) return;
-          if (Math.abs(event.deltaY) > 18) setZoomHint(true);
+          if (event.deltaY < -18) setZoomHint(true);
         }}
       >
         <MySkyParcelEarthGlobe />
