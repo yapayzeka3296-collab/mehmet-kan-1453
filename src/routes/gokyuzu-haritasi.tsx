@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MySkyParcelEarthGlobe } from "@/components/MySkyParcelEarthGlobe";
 import { LegacySkyMapView } from "@/components/LegacySkyMapView";
+import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const Route = createFileRoute("/gokyuzu-haritasi")({
   head: () => ({
@@ -15,7 +17,15 @@ export const Route = createFileRoute("/gokyuzu-haritasi")({
 function Harita() {
   const showLegacyMap = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "legacy";
 
-  if (showLegacyMap) return <LegacySkyMapView />;
+  if (showLegacyMap) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white">
+        <SiteHeader />
+        <LegacySkyMapView />
+        <SiteFooter />
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#01040b]">
