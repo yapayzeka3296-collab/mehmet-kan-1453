@@ -34,8 +34,13 @@ function Harita() {
         <div className="pointer-events-none absolute right-4 top-4 z-20 md:right-6 md:top-6">
           <button
             type="button"
-            className="pointer-events-auto rounded-xl border border-cyan-300/50 bg-[#06131d]/90 px-4 py-3 text-sm font-semibold text-white shadow-2xl shadow-cyan-950/40 backdrop-blur-xl transition hover:border-cyan-200 hover:bg-[#09202d]"
-            onClick={() => { window.location.href = "/gokyuzu-haritasi?view=legacy"; }}
+            className="pointer-events-auto rounded-xl border border-cyan-300/50 bg-[#06131d]/90 px-4 py-3 text-sm font-semibold text-white shadow-2xl shadow-cyan-950/40 backdrop-blur-xl transition duration-300 hover:border-cyan-200 hover:bg-[#09202d]"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("myskyparcel:zoom-to-turkey"));
+              window.setTimeout(() => {
+                window.location.href = "/gokyuzu-haritasi?view=legacy";
+              }, 1900);
+            }}
           >
             Türkiye Haritasına Gir
           </button>
