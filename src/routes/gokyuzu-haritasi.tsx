@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { MySkyParcelEarthGlobe } from "@/components/MySkyParcelEarthGlobe";
 import { LegacySkyMapView } from "@/components/LegacySkyMapView";
 
@@ -14,11 +13,9 @@ export const Route = createFileRoute("/gokyuzu-haritasi")({
 });
 
 function Harita() {
-  const [showLegacyMap, setShowLegacyMap] = useState(false);
+  const showLegacyMap = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "legacy";
 
-  if (showLegacyMap) {
-    return <LegacySkyMapView />;
-  }
+  if (showLegacyMap) return <LegacySkyMapView />;
 
   return (
     <main className="min-h-screen bg-[#01040b]">
@@ -28,7 +25,7 @@ function Harita() {
           <button
             type="button"
             className="pointer-events-auto rounded-xl border border-cyan-300/50 bg-[#06131d]/90 px-4 py-3 text-sm font-semibold text-white shadow-2xl shadow-cyan-950/40 backdrop-blur-xl transition hover:border-cyan-200 hover:bg-[#09202d]"
-            onClick={() => setShowLegacyMap(true)}
+            onClick={() => { window.location.href = "/gokyuzu-haritasi?view=legacy"; }}
           >
             Türkiye Haritasına Gir
           </button>
