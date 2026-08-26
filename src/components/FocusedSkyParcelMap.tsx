@@ -21,7 +21,7 @@ export function FocusedSkyParcelMap(props: Props) {
     <div className="space-y-3">
       <MySkyParcelEarthGlobe onProvinceSelect={handleProvinceSelect} />
       <SkyParcelMap {...props} />
-      {isGaziantep && <GaziantepInteractiveParcelScene />}
+      {isGaziantep && <GaziantepInteractiveParcelScene parcels={props.parcels} onSelect={props.onSelect} />}
     </div>
   );
 }
