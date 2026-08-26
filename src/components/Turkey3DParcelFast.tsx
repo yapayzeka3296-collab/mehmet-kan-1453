@@ -39,7 +39,7 @@ function addRing(shape: THREE.Shape, ring: unknown[]) {
     if (!Array.isArray(c)) continue;
     const p = project(Number(c[0]), Number(c[1]));
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
-    valid === 0 ? shape.moveTo(p.x, p.y) : shape.lineTo(p.x, p.y);
+    if (valid === 0) shape.moveTo(p.x, p.y); else shape.lineTo(p.x, p.y);
     valid++;
   }
   if (valid < 3) return false;
@@ -55,7 +55,7 @@ function addHole(shape: THREE.Shape, ring: unknown[]) {
     if (!Array.isArray(c)) continue;
     const p = project(Number(c[0]), Number(c[1]));
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
-    valid === 0 ? path.moveTo(p.x, p.y) : path.lineTo(p.x, p.y);
+    if (valid === 0) path.moveTo(p.x, p.y); else path.lineTo(p.x, p.y);
     valid++;
   }
   if (valid >= 3) {
@@ -74,11 +74,9 @@ export function Turkey3DParcelFast() {
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
-
     let disposed = false;
     let buildFrame = 0;
     let parcelTimer = 0;
-    let resizeObserver: ResizeObserver | undefined;
     let parcelMesh: THREE.InstancedMesh | null = null;
     let parcelGeometry: THREE.BoxGeometry | null = null;
     let parcelMaterial: THREE.MeshStandardMaterial | null = null;
@@ -99,11 +97,7 @@ export function Turkey3DParcelFast() {
     camera.position.set(0, 0.55, 6.8);
 
     const isCoarse = window.matchMedia?.("(pointer: coarse)").matches ?? false;
-    const renderer = new THREE.WebGLRenderer({
-      antialias: !isCoarse,
-      alpha: false,
-      powerPreference: "high-performance",
-    });
+    const renderer = new THREE.WebGLRenderer({ antialias: !isCoarse, alpha: false, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isCoarse ? 1.15 : 1.35));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -135,7 +129,6 @@ export function Turkey3DParcelFast() {
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.9;
     scene.add(floor);
-
     const ring = new THREE.Mesh(new THREE.RingGeometry(3.7, 3.73, 48), new THREE.MeshBasicMaterial({ color: 0x23d9ff, transparent: true, opacity: 0.32, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = -0.86;
@@ -161,7 +154,6 @@ export function Turkey3DParcelFast() {
         const provinceNames = new Set<string>();
         provinceMaterial = new THREE.MeshStandardMaterial({ color: 0x155d62, roughness: 0.82, metalness: 0.05, emissive: 0x06252a, emissiveIntensity: 0.28, side: THREE.DoubleSide });
         lineMaterial = new THREE.LineBasicMaterial({ color: 0x7cf7ff, transparent: true, opacity: 0.62 });
-
         for (const feature of features) {
           const geometryData = feature?.geometry;
           if (!geometryData) continue;
@@ -203,12 +195,7 @@ export function Turkey3DParcelFast() {
     };
     void loadProvinces();
 
-    const majorCities = [
-      [28.9784, 41.0082, "İstanbul"], [32.8597, 39.9334, "Ankara"], [27.1428, 38.4237, "İzmir"],
-      [29.06, 40.195, "Bursa"], [34.6415, 36.8121, "Mersin"], [37.3833, 37.0662, "Gaziantep"],
-      [32.4932, 37.8746, "Konya"], [30.7133, 36.8969, "Antalya"], [35.3213, 37, "Adana"],
-      [40.2306, 37.9144, "Diyarbakır"], [43.373, 38.5012, "Van"], [41.2679, 39.9043, "Erzurum"],
-    ] as const;
+    const majorCities = [[28.9784,41.0082,"İstanbul"],[32.8597,39.9334,"Ankara"],[27.1428,38.4237,"İzmir"],[29.06,40.195,"Bursa"],[34.6415,36.8121,"Mersin"],[37.3833,37.0662,"Gaziantep"],[32.4932,37.8746,"Konya"],[30.7133,36.8969,"Antalya"],[35.3213,37,"Adana"],[40.2306,37.9144,"Diyarbakır"],[43.373,38.5012,"Van"],[41.2679,39.9043,"Erzurum"] as const;
     const cityDots = new THREE.Group();
     const cityGeometry = new THREE.SphereGeometry(0.035, 10, 6);
     const cityMaterial = new THREE.MeshBasicMaterial({ color: 0xffd76a });
@@ -226,7 +213,7 @@ export function Turkey3DParcelFast() {
       const cy = Math.floor(y / CELL_SIZE);
       const key = (cx + 512) * 2048 + (cy + 512);
       const bucket = spatial.get(key);
-      bucket ? bucket.push(index) : spatial.set(key, [index]);
+      if (bucket) bucket.push(index); else spatial.set(key, [index]);
     };
 
     const installParcels = async () => {
@@ -235,7 +222,6 @@ export function Turkey3DParcelFast() {
         const { data, error } = await supabaseBrowser.rpc("get_public_parcels_render_map");
         if (error) throw error;
         if (disposed) return;
-
         const payload = (data ?? {}) as RenderPayload;
         const numbers = Array.isArray(payload.parcel_number) ? payload.parcel_number : [];
         const statuses = Array.isArray(payload.status) ? payload.status : [];
@@ -245,14 +231,12 @@ export function Turkey3DParcelFast() {
         const lonValues = Array.isArray(payload.lon) ? payload.lon : [];
         const count = Math.min(numbers.length, statuses.length, tiers.length, layerValues.length, latValues.length, lonValues.length);
         if (!count) throw new Error("No parcel render rows returned");
-
         xs = new Float32Array(count);
         ys = new Float32Array(count);
         layers = new Uint8Array(count);
         baseColors = new Float32Array(count * 3);
         parcelNumbers.length = 0;
         spatial.clear();
-
         for (let i = 0; i < count; i++) {
           const p = project(Number(lonValues[i]), Number(latValues[i]));
           if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
@@ -266,7 +250,6 @@ export function Turkey3DParcelFast() {
           baseColors[i * 3 + 1] = g;
           baseColors[i * 3 + 2] = b;
         }
-
         setParcelCount(count);
         parcelGeometry = new THREE.BoxGeometry(1, 1, 1);
         parcelMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.05, emissive: 0x06151a, emissiveIntensity: 0.12 });
@@ -278,7 +261,6 @@ export function Turkey3DParcelFast() {
         mesh.instanceColor = colorAttribute;
         parcelMesh = mesh;
         mapGroup.add(mesh);
-
         const buildNext = () => {
           if (disposed || !parcelMesh) return;
           const start = parcelMesh.count;
@@ -315,7 +297,6 @@ export function Turkey3DParcelFast() {
         if (!disposed) setStatus("Parsel verisi yüklenemedi");
       }
     };
-
     parcelTimer = window.setTimeout(() => void installParcels(), 250);
 
     const plane = new THREE.Plane();
@@ -328,7 +309,6 @@ export function Turkey3DParcelFast() {
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
     let lastPick = 0;
-
     const findParcelAtPointer = (event: PointerEvent) => {
       if (!parcelMesh || !parcelMesh.count) return -1;
       const now = performance.now();
@@ -348,19 +328,14 @@ export function Turkey3DParcelFast() {
       const cy = Math.floor(localPoint.y / CELL_SIZE);
       let best = -1;
       let bestDistance = Infinity;
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          const key = (cx + dx + 512) * 2048 + (cy + dy + 512);
-          const bucket = spatial.get(key);
-          if (!bucket) continue;
-          for (const index of bucket) {
-            if (index >= parcelMesh.count) continue;
-            const distance = Math.abs(localPoint.x - (xs[index] ?? 0)) + Math.abs(localPoint.y - (ys[index] ?? 0));
-            if (distance < bestDistance) {
-              bestDistance = distance;
-              best = index;
-            }
-          }
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        const key = (cx + dx + 512) * 2048 + (cy + dy + 512);
+        const bucket = spatial.get(key);
+        if (!bucket) continue;
+        for (const index of bucket) {
+          if (index >= parcelMesh.count) continue;
+          const distance = Math.abs(localPoint.x - (xs[index] ?? 0)) + Math.abs(localPoint.y - (ys[index] ?? 0));
+          if (distance < bestDistance) { bestDistance = distance; best = index; }
         }
       }
       return best;
@@ -374,12 +349,10 @@ export function Turkey3DParcelFast() {
       arr[index * 3 + 2] = color[2];
       parcelMesh.instanceColor.needsUpdate = true;
     };
-
     const restoreColor = (index: number) => {
       if (index < 0) return;
       setInstanceColor(index, [baseColors[index * 3] ?? 0.141, baseColors[index * 3 + 1] ?? 0.839, baseColors[index * 3 + 2] ?? 0.816]);
     };
-
     const onPointerMove = (event: PointerEvent) => {
       const next = findParcelAtPointer(event);
       if (next === hovered) return;
@@ -387,7 +360,6 @@ export function Turkey3DParcelFast() {
       hovered = next;
       if (hovered >= 0) setInstanceColor(hovered, [1, 0.95, 0.25]);
     };
-
     const onPointerDown = (event: PointerEvent) => {
       const next = findParcelAtPointer(event);
       if (next < 0) return;
@@ -396,7 +368,6 @@ export function Turkey3DParcelFast() {
       setInstanceColor(selectedIndex, [1, 0.95, 0.25]);
       setSelected(`Parsel ${parcelNumbers[selectedIndex] ?? selectedIndex + 1}`);
     };
-
     renderer.domElement.addEventListener("pointermove", onPointerMove, { passive: true });
     renderer.domElement.addEventListener("pointerdown", onPointerDown, { passive: true });
 
@@ -407,7 +378,7 @@ export function Turkey3DParcelFast() {
       camera.updateProjectionMatrix();
       renderer.setSize(width, height, false);
     };
-    resizeObserver = new ResizeObserver(resize);
+    const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(mount);
     resize();
 
@@ -426,7 +397,7 @@ export function Turkey3DParcelFast() {
       cancelAnimationFrame(raf);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
-      resizeObserver?.disconnect();
+      resizeObserver.disconnect();
       controls.dispose();
       provinceMeshes.forEach((mesh) => mesh.geometry.dispose());
       boundaryLines.forEach((line) => line.geometry.dispose());
