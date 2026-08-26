@@ -3,10 +3,6 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 const PROVINCES_GEOJSON = "/api/earth-assets?type=provinces";
-const LON_MIN = 25.7;
-const LON_MAX = 45.1;
-const LAT_MIN = 35.5;
-const LAT_MAX = 42.2;
 const SCALE_X = 0.31;
 const SCALE_Y = 0.52;
 
@@ -38,10 +34,8 @@ export function Turkey3DParcelExperience() {
     let disposed = false;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020711);
-
     const camera = new THREE.PerspectiveCamera(34, 1, 0.01, 100);
     camera.position.set(0, 0.55, 6.8);
-
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.8));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -71,18 +65,11 @@ export function Turkey3DParcelExperience() {
     rim.position.set(-5, 1, -3);
     scene.add(rim);
 
-    const floor = new THREE.Mesh(
-      new THREE.CircleGeometry(8.5, 96),
-      new THREE.MeshBasicMaterial({ color: 0x03101d, transparent: true, opacity: 0.92 })
-    );
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(8.5, 96), new THREE.MeshBasicMaterial({ color: 0x03101d, transparent: true, opacity: 0.92 }));
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.9;
     scene.add(floor);
-
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(3.7, 3.73, 96),
-      new THREE.MeshBasicMaterial({ color: 0x23d9ff, transparent: true, opacity: 0.32, side: THREE.DoubleSide })
-    );
+    const ring = new THREE.Mesh(new THREE.RingGeometry(3.7, 3.73, 96), new THREE.MeshBasicMaterial({ color: 0x23d9ff, transparent: true, opacity: 0.32, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = -0.86;
     scene.add(ring);
@@ -91,9 +78,6 @@ export function Turkey3DParcelExperience() {
     mapGroup.rotation.x = -0.17;
     mapGroup.rotation.z = -0.035;
     scene.add(mapGroup);
-
-    const glowGroup = new THREE.Group();
-    mapGroup.add(glowGroup);
     const provinceMeshes: THREE.Mesh[] = [];
     const provinceNames = new Map<THREE.Object3D, string>();
 
@@ -102,7 +86,6 @@ export function Turkey3DParcelExperience() {
       if (!geometry) return;
       const name = safeName(feature, index);
       const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.type === "MultiPolygon" ? geometry.coordinates : [];
-
       for (const polygon of polygons) {
         const outer = polygon?.[0];
         if (!Array.isArray(outer) || outer.length < 3) continue;
@@ -124,25 +107,15 @@ export function Turkey3DParcelExperience() {
         shape.closePath();
         avgLon /= valid;
         avgLat /= valid;
-
         const depth = relief(avgLon, avgLat);
         const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelSize: 0.012, bevelThickness: 0.012, bevelSegments: 2, curveSegments: 2 });
         geo.computeVertexNormals();
-        const material = new THREE.MeshStandardMaterial({
-          color: 0x155d62,
-          roughness: 0.82,
-          metalness: 0.05,
-          emissive: 0x06252a,
-          emissiveIntensity: 0.28,
-          side: THREE.DoubleSide,
-        });
+        const material = new THREE.MeshStandardMaterial({ color: 0x155d62, roughness: 0.82, metalness: 0.05, emissive: 0x06252a, emissiveIntensity: 0.28, side: THREE.DoubleSide });
         const mesh = new THREE.Mesh(geo, material);
         mesh.userData.provinceName = name;
-        mesh.userData.center = { lng: avgLon, lat: avgLat };
         mapGroup.add(mesh);
         provinceMeshes.push(mesh);
         provinceNames.set(mesh, name);
-
         const points: THREE.Vector3[] = [];
         for (const coordinate of outer) {
           const lng = Number(coordinate?.[0]);
@@ -152,11 +125,7 @@ export function Turkey3DParcelExperience() {
           points.push(new THREE.Vector3(p.x, p.y, depth + 0.025));
         }
         if (points.length > 2) {
-          const outline = new THREE.LineLoop(
-            new THREE.BufferGeometry().setFromPoints(points),
-            new THREE.LineBasicMaterial({ color: 0x7cf7ff, transparent: true, opacity: 0.62 })
-          );
-          mapGroup.add(outline);
+          mapGroup.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x7cf7ff, transparent: true, opacity: 0.62 })));
         }
       }
     };
@@ -191,12 +160,15 @@ export function Turkey3DParcelExperience() {
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
-    const onMove = (event: PointerEvent) => {
+    const getHit = (event: MouseEvent | PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects(provinceMeshes, false)[0];
+      return raycaster.intersectObjects(provinceMeshes, false)[0];
+    };
+    const onMove = (event: PointerEvent) => {
+      const hit = getHit(event);
       renderer.domElement.style.cursor = hit ? "pointer" : "grab";
       for (const mesh of provinceMeshes) {
         const material = mesh.material as THREE.MeshStandardMaterial;
@@ -205,11 +177,7 @@ export function Turkey3DParcelExperience() {
       }
     };
     const onClick = (event: MouseEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects(provinceMeshes, false)[0];
+      const hit = getHit(event);
       if (hit) setSelected(provinceNames.get(hit.object) ?? "Türkiye");
     };
     renderer.domElement.addEventListener("pointermove", onMove);
@@ -225,13 +193,11 @@ export function Turkey3DParcelExperience() {
     };
     window.addEventListener("resize", resize);
     resize();
-
     let frame = 0;
     const animate = () => {
       frame = requestAnimationFrame(animate);
       controls.update();
       ring.rotation.z += 0.0008;
-      glowGroup.rotation.z -= 0.00005;
       renderer.render(scene, camera);
     };
     animate();
@@ -261,22 +227,16 @@ export function Turkey3DParcelExperience() {
             <div className="text-[10px] font-semibold uppercase tracking-[0.25em] text-cyan-200/70">MySkyParcel</div>
             <div className="mt-1 text-lg font-semibold text-white">3D Türkiye Gökyüzü Haritası</div>
           </div>
-          <div className="rounded-full border border-cyan-200/15 bg-black/35 px-3 py-2 text-[11px] text-cyan-100 backdrop-blur-xl">
-            {provinceCount || 81}/81 il
-          </div>
+          <div className="rounded-full border border-cyan-200/15 bg-black/35 px-3 py-2 text-[11px] text-cyan-100 backdrop-blur-xl">{provinceCount || 81}/81 il</div>
         </div>
-
         <div ref={mountRef} className="h-[620px] w-full sm:h-[700px]" aria-label="MySkyParcel 3D Türkiye haritası" />
-
         <div className="absolute bottom-4 left-4 right-4 z-10 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 backdrop-blur-xl">
             <div className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/60">Seçili bölge</div>
             <div className="mt-1 text-base font-semibold text-white">{selected}</div>
             <div className="mt-1 text-[11px] text-white/55">{status}</div>
           </div>
-          <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-[10px] text-white/65 backdrop-blur-xl">
-            Döndür · yakınlaştır · uzaklaştır · il seç
-          </div>
+          <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-[10px] text-white/65 backdrop-blur-xl">Döndür · yakınlaştır · uzaklaştır · il seç</div>
         </div>
       </div>
     </main>
