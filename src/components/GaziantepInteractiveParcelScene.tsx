@@ -6,8 +6,6 @@ const MAX_VISIBLE_PARCELS = 84;
 const GRID_COLS = 12;
 const GRID_ROWS = 7;
 
-// The Gaziantep city photo is used only as the visual background. Parcel
-// outlines/numbers are rendered from the project's own parcel records.
 type Position = { x: number; y: number };
 type DragState = { id: string; offsetX: number; offsetY: number } | null;
 
@@ -24,10 +22,10 @@ export function GaziantepInteractiveParcelScene({ parcels, onSelect }: Props) {
   const [positions, setPositions] = useState<Record<string, Position>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  const gaziantepParcels = useMemo(
-    () => parcels.filter((parcel) => parcel.city_slug === "gaziantep").slice(0, MAX_VISIBLE_PARCELS),
-    [parcels],
-  );
+  // The parent already loads parcels for the selected city, so do not invent
+  // or filter another parcel set here. The first 84 records reproduce the
+  // original 12x7 artwork layout while using the project's real parcel IDs.
+  const gaziantepParcels = useMemo(() => parcels.slice(0, MAX_VISIBLE_PARCELS), [parcels]);
 
   useEffect(() => {
     setPositions((current) => {
@@ -87,7 +85,7 @@ export function GaziantepInteractiveParcelScene({ parcels, onSelect }: Props) {
           Gaziantep Gökyüzü Parselleri
         </p>
         <p className="mt-1 text-[10px] text-white/50">
-          Görseldeki hazır parseller kaldırıldı. Buradaki parseller MySkyParcel kayıtlarından gelir ve sürüklenebilir.
+          Hazır görsel parselleri kullanılmıyor. Parseller MySkyParcel kayıtlarından gelir ve sürüklenebilir.
         </p>
       </div>
 
