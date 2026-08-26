@@ -6,11 +6,7 @@ const EARTH_TEXTURE = "/api/earth-assets?type=earth";
 const CLOUD_TEXTURE = "/api/earth-assets?type=clouds";
 const EARTH_RADIUS = 1.5;
 
-/**
- * Opening-screen globe only.
- * Deliberately has no project, parcel, province, map or Supabase dependencies.
- * It is a self-contained visual and does not participate in application data flow.
- */
+/** Opening-screen visual only. No project, parcel, province, map or Supabase data. */
 export function MySkyParcelEarthGlobe({ className = "" }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
 
@@ -18,25 +14,24 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     const mount = mountRef.current;
     if (!mount) return;
     let disposed = false;
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x01040b);
-
     const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
     camera.position.set(0, 0.35, 5.05);
 
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: false,
-      powerPreference: "high-performance",
-    });
-    // Keep the visual sharp while preventing high-DPI devices from multiplying GPU work.
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setSize(mount.clientWidth, mount.clientHeight, false);
     renderer.domElement.style.display = "block";
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
+    renderer.domElement.style.touchAction = "none";
+    renderer.domElement.style.cursor = "grab";
     mount.appendChild(renderer.domElement);
 
     scene.add(new THREE.AmbientLight(0x6e88ad, 0.48));
@@ -51,13 +46,8 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     const earthTexture = textureLoader.load(EARTH_TEXTURE);
     earthTexture.colorSpace = THREE.SRGBColorSpace;
     earthTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
-
     const earthGeometry = new THREE.SphereGeometry(EARTH_RADIUS, 128, 128);
-    const earthMaterial = new THREE.MeshPhongMaterial({
-      map: earthTexture,
-      shininess: 8,
-      specular: new THREE.Color(0x1c3550),
-    });
+    const earthMaterial = new THREE.MeshPhongMaterial({ map: earthTexture, shininess: 8, specular: new THREE.Color(0x1c3550) });
     const earth = new THREE.Mesh(earthGeometry, earthMaterial);
     scene.add(earth);
 
@@ -65,13 +55,7 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     cloudTexture.colorSpace = THREE.SRGBColorSpace;
     cloudTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 2);
     const cloudGeometry = new THREE.SphereGeometry(EARTH_RADIUS * 1.014, 96, 96);
-    const cloudMaterial = new THREE.MeshPhongMaterial({
-      color: 0xffffff,
-      alphaMap: cloudTexture,
-      transparent: true,
-      opacity: 0.42,
-      depthWrite: false,
-    });
+    const cloudMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, alphaMap: cloudTexture, transparent: true, opacity: 0.42, depthWrite: false });
     const clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
     scene.add(clouds);
 
@@ -79,15 +63,11 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     const atmosphereMaterial = new THREE.ShaderMaterial({
       vertexShader: `varying vec3 vNormal; varying vec3 vWorldPosition; void main(){vNormal=normalize(normalMatrix*normal);vec4 worldPosition=modelMatrix*vec4(position,1.0);vWorldPosition=worldPosition.xyz;gl_Position=projectionMatrix*viewMatrix*worldPosition;}`,
       fragmentShader: `varying vec3 vNormal; varying vec3 vWorldPosition; void main(){vec3 viewDir=normalize(cameraPosition-vWorldPosition);float intensity=pow(0.76-max(dot(vNormal,viewDir),0.0),3.0);gl_FragColor=vec4(vec3(0.302,0.639,1.0),intensity*0.78);}`,
-      side: THREE.BackSide,
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      depthWrite: false,
+      side: THREE.BackSide, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false,
     });
     const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
     scene.add(atmosphere);
 
-    // Decorative stars only. No application or map data is involved.
     const starsGeometry = new THREE.BufferGeometry();
     const positions = new Float32Array(3200 * 3);
     for (let i = 0; i < 3200; i++) {
@@ -100,15 +80,38 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       positions[i * 3 + 2] = radius * xy * Math.sin(theta);
     }
     starsGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    const starsMaterial = new THREE.PointsMaterial({
-      color: 0xffffff,
-      size: 0.035,
-      sizeAttenuation: true,
-      transparent: true,
-      opacity: 0.9,
-    });
+    const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.035, sizeAttenuation: true, transparent: true, opacity: 0.9 });
     const stars = new THREE.Points(starsGeometry, starsMaterial);
     scene.add(stars);
+
+    const onPointerDown = (event: PointerEvent) => {
+      dragging = true;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      renderer.domElement.style.cursor = "grabbing";
+      renderer.domElement.setPointerCapture?.(event.pointerId);
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      if (!dragging) return;
+      const dx = event.clientX - lastX;
+      const dy = event.clientY - lastY;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      earth.rotation.y += dx * 0.006;
+      earth.rotation.x += dy * 0.0035;
+      earth.rotation.x = Math.max(-1.15, Math.min(1.15, earth.rotation.x));
+      clouds.rotation.y += dx * 0.002;
+      clouds.rotation.x += dy * 0.0012;
+    };
+    const onPointerUp = (event: PointerEvent) => {
+      dragging = false;
+      renderer.domElement.style.cursor = "grab";
+      renderer.domElement.releasePointerCapture?.(event.pointerId);
+    };
+    renderer.domElement.addEventListener("pointerdown", onPointerDown);
+    renderer.domElement.addEventListener("pointermove", onPointerMove);
+    renderer.domElement.addEventListener("pointerup", onPointerUp);
+    renderer.domElement.addEventListener("pointercancel", onPointerUp);
 
     const resize = () => {
       const width = mount.clientWidth;
@@ -121,16 +124,17 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     window.addEventListener("resize", resize);
     resize();
 
-    // No OrbitControls or application event handlers: the globe simply rotates as a visual.
     let frame = 0;
     const clock = new THREE.Clock();
     const animate = () => {
       if (disposed) return;
       frame = requestAnimationFrame(animate);
       const delta = clock.getDelta();
-      earth.rotation.y += delta * 0.018;
-      clouds.rotation.y += delta * 0.004;
-      stars.rotation.y += delta * 0.00012;
+      if (!dragging) {
+        earth.rotation.y += delta * 0.018;
+        clouds.rotation.y += delta * 0.004;
+        stars.rotation.y += delta * 0.00012;
+      }
       renderer.render(scene, camera);
     };
     animate();
@@ -139,6 +143,10 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       disposed = true;
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
+      renderer.domElement.removeEventListener("pointerdown", onPointerDown);
+      renderer.domElement.removeEventListener("pointermove", onPointerMove);
+      renderer.domElement.removeEventListener("pointerup", onPointerUp);
+      renderer.domElement.removeEventListener("pointercancel", onPointerUp);
       earthTexture.dispose();
       cloudTexture.dispose();
       earthGeometry.dispose();
