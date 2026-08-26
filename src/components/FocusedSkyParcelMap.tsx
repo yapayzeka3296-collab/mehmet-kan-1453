@@ -1,7 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { SkyParcelMap } from "@/components/SkyParcelMap";
 import { MySkyParcelEarthGlobe } from "@/components/MySkyParcelEarthGlobe";
-import { GaziantepInteractiveParcelScene } from "@/components/GaziantepInteractiveParcelScene";
 import type { Parcel } from "@/types/parcel";
 
 type CityCenter={lat:number;lng:number};
@@ -11,7 +10,6 @@ type Props={parcels:Parcel[];selectedId:string|null;selectedIds?:Set<string>;mul
 
 export function FocusedSkyParcelMap(props: Props) {
   const navigate = useNavigate({ from: "/gokyuzu-haritasi" });
-  const isGaziantep = Math.abs(props.center.lat - 37.0662) < 0.01 && Math.abs(props.center.lng - 37.3833) < 0.01;
 
   const handleProvinceSelect = ({ slug }: { name: string; slug: string; parcelCount: number | null }) => {
     void navigate({ search: { city: slug }, replace: true });
@@ -21,7 +19,6 @@ export function FocusedSkyParcelMap(props: Props) {
     <div className="space-y-3">
       <MySkyParcelEarthGlobe onProvinceSelect={handleProvinceSelect} />
       <SkyParcelMap {...props} />
-      {isGaziantep && <GaziantepInteractiveParcelScene parcels={props.parcels} onSelect={props.onSelect} />}
     </div>
   );
 }
