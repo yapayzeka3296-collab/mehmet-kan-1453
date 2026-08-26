@@ -14,10 +14,12 @@ const ASSETS = {
     source: 'NASA Earth Observatory / GSFC',
   },
   provinces: {
-    url: 'https://raw.githubusercontent.com/ttezer/turkiye-harita-verisi/master/dist/geojson/provinces.geojson',
+    // Lightweight 81-province GeoJSON (~241 KB), replacing the previous ~8 MB source.
+    // This avoids large upstream fetches and makes the Vercel proxy much more reliable.
+    url: 'https://raw.githubusercontent.com/cihadturhan/tr-geojson/master/geo/tr-cities-utf8.json',
     contentType: 'application/geo+json; charset=utf-8',
     cacheControl: 'public, max-age=2592000, s-maxage=2592000, stale-while-revalidate=604800, stale-if-error=2592000',
-    source: 'ttezer/turkiye-harita-verisi',
+    source: 'cihadturhan/tr-geojson',
   },
 } as const;
 
@@ -39,6 +41,7 @@ export const Route = createFileRoute('/api/earth-assets')({
         try {
           const upstream = await fetch(asset.url, {
             headers: { 'user-agent': 'MySkyParcel/1.0 Earth Globe asset proxy' },
+            cache: 'force-cache',
           });
           if (!upstream.ok) {
             return new Response(JSON.stringify({ ok: false, reason: 'upstream_error', status: upstream.status }), {
