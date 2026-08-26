@@ -19,10 +19,7 @@ type RenderPayload = {
   lon?: unknown[];
 };
 
-const project = (lon: number, lat: number) => ({
-  x: (lon - MAP_CENTER_LON) * MAP_SCALE,
-  y: (lat - MAP_CENTER_LAT) * MAP_SCALE,
-});
+const project = (lon: number, lat: number) => ({ x: (lon - MAP_CENTER_LON) * MAP_SCALE, y: (lat - MAP_CENTER_LAT) * MAP_SCALE });
 
 function parcelColor(status: number, tier: number): [number, number, number] {
   if (status === 1) return [1, 0.192, 0.341];
@@ -58,10 +55,7 @@ function addHole(shape: THREE.Shape, ring: unknown[]) {
     if (valid === 0) path.moveTo(p.x, p.y); else path.lineTo(p.x, p.y);
     valid++;
   }
-  if (valid >= 3) {
-    path.closePath();
-    shape.holes.push(path);
-  }
+  if (valid >= 3) { path.closePath(); shape.holes.push(path); }
 }
 
 export function Turkey3DParcelFast() {
@@ -195,7 +189,12 @@ export function Turkey3DParcelFast() {
     };
     void loadProvinces();
 
-    const majorCities = [[28.9784,41.0082,"İstanbul"],[32.8597,39.9334,"Ankara"],[27.1428,38.4237,"İzmir"],[29.06,40.195,"Bursa"],[34.6415,36.8121,"Mersin"],[37.3833,37.0662,"Gaziantep"],[32.4932,37.8746,"Konya"],[30.7133,36.8969,"Antalya"],[35.3213,37,"Adana"],[40.2306,37.9144,"Diyarbakır"],[43.373,38.5012,"Van"],[41.2679,39.9043,"Erzurum"] as const;
+    const majorCities = [
+      [28.9784, 41.0082, "İstanbul"], [32.8597, 39.9334, "Ankara"], [27.1428, 38.4237, "İzmir"],
+      [29.06, 40.195, "Bursa"], [34.6415, 36.8121, "Mersin"], [37.3833, 37.0662, "Gaziantep"],
+      [32.4932, 37.8746, "Konya"], [30.7133, 36.8969, "Antalya"], [35.3213, 37, "Adana"],
+      [40.2306, 37.9144, "Diyarbakır"], [43.373, 38.5012, "Van"], [41.2679, 39.9043, "Erzurum"],
+    ] as const;
     const cityDots = new THREE.Group();
     const cityGeometry = new THREE.SphereGeometry(0.035, 10, 6);
     const cityMaterial = new THREE.MeshBasicMaterial({ color: 0xffd76a });
