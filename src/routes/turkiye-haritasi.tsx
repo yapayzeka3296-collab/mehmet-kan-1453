@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/SiteHeader";
-import { Turkey3DParcelExperience } from "@/components/Turkey3DParcelMap";
+import { Turkey3DParcelExperience } from "@/components/Turkey3DShowcase";
 
 export const Route = createFileRoute("/turkiye-haritasi")({ component: SkyMapPage });
 
