@@ -25,4 +25,4 @@ npm i
 npm run dev
 ```
 
-<!-- Vercel deployment trigger: 2026-08-17 -->
+<!-- Vercel deployment trigger: 2026-08-27 -->
