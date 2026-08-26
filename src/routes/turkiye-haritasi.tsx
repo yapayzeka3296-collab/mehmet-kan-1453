@@ -1,9 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/SiteHeader";
-import { LegacySkyMapView } from "@/components/LegacySkyMapView";
+import { TurkeyProvinceMapView } from "@/components/TurkeyProvinceMapView";
 
-export const Route = createFileRoute("/turkiye-haritasi")({ component: SkyMapPage });
+export const Route = createFileRoute("/turkiye-haritasi")({ component: TurkeyMapPage });
 
-function SkyMapPage() {
-  return <div className="min-h-screen bg-slate-950 text-white"><SiteHeader/><LegacySkyMapView/></div>;
+function TurkeyMapPage() {
+  return (
+    <div className="min-h-screen bg-slate-950 text-white">
+      <SiteHeader />
+      <TurkeyProvinceMapView />
+    </div>
+  );
 }
