@@ -1,28 +1,36 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Boxes, Check, Globe, Headphones, Layers, Lock, Play, ShieldCheck, Sparkles } from "lucide-react";
-import { useState, type FormEvent } from "react";
-import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
-import { TrustBar } from "@/components/TrustBar";
-import { CertificateTemplatePreview } from "@/components/CertificateTemplatePreview";
-import { CITY_IMAGES } from "@/lib/cityImages";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Logo } from "@/components/Logo";
+import { MySkyParcelEarthGlobe } from "@/components/MySkyParcelEarthGlobe";
 
-export const Route = createFileRoute("/")({ head: () => ({ meta: [{ title: "MySkyParcel — Gökyüzünde Sana Özel Sembolik Bir Yer" }, { name: "description", content: "81 il ve 81 milyon benzersiz gökyüzü parseli fikri." }] }), component: Index });
-const SKY_PARCEL_MODEL = { cityCount: 81, layersPerCity: 10, sectorsPerCity: 1_000, parcelsPerCity: 1_000_000, totalParcels: 81_000_000 } as const;
-const STATS = [{ icon: Globe, big: "81 MİLYON", title: "TOPLAM GÖKYÜZÜ PARSELİ", text: "81 il × 1.000.000 parsel uzun vadeli hedef" }, { icon: Layers, big: "10", title: "KATMAN / İL", text: "Her il için 10 katman" }, { icon: ShieldCheck, big: "1.000", title: "SEKTÖR / İL", text: "Her il için 1.000 sektör" }, { icon: Boxes, big: "1.000.000", title: "PARSEL / İL", text: "Her il için 1.000.000 parsel" }, { icon: Headphones, big: "DESTEK", title: "DESTEK EKİBİ", text: "İletişim kanalları üzerinden bize ulaşabilirsiniz" }, { icon: Lock, big: "", title: "GÜVENLİ ALTYAPI", text: "Güvenlik ve ödeme altyapısı ayrıca doğrulanmalıdır" }];
-const CERTIFICATE_PACKAGES = [
-  { id: "digital", name: "DİJİTAL PARSEL SERTİFİKA", price: 199, features: ["Dijital sertifika", "Parsel kodu ve kayıt bilgileri"] },
-  { id: "elite", name: "ÖZEL PARSEL SERTİFİKA", price: 499, features: ["Özel tasarım sertifika", "A4 fiziksel baskı", "Dijital sertifika"] },
-  { id: "premium", name: "PREMİUM PARSEL SERTİFİKA", price: 999, features: ["Premium tasarım sertifika", "Çerçeveli baskı", "Dijital sertifika"] },
-] as const;
-const POPULAR_CITIES = [{ name: "İSTANBUL", slug: "istanbul", code: "IST", image: CITY_IMAGES.IST }, { name: "ANKARA", slug: "ankara", code: "ANK", image: CITY_IMAGES.ANK }, { name: "İZMİR", slug: "izmir", code: "IZM", image: CITY_IMAGES.IZM }, { name: "ANTALYA", slug: "antalya", code: "ANT", image: CITY_IMAGES.ANT }, { name: "BURSA", slug: "bursa", code: "BUR", image: CITY_IMAGES.BUR }, { name: "KAYSERİ", slug: "kayseri", code: "KAY", image: CITY_IMAGES.KAY }, { name: "GAZİANTEP", slug: "gaziantep", code: "GZT", image: CITY_IMAGES.GZT }] as const;
-function Index() {
-  const navigate = useNavigate(); const [certificateCode, setCertificateCode] = useState(""); const parcelModelCheck = SKY_PARCEL_MODEL.cityCount * SKY_PARCEL_MODEL.parcelsPerCity === SKY_PARCEL_MODEL.totalParcels;
-  function handleCertificateSubmit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); navigate({ to: "/sertifika-dogrula", search: { code: certificateCode.trim() } }); }
-  return <div className="starfield min-h-screen"><SiteHeader /><main>
-    <section className="hero-sky-parcels relative min-h-[312px] overflow-hidden bg-cover bg-center bg-no-repeat sm:min-h-[344px] lg:min-h-[376px]" style={{ backgroundImage: "url('/hero-background.jpg')" }}><div className="relative mx-auto max-w-[1600px] px-4 py-4 sm:py-5 lg:px-8"><div className="min-w-0 max-w-3xl"><span className="inline-block max-w-full rounded-md border border-gold/60 bg-background/20 px-3 py-1 tracking-[0.1em] text-[8px] leading-4 text-gold backdrop-blur-[2px] sm:px-4 sm:text-[9px]">HER İL İÇİN {SKY_PARCEL_MODEL.layersPerCity} KATMAN · {SKY_PARCEL_MODEL.sectorsPerCity.toLocaleString("tr-TR")} SEKTÖR · {SKY_PARCEL_MODEL.parcelsPerCity.toLocaleString("tr-TR")} PARSEL<br /><strong>TOPLAM {SKY_PARCEL_MODEL.totalParcels.toLocaleString("tr-TR")} GÖKYÜZÜ PARSELİ</strong></span><h1 className="mt-2 break-words font-display text-3xl leading-[1.05] font-bold drop-shadow-lg sm:text-4xl lg:text-5xl">GÖKYÜZÜNDE<br /><span className="text-gradient-gold">SANA ÖZEL</span><br />SEMBOLİK BİR YER</h1><p className="mt-2 max-w-lg text-xs font-medium text-black drop-shadow sm:text-sm">MySkyParcel ile gökyüzünde sana özel bir parsel seçebilir, benzersiz sertifikanla bu anı ölümsüzleştirebilirsin.</p><div className="mt-2 flex max-w-full flex-wrap gap-2"><Link to="/gokyuzu-haritasi" search={{ city: "istanbul" }} className="btn-gold inline-flex max-w-full items-center gap-2 rounded-md px-4 py-2 text-[10px] sm:px-5 sm:text-xs"><Sparkles className="h-4 w-4 shrink-0" /> GÖKYÜZÜ HARİTASINA GİT</Link><button type="button" disabled className="inline-flex items-center gap-2 rounded-md border border-border bg-background/20 px-4 py-2 text-[10px] opacity-70"><Play className="h-4 w-4" /> VİDEOYU İZLE</button></div><div className="mt-3 max-w-3xl rounded-xl border border-cyan-300/20 bg-slate-950/45 px-3 py-2 text-left shadow-lg backdrop-blur-sm"><p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-cyan-100/95 sm:text-[10px]">81 MİLYON BENZERSİZ PARSEL</p><p className="mt-0.5 text-[9px] leading-4 font-semibold text-white sm:text-xs">Her parsel kendine özel bir parsel koduyla oluşturulur. Bir parsel yalnızca bir kişi tarafından satın alınabilir; satın alınan parsel sahibinin hesabına kaydedilir ve aynı parsel yeniden üretilemez.</p></div></div></div></section>
-    <section className="mx-auto max-w-[1600px] px-4 pt-4 sm:pt-5 lg:px-8"><div className="panel grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">{STATS.map((s) => <div key={s.title} className="flex min-w-0 items-start gap-3"><s.icon className="mt-0.5 h-5 w-5 shrink-0 text-gold" /><div className="min-w-0">{s.big && <p className="font-display text-lg font-bold">{s.big}</p>}<p className="text-[11px] font-semibold tracking-[0.08em]">{s.title}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{s.text}</p></div></div>)}</div>{!parcelModelCheck && <p className="mt-2 text-center text-[10px] text-muted-foreground">Parsel model verisi henüz doğrulanmadı.</p>}</section>
-    <section className="mx-auto max-w-[1600px] px-4 py-6 lg:px-8"><div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{CERTIFICATE_PACKAGES.map((p) => <article key={p.id} className="panel flex min-w-0 flex-col p-5"><h3 className="font-display text-lg">{p.name}</h3><ul className="mt-3 space-y-1.5 text-xs">{p.features.map((f)=><li key={f} className="flex items-start gap-2 text-muted-foreground"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold"/><span>{f}</span></li>)}</ul><CertificateTemplatePreview tier={p.id} className="mt-5"/><p className="mt-4 font-display text-2xl text-gold">{p.price.toLocaleString("tr-TR")} <span className="text-base">TL</span></p><Link to="/paketler" className="btn-gold mt-3 inline-flex min-h-10 items-center justify-center rounded-md px-5 py-2 text-[11px]">HEMEN İNCELE</Link></article>)}</div></section>
-    <section className="mx-auto max-w-[1600px] px-4 pb-6 lg:px-8"><div className="panel p-4 sm:p-5"><h3 className="font-display text-base">SERTİFİKA DOĞRULA</h3><p className="mt-1.5 text-xs text-muted-foreground">Sertifika numaranızı girerek geçerliliğini kontrol edebilirsiniz.</p><form onSubmit={handleCertificateSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row"><label htmlFor="homepage-certificate-code" className="sr-only">Sertifika numarası</label><input id="homepage-certificate-code" value={certificateCode} onChange={(event) => setCertificateCode(event.target.value)} placeholder="Sertifika numaranızı girin" autoComplete="off" className="min-w-0 flex-1 rounded-md border border-input bg-background/60 px-3 py-2 text-[11px] uppercase outline-none focus:border-gold"/><button type="submit" className="btn-gold inline-flex items-center justify-center rounded-md px-4 py-2 text-[11px]">DOĞRULA</button></form></div></section>
-    <section className="mx-auto max-w-[1600px] px-4 pb-6 lg:px-8"><div className="panel grid gap-4 p-4 sm:p-5 lg:grid-cols-[auto_1fr_auto] lg:items-center"><h3 className="font-display text-base tracking-[0.08em]">POPÜLER ŞEHİRLER</h3><ul className="flex flex-wrap justify-center gap-3 sm:gap-4">{POPULAR_CITIES.map(c=><li key={c.code}><button type="button" onClick={() => navigate({ to: "/gokyuzu-haritasi", search: { city: c.slug } })} className="block cursor-pointer text-center"><div className="mx-auto grid h-11 w-11 place-items-center overflow-hidden rounded-full border border-gold/60 bg-navy sm:h-12 sm:w-12"><img src={c.image} alt={`${c.name} şehir manzarası`} loading="lazy" width={96} height={96} className="h-full w-full object-cover"/></div><p className="mt-1.5 text-[10px] tracking-[0.08em] text-muted-foreground">{c.name}</p></button></li>)}</ul><Link to="/gokyuzu-haritasi" search={{ city: "istanbul" }} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-gold/60 px-5 py-2 text-[11px] text-gold">TÜM ŞEHİRLER <ArrowRight className="h-4 w-4"/></Link></div></section><TrustBar /></main><SiteFooter /></div>;
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "MySkyParcel — Gökyüzünde Kendi Parselini Seç" },
+      { name: "description", content: "81 il, 81 milyon parsel. Türkiye'den dünyaya açılan MySkyParcel projesini keşfet." },
+    ],
+  }),
+  component: Landing,
+});
+
+function Landing() {
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-[#01040b] text-white">
+      <MySkyParcelEarthGlobe className="h-screen rounded-none border-0 shadow-none" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_75%_20%,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(1,4,11,0.12),rgba(1,4,11,0.3))]" />
+      <section className="absolute right-4 top-5 z-30 w-[min(92vw,560px)] text-right sm:right-8 sm:top-8 lg:right-12 lg:top-10">
+        <div className="flex flex-col items-end">
+          <div className="pointer-events-auto rounded-2xl border border-white/10 bg-[#01040b]/45 p-3 shadow-2xl backdrop-blur-md sm:p-4">
+            <Logo />
+          </div>
+          <div className="mt-5 max-w-[560px] rounded-2xl border border-white/10 bg-[#01040b]/52 p-5 shadow-2xl backdrop-blur-md sm:p-7">
+            <p className="text-xs font-semibold tracking-[0.18em] text-cyan-100 sm:text-sm">81 İL · 81 MİLYON PARSEL</p>
+            <p className="mt-2 text-sm font-medium text-white/85 sm:text-base">Türkiye'den dünyaya açılacak bir proje.</p>
+            <h1 className="mt-5 text-3xl font-bold leading-tight tracking-tight sm:text-5xl">GÖKYÜZÜNDE KENDİ PARSELİNİ SEÇ.</h1>
+            <p className="mt-4 text-sm leading-6 text-white/80 sm:text-base sm:leading-7">Gökyüzündeki yerini keşfet.<br />Şehrini seç, parselini seç ve sana ait dijital gökyüzü parselini oluştur.</p>
+            <Link to="/ana-sayfa" className="pointer-events-auto mt-6 inline-flex items-center justify-center rounded-xl border border-cyan-200/70 bg-cyan-300 px-6 py-3 text-sm font-bold tracking-[0.08em] text-slate-950 shadow-lg shadow-cyan-950/30 transition hover:bg-cyan-200 sm:px-7 sm:py-3.5">PARSELİNİ KEŞFET →</Link>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
 }
