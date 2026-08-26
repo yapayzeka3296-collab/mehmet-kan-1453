@@ -1,40 +1,158 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 type Props = { className?: string; onProvinceSelect?: (province: { name: string; slug: string; parcelCount: number | null }) => void };
-type GeoJsonGeometry = { type: "Polygon"; coordinates: number[][][] } | { type: "MultiPolygon"; coordinates: number[][][][] };
-type GeoJsonFeature = { type: "Feature"; properties?: Record<string, unknown>; geometry?: GeoJsonGeometry | null };
-type GeoJsonCollection = { type: "FeatureCollection"; features: GeoJsonFeature[] };
-const EARTH_TEXTURE = "/api/earth-assets?type=earth"; const CLOUD_TEXTURE = "/api/earth-assets?type=clouds"; const PROVINCES_GEOJSON = "/api/earth-assets?type=provinces"; const EARTH_RADIUS = 1.5;
-function slugify(value: string) { return value.toLocaleLowerCase("tr-TR").replace(/ı/g,"i").replace(/ğ/g,"g").replace(/ü/g,"u").replace(/ş/g,"s").replace(/ö/g,"o").replace(/ç/g,"c").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); }
-function coordinateToVector3(lng: number, lat: number, radius = EARTH_RADIUS + 0.012) { const latRad=THREE.MathUtils.degToRad(lat), lonRad=THREE.MathUtils.degToRad(lng), cosLat=Math.cos(latRad); return new THREE.Vector3(radius*cosLat*Math.cos(lonRad),radius*Math.sin(latRad),-radius*cosLat*Math.sin(lonRad)); }
-function featureName(feature: GeoJsonFeature,index:number) { const p=feature.properties??{}; return String(p.name??p.NAME_1??p.province??p.il??p.ad??`İl ${index+1}`); }
-function addFeatureLines(feature: GeoJsonFeature,index:number) { if(!feature.geometry)return null; const name=featureName(feature,index),group=new THREE.Group(); group.name=name; group.userData={provinceName:name,provinceSlug:slugify(name)}; const rings=feature.geometry.type==="Polygon"?feature.geometry.coordinates:feature.geometry.coordinates.flat(); for(const ring of rings){const points:THREE.Vector3[]=[]; for(const coordinate of ring){const lng=coordinate[0],lat=coordinate[1];if(typeof lng!=="number"||typeof lat!=="number")continue;points.push(coordinateToVector3(lng,lat));} if(points.length<2)continue;group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:0x55c8ff,transparent:true,opacity:0.62})));} return group.children.length?group:null; }
+const EARTH_TEXTURE = "/api/earth-assets?type=earth";
+const CLOUD_TEXTURE = "/api/earth-assets?type=clouds";
+const EARTH_RADIUS = 1.5;
 
-export function MySkyParcelEarthGlobe({ className="", onProvinceSelect }: Props) {
- const mountRef=useRef<HTMLDivElement>(null); const [status,setStatus]=useState("Dünya yükleniyor…"); const [provinceCount,setProvinceCount]=useState(0);
- useEffect(()=>{const mount=mountRef.current;if(!mount)return;let disposed=false;const scene=new THREE.Scene();scene.background=new THREE.Color(0x01040b);const camera=new THREE.PerspectiveCamera(35,1,0.05,100);
- camera.position.copy(coordinateToVector3(35,39,5.05).normalize().multiplyScalar(5.05));
- const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:"high-performance"});renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.75));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.setSize(mount.clientWidth,mount.clientHeight);renderer.domElement.style.display="block";renderer.domElement.style.width="100%";renderer.domElement.style.height="100%";renderer.domElement.style.touchAction="none";renderer.domElement.style.cursor="grab";mount.appendChild(renderer.domElement);
- const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=0.055;controls.rotateSpeed=0.7;controls.enablePan=false;controls.minDistance=2.35;controls.maxDistance=7.5;controls.autoRotate=true;controls.autoRotateSpeed=0.378;controls.target.set(0,0,0);controls.update();
- scene.add(new THREE.AmbientLight(0x6e88ad,0.48));const sun=new THREE.DirectionalLight(0xffffff,2.7);sun.position.set(5,3,5);scene.add(sun);const fill=new THREE.DirectionalLight(0x3c6da8,0.55);fill.position.set(-4,-2,-3);scene.add(fill);
- const textureLoader=new THREE.TextureLoader();const earthTexture=textureLoader.load(EARTH_TEXTURE,()=>setStatus("Dünya hazır"),undefined,()=>setStatus("Dünya dokusu yüklenemedi"));earthTexture.colorSpace=THREE.SRGBColorSpace;earthTexture.anisotropy=Math.min(renderer.capabilities.getMaxAnisotropy(),8);const earth=new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS,128,128),new THREE.MeshPhongMaterial({map:earthTexture,shininess:8,specular:new THREE.Color(0x1c3550)}));scene.add(earth);
- const cloudTexture=textureLoader.load(CLOUD_TEXTURE,undefined,undefined,()=>console.warn("Cloud texture could not be loaded"));cloudTexture.colorSpace=THREE.SRGBColorSpace;cloudTexture.anisotropy=Math.min(renderer.capabilities.getMaxAnisotropy(),4);const clouds=new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS*1.014,96,96),new THREE.MeshPhongMaterial({color:0xffffff,alphaMap:cloudTexture,transparent:true,opacity:0.42,depthWrite:false}));scene.add(clouds);
- const atmosphere=new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS*1.085,96,96),new THREE.ShaderMaterial({vertexShader:`varying vec3 vNormal; varying vec3 vWorldPosition; void main(){ vNormal=normalize(normalMatrix*normal); vec4 worldPosition=modelMatrix*vec4(position,1.0); vWorldPosition=worldPosition.xyz; gl_Position=projectionMatrix*viewMatrix*worldPosition; }`,fragmentShader:`varying vec3 vNormal; varying vec3 vWorldPosition; void main(){ vec3 viewDir=normalize(cameraPosition-vWorldPosition); float intensity=pow(0.76-max(dot(vNormal,viewDir),0.0),3.0); gl_FragColor=vec4(vec3(0.302,0.639,1.0),intensity*0.78); }`,side:THREE.BackSide,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}));scene.add(atmosphere);
- const starsGeometry=new THREE.BufferGeometry();const positions=new Float32Array(3200*3);for(let i=0;i<3200;i+=1){const radius=11+Math.random()*28,theta=Math.random()*Math.PI*2,z=Math.random()*2-1,xy=Math.sqrt(1-z*z);positions[i*3]=radius*xy*Math.cos(theta);positions[i*3+1]=radius*z;positions[i*3+2]=radius*xy*Math.sin(theta);}starsGeometry.setAttribute("position",new THREE.BufferAttribute(positions,3));const stars=new THREE.Points(starsGeometry,new THREE.PointsMaterial({color:0xffffff,size:0.035,sizeAttenuation:true,transparent:true,opacity:0.9}));scene.add(stars);
- const provinces=new THREE.Group();provinces.visible=false;scene.add(provinces);const raycaster=new THREE.Raycaster();raycaster.params.Line.threshold=0.035;const pointer=new THREE.Vector2();let selectedGroup:THREE.Group|null=null;
- const setSelected=(group:THREE.Group|null)=>{if(selectedGroup)selectedGroup.traverse(child=>{if(child instanceof THREE.Line&&child.material instanceof THREE.LineBasicMaterial)child.material.color.setHex(0x55c8ff);});selectedGroup=group;if(selectedGroup)selectedGroup.traverse(child=>{if(child instanceof THREE.Line&&child.material instanceof THREE.LineBasicMaterial)child.material.color.setHex(0xffffff);});};
- const selectProvince=async(group:THREE.Group)=>{const name=String(group.userData.provinceName??""),slug=String(group.userData.provinceSlug??slugify(name));setSelected(group);controls.autoRotate=false;const center=new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3()).normalize();camera.position.copy(center.multiplyScalar(3.15));controls.update();let parcelCount:number|null=null;if(supabaseBrowser){try{const result=await supabaseBrowser.from("parcel_map_public").select("id",{count:"exact",head:true}).eq("city_slug",slug);if(!result.error)parcelCount=result.count??0;}catch(error){console.warn("Province parcel count lookup skipped",error);}}if(!disposed)onProvinceSelect?.({name,slug,parcelCount});};
- let zooming=false;let zoomStart=0;let zoomFrom=new THREE.Vector3();const zoomTarget=coordinateToVector3(35,39,2.58).normalize().multiplyScalar(2.58);
- const onZoomToTurkey=()=>{if(zooming||disposed)return;zooming=true;zoomStart=performance.now();zoomFrom.copy(camera.position);controls.autoRotate=false;controls.enabled=false;};
- window.addEventListener("myskyparcel:zoom-to-turkey",onZoomToTurkey);
- const onPointerDown=()=>{if(!zooming)renderer.domElement.style.cursor="grabbing";};const onPointerUp=()=>{renderer.domElement.style.cursor="grab";};const onPointerClick=(event:MouseEvent)=>{if(zooming)return;const rect=renderer.domElement.getBoundingClientRect();pointer.x=((event.clientX-rect.left)/rect.width)*2-1;pointer.y=-((event.clientY-rect.top)/rect.height)*2+1;raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects(provinces.children,true).find(item=>item.object.parent instanceof THREE.Group);const group=hit?.object.parent;if(group instanceof THREE.Group)void selectProvince(group);};renderer.domElement.addEventListener("pointerdown",onPointerDown);renderer.domElement.addEventListener("pointerup",onPointerUp);renderer.domElement.addEventListener("click",onPointerClick);
- fetch(PROVINCES_GEOJSON).then(async response=>{if(!response.ok)throw new Error(`GeoJSON HTTP ${response.status}`);return(await response.json()) as GeoJsonCollection;}).then(geojson=>{if(disposed)return;geojson.features.forEach((feature,index)=>{const group=addFeatureLines(feature,index);if(group)provinces.add(group);});setProvinceCount(provinces.children.length);if(provinces.children.length!==81)setStatus(`Dünya hazır · ${provinces.children.length} il sınırı yüklendi`);}).catch(error=>{console.error("Turkey province GeoJSON load failed",error);if(!disposed)setStatus("Dünya hazır · il sınırları yüklenemedi");});
- const resize=()=>{const width=mount.clientWidth,height=mount.clientHeight;if(!width||!height)return;camera.aspect=width/height;camera.updateProjectionMatrix();renderer.setSize(width,height,false);};const onVisibility=()=>{if(!zooming)controls.autoRotate=document.visibilityState==="visible"&&!selectedGroup;};window.addEventListener("resize",resize);document.addEventListener("visibilitychange",onVisibility);resize();const clock=new THREE.Clock();let frame=0;
- const animate=()=>{frame=requestAnimationFrame(animate);const delta=clock.getDelta();if(zooming){const elapsed=performance.now()-zoomStart;const t=Math.min(elapsed/1800,1);const eased=t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;camera.position.lerpVectors(zoomFrom,zoomTarget,eased);controls.target.lerp(new THREE.Vector3(0,0,0),0.12);if(t>=1){zooming=false;controls.enabled=true;controls.update();}}else controls.update();clouds.rotation.y+=delta*0.004;stars.rotation.y+=delta*0.00012;renderer.render(scene,camera);};animate();
- return()=>{disposed=true;cancelAnimationFrame(frame);window.removeEventListener("myskyparcel:zoom-to-turkey",onZoomToTurkey);window.removeEventListener("resize",resize);document.removeEventListener("visibilitychange",onVisibility);renderer.domElement.removeEventListener("pointerdown",onPointerDown);renderer.domElement.removeEventListener("pointerup",onPointerUp);renderer.domElement.removeEventListener("click",onPointerClick);controls.dispose();earthTexture.dispose();cloudTexture.dispose();earth.geometry.dispose();(earth.material as THREE.Material).dispose();clouds.geometry.dispose();(clouds.material as THREE.Material).dispose();atmosphere.geometry.dispose();(atmosphere.material as THREE.Material).dispose();starsGeometry.dispose();(stars.material as THREE.Material).dispose();provinces.traverse(child=>{if(child instanceof THREE.Line){child.geometry.dispose();(child.material as THREE.Material).dispose();}});renderer.dispose();if(mount.contains(renderer.domElement))mount.removeChild(renderer.domElement);};
- },[onProvinceSelect]);
- return <div className={`relative h-[560px] w-full overflow-hidden rounded-3xl border border-sky-200/15 bg-[#01040b] shadow-2xl shadow-black/40 ${className}`}><div ref={mountRef} className="absolute inset-0" aria-label="MySkyParcel gerçek 3D Dünya küresi"/><div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] font-medium tracking-[0.12em] text-white/75 backdrop-blur-md">{status}{provinceCount?` · ${provinceCount}/81 il`:""}</div><div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">Döndür · yakınlaştır · uzaklaştır · Türkiye'den il seç</div></div>;
+export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect: _onProvinceSelect }: Props) {
+  const mountRef = useRef<HTMLDivElement>(null);
+  const [status, setStatus] = useState("Dünya yükleniyor…");
+
+  useEffect(() => {
+    const mount = mountRef.current;
+    if (!mount) return;
+    let disposed = false;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x01040b);
+    const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
+    camera.position.set(0, 0.35, 5.05);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.35));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.setSize(mount.clientWidth, mount.clientHeight, false);
+    renderer.domElement.style.display = "block";
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    renderer.domElement.style.touchAction = "none";
+    renderer.domElement.style.cursor = "grab";
+    mount.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.055;
+    controls.rotateSpeed = 0.65;
+    controls.zoomSpeed = 0.75;
+    controls.enablePan = false;
+    controls.minDistance = 2.35;
+    controls.maxDistance = 7.5;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.378;
+    controls.target.set(0, 0, 0);
+    controls.update();
+
+    scene.add(new THREE.AmbientLight(0x6e88ad, 0.48));
+    const sun = new THREE.DirectionalLight(0xffffff, 2.7);
+    sun.position.set(5, 3, 5);
+    scene.add(sun);
+    const fill = new THREE.DirectionalLight(0x3c6da8, 0.55);
+    fill.position.set(-4, -2, -3);
+    scene.add(fill);
+
+    const textureLoader = new THREE.TextureLoader();
+    const earthTexture = textureLoader.load(EARTH_TEXTURE, () => {
+      if (!disposed) setStatus("Dünya hazır");
+    }, undefined, () => {
+      if (!disposed) setStatus("Dünya dokusu yüklenemedi");
+    });
+    earthTexture.colorSpace = THREE.SRGBColorSpace;
+    earthTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
+    const earthGeometry = new THREE.SphereGeometry(EARTH_RADIUS, 96, 64);
+    const earth = new THREE.Mesh(earthGeometry, new THREE.MeshPhongMaterial({ map: earthTexture, shininess: 8, specular: new THREE.Color(0x1c3550) }));
+    scene.add(earth);
+
+    const cloudTexture = textureLoader.load(CLOUD_TEXTURE, undefined, undefined, () => undefined);
+    cloudTexture.colorSpace = THREE.SRGBColorSpace;
+    cloudTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 2);
+    const cloudGeometry = new THREE.SphereGeometry(EARTH_RADIUS * 1.014, 64, 48);
+    const clouds = new THREE.Mesh(cloudGeometry, new THREE.MeshPhongMaterial({ color: 0xffffff, alphaMap: cloudTexture, transparent: true, opacity: 0.42, depthWrite: false }));
+    scene.add(clouds);
+
+    const atmosphereGeometry = new THREE.SphereGeometry(EARTH_RADIUS * 1.085, 64, 48);
+    const atmosphere = new THREE.Mesh(atmosphereGeometry, new THREE.ShaderMaterial({
+      vertexShader: `varying vec3 vNormal; varying vec3 vWorldPosition; void main(){vNormal=normalize(normalMatrix*normal);vec4 worldPosition=modelMatrix*vec4(position,1.0);vWorldPosition=worldPosition.xyz;gl_Position=projectionMatrix*viewMatrix*worldPosition;}`,
+      fragmentShader: `varying vec3 vNormal; varying vec3 vWorldPosition; void main(){vec3 viewDir=normalize(cameraPosition-vWorldPosition);float intensity=pow(0.76-max(dot(vNormal,viewDir),0.0),3.0);gl_FragColor=vec4(vec3(0.302,0.639,1.0),intensity*0.78);}`,
+      side: THREE.BackSide, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false,
+    }));
+    scene.add(atmosphere);
+
+    // Decorative stars only. No project, parcel, province or Supabase data is loaded here.
+    const starsGeometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(1800 * 3);
+    for (let i = 0; i < 1800; i++) {
+      const radius = 11 + Math.random() * 28;
+      const theta = Math.random() * Math.PI * 2;
+      const z = Math.random() * 2 - 1;
+      const xy = Math.sqrt(1 - z * z);
+      positions[i * 3] = radius * xy * Math.cos(theta);
+      positions[i * 3 + 1] = radius * z;
+      positions[i * 3 + 2] = radius * xy * Math.sin(theta);
+    }
+    starsGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const stars = new THREE.Points(starsGeometry, new THREE.PointsMaterial({ color: 0xffffff, size: 0.035, sizeAttenuation: true, transparent: true, opacity: 0.9 }));
+    scene.add(stars);
+
+    const resize = () => {
+      const width = mount.clientWidth;
+      const height = mount.clientHeight;
+      if (!width || !height) return;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height, false);
+    };
+    const onVisibility = () => { controls.autoRotate = document.visibilityState === "visible"; };
+    const onPointerDown = () => { renderer.domElement.style.cursor = "grabbing"; };
+    const onPointerUp = () => { renderer.domElement.style.cursor = "grab"; };
+    window.addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", onVisibility);
+    renderer.domElement.addEventListener("pointerdown", onPointerDown);
+    renderer.domElement.addEventListener("pointerup", onPointerUp);
+    resize();
+
+    let frame = 0;
+    const clock = new THREE.Clock();
+    const animate = () => {
+      if (disposed) return;
+      frame = requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      controls.update();
+      clouds.rotation.y += delta * 0.004;
+      stars.rotation.y += delta * 0.00012;
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", onVisibility);
+      renderer.domElement.removeEventListener("pointerdown", onPointerDown);
+      renderer.domElement.removeEventListener("pointerup", onPointerUp);
+      controls.dispose();
+      earthTexture.dispose();
+      cloudTexture.dispose();
+      earthGeometry.dispose();
+      (earth.material as THREE.Material).dispose();
+      cloudGeometry.dispose();
+      (clouds.material as THREE.Material).dispose();
+      atmosphereGeometry.dispose();
+      (atmosphere.material as THREE.Material).dispose();
+      starsGeometry.dispose();
+      (stars.material as THREE.Material).dispose();
+      renderer.dispose();
+      if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
+    };
+  }, []);
+
+  return (
+    <div className={`relative h-[560px] w-full overflow-hidden rounded-3xl border border-sky-200/15 bg-[#01040b] shadow-2xl shadow-black/40 ${className}`}>
+      <div ref={mountRef} className="absolute inset-0" aria-label="MySkyParcel görsel 3D Dünya küresi" />
+      <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] font-medium tracking-[0.12em] text-white/75 backdrop-blur-md">{status}</div>
+      <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">Döndür · yakınlaştır · uzaklaştır</div>
+    </div>
+  );
 }
