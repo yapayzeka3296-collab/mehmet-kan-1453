@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-type Props = { className?: string; onProvinceSelect?: (province: { name: string; slug: string; parcelCount: number | null }) => void };
+type Props = { className?: string };
 const EARTH_TEXTURE = "/api/earth-assets?type=earth";
 const CLOUD_TEXTURE = "/api/earth-assets?type=clouds";
 const EARTH_RADIUS = 1.5;
 
-export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect: _onProvinceSelect }: Props) {
+export function MySkyParcelEarthGlobe({ className = "" }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState("Dünya yükleniyor…");
 
@@ -21,7 +21,7 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect: _onPro
     camera.position.set(0, 0.35, 5.05);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.35));
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setSize(mount.clientWidth, mount.clientHeight, false);
     renderer.domElement.style.display = "block";
@@ -59,19 +59,19 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect: _onPro
       if (!disposed) setStatus("Dünya dokusu yüklenemedi");
     });
     earthTexture.colorSpace = THREE.SRGBColorSpace;
-    earthTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
-    const earthGeometry = new THREE.SphereGeometry(EARTH_RADIUS, 96, 64);
+    earthTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const earthGeometry = new THREE.SphereGeometry(EARTH_RADIUS, 128, 128);
     const earth = new THREE.Mesh(earthGeometry, new THREE.MeshPhongMaterial({ map: earthTexture, shininess: 8, specular: new THREE.Color(0x1c3550) }));
     scene.add(earth);
 
     const cloudTexture = textureLoader.load(CLOUD_TEXTURE, undefined, undefined, () => undefined);
     cloudTexture.colorSpace = THREE.SRGBColorSpace;
-    cloudTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 2);
-    const cloudGeometry = new THREE.SphereGeometry(EARTH_RADIUS * 1.014, 64, 48);
+    cloudTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const cloudGeometry = new THREE.SphereGeometry(EARTH_RADIUS * 1.014, 96, 96);
     const clouds = new THREE.Mesh(cloudGeometry, new THREE.MeshPhongMaterial({ color: 0xffffff, alphaMap: cloudTexture, transparent: true, opacity: 0.42, depthWrite: false }));
     scene.add(clouds);
 
-    const atmosphereGeometry = new THREE.SphereGeometry(EARTH_RADIUS * 1.085, 64, 48);
+    const atmosphereGeometry = new THREE.SphereGeometry(EARTH_RADIUS * 1.085, 96, 96);
     const atmosphere = new THREE.Mesh(atmosphereGeometry, new THREE.ShaderMaterial({
       vertexShader: `varying vec3 vNormal; varying vec3 vWorldPosition; void main(){vNormal=normalize(normalMatrix*normal);vec4 worldPosition=modelMatrix*vec4(position,1.0);vWorldPosition=worldPosition.xyz;gl_Position=projectionMatrix*viewMatrix*worldPosition;}`,
       fragmentShader: `varying vec3 vNormal; varying vec3 vWorldPosition; void main(){vec3 viewDir=normalize(cameraPosition-vWorldPosition);float intensity=pow(0.76-max(dot(vNormal,viewDir),0.0),3.0);gl_FragColor=vec4(vec3(0.302,0.639,1.0),intensity*0.78);}`,
@@ -79,10 +79,9 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect: _onPro
     }));
     scene.add(atmosphere);
 
-    // Decorative stars only. No project, parcel, province or Supabase data is loaded here.
     const starsGeometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(1800 * 3);
-    for (let i = 0; i < 1800; i++) {
+    const positions = new Float32Array(3200 * 3);
+    for (let i = 0; i < 3200; i++) {
       const radius = 11 + Math.random() * 28;
       const theta = Math.random() * Math.PI * 2;
       const z = Math.random() * 2 - 1;
@@ -103,11 +102,9 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect: _onPro
       camera.updateProjectionMatrix();
       renderer.setSize(width, height, false);
     };
-    const onVisibility = () => { controls.autoRotate = document.visibilityState === "visible"; };
     const onPointerDown = () => { renderer.domElement.style.cursor = "grabbing"; };
     const onPointerUp = () => { renderer.domElement.style.cursor = "grab"; };
     window.addEventListener("resize", resize);
-    document.addEventListener("visibilitychange", onVisibility);
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
     resize();
@@ -129,7 +126,6 @@ export function MySkyParcelEarthGlobe({ className = "", onProvinceSelect: _onPro
       disposed = true;
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
-      document.removeEventListener("visibilitychange", onVisibility);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       controls.dispose();
