@@ -17,6 +17,7 @@ function fallbackPos(i:number,total:number){const a=total>1?(i/total)*Math.PI*2:
 export function SkyParcelMap({parcels,selectedId,selectedIds=new Set(),multiSelect=false,onSelect,onToggleSelect,onViewportChange,center,focusTarget}:Props){
  const [focus,setFocus]=useState(false);const [hover,setHover]=useState<string|null>(null);
  const groups=useMemo(()=>{const g:Record<Tier,Parcel[]>={digital:[],elite:[],premium:[]};parcels.forEach(p=>{if(p.tier in g)g[p.tier as Tier].push(p)});return g},[parcels]);
+ const availableCount=useMemo(()=>parcels.filter(p=>p.status==="available").length,[parcels]);
  useEffect(()=>{onViewportChange?.({minLat:center.lat-1,minLng:center.lng-1,maxLat:center.lat+1,maxLng:center.lng+1})},[center.lat,center.lng,onViewportChange]);
  useEffect(()=>{if(!focusTarget)return;setFocus(true);const t=window.setTimeout(()=>setFocus(false),6000);return()=>window.clearTimeout(t)},[focusTarget?.token]);
  const click=(p:Parcel)=>{if(p.status!=="available")return;const item=cartItem(p);if(multiSelect&&item){const c=readParcelCart();const exists=c.some(x=>x.id===p.id);const next=exists?c.filter(x=>x.id!==p.id):[...c,item];writeParcelCart(next);window.dispatchEvent(new CustomEvent(PARCEL_CART_EVENT,{detail:next}));onToggleSelect?.(p.id)}else onSelect(p.id)};
@@ -28,7 +29,7 @@ export function SkyParcelMap({parcels,selectedId,selectedIds=new Set(),multiSele
    <div className="absolute left-1/2 top-1/2 h-[92%] w-[92%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/10 bg-[radial-gradient(circle_at_48%_42%,rgba(48,170,220,.15),rgba(2,10,22,.02)_45%,rgba(0,0,0,.28)_72%)] shadow-[0_0_100px_rgba(40,190,255,.12)_inset]"/>
    {(["digital","elite","premium"] as Tier[]).map(t=>groups[t].map((p,i)=>{const xy=geoPos(p,center)??fallbackPos(i,groups[t].length);const selected=selectedId===p.id||selectedIds.has(p.id)||readParcelCart().some(x=>x.id===p.id);const c=parcelColor(p);return <button key={p.id} type="button" disabled={p.status!=="available"} aria-label={p.parcel_number} onClick={()=>click(p)} onMouseEnter={()=>setHover(p.id)} onMouseLeave={()=>setHover(null)} className="absolute z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-[4px] border sm:h-6 sm:w-6" style={{left:`${xy.left}%`,top:`${xy.top}%`,borderColor:selected?"#fff4b0":c,background:selected?"rgba(255,211,92,.22)":"rgba(4,18,30,.62)",boxShadow:selected?"0 0 8px #fff4b0,0 0 22px rgba(255,211,92,.8)":hover===p.id?`0 0 8px ${c},0 0 20px ${c}99`:`0 0 5px ${c}66`,opacity:p.status==="sold"?.88:1}}><span className="absolute inset-[5px] rounded-full" style={{background:c}}/>{(hover===p.id||selected)&&<span className="pointer-events-none absolute left-1/2 top-[-28px] -translate-x-1/2 whitespace-nowrap rounded bg-[#020914]/90 px-2 py-1 text-[9px] text-white">{p.parcel_number}</span>}</button>}))}
   </div>
-  <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/10 bg-black/30 px-4 py-2 text-[10px] text-white/55 backdrop-blur-md">{parcels.length.toLocaleString("tr-TR")} parsel</div>
+  <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/10 bg-black/30 px-4 py-2 text-[10px] text-white/55 backdrop-blur-md">{availableCount.toLocaleString("tr-TR")} parsel</div>
  </div>;
 }
 
