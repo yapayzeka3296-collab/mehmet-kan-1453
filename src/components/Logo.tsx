@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 export function Logo() {
   return (
-    <Link to="/" aria-label="MySkyParcel ana sayfa" className="block shrink-0">
+    <Link to="/ana-sayfa" aria-label="MySkyParcel ana sayfa" className="block shrink-0">
       <img
         src="/myskyparcel-logo.svg"
         alt="MySkyParcel — Gökyüzünde Sana Özel Bir Yer"
