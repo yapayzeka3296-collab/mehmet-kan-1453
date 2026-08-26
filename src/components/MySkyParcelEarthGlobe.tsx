@@ -16,8 +16,8 @@ function addFeatureLines(feature: GeoJsonFeature,index:number) { if(!feature.geo
 export function MySkyParcelEarthGlobe({ className="", onProvinceSelect }: Props) {
  const mountRef=useRef<HTMLDivElement>(null); const [status,setStatus]=useState("Dünya yükleniyor…"); const [provinceCount,setProvinceCount]=useState(0);
  useEffect(()=>{const mount=mountRef.current;if(!mount)return;let disposed=false;const scene=new THREE.Scene();scene.background=new THREE.Color(0x01040b);const camera=new THREE.PerspectiveCamera(35,1,0.05,100);
- // Start slightly farther away so the complete globe is visible immediately.
- camera.position.copy(coordinateToVector3(35,39,4.75).normalize().multiplyScalar(4.75));
+ // Start slightly farther away so the complete globe is comfortably visible immediately.
+ camera.position.copy(coordinateToVector3(35,39,5.05).normalize().multiplyScalar(5.05));
  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:"high-performance"});renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.75));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.setSize(mount.clientWidth,mount.clientHeight);renderer.domElement.style.display="block";renderer.domElement.style.width="100%";renderer.domElement.style.height="100%";renderer.domElement.style.touchAction="none";renderer.domElement.style.cursor="grab";mount.appendChild(renderer.domElement);
  const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=0.055;controls.rotateSpeed=0.7;controls.enablePan=false;controls.minDistance=2.35;controls.maxDistance=7.5;controls.autoRotate=true;controls.autoRotateSpeed=0.126;controls.target.set(0,0,0);controls.update();
  scene.add(new THREE.AmbientLight(0x6e88ad,0.48));const sun=new THREE.DirectionalLight(0xffffff,2.7);sun.position.set(5,3,5);scene.add(sun);const fill=new THREE.DirectionalLight(0x3c6da8,0.55);fill.position.set(-4,-2,-3);scene.add(fill);
