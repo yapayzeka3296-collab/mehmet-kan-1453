@@ -20,7 +20,7 @@ export function SkyParcelMap({parcels,selectedId,selectedIds=new Set(),multiSele
  useEffect(()=>{onViewportChange?.({minLat:center.lat-1,minLng:center.lng-1,maxLat:center.lat+1,maxLng:center.lng+1})},[center.lat,center.lng,onViewportChange]);
  useEffect(()=>{if(!focusTarget)return;setFocus(true);const t=window.setTimeout(()=>setFocus(false),6000);return()=>window.clearTimeout(t)},[focusTarget?.token]);
  const click=(p:Parcel)=>{if(p.status!=="available")return;const item=cartItem(p);if(multiSelect&&item){const c=readParcelCart();const exists=c.some(x=>x.id===p.id);const next=exists?c.filter(x=>x.id!==p.id):[...c,item];writeParcelCart(next);window.dispatchEvent(new CustomEvent(PARCEL_CART_EVENT,{detail:next}));onToggleSelect?.(p.id)}else onSelect(p.id)};
- return <div className="relative h-[500px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[600px] lg:h-[670px]">
+ return <div className="relative h-[350px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[420px] lg:h-[469px]">
   <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(30,112,160,.30),transparent_32%),radial-gradient(circle_at_18%_18%,rgba(94,60,180,.18),transparent_28%),linear-gradient(145deg,#030b17,#071a2d_52%,#020711)]"/>
   <div className="absolute inset-0 opacity-60" style={{backgroundImage:"radial-gradient(circle,rgba(255,255,255,.7) .8px,transparent .9px)",backgroundSize:"31px 31px"}}/>
   <div className="absolute left-5 top-5 z-20 rounded-xl border border-white/10 bg-black/25 px-4 py-3 backdrop-blur-md"><div className="text-[10px] uppercase tracking-[.28em] text-cyan-200/60">MySkyParcel</div><div className="mt-1 text-sm font-semibold text-white">Gökyüzü Parselleri</div></div>
