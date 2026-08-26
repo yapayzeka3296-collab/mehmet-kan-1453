@@ -1,14 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 const PROVINCES_GEOJSON = "/api/earth-assets?type=provinces";
-
-// Equirectangular projection: one geographic unit uses the same scale on both axes.
-// This preserves the real Turkey aspect ratio instead of stretching longitude/latitude.
 const MAP_CENTER_LON = 35.4;
 const MAP_CENTER_LAT = 39.0;
 const MAP_SCALE = 0.34;
+const PARCEL_PAGE_SIZE = 1000;
+const PARCEL_PARALLELISM = 8;
+
+type PublicParcel = {
+  id: string;
+  parcel_number: string;
+  status: "available" | "reserved" | "sold" | string;
+  tier: "digital" | "elite" | "premium" | string;
+  city_name: string;
+  layer_number: number | null;
+  latitude: number;
+  longitude: number;
+  grid_x: number;
+  grid_y: number;
+};
 
 function project(lng: number, lat: number) {
   return new THREE.Vector2(
@@ -20,13 +33,7 @@ function project(lng: number, lat: number) {
 function safeName(feature: any, index: number) {
   const p = feature?.properties ?? {};
   return String(
-    p.name ??
-      p.NAME_1 ??
-      p.NAME_2 ??
-      p.province ??
-      p.il ??
-      p.IL ??
-      `İl ${index + 1}`,
+    p.name ?? p.NAME_1 ?? p.NAME_2 ?? p.province ?? p.il ?? p.IL ?? `İl ${index + 1}`,
   );
 }
 
@@ -66,17 +73,77 @@ function addHole(shape: THREE.Shape, ring: any[]) {
   }
 }
 
+function parcelColor(parcel: PublicParcel) {
+  if (parcel.status === "sold") return 0xff3157;
+  if (parcel.status === "reserved") return 0xffa63d;
+  if (parcel.tier === "premium") return 0xf6c453;
+  if (parcel.tier === "elite") return 0x9d7cff;
+  return 0x24d6d0;
+}
+
+async function fetchAllPublicParcels(onProgress: (count: number, total: number) => void) {
+  const columns = "id,parcel_number,status,tier,city_name,layer_number,latitude,longitude,grid_x,grid_y";
+  const first = await supabaseBrowser
+    .from("parcel_map_public")
+    .select(columns, { count: "exact" })
+    .order("city_name", { ascending: true })
+    .order("grid_y", { ascending: true })
+    .order("grid_x", { ascending: true })
+    .range(0, PARCEL_PAGE_SIZE - 1);
+
+  if (first.error) throw first.error;
+  const total = first.count ?? first.data?.length ?? 0;
+  const pages = Math.ceil(total / PARCEL_PAGE_SIZE);
+  const result: PublicParcel[] = [...((first.data ?? []) as PublicParcel[])];
+  onProgress(result.length, total);
+
+  const remainingStarts = Array.from({ length: Math.max(0, pages - 1) }, (_, i) =>
+    (i + 1) * PARCEL_PAGE_SIZE,
+  );
+
+  for (let i = 0; i < remainingStarts.length; i += PARCEL_PARALLELISM) {
+    const batch = remainingStarts.slice(i, i + PARCEL_PARALLELISM);
+    const responses = await Promise.all(
+      batch.map((start) =>
+        supabaseBrowser
+          .from("parcel_map_public")
+          .select(columns)
+          .order("city_name", { ascending: true })
+          .order("grid_y", { ascending: true })
+          .order("grid_x", { ascending: true })
+          .range(start, start + PARCEL_PAGE_SIZE - 1),
+      ),
+    );
+    for (const response of responses) {
+      if (response.error) throw response.error;
+      result.push(...((response.data ?? []) as PublicParcel[]));
+    }
+    onProgress(result.length, total);
+  }
+
+  return result;
+}
+
 export function Turkey3DParcelExperience() {
   const mountRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState("Türkiye 3D haritası hazırlanıyor…");
   const [selected, setSelected] = useState("Türkiye");
   const [provinceCount, setProvinceCount] = useState(0);
+  const [parcelCount, setParcelCount] = useState(0);
+  const [parcelLoading, setParcelLoading] = useState(0);
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
 
     let disposed = false;
+    let parcelMesh: THREE.InstancedMesh | null = null;
+    let parcelGeometry: THREE.BoxGeometry | null = null;
+    let parcelMaterial: THREE.MeshStandardMaterial | null = null;
+    const baseColors: number[] = [];
+    let hoveredInstance = -1;
+    let selectedInstance = -1;
+
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020711);
 
@@ -104,7 +171,7 @@ export function Turkey3DParcelExperience() {
     controls.enablePan = false;
     controls.rotateSpeed = 0.55;
     controls.zoomSpeed = 0.72;
-    controls.minDistance = 4.0;
+    controls.minDistance = 3.25;
     controls.maxDistance = 10.5;
     controls.target.set(0, 0, 0);
 
@@ -138,7 +205,6 @@ export function Turkey3DParcelExperience() {
     scene.add(ring);
 
     const mapGroup = new THREE.Group();
-    // Only a small tilt for depth perception; geographic geometry itself is not rotated.
     mapGroup.rotation.x = -0.12;
     mapGroup.rotation.z = -0.015;
     scene.add(mapGroup);
@@ -152,8 +218,6 @@ export function Turkey3DParcelExperience() {
       if (!addRingToShape(shape, polygon[0])) return false;
       for (let i = 1; i < polygon.length; i++) addHole(shape, polygon[i]);
 
-      // Uniform shallow extrusion is intentional: it gives a clean 3D map without inventing
-      // fake mountain data. Real DEM relief can be layered later without changing boundaries.
       const geo = new THREE.ExtrudeGeometry(shape, {
         depth: 0.12,
         bevelEnabled: true,
@@ -178,7 +242,6 @@ export function Turkey3DParcelExperience() {
       provinceMeshes.push(mesh);
       provinceNames.set(mesh, name);
 
-      // Outline every outer and inner ring so islands/holes remain visually correct.
       for (const boundary of polygon) {
         if (!Array.isArray(boundary) || boundary.length < 3) continue;
         const points: THREE.Vector3[] = [];
@@ -198,7 +261,6 @@ export function Turkey3DParcelExperience() {
               opacity: 0.62,
             }),
           );
-          outline.userData.isTurkeyOutline = true;
           mapGroup.add(outline);
         }
       }
@@ -230,7 +292,7 @@ export function Turkey3DParcelExperience() {
         setProvinceCount(uniqueProvinceNames.size);
         setStatus(
           uniqueProvinceNames.size === 81
-            ? "Türkiye hazır · 81 il"
+            ? "Türkiye hazır · 81 il · parseller yükleniyor…"
             : `Türkiye hazır · ${uniqueProvinceNames.size} il`,
         );
       })
@@ -267,29 +329,113 @@ export function Turkey3DParcelExperience() {
       cityDots.add(marker);
     }
 
+    const buildParcels = async () => {
+      try {
+        const parcels = await fetchAllPublicParcels((count, total) => {
+          if (disposed) return;
+          setParcelLoading(total ? Math.round((count / total) * 100) : 0);
+          setParcelCount(count);
+          setStatus(`81 il · ${count.toLocaleString("tr-TR")}/${total.toLocaleString("tr-TR")} parsel yükleniyor…`);
+        });
+        if (disposed) return;
+
+        const validParcels = parcels.filter(
+          (parcel) => Number.isFinite(Number(parcel.latitude)) && Number.isFinite(Number(parcel.longitude)),
+        );
+        const count = validParcels.length;
+        setParcelCount(count);
+        setParcelLoading(100);
+
+        parcelGeometry = new THREE.BoxGeometry(1, 1, 1);
+        parcelMaterial = new THREE.MeshStandardMaterial({
+          vertexColors: true,
+          roughness: 0.7,
+          metalness: 0.08,
+          emissive: 0x06151a,
+          emissiveIntensity: 0.16,
+          transparent: true,
+          opacity: 0.94,
+        });
+        parcelMesh = new THREE.InstancedMesh(parcelGeometry, parcelMaterial, count);
+        parcelMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        parcelMesh.userData.parcels = validParcels;
+
+        const matrix = new THREE.Matrix4();
+        const color = new THREE.Color();
+        for (let i = 0; i < count; i++) {
+          const parcel = validParcels[i]!;
+          const p = project(Number(parcel.longitude), Number(parcel.latitude));
+          const layer = Math.min(Math.max(Number(parcel.layer_number ?? 1), 1), 10);
+          const depth = 0.035 + layer * 0.006;
+          const width = 0.0051;
+          const height = 0.0041;
+          matrix.compose(
+            new THREE.Vector3(p.x, p.y, 0.155 + depth / 2),
+            new THREE.Quaternion(),
+            new THREE.Vector3(width, height, depth),
+          );
+          parcelMesh.setMatrixAt(i, matrix);
+          const hex = parcelColor(parcel);
+          baseColors[i] = hex;
+          color.setHex(hex);
+          parcelMesh.setColorAt(i, color);
+        }
+        parcelMesh.instanceMatrix.needsUpdate = true;
+        if (parcelMesh.instanceColor) parcelMesh.instanceColor.needsUpdate = true;
+        parcelMesh.computeBoundingSphere();
+        mapGroup.add(parcelMesh);
+        setStatus(`Türkiye hazır · 81 il · ${count.toLocaleString("tr-TR")} parsel`);
+      } catch (error) {
+        console.error("Public parcel map loading failed", error);
+        if (!disposed) setStatus("Parsel verisi yüklenemedi · bağlantı kontrol ediliyor");
+      }
+    };
+    void buildParcels();
+
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
     const getHit = (event: MouseEvent | PointerEvent) => {
+      if (!parcelMesh) return undefined;
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
-      return raycaster.intersectObjects(provinceMeshes, false)[0];
+      return raycaster.intersectObject(parcelMesh, false)[0];
+    };
+
+    const restoreColor = (instanceId: number) => {
+      if (!parcelMesh || !parcelMesh.instanceColor || instanceId < 0) return;
+      parcelMesh.setColorAt(instanceId, new THREE.Color(baseColors[instanceId] ?? 0x24d6d0));
+    };
+
+    const highlightColor = (instanceId: number, hex: number) => {
+      if (!parcelMesh || !parcelMesh.instanceColor || instanceId < 0) return;
+      parcelMesh.setColorAt(instanceId, new THREE.Color(hex));
     };
 
     const onMove = (event: PointerEvent) => {
       const hit = getHit(event);
-      renderer.domElement.style.cursor = hit ? "pointer" : "grab";
-      for (const mesh of provinceMeshes) {
-        const material = mesh.material as THREE.MeshStandardMaterial;
-        material.emissiveIntensity = hit?.object === mesh ? 0.95 : 0.28;
-        material.color.setHex(hit?.object === mesh ? 0x28a9a2 : 0x155d62);
-      }
+      const instanceId = typeof hit?.instanceId === "number" ? hit.instanceId : -1;
+      renderer.domElement.style.cursor = instanceId >= 0 ? "pointer" : "grab";
+      if (instanceId === hoveredInstance) return;
+      if (hoveredInstance >= 0 && hoveredInstance !== selectedInstance) restoreColor(hoveredInstance);
+      hoveredInstance = instanceId;
+      if (hoveredInstance >= 0 && hoveredInstance !== selectedInstance) highlightColor(hoveredInstance, 0xffffff);
+      if (parcelMesh?.instanceColor) parcelMesh.instanceColor.needsUpdate = true;
     };
 
     const onClick = (event: MouseEvent) => {
       const hit = getHit(event);
-      if (hit) setSelected(provinceNames.get(hit.object) ?? "Türkiye");
+      const instanceId = typeof hit?.instanceId === "number" ? hit.instanceId : -1;
+      if (instanceId < 0 || !parcelMesh) return;
+      const parcels = parcelMesh.userData.parcels as PublicParcel[];
+      const parcel = parcels[instanceId];
+      if (!parcel) return;
+      if (selectedInstance >= 0) restoreColor(selectedInstance);
+      selectedInstance = instanceId;
+      highlightColor(selectedInstance, 0xffd45a);
+      if (parcelMesh.instanceColor) parcelMesh.instanceColor.needsUpdate = true;
+      setSelected(`${parcel.city_name} · ${parcel.parcel_number}`);
     };
 
     renderer.domElement.addEventListener("pointermove", onMove);
@@ -323,6 +469,9 @@ export function Turkey3DParcelExperience() {
       renderer.domElement.removeEventListener("pointermove", onMove);
       renderer.domElement.removeEventListener("click", onClick);
       controls.dispose();
+      if (parcelMesh) mapGroup.remove(parcelMesh);
+      parcelGeometry?.dispose();
+      parcelMaterial?.dispose();
       provinceMeshes.forEach((mesh) => {
         mesh.geometry.dispose();
         (mesh.material as THREE.Material).dispose();
@@ -336,6 +485,7 @@ export function Turkey3DParcelExperience() {
           object instanceof THREE.Mesh &&
           object !== floor &&
           object !== ring &&
+          object !== parcelMesh &&
           provinceMeshes.indexOf(object) === -1
         ) {
           object.geometry.dispose();
@@ -360,16 +510,18 @@ export function Turkey3DParcelExperience() {
           </div>
         </div>
 
-        <div ref={mountRef} className="h-[620px] w-full sm:h-[700px]" aria-label="MySkyParcel 3D Türkiye haritası" />
+        <div ref={mountRef} className="h-[620px] w-full sm:h-[700px]" aria-label="MySkyParcel 3D Türkiye ve 81.000 parsel haritası" />
 
         <div className="absolute bottom-4 left-4 right-4 z-10 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 backdrop-blur-xl">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/60">Seçili bölge</div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/60">Seçili bölge / parsel</div>
             <div className="mt-1 text-base font-semibold text-white">{selected}</div>
-            <div className="mt-1 text-[11px] text-white/55">{status}</div>
+            <div className="mt-1 text-[11px] text-cyan-100/70">{status}</div>
           </div>
-          <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-[10px] text-white/65 backdrop-blur-xl">
-            Döndür · yakınlaştır · uzaklaştır · il seç
+          <div className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-right backdrop-blur-xl">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/60">Canlı veri</div>
+            <div className="mt-1 text-sm font-semibold text-white">{parcelCount.toLocaleString("tr-TR")} parsel</div>
+            <div className="mt-1 text-[10px] text-cyan-100/60">{parcelLoading}% yüklendi · tıklayarak seç</div>
           </div>
         </div>
       </div>
