@@ -20,7 +20,7 @@ function Landing() {
       <section className="absolute left-4 top-5 z-30 w-[min(92vw,360px)] text-left sm:left-8 sm:top-8 lg:left-12 lg:top-10">
         <div className="flex flex-col items-start">
           <div className="pointer-events-auto"><Logo /></div>
-          <div className="mt-3 max-w-[260px] p-0">
+          <div className="mt-3 max-w-[260px] bg-transparent p-0">
             <p className="text-[9px] font-semibold tracking-[0.12em] text-cyan-100 sm:text-[10px]">81 İL · 81 MİLYON PARSEL</p>
             <p className="mt-1 text-[10px] font-medium text-white/85 sm:text-xs">Türkiye'den dünyaya açılacak bir proje.</p>
             <h1 className="mt-2 text-base font-bold leading-tight tracking-tight sm:text-xl">GÖKYÜZÜNDE KENDİ PARSELİNİ SEÇ.</h1>
