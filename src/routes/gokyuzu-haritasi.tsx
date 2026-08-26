@@ -1,51 +1,34 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Logo } from "@/components/Logo";
 import { MySkyParcelEarthGlobe } from "@/components/MySkyParcelEarthGlobe";
-import { LegacySkyMapView } from "@/components/LegacySkyMapView";
-import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
 
 export const Route = createFileRoute("/gokyuzu-haritasi")({
   head: () => ({
     meta: [
-      { title: "Gökyüzü Haritası — MySkyParcel" },
-      { name: "description", content: "MySkyParcel 3D Dünya küresi ve Türkiye il sınırları." },
+      { title: "MySkyParcel — Gökyüzünde Kendi Parselini Seç" },
+      { name: "description", content: "81 il, 81 milyon parsel. Türkiye'den dünyaya açılan MySkyParcel projesini keşfet." },
     ],
   }),
   component: Harita,
 });
 
 function Harita() {
-  const showLegacyMap = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "legacy";
-
-  if (showLegacyMap) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white">
-        <SiteHeader />
-        <LegacySkyMapView />
-        <SiteFooter />
-      </div>
-    );
-  }
-
   return (
-    <main className="min-h-screen bg-[#01040b]">
-      <div className="relative">
-        <MySkyParcelEarthGlobe />
-        <div className="pointer-events-none absolute right-4 top-4 z-20 md:right-6 md:top-6">
-          <button
-            type="button"
-            className="pointer-events-auto rounded-xl border border-cyan-300/50 bg-[#06131d]/90 px-4 py-3 text-sm font-semibold text-white shadow-2xl shadow-cyan-950/40 backdrop-blur-xl transition duration-300 hover:border-cyan-200 hover:bg-[#09202d]"
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent("myskyparcel:zoom-to-turkey"));
-              window.setTimeout(() => {
-                window.location.href = "/gokyuzu-haritasi?view=legacy";
-              }, 1900);
-            }}
-          >
-            Türkiye Haritasına Gir
-          </button>
+    <main className="relative min-h-screen overflow-hidden bg-[#01040b] text-white">
+      <MySkyParcelEarthGlobe className="h-screen rounded-none border-0 shadow-none" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_75%_20%,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(1,4,11,0.12),rgba(1,4,11,0.3))]" />
+      <section className="absolute right-4 top-5 z-30 w-[min(92vw,560px)] text-right sm:right-8 sm:top-8 lg:right-12 lg:top-10">
+        <div className="flex flex-col items-end">
+          <div className="pointer-events-auto rounded-2xl border border-white/10 bg-[#01040b]/45 p-3 shadow-2xl backdrop-blur-md sm:p-4"><Logo /></div>
+          <div className="mt-5 max-w-[560px] rounded-2xl border border-white/10 bg-[#01040b]/52 p-5 shadow-2xl backdrop-blur-md sm:p-7">
+            <p className="text-xs font-semibold tracking-[0.18em] text-cyan-100 sm:text-sm">81 İL · 81 MİLYON PARSEL</p>
+            <p className="mt-2 text-sm font-medium text-white/85 sm:text-base">Türkiye'den dünyaya açılacak bir proje.</p>
+            <h1 className="mt-5 text-3xl font-bold leading-tight tracking-tight sm:text-5xl">GÖKYÜZÜNDE KENDİ PARSELİNİ SEÇ.</h1>
+            <p className="mt-4 text-sm leading-6 text-white/80 sm:text-base sm:leading-7">Gökyüzündeki yerini keşfet.<br />Şehrini seç, parselini seç ve sana ait dijital gökyüzü parselini oluştur.</p>
+            <Link to="/ana-sayfa" className="pointer-events-auto mt-6 inline-flex items-center justify-center rounded-xl border border-cyan-200/70 bg-cyan-300 px-6 py-3 text-sm font-bold tracking-[0.08em] text-slate-950 shadow-lg shadow-cyan-950/30 transition hover:bg-cyan-200 sm:px-7 sm:py-3.5">PARSELİNİ KEŞFET →</Link>
+          </div>
         </div>
-      </div>
+      </section>
     </main>
   );
 }
