@@ -4,14 +4,20 @@ const ASSETS = {
   earth: {
     url: 'https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73630/world.topo.bathy.200403.3x5400x2700.jpg',
     contentType: 'image/jpeg',
+    cacheControl: 'public, max-age=2592000, s-maxage=2592000, stale-while-revalidate=604800, stale-if-error=2592000',
+    source: 'NASA Earth Observatory / GSFC',
   },
   clouds: {
     url: 'https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud_combined_2048.jpg',
     contentType: 'image/jpeg',
+    cacheControl: 'public, max-age=2592000, s-maxage=2592000, stale-while-revalidate=604800, stale-if-error=2592000',
+    source: 'NASA Earth Observatory / GSFC',
   },
   provinces: {
     url: 'https://raw.githubusercontent.com/ttezer/turkiye-harita-verisi/master/dist/geojson/provinces.geojson',
     contentType: 'application/geo+json; charset=utf-8',
+    cacheControl: 'public, max-age=2592000, s-maxage=2592000, stale-while-revalidate=604800, stale-if-error=2592000',
+    source: 'ttezer/turkiye-harita-verisi',
   },
 } as const;
 
@@ -37,21 +43,28 @@ export const Route = createFileRoute('/api/earth-assets')({
           if (!upstream.ok) {
             return new Response(JSON.stringify({ ok: false, reason: 'upstream_error', status: upstream.status }), {
               status: 502,
-              headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+              headers: {
+                'content-type': 'application/json; charset=utf-8',
+                'cache-control': 'no-store',
+              },
             });
           }
 
           const body = await upstream.arrayBuffer();
           const headers = new Headers();
           headers.set('content-type', asset.contentType);
-          headers.set('cache-control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400');
+          headers.set('cache-control', asset.cacheControl);
           headers.set('access-control-allow-origin', '*');
+          headers.set('x-myskyparcel-asset-source', asset.source);
           return new Response(body, { status: 200, headers });
         } catch (error) {
           console.error(`Earth asset proxy failed for ${type}`, error);
           return new Response(JSON.stringify({ ok: false, reason: 'proxy_error' }), {
             status: 502,
-            headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+            headers: {
+              'content-type': 'application/json; charset=utf-8',
+              'cache-control': 'no-store',
+            },
           });
         }
       },
