@@ -17,21 +17,17 @@ function Landing() {
     <main className="relative min-h-screen overflow-hidden bg-[#01040b] text-white">
       <MySkyParcelEarthGlobe className="h-screen rounded-none border-0 shadow-none" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_75%_20%,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(1,4,11,0.12),rgba(1,4,11,0.3))]" />
-
-      <section className="absolute left-4 top-5 z-30 w-[min(92vw,500px)] text-left sm:left-8 sm:top-8 lg:left-12 lg:top-10">
+      <section className="absolute left-4 top-5 z-30 w-[min(92vw,360px)] text-left sm:left-8 sm:top-8 lg:left-12 lg:top-10">
         <div className="flex flex-col items-start">
-          <div className="pointer-events-auto">
-            <Logo />
-          </div>
-          <div className="mt-4 max-w-[300px] p-0">
-            <p className="text-[10px] font-semibold tracking-[0.14em] text-cyan-100 sm:text-xs">81 İL · 81 MİLYON PARSEL</p>
-            <p className="mt-1 text-xs font-medium text-white/85 sm:text-sm">Türkiye'den dünyaya açılacak bir proje.</p>
-            <h1 className="mt-3 text-xl font-bold leading-tight tracking-tight sm:text-3xl">GÖKYÜZÜNDE KENDİ PARSELİNİ SEÇ.</h1>
-            <p className="mt-2 text-xs leading-5 text-white/80 sm:text-sm sm:leading-6">Gökyüzündeki yerini keşfet.<br />Şehrini seç, parselini seç ve sana ait dijital gökyüzü parselini oluştur.</p>
+          <div className="pointer-events-auto"><Logo /></div>
+          <div className="mt-3 max-w-[260px] p-0">
+            <p className="text-[9px] font-semibold tracking-[0.12em] text-cyan-100 sm:text-[10px]">81 İL · 81 MİLYON PARSEL</p>
+            <p className="mt-1 text-[10px] font-medium text-white/85 sm:text-xs">Türkiye'den dünyaya açılacak bir proje.</p>
+            <h1 className="mt-2 text-base font-bold leading-tight tracking-tight sm:text-xl">GÖKYÜZÜNDE KENDİ PARSELİNİ SEÇ.</h1>
+            <p className="mt-1.5 text-[10px] leading-4 text-white/80 sm:text-xs sm:leading-5">Gökyüzündeki yerini keşfet.<br />Şehrini seç, parselini seç ve sana ait dijital gökyüzü parselini oluştur.</p>
           </div>
         </div>
       </section>
-
       <div className="pointer-events-none absolute right-4 top-5 z-30 sm:right-8 sm:top-8 lg:right-12 lg:top-10">
         <Link to="/ana-sayfa" className="pointer-events-auto inline-flex items-center justify-center rounded-xl border border-cyan-200/70 bg-cyan-300 px-5 py-2.5 text-xs font-bold tracking-[0.08em] text-slate-950 shadow-lg shadow-cyan-950/30 transition hover:bg-cyan-200 sm:px-6 sm:py-3 sm:text-sm">PARSELİNİ KEŞFET →</Link>
       </div>
