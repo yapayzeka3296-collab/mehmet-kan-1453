@@ -2,10 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CITY_IMAGES } from "@/lib/cityImages";
 import type { Parcel } from "@/types/parcel";
 
-const MAX_VISIBLE_PARCELS = 84;
-const GRID_COLS = 12;
-const GRID_ROWS = 7;
-
 type Position = { x: number; y: number };
 type DragState = { id: string; offsetX: number; offsetY: number } | null;
 
@@ -14,6 +10,7 @@ type Props = {
   onSelect?: (id: string | null) => void;
 };
 
+const MAX_VISIBLE_PARCELS = 84;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 export function GaziantepInteractiveParcelScene({ parcels, onSelect }: Props) {
@@ -22,32 +19,55 @@ export function GaziantepInteractiveParcelScene({ parcels, onSelect }: Props) {
   const [positions, setPositions] = useState<Record<string, Position>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // The parent already loads parcels for the selected city, so do not invent
-  // or filter another parcel set here. The first 84 records reproduce the
-  // original 12x7 artwork layout while using the project's real parcel IDs.
-  const gaziantepParcels = useMemo(() => parcels.slice(0, MAX_VISIBLE_PARCELS), [parcels]);
+  // Use the real MySkyParcel records. Never create a second synthetic parcel set.
+  const gaziantepParcels = useMemo(
+    () => parcels.filter((parcel) => parcel.city_slug === "gaziantep").slice(0, MAX_VISIBLE_PARCELS),
+    [parcels],
+  );
+
+  // Place the real parcels according to their stored coordinates instead of an
+  // artificial 12x7 grid. Dragging then only changes the visual position.
+  const initialPositions = useMemo(() => {
+    if (!gaziantepParcels.length) return {};
+
+    const lats = gaziantepParcels.map((parcel) => parcel.latitude);
+    const lngs = gaziantepParcels.map((parcel) => parcel.longitude);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    const latSpan = Math.max(maxLat - minLat, 0.000001);
+    const lngSpan = Math.max(maxLng - minLng, 0.000001);
+    const padding = 3;
+    const usable = 100 - padding * 2;
+
+    return Object.fromEntries(
+      gaziantepParcels.map((parcel) => [
+        parcel.id,
+        {
+          x: padding + ((parcel.longitude - minLng) / lngSpan) * usable,
+          y: padding + ((maxLat - parcel.latitude) / latSpan) * usable,
+        },
+      ]),
+    );
+  }, [gaziantepParcels]);
 
   useEffect(() => {
     setPositions((current) => {
-      const next = { ...current };
-      gaziantepParcels.forEach((parcel, index) => {
-        if (!next[parcel.id]) {
-          next[parcel.id] = {
-            x: (index % GRID_COLS) * (100 / GRID_COLS),
-            y: Math.floor(index / GRID_COLS) * (100 / GRID_ROWS),
-          };
-        }
+      const next = { ...initialPositions };
+      Object.entries(current).forEach(([id, position]) => {
+        if (gaziantepParcels.some((parcel) => parcel.id === id)) next[id] = position;
       });
       return next;
     });
-  }, [gaziantepParcels]);
+  }, [initialPositions, gaziantepParcels]);
 
   const startDrag = (event: React.PointerEvent<HTMLDivElement>, parcel: Parcel) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
     event.currentTarget.setPointerCapture(event.pointerId);
-    const position = positions[parcel.id] ?? { x: 0, y: 0 };
+    const position = positions[parcel.id] ?? initialPositions[parcel.id] ?? { x: 3, y: 3 };
     dragRef.current = {
       id: parcel.id,
       offsetX: event.clientX - rect.left - (position.x / 100) * rect.width,
@@ -62,11 +82,8 @@ export function GaziantepInteractiveParcelScene({ parcels, onSelect }: Props) {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!drag || !rect) return;
 
-    const cellWidth = 100 / GRID_COLS;
-    const cellHeight = 100 / GRID_ROWS;
-    const x = clamp(((event.clientX - rect.left - drag.offsetX) / rect.width) * 100, 0, 100 - cellWidth);
-    const y = clamp(((event.clientY - rect.top - drag.offsetY) / rect.height) * 100, 0, 100 - cellHeight);
-
+    const x = clamp(((event.clientX - rect.left - drag.offsetX) / rect.width) * 100, 0, 92);
+    const y = clamp(((event.clientY - rect.top - drag.offsetY) / rect.height) * 100, 0, 92);
     setPositions((current) => ({ ...current, [drag.id]: { x, y } }));
   };
 
@@ -85,7 +102,7 @@ export function GaziantepInteractiveParcelScene({ parcels, onSelect }: Props) {
           Gaziantep Gökyüzü Parselleri
         </p>
         <p className="mt-1 text-[10px] text-white/50">
-          Hazır görsel parselleri kullanılmıyor. Parseller MySkyParcel kayıtlarından gelir ve sürüklenebilir.
+          MySkyParcel kayıtları kullanılır; eski görsel parselleri kullanılmaz. Parseller sürüklenebilir.
         </p>
       </div>
 
@@ -99,24 +116,18 @@ export function GaziantepInteractiveParcelScene({ parcels, onSelect }: Props) {
           className="absolute inset-0 h-full w-full object-cover"
           draggable={false}
         />
-
         <div className="absolute inset-0 bg-slate-950/10" aria-hidden="true" />
 
         {gaziantepParcels.map((parcel) => {
-          const position = positions[parcel.id] ?? { x: 0, y: 0 };
+          const position = positions[parcel.id] ?? initialPositions[parcel.id] ?? { x: 3, y: 3 };
           const isActive = activeId === parcel.id;
 
           return (
             <div
               key={parcel.id}
               aria-label={`Parsel ${parcel.parcel_number}`}
-              className={`absolute flex cursor-grab items-center justify-center rounded-sm border border-amber-200/80 bg-slate-950/25 text-[9px] font-semibold text-white shadow-sm backdrop-blur-[1px] transition-shadow active:cursor-grabbing sm:text-[10px] ${isActive ? "z-20 shadow-2xl ring-2 ring-amber-200/70" : "z-10"}`}
-              style={{
-                left: `${position.x}%`,
-                top: `${position.y}%`,
-                width: `${100 / GRID_COLS}%`,
-                height: `${100 / GRID_ROWS}%`,
-              }}
+              className={`absolute flex cursor-grab items-center justify-center rounded-sm border border-amber-200/80 bg-slate-950/25 text-[9px] font-semibold text-white shadow-sm backdrop-blur-[1px] active:cursor-grabbing sm:text-[10px] ${isActive ? "z-20 shadow-2xl ring-2 ring-amber-200/70" : "z-10"}`}
+              style={{ left: `${position.x}%`, top: `${position.y}%`, width: "8%", height: "8%" }}
               onPointerDown={(event) => startDrag(event, parcel)}
               onPointerMove={moveDrag}
               onPointerUp={endDrag}
