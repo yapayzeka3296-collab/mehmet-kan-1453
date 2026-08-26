@@ -14,31 +14,25 @@ export const Route = createFileRoute("/gokyuzu-haritasi")({
 });
 
 function Harita() {
-  const [zoomHint, setZoomHint] = useState(false);
-  const legacyView = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "legacy";
+  const [showLegacyMap, setShowLegacyMap] = useState(false);
 
-  if (legacyView) return <LegacySkyMapView />;
+  if (showLegacyMap) {
+    return <LegacySkyMapView />;
+  }
 
   return (
     <main className="min-h-screen bg-[#01040b]">
-      <div
-        className="relative"
-        onWheel={(event) => {
-          if (event.deltaY < -18) setZoomHint(true);
-        }}
-      >
+      <div className="relative">
         <MySkyParcelEarthGlobe />
-        {zoomHint && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <button
-              type="button"
-              className="pointer-events-auto rounded-2xl border border-cyan-300/40 bg-[#06131d]/90 px-6 py-4 text-sm font-semibold text-white shadow-2xl shadow-cyan-950/40 backdrop-blur-xl transition hover:border-cyan-200 hover:bg-[#09202d]"
-              onClick={() => { window.location.href = "/gokyuzu-haritasi?view=legacy"; }}
-            >
-              Haritaya Gir
-            </button>
-          </div>
-        )}
+        <div className="pointer-events-none absolute right-4 top-4 z-20 md:right-6 md:top-6">
+          <button
+            type="button"
+            className="pointer-events-auto rounded-xl border border-cyan-300/50 bg-[#06131d]/90 px-4 py-3 text-sm font-semibold text-white shadow-2xl shadow-cyan-950/40 backdrop-blur-xl transition hover:border-cyan-200 hover:bg-[#09202d]"
+            onClick={() => setShowLegacyMap(true)}
+          >
+            Türkiye Haritasına Gir
+          </button>
+        </div>
       </div>
     </main>
   );
