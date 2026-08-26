@@ -8,10 +8,9 @@ type Props = {
   onProvinceSelect?: (province: { name: string; slug: string; parcelCount: number | null }) => void;
 };
 
-type GeoPoint = [number, number];
 type GeoJsonGeometry =
-  | { type: "Polygon"; coordinates: GeoPoint[][] }
-  | { type: "MultiPolygon"; coordinates: GeoPoint[][][] };
+  | { type: "Polygon"; coordinates: number[][][] }
+  | { type: "MultiPolygon"; coordinates: number[][][][] };
 type GeoJsonFeature = { type: "Feature"; properties?: Record<string, unknown>; geometry?: GeoJsonGeometry | null };
 type GeoJsonCollection = { type: "FeatureCollection"; features: GeoJsonFeature[] };
 
