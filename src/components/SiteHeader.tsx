@@ -6,7 +6,7 @@ import { Logo } from "./Logo";
 import { PARCEL_CART_EVENT, readParcelCart, removeParcelFromCart, type ParcelCartItem } from "@/lib/parcelCart";
 
 const NAV_LINKS = [
-  { label: "Ana Sayfa", to: "/ana-sayfa" }, { label: "Türkiye Haritası", to: "/turkiye-haritasi" }, { label: "MySkyParcel Nedir?", to: "/nasil-calisir" }, { label: "Koleksiyonum", to: "/parsellerim", requiresAuth: true }, { label: "Dijital Sertifika", to: "/paketler" }, { label: "Hakkımızda", to: "/hakkimizda" }, { label: "SSS", to: "/hakkimizda", hash: "sss" }, { label: "İletişim", to: "/iletisim" },
+  { label: "Ana Sayfa", to: "/ana-sayfa" }, { label: "Gökyüzü Haritası", to: "/turkiye-haritasi" }, { label: "MySkyParcel Nedir?", to: "/nasil-calisir" }, { label: "Koleksiyonum", to: "/parsellerim", requiresAuth: true }, { label: "Dijital Sertifika", to: "/paketler" }, { label: "Hakkımızda", to: "/hakkimizda" }, { label: "SSS", to: "/hakkimizda", hash: "sss" }, { label: "İletişim", to: "/iletisim" },
 ] as const;
 const tierName = (tier: ParcelCartItem["tier"]) => tier === "digital" ? "Dijital" : tier === "elite" ? "Özel" : "Premium";
 
