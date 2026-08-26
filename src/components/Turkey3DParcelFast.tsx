@@ -24,7 +24,7 @@ const project = (lon: number, lat: number) => ({
   y: (lat - MAP_CENTER_LAT) * MAP_SCALE,
 });
 
-function parcelColor(status: number, tier: number) {
+function parcelColor(status: number, tier: number): [number, number, number] {
   if (status === 1) return [1, 0.192, 0.341];
   if (status === 2) return [1, 0.651, 0.239];
   if (tier === 1) return [0.965, 0.769, 0.325];
@@ -77,7 +77,7 @@ export function Turkey3DParcelFast() {
 
     let disposed = false;
     let buildFrame = 0;
-    let idleId: number | undefined;
+    let parcelTimer = 0;
     let resizeObserver: ResizeObserver | undefined;
     let parcelMesh: THREE.InstancedMesh | null = null;
     let parcelGeometry: THREE.BoxGeometry | null = null;
@@ -131,18 +131,12 @@ export function Turkey3DParcelFast() {
     rim.position.set(-5, 1, -3);
     scene.add(rim);
 
-    const floor = new THREE.Mesh(
-      new THREE.CircleGeometry(8.5, 48),
-      new THREE.MeshBasicMaterial({ color: 0x03101d, transparent: true, opacity: 0.92 }),
-    );
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(8.5, 48), new THREE.MeshBasicMaterial({ color: 0x03101d, transparent: true, opacity: 0.92 }));
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.9;
     scene.add(floor);
 
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(3.7, 3.73, 48),
-      new THREE.MeshBasicMaterial({ color: 0x23d9ff, transparent: true, opacity: 0.32, side: THREE.DoubleSide }),
-    );
+    const ring = new THREE.Mesh(new THREE.RingGeometry(3.7, 3.73, 48), new THREE.MeshBasicMaterial({ color: 0x23d9ff, transparent: true, opacity: 0.32, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = -0.86;
     scene.add(ring);
@@ -154,6 +148,8 @@ export function Turkey3DParcelFast() {
 
     const provinceMeshes: THREE.Mesh[] = [];
     const boundaryLines: THREE.Line[] = [];
+    let provinceMaterial: THREE.MeshStandardMaterial | null = null;
+    let lineMaterial: THREE.LineBasicMaterial | null = null;
 
     const loadProvinces = async () => {
       try {
@@ -163,15 +159,8 @@ export function Turkey3DParcelFast() {
         if (disposed) return;
         const features = Array.isArray(data?.features) ? data.features : [];
         const provinceNames = new Set<string>();
-        const sharedMaterial = new THREE.MeshStandardMaterial({
-          color: 0x155d62,
-          roughness: 0.82,
-          metalness: 0.05,
-          emissive: 0x06252a,
-          emissiveIntensity: 0.28,
-          side: THREE.DoubleSide,
-        });
-        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x7cf7ff, transparent: true, opacity: 0.62 });
+        provinceMaterial = new THREE.MeshStandardMaterial({ color: 0x155d62, roughness: 0.82, metalness: 0.05, emissive: 0x06252a, emissiveIntensity: 0.28, side: THREE.DoubleSide });
+        lineMaterial = new THREE.LineBasicMaterial({ color: 0x7cf7ff, transparent: true, opacity: 0.62 });
 
         for (const feature of features) {
           const geometryData = feature?.geometry;
@@ -179,19 +168,16 @@ export function Turkey3DParcelFast() {
           const name = String(feature?.properties?.name ?? feature?.properties?.NAME_1 ?? feature?.properties?.province ?? "");
           if (name) provinceNames.add(name);
           const polygons = geometryData.type === "Polygon" ? [geometryData.coordinates] : geometryData.type === "MultiPolygon" ? geometryData.coordinates : [];
-
           for (const polygon of polygons) {
             if (!Array.isArray(polygon)) continue;
             const shape = new THREE.Shape();
             if (!addRing(shape, polygon[0])) continue;
             for (let h = 1; h < polygon.length; h++) addHole(shape, polygon[h]);
-
             const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.12, bevelEnabled: false, curveSegments: 1 });
-            const mesh = new THREE.Mesh(geometry, sharedMaterial);
+            const mesh = new THREE.Mesh(geometry, provinceMaterial);
             mesh.userData.provinceName = name;
             mapGroup.add(mesh);
             provinceMeshes.push(mesh);
-
             for (const boundary of polygon) {
               if (!Array.isArray(boundary) || boundary.length < 3) continue;
               const points: THREE.Vector3[] = [];
@@ -258,7 +244,6 @@ export function Turkey3DParcelFast() {
         const latValues = Array.isArray(payload.lat) ? payload.lat : [];
         const lonValues = Array.isArray(payload.lon) ? payload.lon : [];
         const count = Math.min(numbers.length, statuses.length, tiers.length, layerValues.length, latValues.length, lonValues.length);
-
         if (!count) throw new Error("No parcel render rows returned");
 
         xs = new Float32Array(count);
@@ -285,38 +270,39 @@ export function Turkey3DParcelFast() {
         setParcelCount(count);
         parcelGeometry = new THREE.BoxGeometry(1, 1, 1);
         parcelMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.05, emissive: 0x06151a, emissiveIntensity: 0.12 });
-        parcelMesh = new THREE.InstancedMesh(parcelGeometry, parcelMaterial, count);
-        parcelMesh.count = 0;
-        parcelMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-        const matrixArray = parcelMesh.instanceMatrix.array as Float32Array;
+        const mesh = new THREE.InstancedMesh(parcelGeometry, parcelMaterial, count);
+        mesh.count = 0;
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        const matrixArray = mesh.instanceMatrix.array as Float32Array;
         const colorAttribute = new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3);
-        parcelMesh.instanceColor = colorAttribute;
-        mapGroup.add(parcelMesh);
+        mesh.instanceColor = colorAttribute;
+        parcelMesh = mesh;
+        mapGroup.add(mesh);
 
         const buildNext = () => {
           if (disposed || !parcelMesh) return;
           const start = parcelMesh.count;
           const end = Math.min(count, start + BUILD_BATCH);
           for (let i = start; i < end; i++) {
-            const depth = 0.025 + layers[i] * 0.004;
+            const depth = 0.025 + (layers[i] ?? 1) * 0.004;
             const offset = i * 16;
             matrixArray[offset] = 0.0051;
             matrixArray[offset + 5] = 0.0041;
             matrixArray[offset + 10] = depth;
-            matrixArray[offset + 12] = xs[i];
-            matrixArray[offset + 13] = ys[i];
+            matrixArray[offset + 12] = xs[i] ?? 0;
+            matrixArray[offset + 13] = ys[i] ?? 0;
             matrixArray[offset + 14] = 0.155 + depth / 2;
             matrixArray[offset + 15] = 1;
             const colorOffset = i * 3;
-            colorAttribute.array[colorOffset] = baseColors[colorOffset];
-            colorAttribute.array[colorOffset + 1] = baseColors[colorOffset + 1];
-            colorAttribute.array[colorOffset + 2] = baseColors[colorOffset + 2];
+            colorAttribute.array[colorOffset] = baseColors[colorOffset] ?? 0.141;
+            colorAttribute.array[colorOffset + 1] = baseColors[colorOffset + 1] ?? 0.839;
+            colorAttribute.array[colorOffset + 2] = baseColors[colorOffset + 2] ?? 0.816;
           }
           parcelMesh.count = end;
           parcelMesh.instanceMatrix.needsUpdate = true;
           colorAttribute.needsUpdate = true;
           if (end < count) {
-            setStatus(`Türkiye hazırlanıyor · ${end.toLocaleString("tr-TR")} / ${count.toLocaleString("tr-TR")} parsel`);
+            if (end % (BUILD_BATCH * 5) === 0) setStatus(`Türkiye hazırlanıyor · ${end.toLocaleString("tr-TR")} / ${count.toLocaleString("tr-TR")} parsel`);
             buildFrame = requestAnimationFrame(buildNext);
           } else {
             parcelMesh.computeBoundingSphere();
@@ -330,9 +316,7 @@ export function Turkey3DParcelFast() {
       }
     };
 
-    const start = () => void installParcels();
-    if ("requestIdleCallback" in window) idleId = window.requestIdleCallback(start, { timeout: 1400 });
-    else idleId = window.setTimeout(start, 250);
+    parcelTimer = window.setTimeout(() => void installParcels(), 250);
 
     const plane = new THREE.Plane();
     const planeNormal = new THREE.Vector3();
@@ -371,7 +355,7 @@ export function Turkey3DParcelFast() {
           if (!bucket) continue;
           for (const index of bucket) {
             if (index >= parcelMesh.count) continue;
-            const distance = Math.abs(localPoint.x - xs[index]) + Math.abs(localPoint.y - ys[index]);
+            const distance = Math.abs(localPoint.x - (xs[index] ?? 0)) + Math.abs(localPoint.y - (ys[index] ?? 0));
             if (distance < bestDistance) {
               bestDistance = distance;
               best = index;
@@ -437,10 +421,7 @@ export function Turkey3DParcelFast() {
 
     return () => {
       disposed = true;
-      if (idleId !== undefined) {
-        if ("cancelIdleCallback" in window) window.cancelIdleCallback(idleId);
-        else window.clearTimeout(idleId);
-      }
+      window.clearTimeout(parcelTimer);
       cancelAnimationFrame(buildFrame);
       cancelAnimationFrame(raf);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
@@ -449,6 +430,8 @@ export function Turkey3DParcelFast() {
       controls.dispose();
       provinceMeshes.forEach((mesh) => mesh.geometry.dispose());
       boundaryLines.forEach((line) => line.geometry.dispose());
+      provinceMaterial?.dispose();
+      lineMaterial?.dispose();
       cityGeometry.dispose();
       cityMaterial.dispose();
       parcelGeometry?.dispose();
