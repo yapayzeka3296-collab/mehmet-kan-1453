@@ -10,25 +10,71 @@ type Props = {
   onSelect?: (id: string | null) => void;
 };
 
-const MAX_VISIBLE_PARCELS = 84;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
+/**
+ * Gaziantep's supplied city artwork is only the visual background. Parcel
+ * labels are rendered from the real MySkyParcel records on top of it.
+ *
+ * The database does not store parcel polygons, so the stable layer/sector
+ * hierarchy is used for the initial visual layout. This keeps the exact set
+ * of database parcels (no synthetic parcels) while giving every parcel its
+ * own draggable position over the artwork.
+ */
 export function GaziantepInteractiveParcelScene({ parcels, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState>(null);
   const [positions, setPositions] = useState<Record<string, Position>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Use the real MySkyParcel records. Never create a second synthetic parcel set.
   const gaziantepParcels = useMemo(
-    () => parcels.filter((parcel) => parcel.city_slug === "gaziantep").slice(0, MAX_VISIBLE_PARCELS),
+    () => parcels.filter((parcel) => parcel.city_slug === "gaziantep"),
     [parcels],
   );
 
-  // Place the real parcels according to their stored coordinates instead of an
-  // artificial 12x7 grid. Dragging then only changes the visual position.
   const initialPositions = useMemo(() => {
     if (!gaziantepParcels.length) return {};
+
+    const withHierarchy = gaziantepParcels.filter(
+      (parcel) => Number.isFinite(parcel.layer_number) && Number.isFinite(parcel.sector_number),
+    );
+
+    // Prefer the production hierarchy: up to 10 layers x 100 sectors.
+    if (withHierarchy.length) {
+      const maxLayer = Math.max(1, ...withHierarchy.map((parcel) => parcel.layer_number ?? 1));
+      const maxSector = Math.max(1, ...withHierarchy.map((parcel) => parcel.sector_number ?? 1));
+      const next: Record<string, Position> = {};
+
+      withHierarchy.forEach((parcel) => {
+        const layer = parcel.layer_number ?? 1;
+        const sector = parcel.sector_number ?? 1;
+        next[parcel.id] = {
+          x: 4 + ((sector - 1) / Math.max(1, maxSector - 1)) * 92,
+          y: 4 + ((layer - 1) / Math.max(1, maxLayer - 1)) * 92,
+        };
+      });
+
+      // Records without hierarchy are placed from their stored coordinates.
+      const remaining = gaziantepParcels.filter((parcel) => !next[parcel.id]);
+      if (!remaining.length) return next;
+
+      const lats = remaining.map((parcel) => parcel.latitude);
+      const lngs = remaining.map((parcel) => parcel.longitude);
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLng = Math.min(...lngs);
+      const maxLng = Math.max(...lngs);
+      const latSpan = Math.max(maxLat - minLat, 0.000001);
+      const lngSpan = Math.max(maxLng - minLng, 0.000001);
+
+      remaining.forEach((parcel) => {
+        next[parcel.id] = {
+          x: 4 + ((parcel.longitude - minLng) / lngSpan) * 92,
+          y: 4 + ((maxLat - parcel.latitude) / latSpan) * 92,
+        };
+      });
+      return next;
+    }
 
     const lats = gaziantepParcels.map((parcel) => parcel.latitude);
     const lngs = gaziantepParcels.map((parcel) => parcel.longitude);
@@ -38,15 +84,13 @@ export function GaziantepInteractiveParcelScene({ parcels, onSelect }: Props) {
     const maxLng = Math.max(...lngs);
     const latSpan = Math.max(maxLat - minLat, 0.000001);
     const lngSpan = Math.max(maxLng - minLng, 0.000001);
-    const padding = 3;
-    const usable = 100 - padding * 2;
 
     return Object.fromEntries(
       gaziantepParcels.map((parcel) => [
         parcel.id,
         {
-          x: padding + ((parcel.longitude - minLng) / lngSpan) * usable,
-          y: padding + ((maxLat - parcel.latitude) / latSpan) * usable,
+          x: 4 + ((parcel.longitude - minLng) / lngSpan) * 92,
+          y: 4 + ((maxLat - parcel.latitude) / latSpan) * 92,
         },
       ]),
     );
@@ -67,7 +111,7 @@ export function GaziantepInteractiveParcelScene({ parcels, onSelect }: Props) {
     if (!rect) return;
 
     event.currentTarget.setPointerCapture(event.pointerId);
-    const position = positions[parcel.id] ?? initialPositions[parcel.id] ?? { x: 3, y: 3 };
+    const position = positions[parcel.id] ?? initialPositions[parcel.id] ?? { x: 4, y: 4 };
     dragRef.current = {
       id: parcel.id,
       offsetX: event.clientX - rect.left - (position.x / 100) * rect.width,
@@ -102,7 +146,7 @@ export function GaziantepInteractiveParcelScene({ parcels, onSelect }: Props) {
           Gaziantep Gökyüzü Parselleri
         </p>
         <p className="mt-1 text-[10px] text-white/50">
-          MySkyParcel kayıtları kullanılır; eski görsel parselleri kullanılmaz. Parseller sürüklenebilir.
+          MySkyParcel kayıtları görselin üzerine yerleştirilir. Yeni parsel üretilmez; mevcut parseller sürüklenebilir.
         </p>
       </div>
 
@@ -119,7 +163,7 @@ export function GaziantepInteractiveParcelScene({ parcels, onSelect }: Props) {
         <div className="absolute inset-0 bg-slate-950/10" aria-hidden="true" />
 
         {gaziantepParcels.map((parcel) => {
-          const position = positions[parcel.id] ?? initialPositions[parcel.id] ?? { x: 3, y: 3 };
+          const position = positions[parcel.id] ?? initialPositions[parcel.id] ?? { x: 4, y: 4 };
           const isActive = activeId === parcel.id;
 
           return (
@@ -127,7 +171,12 @@ export function GaziantepInteractiveParcelScene({ parcels, onSelect }: Props) {
               key={parcel.id}
               aria-label={`Parsel ${parcel.parcel_number}`}
               className={`absolute flex cursor-grab items-center justify-center rounded-sm border border-amber-200/80 bg-slate-950/25 text-[9px] font-semibold text-white shadow-sm backdrop-blur-[1px] active:cursor-grabbing sm:text-[10px] ${isActive ? "z-20 shadow-2xl ring-2 ring-amber-200/70" : "z-10"}`}
-              style={{ left: `${position.x}%`, top: `${position.y}%`, width: "8%", height: "8%" }}
+              style={{
+                left: `${position.x}%`,
+                top: `${position.y}%`,
+                width: "8%",
+                height: "8%",
+              }}
               onPointerDown={(event) => startDrag(event, parcel)}
               onPointerMove={moveDrag}
               onPointerUp={endDrag}
