@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/SiteHeader";
-import { LegacySkyMapView } from "@/components/LegacySkyMapView";
+import { Turkey3DParcelExperience } from "@/components/Turkey3DParcelMap";
 
 export const Route = createFileRoute("/turkiye-haritasi")({ component: SkyMapPage });
 
 function SkyMapPage() {
-  return <div className="min-h-screen bg-slate-950 text-white"><SiteHeader/><LegacySkyMapView/></div>;
+  return <div className="min-h-screen bg-slate-950 text-white"><SiteHeader/><Turkey3DParcelExperience/></div>;
 }
