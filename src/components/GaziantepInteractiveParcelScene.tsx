@@ -66,7 +66,7 @@ export function GaziantepInteractiveParcelScene() {
       </div>
 
       <div className="relative aspect-[3/2] overflow-hidden rounded-2xl bg-slate-900 select-none touch-none">
-        <img src="/gaziantep-parcels.png" alt="Gaziantep gökyüzü parselleri" className="absolute inset-0 h-full w-full object-cover" draggable={false} />
+        <img src="/images/gaziantep-parseller.png" alt="Gaziantep gökyüzü parselleri" className="absolute inset-0 h-full w-full object-cover" draggable={false} />
         <div className="absolute inset-0" style={gridStyle}>
           {parcels.map((parcel) => (
             <div
