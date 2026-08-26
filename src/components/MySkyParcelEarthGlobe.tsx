@@ -40,7 +40,7 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     controls.minDistance = 2.35;
     controls.maxDistance = 7.5;
     controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.378;
+    controls.autoRotateSpeed = 0.756;
     controls.target.set(0, 0, 0);
     controls.update();
 
