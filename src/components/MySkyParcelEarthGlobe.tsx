@@ -43,7 +43,13 @@ function addFeatureLines(feature: GeoJsonFeature, index: number) {
   group.userData = { provinceName: name, provinceSlug: slugify(name) };
   const rings = feature.geometry.type === "Polygon" ? feature.geometry.coordinates : feature.geometry.coordinates.flat();
   for (const ring of rings) {
-    const points = ring.map(([lng, lat]) => coordinateToVector3(lng, lat));
+    const points: THREE.Vector3[] = [];
+    for (const coordinate of ring) {
+      const lng = coordinate[0];
+      const lat = coordinate[1];
+      if (typeof lng !== "number" || typeof lat !== "number") continue;
+      points.push(coordinateToVector3(lng, lat));
+    }
     if (points.length < 2) continue;
     group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x55c8ff, transparent: true, opacity: 0.62 })));
   }
