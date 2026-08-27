@@ -157,11 +157,9 @@ export function CityParcelPage({ slug }: { slug: string }) {
           <div className="min-w-0 p-3 lg:p-5">
             <SkyParcelMap
               parcels={filtered}
-              selectedId={null}
+              selectedId={selectedIds.size === 1 ? Array.from(selectedIds)[0] : null}
               selectedIds={selectedIds}
-              multiSelect
-              onSelect={() => undefined}
-              onToggleSelect={toggle}
+              onSelect={toggle}
               center={{ lat: 39, lng: 35 }}
             />
           </div>
