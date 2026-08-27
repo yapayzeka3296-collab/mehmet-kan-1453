@@ -12,11 +12,13 @@ const DEFAULT_CAMERA_Z = 5.05;
 export function MySkyParcelEarthGlobe({ className = "" }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const cameraZRef = useRef(DEFAULT_CAMERA_Z);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const [zoom, setZoom] = useState(DEFAULT_CAMERA_Z);
 
   const changeZoom = (delta: number) => {
     const next = THREE.MathUtils.clamp(cameraZRef.current + delta, MIN_ZOOM, MAX_ZOOM);
     cameraZRef.current = next;
+    if (cameraRef.current) cameraRef.current.position.z = next;
     setZoom(next);
   };
 
@@ -34,6 +36,7 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     scene.background = new THREE.Color(0x01040b);
     const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
     camera.position.set(0, 0.35, cameraZRef.current);
+    cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
@@ -205,6 +208,7 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       renderer.domElement.removeEventListener("pointercancel", onPointerUp);
+      if (cameraRef.current === camera) cameraRef.current = null;
       earthTexture.dispose();
       cloudTexture.dispose();
       earthGeometry.dispose();
