@@ -21,7 +21,6 @@ function geometryToPath(geometry:ParcelGeometry|undefined,center:City["center"])
   return geometry.coordinates.map(p=>p.map(ring).join(" ")).join(" ");
 }
 function CityParcelOverlay({parcels,city,selectedIds,onToggle}:OverlayProps){
-  const hoverId=useState<string|null>(null)[0];
   const [hover,setHover]=useState<string|null>(null);
   const visible=parcels.filter(p=>p.geometry&&p.status!=="sold");
   return <svg aria-label={`${city.name} parsel seçim alanı`} className="absolute inset-0 z-20 h-full w-full touch-manipulation" viewBox="0 0 100 100" preserveAspectRatio="none">
