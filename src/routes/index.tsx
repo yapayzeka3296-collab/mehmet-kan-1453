@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { Logo } from "@/components/Logo";
 
-const MySkyParcelEarthGlobe = lazy(() => import("@/components/ZoomableEarthGlobe").then((module) => ({ default: module.ZoomableEarthGlobe })));
+const MySkyParcelEarthGlobe = lazy(() => import("@/components/MySkyParcelEarthGlobe").then((module) => ({ default: module.MySkyParcelEarthGlobe })));
 
 export const Route = createFileRoute("/")({
   head: () => ({
