@@ -21,7 +21,11 @@ function cartItem(p: Parcel): ParcelCartItem | undefined {
 }
 
 function geoPos(p: Parcel) {
-  const lat = Number(p.latitude), lng = Number(p.longitude);
+  const rawLat = p.latitude;
+  const rawLng = p.longitude;
+  if (rawLat == null || rawLng == null) return null;
+  const lat = Number(rawLat);
+  const lng = Number(rawLng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   return {
     left: Math.max(3, Math.min(97, ((lng - B.minLng) / (B.maxLng - B.minLng)) * 100)),
@@ -118,30 +122,3 @@ export function SkyParcelMap({ parcels, selectedId, selectedIds = new Set(), mul
   return <div className="relative h-[420px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[420px] lg:h-[469px]">
     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(30,112,160,.3),transparent_32%),linear-gradient(145deg,#030b17,#071a2d_52%,#020711)]" />
     <div className="absolute inset-0 opacity-50" style={{ backgroundImage: "radial-gradient(circle,rgba(255,255,255,.7) .8px,transparent .9px)", backgroundSize: "31px 31px" }} />
-
-    {/* Image and parcel geometry stay in the same transform layer so geographic alignment survives mobile scaling. */}
-    <div className={`absolute inset-0 z-[1] origin-center transition-transform duration-[1800ms] ease-out scale-[1.24] sm:scale-100 ${focus ? "[&>.map-content]:scale-[1.08]" : ""}`}>
-      <div className="map-content absolute inset-0 flex items-center justify-center overflow-hidden px-0 py-1 sm:px-6 sm:py-4 transition-transform duration-[1800ms] ease-out">
-        <img src="/images/cities/turkey-3d-map.png" alt="Türkiye 3D haritası" className="h-full w-full object-contain drop-shadow-[0_0_35px_rgba(44,190,255,.22)]" />
-      </div>
-      {polygonMode && <svg aria-label="Parsel sınırları" role="img" className="pointer-events-auto absolute inset-0 z-10 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-        {parcels.map(p => renderParcel(p, true))}
-      </svg>}
-      {!polygonMode && <div className="absolute inset-0 z-10">
-        {(["digital", "elite", "premium"] as Tier[]).map(t => groups[t].map(p => renderParcel(p, false)))}
-      </div>}
-      {polygonMode && hover && (() => {
-        const p = parcels.find(x => x.id === hover);
-        const xy = p ? geoPos(p) : null;
-        return p && xy ? <div className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded bg-[#020914]/90 px-2 py-1 text-[9px] text-white" style={{ left: `${xy.left}%`, top: `${xy.top}%` }}>{p.parcel_number}</div> : null;
-      })()}
-    </div>
-
-    <SciFiGrid />
-    <div className="absolute left-5 top-5 z-20 rounded-xl border border-cyan-200/15 bg-black/30 px-4 py-3 backdrop-blur-md">
-      <div className="text-[9px] uppercase tracking-[.28em] text-cyan-200/60">Data Visualization Overlay</div>
-      <div className="mt-1 text-sm font-semibold text-white">Gökyüzü Parselleri</div>
-    </div>
-    <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-full border border-cyan-200/20 bg-black/45 px-4 py-2 text-[10px] text-white/70 backdrop-blur-md">{available.toLocaleString("tr-TR")} parsel</div>
-  </div>;
-}
