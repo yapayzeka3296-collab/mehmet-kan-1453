@@ -9,7 +9,9 @@ type City = { id: string; name: string; slug: string };
 type VisibleParcel = { id: string; parcel_number: string; status: "available" | "reserved" | "sold"; tier: ParcelTier; tier_price: number; city_name: string; city_slug: string; grid_x: number | null; grid_y: number | null };
 type Slot = { x: number; y: number };
 
-const TIER_COUNTS: Record<ParcelTier, number> = { digital: 30, elite: 18, premium: 12 };
+// The city map always contains 60 visible parcels arranged as three concentric tiers:
+// 30 Digital on the outside, 22 Elite in the middle, and 8 Premium in the center.
+const TIER_COUNTS: Record<ParcelTier, number> = { digital: 30, elite: 22, premium: 8 };
 const TIER_COLOR: Record<ParcelTier, string> = { digital: "85,201,255", elite: "183,124,255", premium: "246,196,83" };
 const PRICE: Record<ParcelTier, number> = { digital: 199, elite: 499, premium: 999 };
 const COLS = 40;
@@ -23,6 +25,23 @@ function buildSlots(): Slot[] {
   return result.slice(0, 60);
 }
 const VISIBLE_SLOTS = buildSlots();
+const CENTER_X = (COLS - 1) / 2;
+const CENTER_Y = (ROWS - 1) / 2;
+
+// Sort the fixed grid positions by distance from the center. The closest 8 slots
+// are Premium, the next 22 are Elite, and the remaining 30 are Digital.
+const TIER_SLOTS: Record<ParcelTier, Slot[]> = (() => {
+  const ranked = [...VISIBLE_SLOTS].sort((a, b) => {
+    const da = (a.x - CENTER_X) ** 2 + (a.y - CENTER_Y) ** 2;
+    const db = (b.x - CENTER_X) ** 2 + (b.y - CENTER_Y) ** 2;
+    return da - db;
+  });
+  return {
+    premium: ranked.slice(0, TIER_COUNTS.premium),
+    elite: ranked.slice(TIER_COUNTS.premium, TIER_COUNTS.premium + TIER_COUNTS.elite),
+    digital: ranked.slice(TIER_COUNTS.premium + TIER_COUNTS.elite),
+  };
+})();
 
 function cartItem(p: VisibleParcel): ParcelCartItem {
   return { id: p.id, parcel_number: p.parcel_number, city_name: p.city_name, tier: p.tier, tier_price: Number(p.tier_price ?? PRICE[p.tier]) };
@@ -38,9 +57,26 @@ function SkyBackground() {
 }
 
 function ParcelLines({ parcels, selectedIds, onToggle }: { parcels: VisibleParcel[]; selectedIds: Set<string>; onToggle: (p: VisibleParcel) => void }) {
+  const byTier = useMemo(() => ({
+    digital: parcels.filter(p => p.tier === "digital"),
+    elite: parcels.filter(p => p.tier === "elite"),
+    premium: parcels.filter(p => p.tier === "premium"),
+  }), [parcels]);
+
+  const slotParcel = useMemo(() => {
+    const map = new Map<string, VisibleParcel>();
+    (Object.keys(TIER_SLOTS) as ParcelTier[]).forEach(tier => {
+      TIER_SLOTS[tier].forEach((slot, index) => {
+        const parcel = byTier[tier][index];
+        if (parcel) map.set(`${slot.x}:${slot.y}`, parcel);
+      });
+    });
+    return map;
+  }, [byTier]);
+
   return <div className="absolute inset-0 z-20 grid touch-manipulation" style={{ gridTemplateColumns: `repeat(${COLS},minmax(0,1fr))`, gridTemplateRows: `repeat(${ROWS},minmax(0,1fr))` }} aria-label="Gökyüzü parsel çizgileri">
-    {VISIBLE_SLOTS.map((slot, i) => {
-      const p = parcels[i];
+    {VISIBLE_SLOTS.map(slot => {
+      const p = slotParcel.get(`${slot.x}:${slot.y}`);
       if (!p) return <span key={`${slot.x}:${slot.y}`} className="border border-cyan-200/10" aria-hidden />;
       const selected = selectedIds.has(p.id);
       const rgb = TIER_COLOR[p.tier];
@@ -57,7 +93,6 @@ export function SkyParcelCityMapPage({ slug }: { slug: string }) {
   const [city, setCity] = useState<City | null>(null);
   const [parcels, setParcels] = useState<VisibleParcel[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(readParcelCart().map(p => p.id)));
-  const [cursors, setCursors] = useState<Record<ParcelTier, number>>({ digital: 0, elite: 0, premium: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -71,9 +106,9 @@ export function SkyParcelCityMapPage({ slug }: { slug: string }) {
     return () => { alive = false; };
   }, [slug]);
 
-  const loadWindow = async (citySlug: string, tier: ParcelTier, offset: number, limit: number) => {
+  const loadWindow = async (citySlug: string, tier: ParcelTier, limit: number) => {
     if (!supabaseBrowser) return [] as VisibleParcel[];
-    const { data, error } = await supabaseBrowser.rpc("available_city_parcels", { p_city_slug: citySlug, p_tier: tier, p_offset: offset, p_limit: limit });
+    const { data, error } = await supabaseBrowser.rpc("available_city_parcels", { p_city_slug: citySlug, p_tier: tier, p_offset: 0, p_limit: limit });
     if (error) throw error;
     return (data ?? []) as VisibleParcel[];
   };
@@ -82,19 +117,14 @@ export function SkyParcelCityMapPage({ slug }: { slug: string }) {
     if (!city) return;
     let alive = true;
     setLoading(true);
-    setCursors({ digital: 0, elite: 0, premium: 0 });
-    Promise.all((Object.keys(TIER_COUNTS) as ParcelTier[]).map(t => loadWindow(city.slug, t, 0, TIER_COUNTS[t]))).then(groups => {
+    Promise.all((Object.keys(TIER_COUNTS) as ParcelTier[]).map(t => loadWindow(city.slug, t, TIER_COUNTS[t]))).then(groups => {
       if (!alive) return;
       setParcels(groups.flat());
-      setCursors({ digital: TIER_COUNTS.digital, elite: TIER_COUNTS.elite, premium: TIER_COUNTS.premium });
       setLoading(false);
     }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [city?.slug]);
 
-  // Keep selected parcels in the same grid slot so the user can see the selection.
-  // The previous implementation filtered selected parcels out, which shifted every
-  // following parcel and made a successful click look like a failed selection.
   const visible = useMemo(() => parcels.slice(0, VISIBLE_SLOTS.length), [parcels]);
 
   const selectParcel = (p: VisibleParcel) => {
@@ -122,14 +152,14 @@ export function SkyParcelCityMapPage({ slug }: { slug: string }) {
   return <main className="mx-auto max-w-[1800px] px-3 py-4 sm:px-5 lg:px-8">
     <div className="mb-4"><a href="/turkiye-haritasi" className="inline-flex items-center gap-2 text-sm text-cyan-200/80"><ArrowLeft className="h-4 w-4"/> Türkiye haritası</a></div>
     <section className="overflow-hidden rounded-3xl border border-cyan-200/15 bg-slate-900/70 shadow-2xl">
-      <div className="relative min-h-[430px] overflow-hidden bg-[#020914]">
+      <div className="relative min-h-[430px] overflow-hidden bg-[#020914] sm:min-h-[620px]">
         <SkyBackground />
         <ParcelLines parcels={visible} selectedIds={selectedIds} onToggle={selectParcel} />
         <div className="pointer-events-none absolute inset-0 z-30 bg-gradient-to-t from-slate-950/75 via-transparent to-slate-950/10" />
-        <div className="pointer-events-none absolute bottom-5 left-5 z-40"><p className="text-xs uppercase tracking-[.2em] text-cyan-200/70">MySkyParcel · Gökyüzü Parsel Haritası</p><h1 className="mt-1 text-3xl font-bold">{city.name}</h1><p className="mt-1 text-sm text-white/60">Parsel çizgilerindeki kareye dokunarak seçim yapabilirsiniz.</p></div>
+        <div className="pointer-events-none absolute bottom-5 left-5 z-40"><p className="text-xs uppercase tracking-[.2em] text-cyan-200/70">MySkyParcel · Gökyüzü Parsel Haritası</p><h1 className="mt-1 text-3xl font-bold">{city.name}</h1><p className="mt-1 text-sm text-white/60">Dış halka: 30 Dijital · Orta halka: 22 Elit · Merkez: 8 Premium</p></div>
       </div>
       <div className="grid gap-3 p-3 sm:grid-cols-3 sm:p-5"><div className="rounded-xl border border-cyan-300/15 bg-slate-950/55 p-3"><p className="text-xs text-white/45">Ekrandaki parsel</p><p className="mt-1 text-xl font-semibold text-cyan-200">{visible.length}</p></div><div className="rounded-xl border border-cyan-300/15 bg-slate-950/55 p-3"><p className="text-xs text-white/45">Seçilen parsel</p><p className="mt-1 text-xl font-semibold text-amber-200">{selected.length}</p></div><button type="button" onClick={buy} disabled={!selected.length || authLoading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"><ShoppingCart className="h-4 w-4"/> Satın almaya devam et · {total.toLocaleString("tr-TR")} ₺</button></div>
-      <div className="flex flex-wrap gap-3 border-t border-white/10 px-3 py-3 text-xs text-white/55 sm:px-5"><span>● Dijital %50</span><span>● Elit %30</span><span>● Premium %20</span><span>{loading ? "Parseller yükleniyor…" : "Hazır"}</span></div>
+      <div className="flex flex-wrap gap-3 border-t border-white/10 px-3 py-3 text-xs text-white/55 sm:px-5"><span>● Dijital 30</span><span>● Elit 22</span><span>● Premium 8</span><span>{loading ? "Parseller yükleniyor…" : "Hazır"}</span></div>
     </section>
   </main>;
 }
