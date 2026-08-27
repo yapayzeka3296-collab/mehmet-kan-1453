@@ -68,12 +68,10 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
   }, [slug]);
 
   const selected = selectedParcels;
-
   const visible = useMemo(() => {
     const selectedMap = new Map(selected.map(p => [p.id, p]));
     return [...selected, ...available.filter(p => !selectedMap.has(p.id))].slice(0, VISIBLE_COUNT) as MapParcel[];
   }, [available, selected]);
-
   const total = selected.reduce((sum, p) => sum + Number(p.tier_price), 0);
 
   const loadReplacement = async (tier: ParcelTier) => {
@@ -128,37 +126,22 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
   return <main className="mx-auto max-w-[1800px] px-3 py-4 sm:px-5 lg:px-8 text-white">
     <a href="/turkiye-haritasi" className="mb-4 inline-flex items-center gap-2 text-sm text-cyan-200/80"><ArrowLeft className="h-4 w-4"/> Türkiye haritası</a>
     <section className="overflow-hidden rounded-3xl border border-cyan-200/15 bg-slate-900/80 shadow-2xl">
-      <div className="relative isolate min-h-[360px] overflow-hidden bg-[#020914] sm:min-h-[620px]">
+      <div className="relative min-h-[360px] overflow-hidden bg-[#020914] sm:min-h-[620px]">
         <img src={MAP_IMAGE} alt="Türkiye gökyüzü parsel haritası" className="pointer-events-none absolute inset-0 z-0 h-full w-full object-contain opacity-90" />
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_45%,rgba(30,150,220,.22),transparent_42%),linear-gradient(145deg,rgba(2,7,17,.55),rgba(7,26,45,.18),rgba(1,4,11,.55)]" />
-        <div className="absolute inset-4 z-20 grid gap-1 sm:inset-8" style={{ gridTemplateColumns: `repeat(${COLS},minmax(0,1fr))`, gridTemplateRows: `repeat(${ROWS},minmax(0,1fr))` }}>
+        <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle_at_50%_45%,rgba(30,150,220,.22),transparent_42%),linear-gradient(145deg,rgba(2,7,17,.55),rgba(7,26,45,.18),rgba(1,4,11,.55)]" />
+        <div className="pointer-events-auto absolute inset-4 z-50 grid gap-1 sm:inset-8" style={{ gridTemplateColumns: `repeat(${COLS},minmax(0,1fr))`, gridTemplateRows: `repeat(${ROWS},minmax(0,1fr))` }}>
           {Array.from({ length: VISIBLE_COUNT }, (_, i) => {
             const p = visible[i];
-            if (!p) return <span key={i} className="rounded-sm border-2 border-cyan-100/20" aria-hidden />;
+            if (!p) return <span key={i} className="rounded-sm border-[3px] border-cyan-100/35 bg-cyan-100/[0.03]" aria-hidden />;
             const selectedParcel = selectedIds.has(p.id);
             const rgb = TIER_COLOR[p.tier];
-            return <button
-              key={p.id}
-              type="button"
-              aria-label={`${p.parcel_number} ${p.tier} parselini ${selectedParcel ? "kaldır" : "seç"}`}
-              onClick={() => handleParcelClick(p)}
-              className="relative z-30 min-h-0 min-w-0 cursor-pointer rounded-sm border-[3px] transition-all duration-150 hover:brightness-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white/90"
-              style={{
-                WebkitTapHighlightColor: "transparent",
-                borderColor: `rgba(${rgb},${selectedParcel ? "1" : ".98"})`,
-                background: selectedParcel ? `rgba(${rgb},.48)` : `rgba(${rgb},.18)`,
-                boxShadow: selectedParcel ? `0 0 12px rgba(${rgb},1), 0 0 30px rgba(${rgb},.9), inset 0 0 14px rgba(${rgb},.75)` : `0 0 6px rgba(${rgb},.5), inset 0 0 0 1px rgba(${rgb},.35)`,
-                touchAction: "manipulation",
-                pointerEvents: "auto",
-              }}
-            >
-              <span className="pointer-events-none absolute inset-[8%] rounded-sm" style={{ background: `rgba(${rgb},${selectedParcel ? ".45" : ".18"})` }} />
+            return <button key={p.id} type="button" aria-label={`${p.parcel_number} ${p.tier} parselini ${selectedParcel ? "kaldır" : "seç"}`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); handleParcelClick(p); }} className="relative z-[60] min-h-0 min-w-0 cursor-pointer rounded-sm border-[3px] transition-all duration-150 hover:brightness-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white" style={{ WebkitTapHighlightColor: "transparent", borderColor: `rgba(${rgb},1)`, background: selectedParcel ? `rgba(${rgb},.55)` : `rgba(${rgb},.20)`, boxShadow: selectedParcel ? `0 0 14px rgba(${rgb},1),0 0 34px rgba(${rgb},.95),inset 0 0 16px rgba(${rgb},.8)` : `0 0 7px rgba(${rgb},.65),inset 0 0 0 1px rgba(${rgb},.4)`, touchAction: "manipulation", pointerEvents: "auto" }}>
+              <span className="pointer-events-none absolute inset-[8%] rounded-sm" style={{ background: `rgba(${rgb},${selectedParcel ? ".5" : ".20"})` }} />
               {selectedParcel && <span className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-slate-950/90 px-1 py-0.5 text-[7px] font-semibold text-white shadow sm:text-[9px]">{p.parcel_number}</span>}
             </button>;
           })}
         </div>
-        <div className="pointer-events-none absolute inset-0 z-30 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/5" />
-        <div className="pointer-events-none absolute bottom-5 left-5 z-40"><p className="text-xs uppercase tracking-[.2em] text-cyan-200/70">MySkyParcel · Türkiye Gökyüzü Parsel Haritası</p><h1 className="mt-1 text-3xl font-bold">{city.name}</h1><p className="mt-1 text-sm text-white/65">Mavi: Dijital · Mor: Elit · Altın: Premium. Kareye dokunarak parseli seçin.</p></div>
+        <div className="pointer-events-none absolute bottom-5 left-5 z-20"><p className="text-xs uppercase tracking-[.2em] text-cyan-200/70">MySkyParcel · Türkiye Gökyüzü Parsel Haritası</p><h1 className="mt-1 text-3xl font-bold">{city.name}</h1><p className="mt-1 text-sm text-white/65">Mavi: Dijital · Mor: Elit · Altın: Premium. Kareye dokunarak parseli seçin.</p></div>
       </div>
       <div className="grid gap-3 p-4 sm:grid-cols-4">
         <div className="rounded-xl border border-cyan-300/15 bg-slate-950/60 p-3"><span className="text-xs text-white/45">Ekrandaki parsel</span><div className="text-xl font-bold text-cyan-200">{visible.length}</div></div>
