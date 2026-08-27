@@ -29,6 +29,7 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
   const [city, setCity] = useState<City | null>(null);
   const [available, setAvailable] = useState<MapParcel[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(readParcelCart().map(p => p.id)));
+  const [selectedParcels, setSelectedParcels] = useState<ParcelCartItem[]>(() => readParcelCart());
   const [cursor, setCursor] = useState<Record<ParcelTier, number>>({ digital: 0, elite: 0, premium: 0 });
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -38,8 +39,9 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
     let active = true;
     const load = async () => {
       setLoading(true); setError(null); setAvailable([]);
-      const existing = new Set(readParcelCart().map(p => p.id));
-      setSelectedIds(existing);
+      const existing = readParcelCart();
+      setSelectedIds(new Set(existing.map(p => p.id)));
+      setSelectedParcels(existing);
       if (!supabaseBrowser) { setError("Supabase bağlantısı bulunamadı."); setLoading(false); return; }
       const cityResult = await supabaseBrowser.from("cities").select("id,name,slug").eq("slug", slug).eq("is_active", true).maybeSingle();
       if (cityResult.error) { if (active) { setError(cityResult.error.message); setLoading(false); } return; }
@@ -65,7 +67,7 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
     return () => { active = false; };
   }, [slug]);
 
-  const selected = useMemo(() => readParcelCart().filter(p => selectedIds.has(p.id)), [selectedIds]);
+  const selected = selectedParcels;
 
   const visible = useMemo(() => {
     const selectedMap = new Map(selected.map(p => [p.id, p]));
@@ -86,9 +88,13 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
 
   const selectParcel = async (p: MapParcel) => {
     if (p.status !== "available" || selectedIds.has(p.id)) return;
-    setSelectedIds(prev => new Set(prev).add(p.id));
-    const cart = readParcelCart();
-    if (!cart.some(x => x.id === p.id)) writeParcelCart([...cart, cartItem(p)]);
+    const item = cartItem(p);
+    const nextIds = new Set(selectedIds);
+    nextIds.add(p.id);
+    const nextSelected = [...selectedParcels, item];
+    setSelectedIds(nextIds);
+    setSelectedParcels(nextSelected);
+    writeParcelCart(nextSelected);
     setAvailable(prev => prev.filter(x => x.id !== p.id));
     setLoadingMore(true);
     try { await loadReplacement(p.tier); } catch (e) { setError(e instanceof Error ? e.message : "Yeni parsel getirilemedi."); }
@@ -97,15 +103,18 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
 
   const deselectParcel = (p: MapParcel) => {
     if (!selectedIds.has(p.id)) return;
-    setSelectedIds(prev => { const next = new Set(prev); next.delete(p.id); return next; });
+    const nextIds = new Set(selectedIds);
+    nextIds.delete(p.id);
+    const nextSelected = selectedParcels.filter(x => x.id !== p.id);
+    setSelectedIds(nextIds);
+    setSelectedParcels(nextSelected);
     removeParcelFromCart(p.id);
     setAvailable(prev => [p, ...prev.filter(x => x.id !== p.id)]);
   };
 
-  const handleParcelPress = (p: MapParcel) => {
-    if (p.status !== "available") return;
+  const handleParcelClick = (p: MapParcel) => {
     if (selectedIds.has(p.id)) deselectParcel(p);
-    else void selectParcel(p);
+    else if (p.status === "available") void selectParcel(p);
   };
 
   const buy = () => {
@@ -125,22 +134,22 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
         <div className="absolute inset-4 z-20 grid gap-1 sm:inset-8" style={{ gridTemplateColumns: `repeat(${COLS},minmax(0,1fr))`, gridTemplateRows: `repeat(${ROWS},minmax(0,1fr))` }}>
           {Array.from({ length: VISIBLE_COUNT }, (_, i) => {
             const p = visible[i];
-            if (!p) return <span key={i} className="rounded-sm border-2 border-cyan-200/15" aria-hidden />;
+            if (!p) return <span key={i} className="rounded-sm border-2 border-cyan-100/20" aria-hidden />;
             const selectedParcel = selectedIds.has(p.id);
             const rgb = TIER_COLOR[p.tier];
             return <button
               key={p.id}
               type="button"
               aria-label={`${p.parcel_number} ${p.tier} parselini ${selectedParcel ? "kaldır" : "seç"}`}
-              disabled={p.status !== "available"}
-              onPointerUp={(event) => { event.preventDefault(); event.stopPropagation(); handleParcelPress(p); }}
-              onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}
-              className="relative z-30 min-h-0 min-w-0 cursor-pointer touch-manipulation rounded-sm border-2 transition-all duration-150 active:scale-90 hover:brightness-150 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => handleParcelClick(p)}
+              className="relative z-30 min-h-0 min-w-0 cursor-pointer rounded-sm border-[3px] transition-all duration-150 hover:brightness-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white/90"
               style={{
+                WebkitTapHighlightColor: "transparent",
                 borderColor: `rgba(${rgb},${selectedParcel ? "1" : ".98"})`,
-                background: selectedParcel ? `rgba(${rgb},.45)` : `rgba(${rgb},.17)`,
-                boxShadow: selectedParcel ? `0 0 10px rgba(${rgb},1), 0 0 26px rgba(${rgb},.85), inset 0 0 12px rgba(${rgb},.7)` : `0 0 5px rgba(${rgb},.45), inset 0 0 0 1px rgba(${rgb},.3)`,
+                background: selectedParcel ? `rgba(${rgb},.48)` : `rgba(${rgb},.18)`,
+                boxShadow: selectedParcel ? `0 0 12px rgba(${rgb},1), 0 0 30px rgba(${rgb},.9), inset 0 0 14px rgba(${rgb},.75)` : `0 0 6px rgba(${rgb},.5), inset 0 0 0 1px rgba(${rgb},.35)`,
                 touchAction: "manipulation",
+                pointerEvents: "auto",
               }}
             >
               <span className="pointer-events-none absolute inset-[8%] rounded-sm" style={{ background: `rgba(${rgb},${selectedParcel ? ".45" : ".18"})` }} />
