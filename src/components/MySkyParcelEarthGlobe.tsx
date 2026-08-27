@@ -6,7 +6,7 @@ const EARTH_TEXTURE = "/api/earth-assets?type=earth";
 const CLOUD_TEXTURE = "/api/earth-assets?type=clouds";
 const EARTH_RADIUS = 1.5;
 
-/** Opening-screen visual only. No project, parcel, province, map or Supabase data. */
+/** Opening-screen visual only. Zoom is handled by the same Three.js camera; no wrapper or layout change. */
 export function MySkyParcelEarthGlobe({ className = "" }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
 
@@ -17,11 +17,16 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
+    const pointers = new Map<number, { x: number; y: number }>();
+    let pinchDistance: number | null = null;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x01040b);
     const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
-    camera.position.set(0, 0.35, 5.05);
+    const MIN_ZOOM = 3.0;
+    const MAX_ZOOM = 7.0;
+    const DEFAULT_CAMERA_Z = 5.05;
+    camera.position.set(0, 0.35, DEFAULT_CAMERA_Z);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
@@ -84,7 +89,18 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     const stars = new THREE.Points(starsGeometry, starsMaterial);
     scene.add(stars);
 
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      camera.position.z = THREE.MathUtils.clamp(camera.position.z + event.deltaY * 0.0025, MIN_ZOOM, MAX_ZOOM);
+    };
     const onPointerDown = (event: PointerEvent) => {
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        pinchDistance = Math.hypot(a.x - b.x, a.y - b.y);
+        dragging = false;
+        return;
+      }
       dragging = true;
       lastX = event.clientX;
       lastY = event.clientY;
@@ -92,6 +108,20 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       renderer.domElement.setPointerCapture?.(event.pointerId);
     };
     const onPointerMove = (event: PointerEvent) => {
+      if (!pointers.has(event.pointerId)) return;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size === 2 && pinchDistance !== null) {
+        const [a, b] = [...pointers.values()];
+        const distance = Math.hypot(a.x - b.x, a.y - b.y);
+        if (distance > 0) {
+          const ratio = distance / pinchDistance;
+          if (Math.abs(ratio - 1) > 0.01) {
+            camera.position.z = THREE.MathUtils.clamp(camera.position.z / ratio, MIN_ZOOM, MAX_ZOOM);
+            pinchDistance = distance;
+          }
+        }
+        return;
+      }
       if (!dragging) return;
       const dx = event.clientX - lastX;
       const dy = event.clientY - lastY;
@@ -104,10 +134,13 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       clouds.rotation.x += dy * 0.0012;
     };
     const onPointerUp = (event: PointerEvent) => {
+      pointers.delete(event.pointerId);
+      pinchDistance = pointers.size === 2 ? pinchDistance : null;
       dragging = false;
       renderer.domElement.style.cursor = "grab";
       renderer.domElement.releasePointerCapture?.(event.pointerId);
     };
+    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
@@ -130,7 +163,7 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       if (disposed) return;
       frame = requestAnimationFrame(animate);
       const delta = clock.getDelta();
-      if (!dragging) {
+      if (!dragging && pointers.size === 0) {
         earth.rotation.y += delta * 0.018;
         clouds.rotation.y += delta * 0.004;
         stars.rotation.y += delta * 0.00012;
@@ -143,6 +176,7 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       disposed = true;
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
+      renderer.domElement.removeEventListener("wheel", onWheel);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
