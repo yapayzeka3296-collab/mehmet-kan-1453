@@ -29,6 +29,7 @@ export function CertificateTemplatePreview({ tier, className = "" }: Certificate
     if (!visible) return;
     let cancelled = false;
     let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof window.setTimeout> | undefined;
     const loadPreview = async () => {
       try {
         const { renderCertificateSvg } = await import("@/lib/certificateTemplates");
@@ -37,9 +38,13 @@ export function CertificateTemplatePreview({ tier, className = "" }: Certificate
       } catch { if (!cancelled) setSrc(""); }
     };
     const run = () => void loadPreview();
-    if ("requestIdleCallback" in window) idleId = window.requestIdleCallback(run, { timeout: 1200 });
-    else idleId = window.setTimeout(run, 80);
-    return () => { cancelled = true; if (idleId !== undefined) { if ("cancelIdleCallback" in window) window.cancelIdleCallback(idleId); else window.clearTimeout(idleId); } };
+    if (typeof window.requestIdleCallback === "function") idleId = window.requestIdleCallback(run, { timeout: 1200 });
+    else timeoutId = window.setTimeout(run, 80);
+    return () => {
+      cancelled = true;
+      if (idleId !== undefined && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idleId);
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
   }, [templateType, visible]);
 
   useEffect(() => {
