@@ -92,23 +92,25 @@ export function SkyParcelCityMapPage({ slug }: { slug: string }) {
     return () => { alive = false; };
   }, [city?.slug]);
 
-  const visible = useMemo(() => parcels.filter(p => !selectedIds.has(p.id)).slice(0, VISIBLE_SLOTS.length), [parcels, selectedIds]);
+  // Keep selected parcels in the same grid slot so the user can see the selection.
+  // The previous implementation filtered selected parcels out, which shifted every
+  // following parcel and made a successful click look like a failed selection.
+  const visible = useMemo(() => parcels.slice(0, VISIBLE_SLOTS.length), [parcels]);
 
-  const selectParcel = async (p: VisibleParcel) => {
-    const next = new Set(selectedIds);
-    next.add(p.id);
-    setSelectedIds(next);
-    const cart = readParcelCart();
-    if (!cart.some(x => x.id === p.id)) writeParcelCart([...cart, cartItem(p)]);
-    setParcels(prev => prev.filter(x => x.id !== p.id));
-    const offset = cursors[p.tier];
-    try {
-      const [replacement] = await loadWindow(slug, p.tier, offset, 1);
-      if (replacement) setParcels(prev => [...prev, replacement]);
-      setCursors(prev => ({ ...prev, [p.tier]: prev[p.tier] + (replacement ? 1 : 0) }));
-    } catch {
-      // Never duplicate a parcel: if the replacement cannot be loaded, leave the slot empty.
-    }
+  const selectParcel = (p: VisibleParcel) => {
+    if (p.status !== "available") return;
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(p.id)) {
+        next.delete(p.id);
+        writeParcelCart(readParcelCart().filter(item => item.id !== p.id));
+      } else {
+        next.add(p.id);
+        const cart = readParcelCart();
+        if (!cart.some(x => x.id === p.id)) writeParcelCart([...cart, cartItem(p)]);
+      }
+      return next;
+    });
   };
 
   const selected = useMemo(() => readParcelCart().filter(p => selectedIds.has(p.id)), [selectedIds]);
@@ -120,7 +122,7 @@ export function SkyParcelCityMapPage({ slug }: { slug: string }) {
   return <main className="mx-auto max-w-[1800px] px-3 py-4 sm:px-5 lg:px-8">
     <div className="mb-4"><a href="/turkiye-haritasi" className="inline-flex items-center gap-2 text-sm text-cyan-200/80"><ArrowLeft className="h-4 w-4"/> Türkiye haritası</a></div>
     <section className="overflow-hidden rounded-3xl border border-cyan-200/15 bg-slate-900/70 shadow-2xl">
-      <div className="relative min-h-[430px] overflow-hidden bg-[#020914] sm:min-h-[620px]">
+      <div className="relative min-h-[430px] overflow-hidden bg-[#020914]">
         <SkyBackground />
         <ParcelLines parcels={visible} selectedIds={selectedIds} onToggle={selectParcel} />
         <div className="pointer-events-none absolute inset-0 z-30 bg-gradient-to-t from-slate-950/75 via-transparent to-slate-950/10" />
