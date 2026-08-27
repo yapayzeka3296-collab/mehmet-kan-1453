@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Layers3, MapPin, ShoppingCart, ArrowLeft } from "lucide-react";
+import { Layers3, ShoppingCart, ArrowLeft } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { useAuth } from "@/hooks/useAuth";
 import { removeParcelFromCart, readParcelCart, writeParcelCart } from "@/lib/parcelCart";
