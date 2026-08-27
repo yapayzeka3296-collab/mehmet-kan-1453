@@ -76,6 +76,7 @@ export function SkyParcelMap({ parcels, selectedId, selectedIds = new Set(), mul
     return g;
   }, [parcels]);
   const available = useMemo(() => parcels.filter(p => p.status === "available").length, [parcels]);
+  const cartIds = useMemo(() => new Set(readParcelCart().map(item => item.id)), [parcels, selectedId, selectedIds]);
   const polygonMode = parcels.length <= MAX_POLYGON_FEATURES && parcels.some(hasUsableGeometry);
 
   useEffect(() => { onViewportChange?.(B); }, [onViewportChange]);
@@ -99,7 +100,7 @@ export function SkyParcelMap({ parcels, selectedId, selectedIds = new Set(), mul
   };
 
   const renderParcel = (p: Parcel, polygon: boolean) => {
-    const selected = selectedId === p.id || selectedIds.has(p.id) || readParcelCart().some(x => x.id === p.id);
+    const selected = selectedId === p.id || selectedIds.has(p.id) || cartIds.has(p.id);
     const c = p.status === "sold" ? "#ff1744" : colors[p.tier as Tier] || colors.digital;
     if (polygon && hasUsableGeometry(p)) {
       const d = geometryPath(p.geometry);
