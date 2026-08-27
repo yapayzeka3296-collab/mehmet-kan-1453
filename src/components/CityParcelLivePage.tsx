@@ -3,7 +3,7 @@ import { ArrowLeft, ShoppingCart } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { useAuth } from "@/hooks/useAuth";
 import { readParcelCart, writeParcelCart, removeParcelFromCart, type ParcelCartItem } from "@/lib/parcelCart";
-import type { ParcelTier } from "@/types/parcel";
+import type { Parcel, ParcelTier } from "@/types/parcel";
 
 type City = { id: string; name: string; slug: string };
 type MapParcel = Parcel & { grid_x?: number | null; grid_y?: number | null };
@@ -51,7 +51,8 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
           return (result.data ?? []) as MapParcel[];
         }));
         if (active) {
-          setAvailable(groups.flat().filter(p => !selectedIds.has(p.id)));
+          const selectedNow = new Set(readParcelCart().map(p => p.id));
+          setAvailable(groups.flat().filter(p => !selectedNow.has(p.id) && p.status === "available"));
           setCursor({ digital: PAGE_SIZE, elite: PAGE_SIZE, premium: PAGE_SIZE });
         }
       } catch (e) {
@@ -82,7 +83,7 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
     if (result.error) throw result.error;
     const replacement = ((result.data ?? []) as MapParcel[]).find(p => !selectedIds.has(p.id) && p.status === "available");
     setCursor(prev => ({ ...prev, [tier]: prev[tier] + 1 }));
-    if (replacement) setAvailable(prev => [...prev.filter(p => p.id !== replacement.id), replacement]);
+    if (replacement) setAvailable(prev => [...prev, replacement]);
   };
 
   const selectParcel = async (p: MapParcel) => {
@@ -116,18 +117,35 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
     <section className="overflow-hidden rounded-3xl border border-cyan-200/15 bg-slate-900/80 shadow-2xl">
       <div className="relative min-h-[360px] overflow-hidden bg-[#020914] sm:min-h-[620px]">
         <img src={MAP_IMAGE} alt="Türkiye gökyüzü parsel haritası" className="absolute inset-0 h-full w-full object-contain opacity-90" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(30,150,220,.22),transparent_42%),linear-gradient(145deg,rgba(2,7,17,.55),rgba(7,26,45,.18),rgba(1,4,11,.55))]" />
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_45%,rgba(30,150,220,.22),transparent_42%),linear-gradient(145deg,rgba(2,7,17,.55),rgba(7,26,45,.18),rgba(1,4,11,.55)]" />
         <div className="absolute inset-4 z-10 grid gap-1 sm:inset-8" style={{ gridTemplateColumns: `repeat(${COLS},minmax(0,1fr))`, gridTemplateRows: `repeat(${ROWS},minmax(0,1fr))` }}>
           {Array.from({ length: VISIBLE_COUNT }, (_, i) => {
             const p = visible[i];
-            if (!p) return <span key={i} className="border border-cyan-200/5 rounded-sm" aria-hidden />;
+            if (!p) return <span key={i} className="border border-cyan-200/10 rounded-sm" aria-hidden />;
             const selectedParcel = selectedIds.has(p.id);
             const rgb = TIER_COLOR[p.tier];
-            return <button key={p.id} type="button" disabled={p.status !== "available"} onClick={() => selectedParcel ? deselectParcel(p) : selectParcel(p)} title={`${p.parcel_number} · ${p.tier}`} className="relative min-h-0 min-w-0 rounded-sm border transition-all active:scale-95" style={{ borderColor: selectedParcel ? "rgba(255,244,176,.98)" : `rgba(${rgb},.82)`, background: selectedParcel ? "rgba(255,211,92,.62)" : `rgba(${rgb},.16)`, boxShadow: selectedParcel ? "0 0 12px rgba(255,211,92,.8), inset 0 0 0 1px rgba(255,244,176,.9)" : `inset 0 0 0 1px rgba(${rgb},.12)` }}><span className="pointer-events-none absolute inset-[14%] rounded-sm" style={{ background: selectedParcel ? "rgba(255,211,92,.5)" : `rgba(${rgb},.14)` }} />{selectedParcel && <span className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-slate-950/90 px-1 py-0.5 text-[7px] font-semibold text-white sm:text-[9px]">{p.parcel_number}</span>}</button>;
+            const glow = selectedParcel ? `0 0 8px rgba(${rgb},.95), 0 0 22px rgba(${rgb},.7), inset 0 0 10px rgba(${rgb},.65)` : `0 0 4px rgba(${rgb},.28), inset 0 0 0 1px rgba(${rgb},.2)`;
+            return <button
+              key={p.id}
+              type="button"
+              aria-label={`${p.parcel_number} ${p.tier} parselini ${selectedParcel ? "kaldır" : "seç"}`}
+              disabled={p.status !== "available"}
+              onClick={(event) => { event.stopPropagation(); selectedParcel ? deselectParcel(p) : void selectParcel(p); }}
+              className="relative z-30 min-h-0 min-w-0 cursor-pointer rounded-sm border-2 transition-all duration-150 active:scale-90 hover:brightness-150 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                borderColor: `rgba(${rgb},${selectedParcel ? "1" : ".95"})`,
+                background: selectedParcel ? `rgba(${rgb},.42)` : `rgba(${rgb},.14)`,
+                boxShadow: glow,
+                touchAction: "manipulation",
+              }}
+            >
+              <span className="pointer-events-none absolute inset-[10%] rounded-sm" style={{ background: `rgba(${rgb},${selectedParcel ? ".42" : ".16"})` }} />
+              {selectedParcel && <span className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-slate-950/90 px-1 py-0.5 text-[7px] font-semibold text-white shadow sm:text-[9px]">{p.parcel_number}</span>}
+            </button>;
           })}
         </div>
         <div className="pointer-events-none absolute inset-0 z-20 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/5" />
-        <div className="pointer-events-none absolute bottom-5 left-5 z-30"><p className="text-xs uppercase tracking-[.2em] text-cyan-200/70">MySkyParcel · Türkiye Gökyüzü Parsel Haritası</p><h1 className="mt-1 text-3xl font-bold">{city.name}</h1><p className="mt-1 text-sm text-white/65">Her ilde aynı Türkiye haritası kullanılır. Karelere dokundukça seçtiğiniz parselin yerine veritabanından yeni parsel gelir.</p></div>
+        <div className="pointer-events-none absolute bottom-5 left-5 z-30"><p className="text-xs uppercase tracking-[.2em] text-cyan-200/70">MySkyParcel · Türkiye Gökyüzü Parsel Haritası</p><h1 className="mt-1 text-3xl font-bold">{city.name}</h1><p className="mt-1 text-sm text-white/65">Mavi: Dijital · Mor: Elit · Altın: Premium. Kareye dokunarak parseli seçin.</p></div>
       </div>
       <div className="grid gap-3 p-4 sm:grid-cols-4">
         <div className="rounded-xl border border-cyan-300/15 bg-slate-950/60 p-3"><span className="text-xs text-white/45">Ekrandaki parsel</span><div className="text-xl font-bold text-cyan-200">{visible.length}</div></div>
