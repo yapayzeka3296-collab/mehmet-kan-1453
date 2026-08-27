@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, ShoppingCart } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { useAuth } from "@/hooks/useAuth";
@@ -6,148 +6,233 @@ import { readParcelCart, writeParcelCart, removeParcelFromCart, type ParcelCartI
 import type { Parcel, ParcelTier } from "@/types/parcel";
 
 type City = { id: string; name: string; slug: string };
-type MapParcel = Parcel & { grid_x?: number | null; grid_y?: number | null };
 const TIERS: ParcelTier[] = ["digital", "elite", "premium"];
-const PAGE_SIZE = 20;
+const PER_TIER = 20;
 const VISIBLE_COUNT = 60;
-const PRICES: Record<ParcelTier, number> = { digital: 199, elite: 499, premium: 999 };
-const TIER_COLOR: Record<ParcelTier, string> = { digital: "85,201,255", elite: "183,124,255", premium: "246,196,83" };
-const MAP_IMAGE = "/images/cities/turkey-3d-map.png";
 const COLS = 12;
 const ROWS = 5;
+const MAP_IMAGE = "/images/cities/turkey-3d-map.png";
+const TIER_COLOR: Record<ParcelTier, string> = {
+  digital: "85,201,255",
+  elite: "183,124,255",
+  premium: "246,196,83",
+};
+const PRICES: Record<ParcelTier, number> = { digital: 199, elite: 499, premium: 999 };
 
-const cartItem = (p: MapParcel): ParcelCartItem => ({
-  id: p.id,
-  parcel_number: p.parcel_number,
-  city_name: p.city_name,
-  tier: p.tier,
-  tier_price: Number(p.tier_price ?? PRICES[p.tier]),
-});
+type Slot = { parcel: Parcel; tier: ParcelTier };
+
+function toCartItem(p: Parcel): ParcelCartItem {
+  return {
+    id: p.id,
+    parcel_number: p.parcel_number,
+    city_name: p.city_name,
+    tier: p.tier,
+    tier_price: Number(p.tier_price ?? PRICES[p.tier]),
+  };
+}
 
 export function CityParcelLivePage({ slug }: { slug: string }) {
   const { user, loading: authLoading } = useAuth();
   const [city, setCity] = useState<City | null>(null);
-  const [available, setAvailable] = useState<MapParcel[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(readParcelCart().map(p => p.id)));
-  const [selectedParcels, setSelectedParcels] = useState<ParcelCartItem[]>(() => readParcelCart());
-  const [cursor, setCursor] = useState<Record<ParcelTier, number>>({ digital: 0, elite: 0, premium: 0 });
+  const [slots, setSlots] = useState<Array<Slot | null>>([]);
+  const [selected, setSelected] = useState<ParcelCartItem[]>(() => readParcelCart());
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    let active = true;
-    const load = async () => {
-      setLoading(true); setError(null); setAvailable([]);
-      const existing = readParcelCart();
-      setSelectedIds(new Set(existing.map(p => p.id)));
-      setSelectedParcels(existing);
-      if (!supabaseBrowser) { setError("Supabase bağlantısı bulunamadı."); setLoading(false); return; }
-      const cityResult = await supabaseBrowser.from("cities").select("id,name,slug").eq("slug", slug).eq("is_active", true).maybeSingle();
-      if (cityResult.error) { if (active) { setError(cityResult.error.message); setLoading(false); } return; }
-      if (!cityResult.data) { if (active) setLoading(false); return; }
-      if (!active) return;
+    let alive = true;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      setSlots([]);
+      if (!supabaseBrowser) {
+        setError("Supabase bağlantısı bulunamadı.");
+        setLoading(false);
+        return;
+      }
+
+      const cityResult = await supabaseBrowser
+        .from("cities")
+        .select("id,name,slug")
+        .eq("slug", slug)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (cityResult.error) {
+        if (alive) setError(cityResult.error.message);
+        setLoading(false);
+        return;
+      }
+      if (!cityResult.data) {
+        if (alive) setError("İl bulunamadı.");
+        setLoading(false);
+        return;
+      }
+      if (!alive) return;
       setCity(cityResult.data as City);
+
       try {
-        const groups = await Promise.all(TIERS.map(async tier => {
-          const result = await supabaseBrowser.rpc("available_city_parcels", { p_city_slug: slug, p_tier: tier, p_offset: 0, p_limit: PAGE_SIZE });
-          if (result.error) throw result.error;
-          return (result.data ?? []) as MapParcel[];
-        }));
-        if (active) {
-          const selectedNow = new Set(readParcelCart().map(p => p.id));
-          setAvailable(groups.flat().filter(p => !selectedNow.has(p.id) && p.status === "available"));
-          setCursor({ digital: PAGE_SIZE, elite: PAGE_SIZE, premium: PAGE_SIZE });
+        const existing = readParcelCart();
+        setSelected(existing);
+        const selectedIds = new Set(existing.map(p => p.id));
+
+        // Read the real parcel rows directly. This deliberately avoids depending on
+        // the RPC shape, so every visible square is guaranteed to have a parcel id.
+        const results = await Promise.all(
+          TIERS.map(tier =>
+            supabaseBrowser
+              .from("parcels")
+              .select("id,parcel_number,status,owner_id,price,tier,tier_price,city_id,city_name,city_code,city_slug,layer_number,sector_number,local_parcel_number,latitude,longitude,geometry,created_at,updated_at")
+              .eq("city_id", cityResult.data.id)
+              .eq("tier", tier)
+              .eq("status", "available")
+              .order("id", { ascending: true })
+              .limit(PER_TIER)
+          )
+        );
+
+        const rows = results.flatMap(r => {
+          if (r.error) throw r.error;
+          return (r.data ?? []) as Parcel[];
+        }).filter(p => !selectedIds.has(p.id));
+
+        // Stable 60 slots: first 20 Digital, next 20 Elite, last 20 Premium.
+        const next: Array<Slot | null> = [];
+        for (const tier of TIERS) {
+          const tierRows = rows.filter(p => p.tier === tier).slice(0, PER_TIER);
+          for (const parcel of tierRows) next.push({ parcel, tier });
+          while (next.length < (TIERS.indexOf(tier) + 1) * PER_TIER) next.push(null);
         }
+        if (alive) setSlots(next.slice(0, VISIBLE_COUNT));
       } catch (e) {
-        if (active) setError(e instanceof Error ? e.message : "Parseller yüklenemedi.");
-      } finally { if (active) setLoading(false); }
-    };
+        if (alive) setError(e instanceof Error ? e.message : "Parseller yüklenemedi.");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
     void load();
-    return () => { active = false; };
+    return () => { alive = false; };
   }, [slug]);
 
-  const selected = selectedParcels;
-  const visible = useMemo(() => {
-    const selectedMap = new Map(selected.map(p => [p.id, p]));
-    return [...selected, ...available.filter(p => !selectedMap.has(p.id))].slice(0, VISIBLE_COUNT) as MapParcel[];
-  }, [available, selected]);
-  const total = selected.reduce((sum, p) => sum + Number(p.tier_price), 0);
-
-  const loadReplacement = async (tier: ParcelTier) => {
-    if (!supabaseBrowser) return;
-    const offset = cursor[tier];
-    const result = await supabaseBrowser.rpc("available_city_parcels", { p_city_slug: slug, p_tier: tier, p_offset: offset, p_limit: 1 });
+  const replaceSlot = async (slotIndex: number, tier: ParcelTier, selectedIds: Set<string>) => {
+    if (!supabaseBrowser || !city) return;
+    const result = await supabaseBrowser
+      .from("parcels")
+      .select("id,parcel_number,status,owner_id,price,tier,tier_price,city_id,city_name,city_code,city_slug,layer_number,sector_number,local_parcel_number,latitude,longitude,geometry,created_at,updated_at")
+      .eq("city_id", city.id)
+      .eq("tier", tier)
+      .eq("status", "available")
+      .order("id", { ascending: true })
+      .limit(200);
     if (result.error) throw result.error;
-    const replacement = ((result.data ?? []) as MapParcel[]).find(p => p.status === "available" && !selectedIds.has(p.id));
-    setCursor(prev => ({ ...prev, [tier]: prev[tier] + 1 }));
-    if (replacement) setAvailable(prev => [...prev, replacement]);
+    const used = new Set(slots.flatMap(s => s ? [s.parcel.id] : []));
+    selectedIds.forEach(id => used.add(id));
+    const replacement = ((result.data ?? []) as Parcel[]).find(p => !used.has(p.id));
+    if (!replacement) return;
+    setSlots(prev => prev.map((s, i) => i === slotIndex ? { parcel: replacement, tier } : s));
   };
 
-  const selectParcel = async (p: MapParcel) => {
-    if (p.status !== "available" || selectedIds.has(p.id)) return;
-    const item = cartItem(p);
-    const nextIds = new Set(selectedIds);
-    nextIds.add(p.id);
-    const nextSelected = [...selectedParcels, item];
-    setSelectedIds(nextIds);
-    setSelectedParcels(nextSelected);
+  const handleSelect = async (slotIndex: number) => {
+    const slot = slots[slotIndex];
+    if (!slot || slot.parcel.status !== "available" || busy) return;
+    const p = slot.parcel;
+    const already = selected.some(x => x.id === p.id);
+    if (already) return;
+
+    const item = toCartItem(p);
+    const nextSelected = [...selected, item];
+    setSelected(nextSelected);
     writeParcelCart(nextSelected);
-    setAvailable(prev => prev.filter(x => x.id !== p.id));
-    setLoadingMore(true);
-    try { await loadReplacement(p.tier); } catch (e) { setError(e instanceof Error ? e.message : "Yeni parsel getirilemedi."); }
-    finally { setLoadingMore(false); }
+    setBusy(true);
+    try {
+      await replaceSlot(slotIndex, slot.tier, new Set(nextSelected.map(x => x.id)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Yeni parsel getirilemedi.");
+      // Keep the selected parcel selected even if replacement loading fails.
+      setSlots(prev => prev.map((s, i) => i === slotIndex ? null : s));
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const deselectParcel = (p: MapParcel) => {
-    if (!selectedIds.has(p.id)) return;
-    const nextIds = new Set(selectedIds);
-    nextIds.delete(p.id);
-    const nextSelected = selectedParcels.filter(x => x.id !== p.id);
-    setSelectedIds(nextIds);
-    setSelectedParcels(nextSelected);
+  const handleDeselect = (p: ParcelCartItem) => {
+    const next = selected.filter(x => x.id !== p.id);
+    setSelected(next);
     removeParcelFromCart(p.id);
-    setAvailable(prev => [p, ...prev.filter(x => x.id !== p.id)]);
   };
 
-  const handleParcelClick = (p: MapParcel) => {
-    if (selectedIds.has(p.id)) deselectParcel(p);
-    else if (p.status === "available") void selectParcel(p);
-  };
+  const selectedIds = new Set(selected.map(p => p.id));
+  const total = selected.reduce((sum, p) => sum + Number(p.tier_price ?? 0), 0);
 
   const buy = () => {
-    if (authLoading || !selected.length) return;
+    if (authLoading || selected.length === 0) return;
     const ids = selected.map(p => p.id).join(",");
-    window.location.href = user ? `/parsel-satin-al?parcels=${ids}` : `/giris?redirect=${encodeURIComponent(`/parsel-satin-al?parcels=${ids}`)}`;
+    window.location.href = user
+      ? `/parsel-satin-al?parcels=${ids}`
+      : `/giris?redirect=${encodeURIComponent(`/parsel-satin-al?parcels=${ids}`)}`;
   };
 
-  if (!city) return <main className="mx-auto max-w-4xl p-8 text-center text-white"><h1 className="text-2xl font-bold">{loading ? "Harita hazırlanıyor…" : "İl bulunamadı"}</h1><a href="/turkiye-haritasi" className="mt-4 inline-flex items-center gap-2 text-cyan-300"><ArrowLeft className="h-4 w-4"/> Türkiye haritasına dön</a></main>;
+  if (!city) {
+    return <main className="mx-auto max-w-4xl p-8 text-center text-white">
+      <h1 className="text-2xl font-bold">{loading ? "Harita hazırlanıyor…" : "İl bulunamadı"}</h1>
+      {error && <p className="mt-3 text-red-300">{error}</p>}
+      <a href="/turkiye-haritasi" className="mt-4 inline-flex items-center gap-2 text-cyan-300"><ArrowLeft className="h-4 w-4" /> Türkiye haritasına dön</a>
+    </main>;
+  }
 
-  return <main className="mx-auto max-w-[1800px] px-3 py-4 sm:px-5 lg:px-8 text-white">
-    <a href="/turkiye-haritasi" className="mb-4 inline-flex items-center gap-2 text-sm text-cyan-200/80"><ArrowLeft className="h-4 w-4"/> Türkiye haritası</a>
-    <section className="overflow-hidden rounded-3xl border border-cyan-200/15 bg-slate-900/80 shadow-2xl">
-      <div className="relative min-h-[360px] overflow-hidden bg-[#020914] sm:min-h-[620px]">
+  return <main className="mx-auto max-w-[1800px] px-3 py-4 text-white sm:px-5 lg:px-8">
+    <a href="/turkiye-haritasi" className="mb-4 inline-flex items-center gap-2 text-sm text-cyan-200/80"><ArrowLeft className="h-4 w-4" /> Türkiye haritası</a>
+    <section className="overflow-hidden rounded-3xl border border-cyan-200/20 bg-slate-900/90 shadow-2xl">
+      <div className="relative min-h-[380px] overflow-hidden bg-[#020914] sm:min-h-[650px]">
         <img src={MAP_IMAGE} alt="Türkiye gökyüzü parsel haritası" className="pointer-events-none absolute inset-0 z-0 h-full w-full object-contain opacity-90" />
         <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle_at_50%_45%,rgba(30,150,220,.22),transparent_42%),linear-gradient(145deg,rgba(2,7,17,.55),rgba(7,26,45,.18),rgba(1,4,11,.55)]" />
-        <div className="pointer-events-auto absolute inset-4 z-50 grid gap-1 sm:inset-8" style={{ gridTemplateColumns: `repeat(${COLS},minmax(0,1fr))`, gridTemplateRows: `repeat(${ROWS},minmax(0,1fr))` }}>
+
+        <div className="pointer-events-auto absolute inset-4 z-50 grid gap-1.5 sm:inset-8" style={{ gridTemplateColumns: `repeat(${COLS},minmax(0,1fr))`, gridTemplateRows: `repeat(${ROWS},minmax(0,1fr))` }}>
           {Array.from({ length: VISIBLE_COUNT }, (_, i) => {
-            const p = visible[i];
-            if (!p) return <span key={i} className="rounded-sm border-[3px] border-cyan-100/35 bg-cyan-100/[0.03]" aria-hidden />;
-            const selectedParcel = selectedIds.has(p.id);
+            const slot = slots[i];
+            if (!slot) return <div key={`empty-${i}`} className="rounded-sm border-[3px] border-cyan-100/45 bg-cyan-100/[0.04]" />;
+            const p = slot.parcel;
+            const isSelected = selectedIds.has(p.id);
             const rgb = TIER_COLOR[p.tier];
-            return <button key={p.id} type="button" aria-label={`${p.parcel_number} ${p.tier} parselini ${selectedParcel ? "kaldır" : "seç"}`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); handleParcelClick(p); }} className="relative z-[60] min-h-0 min-w-0 cursor-pointer rounded-sm border-[3px] transition-all duration-150 hover:brightness-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white" style={{ WebkitTapHighlightColor: "transparent", borderColor: `rgba(${rgb},1)`, background: selectedParcel ? `rgba(${rgb},.55)` : `rgba(${rgb},.20)`, boxShadow: selectedParcel ? `0 0 14px rgba(${rgb},1),0 0 34px rgba(${rgb},.95),inset 0 0 16px rgba(${rgb},.8)` : `0 0 7px rgba(${rgb},.65),inset 0 0 0 1px rgba(${rgb},.4)`, touchAction: "manipulation", pointerEvents: "auto" }}>
-              <span className="pointer-events-none absolute inset-[8%] rounded-sm" style={{ background: `rgba(${rgb},${selectedParcel ? ".5" : ".20"})` }} />
-              {selectedParcel && <span className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-slate-950/90 px-1 py-0.5 text-[7px] font-semibold text-white shadow sm:text-[9px]">{p.parcel_number}</span>}
+            return <button
+              key={p.id}
+              type="button"
+              onClick={() => isSelected ? handleDeselect(toCartItem(p)) : void handleSelect(i)}
+              className="relative z-[60] block h-full w-full min-h-0 min-w-0 cursor-pointer appearance-none rounded-sm border-[3px] p-0 transition-transform duration-100 hover:brightness-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white"
+              aria-pressed={isSelected}
+              aria-label={`${p.parcel_number} ${p.tier} parseli ${isSelected ? "seçildi, kaldır" : "seç"}`}
+              style={{
+                WebkitTapHighlightColor: "transparent",
+                WebkitAppearance: "none",
+                borderColor: `rgba(${rgb},1)`,
+                backgroundColor: isSelected ? `rgba(${rgb},.58)` : `rgba(${rgb},.20)`,
+                boxShadow: isSelected
+                  ? `0 0 14px rgba(${rgb},1), 0 0 34px rgba(${rgb},.95), inset 0 0 16px rgba(${rgb},.85)`
+                  : `0 0 7px rgba(${rgb},.7), inset 0 0 0 1px rgba(${rgb},.5)`,
+                touchAction: "manipulation",
+                pointerEvents: "auto",
+              }}
+            >
+              <span className="pointer-events-none absolute inset-[8%] rounded-sm" style={{ background: `rgba(${rgb},${isSelected ? ".48" : ".18"})` }} />
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[6px] font-semibold text-white/70 sm:text-[9px]">{p.parcel_number}</span>
+              {isSelected && <span className="pointer-events-none absolute inset-0 animate-pulse rounded-sm" style={{ boxShadow: `inset 0 0 18px rgba(${rgb},.9)` }} />}
             </button>;
           })}
         </div>
-        <div className="pointer-events-none absolute bottom-5 left-5 z-20"><p className="text-xs uppercase tracking-[.2em] text-cyan-200/70">MySkyParcel · Türkiye Gökyüzü Parsel Haritası</p><h1 className="mt-1 text-3xl font-bold">{city.name}</h1><p className="mt-1 text-sm text-white/65">Mavi: Dijital · Mor: Elit · Altın: Premium. Kareye dokunarak parseli seçin.</p></div>
+
+        <div className="pointer-events-none absolute bottom-5 left-5 z-20">
+          <p className="text-xs uppercase tracking-[.2em] text-cyan-200/70">MySkyParcel · Türkiye Gökyüzü Parsel Haritası</p>
+          <h1 className="mt-1 text-3xl font-bold">{city.name}</h1>
+          <p className="mt-1 text-sm text-white/70">Mavi: Dijital · Mor: Elit · Altın: Premium · Kareye dokunarak parseli seçin.</p>
+        </div>
       </div>
+
       <div className="grid gap-3 p-4 sm:grid-cols-4">
-        <div className="rounded-xl border border-cyan-300/15 bg-slate-950/60 p-3"><span className="text-xs text-white/45">Ekrandaki parsel</span><div className="text-xl font-bold text-cyan-200">{visible.length}</div></div>
+        <div className="rounded-xl border border-cyan-300/15 bg-slate-950/60 p-3"><span className="text-xs text-white/45">Ekrandaki parsel</span><div className="text-xl font-bold text-cyan-200">{slots.filter(Boolean).length}</div></div>
         <div className="rounded-xl border border-cyan-300/15 bg-slate-950/60 p-3"><span className="text-xs text-white/45">Seçilen</span><div className="text-xl font-bold text-amber-200">{selected.length}</div></div>
-        <div className="rounded-xl border border-cyan-300/15 bg-slate-950/60 p-3"><span className="text-xs text-white/45">Veri durumu</span><div className="text-sm font-semibold text-emerald-300">{loadingMore ? "Yeni parsel getiriliyor…" : loading ? "Yükleniyor…" : "Canlı"}</div></div>
-        <button type="button" onClick={buy} disabled={!selected.length || authLoading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 font-bold text-slate-950 disabled:opacity-40"><ShoppingCart className="h-4 w-4"/> Satın almaya devam et · {total.toLocaleString("tr-TR")} ₺</button>
+        <div className="rounded-xl border border-cyan-300/15 bg-slate-950/60 p-3"><span className="text-xs text-white/45">Veri durumu</span><div className="text-sm font-semibold text-emerald-300">{loading ? "Yükleniyor…" : busy ? "Yeni parsel getiriliyor…" : "Canlı"}</div></div>
+        <button type="button" onClick={buy} disabled={!selected.length || authLoading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 font-bold text-slate-950 disabled:opacity-40"><ShoppingCart className="h-4 w-4" /> Satın almaya devam et · {total.toLocaleString("tr-TR")} ₺</button>
       </div>
       {error && <div className="mx-4 mb-4 rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200">Parsel verisi: {error}</div>}
     </section>
