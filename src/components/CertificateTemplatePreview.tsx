@@ -29,7 +29,7 @@ export function CertificateTemplatePreview({ tier, className = "" }: Certificate
     if (!visible) return;
     let cancelled = false;
     let idleId: number | undefined;
-    let timeoutId: ReturnType<typeof window.setTimeout> | undefined;
+    let timeoutId: number | undefined;
     const loadPreview = async () => {
       try {
         const { renderCertificateSvg } = await import("@/lib/certificateTemplates");
