@@ -1,14 +1,24 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 
 type Props = { className?: string };
 const EARTH_TEXTURE = "/api/earth-assets?type=earth";
 const CLOUD_TEXTURE = "/api/earth-assets?type=clouds";
 const EARTH_RADIUS = 1.5;
+const MIN_ZOOM = 3.0;
+const MAX_ZOOM = 7.0;
+const DEFAULT_CAMERA_Z = 5.05;
 
-/** Opening-screen visual only. Zoom is handled by the same Three.js camera; no wrapper or layout change. */
 export function MySkyParcelEarthGlobe({ className = "" }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
+  const cameraZRef = useRef(DEFAULT_CAMERA_Z);
+  const [zoom, setZoom] = useState(DEFAULT_CAMERA_Z);
+
+  const changeZoom = (delta: number) => {
+    const next = THREE.MathUtils.clamp(cameraZRef.current + delta, MIN_ZOOM, MAX_ZOOM);
+    cameraZRef.current = next;
+    setZoom(next);
+  };
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -23,10 +33,7 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x01040b);
     const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
-    const MIN_ZOOM = 3.0;
-    const MAX_ZOOM = 7.0;
-    const DEFAULT_CAMERA_Z = 5.05;
-    camera.position.set(0, 0.35, DEFAULT_CAMERA_Z);
+    camera.position.set(0, 0.35, cameraZRef.current);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
@@ -36,6 +43,7 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
     renderer.domElement.style.touchAction = "none";
+    renderer.domElement.style.userSelect = "none";
     renderer.domElement.style.cursor = "grab";
     mount.appendChild(renderer.domElement);
 
@@ -89,15 +97,25 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     const stars = new THREE.Points(starsGeometry, starsMaterial);
     scene.add(stars);
 
+    const applyZoom = (next: number) => {
+      const clamped = THREE.MathUtils.clamp(next, MIN_ZOOM, MAX_ZOOM);
+      cameraZRef.current = clamped;
+      camera.position.z = clamped;
+      setZoom(clamped);
+    };
+
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
-      camera.position.z = THREE.MathUtils.clamp(camera.position.z + event.deltaY * 0.0025, MIN_ZOOM, MAX_ZOOM);
+      event.stopPropagation();
+      const delta = THREE.MathUtils.clamp(event.deltaY, -160, 160) * 0.008;
+      applyZoom(camera.position.z + delta);
     };
+
     const onPointerDown = (event: PointerEvent) => {
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
-        pinchDistance = Math.hypot(a.x - b.x, a.y - b.y);
+        pinchDistance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
         dragging = false;
         return;
       }
@@ -107,18 +125,17 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       renderer.domElement.style.cursor = "grabbing";
       renderer.domElement.setPointerCapture?.(event.pointerId);
     };
+
     const onPointerMove = (event: PointerEvent) => {
       if (!pointers.has(event.pointerId)) return;
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (pointers.size === 2 && pinchDistance !== null) {
         const [a, b] = [...pointers.values()];
-        const distance = Math.hypot(a.x - b.x, a.y - b.y);
-        if (distance > 0) {
-          const ratio = distance / pinchDistance;
-          if (Math.abs(ratio - 1) > 0.01) {
-            camera.position.z = THREE.MathUtils.clamp(camera.position.z / ratio, MIN_ZOOM, MAX_ZOOM);
-            pinchDistance = distance;
-          }
+        const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+        const ratio = distance / pinchDistance;
+        if (Math.abs(ratio - 1) > 0.002) {
+          applyZoom(camera.position.z / ratio);
+          pinchDistance = distance;
         }
         return;
       }
@@ -133,13 +150,20 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       clouds.rotation.y += dx * 0.002;
       clouds.rotation.x += dy * 0.0012;
     };
+
     const onPointerUp = (event: PointerEvent) => {
       pointers.delete(event.pointerId);
-      pinchDistance = pointers.size === 2 ? pinchDistance : null;
-      dragging = false;
-      renderer.domElement.style.cursor = "grab";
-      renderer.domElement.releasePointerCapture?.(event.pointerId);
+      if (pointers.size < 2) pinchDistance = null;
+      dragging = pointers.size === 1;
+      if (dragging) {
+        const remaining = [...pointers.values()][0];
+        lastX = remaining.x;
+        lastY = remaining.y;
+      }
+      renderer.domElement.style.cursor = dragging ? "grabbing" : "grab";
+      try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch {}
     };
+
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
@@ -199,7 +223,13 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
   return (
     <div className={`relative h-[560px] w-full overflow-hidden rounded-3xl border border-sky-200/15 bg-[#01040b] shadow-2xl shadow-black/40 ${className}`}>
       <div ref={mountRef} className="absolute inset-0" aria-label="MySkyParcel görsel 3D Dünya küresi" />
-      <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">Döndür · yakınlaştır · uzaklaştır</div>
+      <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">İki parmakla yakınlaştır · fare tekerleğiyle zoom</div>
+      <div className="absolute right-4 top-4 z-20 flex flex-col overflow-hidden rounded-xl border border-white/15 bg-black/45 shadow-lg backdrop-blur-md">
+        <button type="button" aria-label="Küreyi yakınlaştır" onClick={() => changeZoom(-0.45)} className="h-10 w-10 text-xl font-semibold text-white hover:bg-white/10 active:bg-white/20">+</button>
+        <div className="h-px bg-white/10" />
+        <button type="button" aria-label="Küreyi uzaklaştır" onClick={() => changeZoom(0.45)} className="h-10 w-10 text-xl font-semibold text-white hover:bg-white/10 active:bg-white/20">−</button>
+      </div>
+      <div className="pointer-events-none absolute right-4 bottom-4 rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[9px] text-white/45">{Math.round((MAX_ZOOM - zoom) / (MAX_ZOOM - MIN_ZOOM) * 100)}% yakın</div>
     </div>
   );
 }
