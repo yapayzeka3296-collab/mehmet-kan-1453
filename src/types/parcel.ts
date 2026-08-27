@@ -1,6 +1,11 @@
 export type ParcelStatus = 'available' | 'reserved' | 'sold';
 export type ParcelTier = 'digital' | 'elite' | 'premium';
 
+export type ParcelGeometry =
+  | { type: 'Polygon'; coordinates: number[][][] }
+  | { type: 'MultiPolygon'; coordinates: number[][][][] }
+  | null;
+
 export interface Parcel {
   id: string;
   parcel_number: string;
@@ -18,6 +23,7 @@ export interface Parcel {
   local_parcel_number?: number | null;
   latitude: number;
   longitude: number;
+  geometry?: ParcelGeometry;
   created_at: string;
   updated_at: string;
 }
