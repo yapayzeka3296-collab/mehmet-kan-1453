@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Parcel } from "@/types/parcel";
+import type { Parcel, ParcelGeometry } from "@/types/parcel";
 import { PARCEL_CART_EVENT, readParcelCart, writeParcelCart, type ParcelCartItem } from "@/lib/parcelCart";
 
 type CityCenter = { lat: number; lng: number };
@@ -10,6 +10,9 @@ type Tier = "digital" | "elite" | "premium";
 
 const colors: Record<Tier, string> = { digital: "#55c9ff", elite: "#b77cff", premium: "#f6c453" };
 const B = { minLat: 35.75, maxLat: 42.15, minLng: 25.65, maxLng: 44.85 };
+const MAX_POLYGON_FEATURES = 2500;
+
+type XY = { x: number; y: number };
 
 function cartItem(p: Parcel): ParcelCartItem | undefined {
   const tier = p.tier;
@@ -24,6 +27,32 @@ function geoPos(p: Parcel) {
     left: Math.max(3, Math.min(97, ((lng - B.minLng) / (B.maxLng - B.minLng)) * 100)),
     top: Math.max(4, Math.min(96, ((B.maxLat - lat) / (B.maxLat - B.minLat)) * 100)),
   };
+}
+
+function geometryPoint([lng, lat]: number[]): XY | null {
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+  return {
+    x: Math.max(0, Math.min(100, ((lng - B.minLng) / (B.maxLng - B.minLng)) * 100)),
+    y: Math.max(0, Math.min(100, ((B.maxLat - lat) / (B.maxLat - B.minLat)) * 100)),
+  };
+}
+
+function ringPath(ring: number[][]) {
+  return ring.map((point, i) => {
+    const xy = geometryPoint(point);
+    if (!xy) return "";
+    return `${i === 0 ? "M" : "L"}${xy.x.toFixed(4)} ${xy.y.toFixed(4)}`;
+  }).filter(Boolean).join(" ") + " Z";
+}
+
+function geometryPath(geometry?: ParcelGeometry) {
+  if (!geometry) return "";
+  if (geometry.type === "Polygon") return geometry.coordinates.map(ringPath).join(" ");
+  return geometry.coordinates.map(polygon => polygon.map(ringPath).join(" ")).join(" ");
+}
+
+function hasUsableGeometry(p: Parcel) {
+  return Boolean(p.geometry && (p.geometry.type === "Polygon" || p.geometry.type === "MultiPolygon"));
 }
 
 function SciFiGrid() {
@@ -47,6 +76,7 @@ export function SkyParcelMap({ parcels, selectedId, selectedIds = new Set(), mul
     return g;
   }, [parcels]);
   const available = useMemo(() => parcels.filter(p => p.status === "available").length, [parcels]);
+  const polygonMode = parcels.length <= MAX_POLYGON_FEATURES && parcels.some(hasUsableGeometry);
 
   useEffect(() => { onViewportChange?.(B); }, [onViewportChange]);
   useEffect(() => {
@@ -68,27 +98,42 @@ export function SkyParcelMap({ parcels, selectedId, selectedIds = new Set(), mul
     } else onSelect(p.id);
   };
 
+  const renderParcel = (p: Parcel, polygon: boolean) => {
+    const selected = selectedId === p.id || selectedIds.has(p.id) || readParcelCart().some(x => x.id === p.id);
+    const c = p.status === "sold" ? "#ff1744" : colors[p.tier as Tier] || colors.digital;
+    if (polygon && hasUsableGeometry(p)) {
+      const d = geometryPath(p.geometry);
+      if (!d) return null;
+      return <path key={p.id} d={d} fill={selected ? "rgba(255,211,92,.42)" : `${c}20`} stroke={selected ? "#fff4b0" : c} strokeWidth={selected ? 0.22 : 0.11} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="cursor-pointer transition-[fill,stroke] duration-150" style={{ opacity: p.status === "sold" ? .82 : 1 }} onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} aria-label={p.parcel_number} />;
+    }
+    const xy = geoPos(p);
+    if (!xy) return null;
+    return <button key={p.id} type="button" disabled={p.status !== "available"} aria-label={p.parcel_number} onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} className="absolute h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border sm:h-6 sm:w-6" style={{ left: `${xy.left}%`, top: `${xy.top}%`, borderColor: selected ? "#fff4b0" : c, background: selected ? "rgba(255,211,92,.25)" : "rgba(4,18,30,.7)", boxShadow: selected ? "0 0 8px #fff4b0,0 0 22px rgba(255,211,92,.8)" : `0 0 5px ${c}66`, opacity: p.status === "sold" ? .82 : 1 }}>
+      <span className="absolute inset-[5px] rounded-full" style={{ background: c }} />
+      {(hover === p.id || selected) && <span className="pointer-events-none absolute left-1/2 top-[-28px] -translate-x-1/2 whitespace-nowrap rounded bg-[#020914]/90 px-2 py-1 text-[9px] text-white">{p.parcel_number}</span>}
+    </button>;
+  };
+
   return <div className="relative h-[420px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[420px] lg:h-[469px]">
     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(30,112,160,.3),transparent_32%),linear-gradient(145deg,#030b17,#071a2d_52%,#020711)]" />
     <div className="absolute inset-0 opacity-50" style={{ backgroundImage: "radial-gradient(circle,rgba(255,255,255,.7) .8px,transparent .9px)", backgroundSize: "31px 31px" }} />
 
-    {/* Image and parcel layer are scaled together so mobile zoom does not break parcel alignment. */}
+    {/* Image and parcel geometry stay in the same transform layer so geographic alignment survives mobile scaling. */}
     <div className={`absolute inset-0 z-[1] origin-center transition-transform duration-[1800ms] ease-out scale-[1.24] sm:scale-100 ${focus ? "[&>.map-content]:scale-[1.08]" : ""}`}>
       <div className="map-content absolute inset-0 flex items-center justify-center overflow-hidden px-0 py-1 sm:px-6 sm:py-4 transition-transform duration-[1800ms] ease-out">
         <img src="/images/cities/turkey-3d-map.png" alt="Türkiye 3D haritası" className="h-full w-full object-contain drop-shadow-[0_0_35px_rgba(44,190,255,.22)]" />
       </div>
-      <div className="absolute inset-0 z-10">
-        {(["digital", "elite", "premium"] as Tier[]).map(t => groups[t].map(p => {
-          const xy = geoPos(p);
-          if (!xy) return null;
-          const selected = selectedId === p.id || selectedIds.has(p.id) || readParcelCart().some(x => x.id === p.id);
-          const c = p.status === "sold" ? "#ff1744" : colors[p.tier as Tier] || colors.digital;
-          return <button key={p.id} type="button" disabled={p.status !== "available"} aria-label={p.parcel_number} onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} className="absolute h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border sm:h-6 sm:w-6" style={{ left: `${xy.left}%`, top: `${xy.top}%`, borderColor: selected ? "#fff4b0" : c, background: selected ? "rgba(255,211,92,.25)" : "rgba(4,18,30,.7)", boxShadow: selected ? "0 0 8px #fff4b0,0 0 22px rgba(255,211,92,.8)" : `0 0 5px ${c}66`, opacity: p.status === "sold" ? .82 : 1 }}>
-            <span className="absolute inset-[5px] rounded-full" style={{ background: c }} />
-            {(hover === p.id || selected) && <span className="pointer-events-none absolute left-1/2 top-[-28px] -translate-x-1/2 whitespace-nowrap rounded bg-[#020914]/90 px-2 py-1 text-[9px] text-white">{p.parcel_number}</span>}
-          </button>;
-        }))}
-      </div>
+      {polygonMode && <svg aria-label="Parsel sınırları" role="img" className="pointer-events-auto absolute inset-0 z-10 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+        {parcels.map(p => renderParcel(p, true))}
+      </svg>}
+      {!polygonMode && <div className="absolute inset-0 z-10">
+        {(["digital", "elite", "premium"] as Tier[]).map(t => groups[t].map(p => renderParcel(p, false)))}
+      </div>}
+      {polygonMode && hover && (() => {
+        const p = parcels.find(x => x.id === hover);
+        const xy = p ? geoPos(p) : null;
+        return p && xy ? <div className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded bg-[#020914]/90 px-2 py-1 text-[9px] text-white" style={{ left: `${xy.left}%`, top: `${xy.top}%` }}>{p.parcel_number}</div> : null;
+      })()}
     </div>
 
     <SciFiGrid />
