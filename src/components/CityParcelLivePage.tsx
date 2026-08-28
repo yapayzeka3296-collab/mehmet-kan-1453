@@ -124,20 +124,6 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
       <div className="relative min-h-[380px] overflow-hidden bg-[#020914] sm:min-h-[650px]">
         <img src={MAP_IMAGE} alt="Türkiye gökyüzü parsel haritası" className="pointer-events-none absolute inset-0 z-0 h-full w-full object-contain opacity-90" />
         <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle_at_50%_45%,rgba(30,150,220,.22),transparent_42%),linear-gradient(145deg,rgba(2,7,17,.55),rgba(7,26,45,.18),rgba(1,4,11,.55)]" />
-        <div className="pointer-events-none absolute inset-4 z-20 sm:inset-8" aria-hidden="true">
-          <svg className="h-full w-full" viewBox="0 0 1200 500" preserveAspectRatio="none">
-            {Array.from({ length: COLS + 1 }, (_, i) => {
-              const x = (1200 / COLS) * i;
-              const curve = (i - COLS / 2) * 3;
-              return <path key={`grid-v-${i}`} d={`M ${x} 0 Q ${x + curve} 250 ${x} 500`} fill="none" stroke="rgba(210,238,255,.42)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />;
-            })}
-            {Array.from({ length: ROWS + 1 }, (_, i) => {
-              const y = (500 / ROWS) * i;
-              const curve = (i - ROWS / 2) * 7;
-              return <path key={`grid-h-${i}`} d={`M 0 ${y} Q 600 ${y + curve} 1200 ${y}`} fill="none" stroke="rgba(210,238,255,.42)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />;
-            })}
-          </svg>
-        </div>
         <div className="pointer-events-auto absolute inset-4 z-[100] grid gap-1.5 sm:inset-8" style={{ gridTemplateColumns: `repeat(${COLS},minmax(0,1fr))`, gridTemplateRows: `repeat(${ROWS},minmax(0,1fr))`, touchAction: "manipulation" }}>
           {Array.from({ length: VISIBLE_COUNT }, (_, i) => {
             const slot = slots[i];
