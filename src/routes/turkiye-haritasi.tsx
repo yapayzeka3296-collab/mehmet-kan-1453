@@ -3,7 +3,12 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { LegacySkyMapView } from "@/components/LegacySkyMapView";
 import { CityParcelLivePage } from "@/components/CityParcelLivePage";
 
-export const Route = createFileRoute("/turkiye-haritasi")({ component: SkyMapPage });
+export const Route = createFileRoute("/turkiye-haritasi")({
+  head: () => ({
+    links: [{ rel: "preload", href: "/images/cities/turkey-3d-map.png", as: "image", type: "image/png", fetchpriority: "high" }],
+  }),
+  component: SkyMapPage,
+});
 
 function SkyMapPage() {
   const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
