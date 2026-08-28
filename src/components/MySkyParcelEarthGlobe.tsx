@@ -153,7 +153,7 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
         lastY = remaining.y;
       }
       renderer.domElement.style.cursor = dragging ? "grabbing" : "grab";
-      try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch {}
+      try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch (error) { void error; }
     };
 
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
