@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Lock, Mail, User } from "lucide-react";
+import { ArrowRight, Lock, Mail, Phone, User } from "lucide-react";
 import { useState } from "react";
 import heroCity from "@/assets/hero-city.jpg";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -16,6 +16,7 @@ function KayitOl() {
   const { signUp, loading } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [accepted, setAccepted] = useState(false);
@@ -25,18 +26,19 @@ function KayitOl() {
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); setMessage(null); setSuccess(false);
-    if (!name.trim() || !email.trim() || !password || !confirm) { setMessage("Lütfen tüm alanları doldurun."); return; }
+    if (!name.trim() || !email.trim() || !phone.trim() || !password || !confirm) { setMessage("Lütfen tüm alanları doldurun."); return; }
+    if (!/^\+[1-9]\d{9,14}$/.test(phone.trim())) { setMessage("Telefon numarasını +905xxxxxxxxx gibi uluslararası formatta girin."); return; }
     if (password !== confirm) { setMessage("Şifreler eşleşmiyor."); return; }
     if (!accepted) { setMessage("Üyelik Sözleşmesi'ni okuduğunuzu ve kabul ettiğinizi onaylamalısınız."); return; }
     if (!kvkkRead) { setMessage("KVKK Aydınlatma Metni'ni okuduğunuzu onaylamalısınız."); return; }
 
-    const res = await signUp(email.trim(), password, name.trim());
+    const res = await signUp(email.trim(), password, name.trim(), phone.trim());
     if (res.success) {
       setSuccess(true);
       setMessage(
         res.status === "verification_resent"
-          ? "Doğrulama e-postası yeniden gönderildi. Lütfen e-postanızı kontrol edin."
-          : "Kayıt başarılı. Lütfen e-postanızı kontrol edin.",
+          ? "Doğrulama e-postası yeniden gönderildi. E-postayı doğruladıktan sonra telefonunuza SMS doğrulama kodu gönderilecektir."
+          : "Kayıt başarılı. Önce e-postanızı doğrulayın; ardından yalnızca üyelik aşamasında telefonunuza SMS doğrulama kodu gönderilecektir.",
       );
     } else {
       setMessage(res.error);
@@ -48,11 +50,12 @@ function KayitOl() {
       <img src={heroCity} alt="" aria-hidden loading="lazy" width={1920} height={1088} className="absolute inset-x-0 bottom-0 h-[70%] w-full object-cover opacity-45" />
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/75 to-background/30" />
       <div className="relative mx-auto grid max-w-[1600px] gap-10 px-4 py-14 lg:grid-cols-2 lg:px-8">
-        <div className="min-w-0"><h1 className="font-display text-4xl leading-tight font-bold sm:text-5xl">HESABINI<br /><span className="text-gradient-gold">OLUŞTUR</span></h1><p className="mt-5 max-w-md text-sm text-muted-foreground">Ücretsiz üye ol, gökyüzünde sana özel parselini seç ve sertifikanı anında e-posta ile al.</p></div>
+        <div className="min-w-0"><h1 className="font-display text-4xl leading-tight font-bold sm:text-5xl">HESABINI<br /><span className="text-gradient-gold">OLUŞTUR</span></h1><p className="mt-5 max-w-md text-sm text-muted-foreground">Ücretsiz üye ol, gökyüzünde sana özel parselini seç ve sertifikanı anında e-posta ile al. Telefon numaran yalnızca üyelik doğrulaması için SMS ile doğrulanır.</p></div>
         <div className="panel min-w-0 p-6 sm:p-10"><h2 className="text-center font-display text-3xl">KAYIT OL</h2>
           <form className="mt-8 space-y-5" onSubmit={onSubmit}>
             <div><label className="text-xs text-muted-foreground" htmlFor="ad">Ad Soyad</label><div className="mt-2 flex items-center gap-3 rounded-md border border-input bg-background/50 px-3 focus-within:border-gold"><User className="h-4 w-4 shrink-0 text-muted-foreground" /><input id="ad" name="name" type="text" placeholder="" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" /></div></div>
             <div><label className="text-xs text-muted-foreground" htmlFor="mail">E-posta Adresiniz</label><div className="mt-2 flex items-center gap-3 rounded-md border border-input bg-background/50 px-3 focus-within:border-gold"><Mail className="h-4 w-4 shrink-0 text-muted-foreground" /><input id="mail" name="email" type="email" placeholder="" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" /></div></div>
+            <div><label className="text-xs text-muted-foreground" htmlFor="telefon">Telefon (SMS doğrulama)</label><div className="mt-2 flex items-center gap-3 rounded-md border border-input bg-background/50 px-3 focus-within:border-gold"><Phone className="h-4 w-4 shrink-0 text-muted-foreground" /><input id="telefon" name="phone" type="tel" placeholder="+905xxxxxxxxx" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^+\d]/g, "").slice(0, 16))} className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" /></div><p className="mt-1 text-[10px] text-muted-foreground">Örn. +905xxxxxxxxx · SMS yalnızca üyelik doğrulamasında kullanılır.</p></div>
             <div><label className="text-xs text-muted-foreground" htmlFor="sifre">Şifreniz</label><div className="mt-2 flex items-center gap-3 rounded-md border border-input bg-background/50 px-3 focus-within:border-gold"><Lock className="h-4 w-4 shrink-0 text-muted-foreground" /><input id="sifre" name="password" type="password" placeholder="" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" /></div></div>
             <div><label className="text-xs text-muted-foreground" htmlFor="sifre2">Şifre Tekrar</label><div className="mt-2 flex items-center gap-3 rounded-md border border-input bg-background/50 px-3 focus-within:border-gold"><Lock className="h-4 w-4 shrink-0 text-muted-foreground" /><input id="sifre2" name="password-confirmation" type="password" placeholder="" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" /></div></div>
             <div className="space-y-3">
