@@ -29,14 +29,31 @@ async function loadPublicParcels(citySlug: string): Promise<MapParcel[]> {
   return ((data ?? []) as MapParcel[]).filter((p) => p.status === "available");
 }
 
+const GRID_TIERS: ParcelTier[] = (() => {
+  const cells = Array.from({ length: VISIBLE_COUNT }, (_, index) => {
+    const x = index % COLS;
+    const y = Math.floor(index / COLS);
+    const cx = (COLS - 1) / 2;
+    const cy = (ROWS - 1) / 2;
+    return { index, distance: (x - cx) ** 2 + (y - cy) ** 2 };
+  }).sort((a, b) => a.distance - b.distance);
+  const result = Array<ParcelTier>(VISIBLE_COUNT);
+  let offset = 0;
+  for (const tier of ["premium", "elite", "digital"] as ParcelTier[]) {
+    for (const cell of cells.slice(offset, offset + TIER_LIMITS[tier])) result[cell.index] = tier;
+    offset += TIER_LIMITS[tier];
+  }
+  return result;
+})();
+
 function buildSlots(rows: MapParcel[]): Array<MapParcel | null> {
-  const result: Array<MapParcel | null> = [];
+  const result: Array<MapParcel | null> = Array.from({ length: VISIBLE_COUNT }, () => null);
   for (const tier of TIER_ORDER) {
     const tierRows = rows.filter((p) => p.tier === tier).slice(0, TIER_LIMITS[tier]);
-    result.push(...tierRows);
-    while (result.length < TIER_ORDER.slice(0, TIER_ORDER.indexOf(tier) + 1).reduce((sum, t) => sum + TIER_LIMITS[t], 0)) result.push(null);
+    const indexes = GRID_TIERS.map((slotTier, index) => slotTier === tier ? index : -1).filter((index) => index >= 0);
+    indexes.forEach((index, position) => { result[index] = tierRows[position] ?? null; });
   }
-  return result.slice(0, VISIBLE_COUNT);
+  return result;
 }
 
 export function CityParcelLivePage({ slug }: { slug: string }) {
@@ -95,7 +112,6 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
     const item = toCartItem(parcel); const next = [...selected, item]; setSelected(next); writeParcelCart(next);
   };
   const buy = () => { if (authLoading || selected.length === 0) return; const ids = selected.map((p) => p.id).join(","); window.location.href = user ? `/parsel-satin-al?parcels=${ids}` : `/giris?redirect=${encodeURIComponent(`/parsel-satin-al?parcels=${ids}`)}`; };
-
   const legend = <div className="flex flex-wrap items-center gap-3 text-[11px] text-white/70">{TIER_ORDER.map((tier) => <span key={tier} className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: `rgb(${TIER_COLOR[tier]})`, boxShadow: `0 0 7px rgba(${TIER_COLOR[tier]},.75)` }} />{TIER_LABEL[tier]}</span>)}</div>;
 
   if (!city) return <main className="mx-auto max-w-4xl p-8 text-center text-white"><h1 className="text-2xl font-bold">{loading ? "Harita hazırlanıyor…" : "İl bulunamadı"}</h1>{error && <p className="mt-3 text-red-300">{error}</p>}<div className="mt-4 flex flex-wrap items-center justify-center gap-4"><a href="/turkiye-haritasi" className="inline-flex items-center gap-2 text-cyan-300"><ArrowLeft className="h-4 w-4" /> Türkiye haritasına dön</a>{legend}</div></main>;
