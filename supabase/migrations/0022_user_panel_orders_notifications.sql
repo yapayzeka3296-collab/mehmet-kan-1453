@@ -30,6 +30,10 @@ alter table public.certificate_requests add column if not exists delivered_at ti
 alter table public.user_orders enable row level security;
 alter table public.user_notifications enable row level security;
 
-create policy if not exists "users read own orders" on public.user_orders for select using (auth.uid() = user_id);
-create policy if not exists "users read own notifications" on public.user_notifications for select using (auth.uid() = user_id);
-create policy if not exists "users update own notifications" on public.user_notifications for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "users read own orders" on public.user_orders;
+drop policy if exists "users read own notifications" on public.user_notifications;
+drop policy if exists "users update own notifications" on public.user_notifications;
+
+create policy "users read own orders" on public.user_orders for select using (auth.uid() = user_id);
+create policy "users read own notifications" on public.user_notifications for select using (auth.uid() = user_id);
+create policy "users update own notifications" on public.user_notifications for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
