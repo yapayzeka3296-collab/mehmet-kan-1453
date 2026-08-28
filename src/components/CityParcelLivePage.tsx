@@ -56,9 +56,6 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
         setSelected(existing);
         const selectedIds = new Set(existing.map(p => p.id));
 
-        // /gokyuzu-haritasi?...&parcels=<id> is used by "Konuma Git".
-        // A purchased parcel is sold and therefore excluded from parcels_in_view;
-        // load it separately so it can still appear in the list below the map.
         const params = new URLSearchParams(window.location.search);
         const targetId = params.get("parcels")?.split(",").map(s => s.trim()).find(Boolean);
         if (targetId && user) {
@@ -125,13 +122,27 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
       <div className="relative min-h-[380px] overflow-hidden bg-[#020914] sm:min-h-[650px]">
         <img src={MAP_IMAGE} alt="Türkiye gökyüzü parsel haritası" className="pointer-events-none absolute inset-0 z-0 h-full w-full object-contain opacity-90" />
         <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle_at_50%_45%,rgba(30,150,220,.22),transparent_42%),linear-gradient(145deg,rgba(2,7,17,.55),rgba(7,26,45,.18),rgba(1,4,11,.55)]" />
+        <div className="pointer-events-none absolute inset-4 z-20 sm:inset-8" aria-hidden="true">
+          <svg className="h-full w-full" viewBox="0 0 1200 500" preserveAspectRatio="none">
+            {Array.from({ length: COLS + 1 }, (_, i) => {
+              const x = (1200 / COLS) * i;
+              const curve = (i - COLS / 2) * 3;
+              return <path key={`grid-v-${i}`} d={`M ${x} 0 Q ${x + curve} 250 ${x} 500`} fill="none" stroke="rgba(210,238,255,.42)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />;
+            })}
+            {Array.from({ length: ROWS + 1 }, (_, i) => {
+              const y = (500 / ROWS) * i;
+              const curve = (i - ROWS / 2) * 7;
+              return <path key={`grid-h-${i}`} d={`M 0 ${y} Q 600 ${y + curve} 1200 ${y}`} fill="none" stroke="rgba(210,238,255,.42)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />;
+            })}
+          </svg>
+        </div>
         <div className="pointer-events-auto absolute inset-4 z-[100] grid gap-1.5 sm:inset-8" style={{ gridTemplateColumns: `repeat(${COLS},minmax(0,1fr))`, gridTemplateRows: `repeat(${ROWS},minmax(0,1fr))`, touchAction: "manipulation" }}>
           {Array.from({ length: VISIBLE_COUNT }, (_, i) => {
             const slot = slots[i];
-            if (!slot) return <div key={`empty-${i}`} className="pointer-events-none rounded-sm border-[3px] border-cyan-100/45 bg-cyan-100/[0.04]" />;
+            if (!slot) return <div key={`empty-${i}`} className="pointer-events-none rounded-sm border border-cyan-100/25 bg-transparent" />;
             const p = slot.parcel; const isSelected = selectedIds.has(p.id); const rgb = TIER_COLOR[p.tier];
-            return <button key={p.id} type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); activateSlot(i); }} className="relative z-[110] block h-full w-full min-h-0 min-w-0 cursor-pointer select-none rounded-sm border-[3px] p-0 transition-all duration-150 hover:brightness-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white" aria-pressed={isSelected} aria-label={`${p.parcel_number} ${p.tier} parseli ${isSelected ? "seçildi, kaldır" : "seç"}`} style={{ WebkitTapHighlightColor: "transparent", WebkitAppearance: "none", borderColor: `rgba(${rgb},1)`, backgroundColor: isSelected ? `rgba(${rgb},.72)` : `rgba(${rgb},.20)`, boxShadow: isSelected ? `0 0 18px rgba(${rgb},1),0 0 40px rgba(${rgb},.95),inset 0 0 20px rgba(${rgb},.9)` : `0 0 7px rgba(${rgb},.7),inset 0 0 0 1px rgba(${rgb},.5)`, touchAction: "manipulation", pointerEvents: "auto" }}>
-              <span className="pointer-events-none absolute inset-[8%] rounded-sm" style={{ background: `rgba(${rgb},${isSelected ? ".55" : ".18"})` }} /><span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[6px] font-semibold text-white/80 sm:text-[9px]">{p.parcel_number}</span>{isSelected && <span className="pointer-events-none absolute inset-0 animate-pulse rounded-sm" style={{ boxShadow: `inset 0 0 20px rgba(${rgb},1)` }} />}
+            return <button key={p.id} type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); activateSlot(i); }} className="relative z-[110] block h-full w-full min-h-0 min-w-0 cursor-pointer select-none rounded-sm border p-0 transition-all duration-150 hover:brightness-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white" aria-pressed={isSelected} aria-label={`${p.parcel_number} ${p.tier} parseli ${isSelected ? "seçildi, kaldır" : "seç"}`} style={{ WebkitTapHighlightColor: "transparent", WebkitAppearance: "none", borderColor: isSelected ? `rgba(${rgb},1)` : `rgba(210,238,255,.16)`, backgroundColor: isSelected ? `rgba(${rgb},.72)` : "transparent", boxShadow: isSelected ? `0 0 18px rgba(${rgb},1),0 0 40px rgba(${rgb},.95),inset 0 0 20px rgba(${rgb},.9)` : "none", touchAction: "manipulation", pointerEvents: "auto" }}>
+              <span className="pointer-events-none absolute inset-[8%] rounded-sm" style={{ background: isSelected ? `rgba(${rgb},.35)` : "transparent" }} /><span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[6px] font-semibold text-white/80 sm:text-[9px]">{p.parcel_number}</span>{isSelected && <span className="pointer-events-none absolute inset-0 animate-pulse rounded-sm" style={{ boxShadow: `inset 0 0 20px rgba(${rgb},1)` }} />}
             </button>;
           })}
         </div>
