@@ -16,8 +16,14 @@ function getSessionId() {
   }
 }
 
+function isAdminDashboard() {
+  if (typeof document === "undefined" || window.location.pathname !== "/yonetim") return false;
+  return Array.from(document.querySelectorAll("h1")).some((el) => el.textContent?.trim() === "Dashboard");
+}
+
 export function SiteVisitTracker() {
   const [stats, setStats] = useState<SiteStats | null>(null);
+  const [showStats, setShowStats] = useState(false);
 
   useEffect(() => {
     if (!supabaseBrowser) return;
@@ -28,7 +34,6 @@ export function SiteVisitTracker() {
         p_path: window.location.pathname,
       });
     };
-    // Keep analytics non-blocking without mixing requestIdleCallback and timer handles.
     const timer = window.setTimeout(record, 1500);
     const interval = window.setInterval(record, 60_000);
     return () => {
@@ -40,7 +45,13 @@ export function SiteVisitTracker() {
   useEffect(() => {
     if (!supabaseBrowser || window.location.pathname !== "/yonetim") return;
     let cancelled = false;
+    const syncVisibility = () => setShowStats(isAdminDashboard());
+    syncVisibility();
+    const observer = new MutationObserver(syncVisibility);
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
     const loadStats = async () => {
+      if (!isAdminDashboard()) return;
       const { data: userData } = await supabaseBrowser.auth.getUser();
       if (!userData.user || cancelled) return;
       const { data: profile } = await supabaseBrowser.from("profiles").select("role").eq("id", userData.user.id).maybeSingle();
@@ -50,14 +61,41 @@ export function SiteVisitTracker() {
     };
     void loadStats();
     const timer = window.setInterval(() => void loadStats(), 30_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+      window.clearInterval(timer);
+    };
   }, []);
 
-  if (!stats || typeof window === "undefined" || window.location.pathname !== "/yonetim") return null;
+  if (!showStats || !stats) return null;
 
-  const cards = [["Şu an aktif", stats.active_now], ["Bugün", stats.today], ["Bu hafta", stats.week], ["Bu ay", stats.month], ["Toplam", stats.total], ["Bugünkü sayfa görüntüleme", stats.pages_today]] as const;
-  return <section className="mx-4 mt-4 rounded-xl border border-gold/30 bg-background/95 p-4 shadow-lg lg:ml-[266px] lg:mr-6 lg:mt-4 lg:p-5">
-    <div className="flex items-center justify-between gap-3"><div><h2 className="font-display text-lg font-semibold">Site İstatistikleri</h2><p className="mt-1 text-xs text-muted-foreground">Son 5 dakikadaki aktif ziyaretçiler ve toplam ziyaretler.</p></div><span className="rounded-full border border-green-500/30 px-2.5 py-1 text-[11px] text-green-500">CANLI</span></div>
-    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">{cards.map(([label, value]) => <div key={label} className="rounded-lg border border-border bg-accent/30 p-3"><p className="text-[11px] text-muted-foreground">{label}</p><p className="mt-1 font-display text-2xl">{Number(value).toLocaleString("tr-TR")}</p></div>)}</div>
-  </section>;
+  const cards = [
+    ["Şu an aktif", stats.active_now],
+    ["Bugün", stats.today],
+    ["Bu hafta", stats.week],
+    ["Bu ay", stats.month],
+    ["Toplam", stats.total],
+    ["Bugünkü sayfa görüntüleme", stats.pages_today],
+  ] as const;
+
+  return (
+    <section className="mx-4 mt-4 rounded-xl border border-gold/30 bg-background/95 p-4 shadow-lg lg:ml-[266px] lg:mr-6 lg:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg font-semibold">Site İstatistikleri</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Son 5 dakikadaki aktif ziyaretçiler ve toplam ziyaretler.</p>
+        </div>
+        <span className="rounded-full border border-green-500/30 px-2.5 py-1 text-[11px] text-green-500">CANLI</span>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        {cards.map(([label, value]) => (
+          <div key={label} className="rounded-lg border border-border bg-accent/30 p-3">
+            <p className="text-[11px] text-muted-foreground">{label}</p>
+            <p className="mt-1 font-display text-2xl">{Number(value).toLocaleString("tr-TR")}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
