@@ -81,16 +81,16 @@ export function SkyParcelMap({ parcels, selectedId, selectedIds = new Set<string
       const d = geometryPath(p.geometry); if (!d) return null;
       if (selected) {
         return <g key={p.id} className="cursor-pointer" onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} aria-label={p.parcel_number}>
-          <path d={d} fill="rgba(255,211,92,.28)" stroke="#ffd35c" strokeOpacity={0.32} strokeWidth={0.09} vectorEffect="non-scaling-stroke" fillRule="evenodd" style={{ filter: "drop-shadow(0 0 3px rgba(255,211,92,.95)) drop-shadow(0 0 9px rgba(255,211,92,.75))", opacity: p.status === "sold" ? 0.82 : 1 }} />
-          <path d={d} fill="none" stroke="#fff4b0" strokeOpacity={0.9} strokeWidth={0.026} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" />
-          <path d={d} fill="none" stroke="#ffffff" strokeOpacity={0.42} strokeWidth={0.009} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" />
+          <path d={d} fill="rgba(255,211,92,.28)" stroke="#ffd35c" strokeOpacity={0.32} strokeWidth={0.0175} vectorEffect="non-scaling-stroke" fillRule="evenodd" style={{ filter: "drop-shadow(0 0 3px rgba(255,211,92,.95)) drop-shadow(0 0 9px rgba(255,211,92,.75))", opacity: p.status === "sold" ? 0.82 : 1 }} />
+          <path d={d} fill="none" stroke="#fff4b0" strokeOpacity={0.9} strokeWidth={0.0065} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" />
+          <path d={d} fill="none" stroke="#ffffff" strokeOpacity={0.42} strokeWidth={0.00225} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" />
         </g>;
       }
       return <g key={p.id} className="cursor-pointer" onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} aria-label={p.parcel_number}>
-        <path d={d} fill={`${color}0D`} stroke={color} strokeOpacity={0.05} strokeWidth={0.07} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" style={{ filter: `drop-shadow(0 0 2px ${color}) drop-shadow(0 0 6px ${color})`, opacity: p.status === "sold" ? 0.82 : 1 }} />
-        <path d={d} fill="none" stroke={color} strokeOpacity={0.16} strokeWidth={0.026} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" style={{ filter: `drop-shadow(0 0 2px ${color})` }} />
-        <path d={d} fill="none" stroke="#ffffff" strokeOpacity={0.28} strokeWidth={0.008} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" />
-        <path d={d} fill="none" stroke="transparent" strokeWidth={0.12} vectorEffect="non-scaling-stroke" />
+        <path d={d} fill={`${color}0D`} stroke={color} strokeOpacity={0.05} strokeWidth={0.0175} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" style={{ filter: `drop-shadow(0 0 2px ${color}) drop-shadow(0 0 6px ${color})`, opacity: p.status === "sold" ? 0.82 : 1 }} />
+        <path d={d} fill="none" stroke={color} strokeOpacity={0.16} strokeWidth={0.0065} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" style={{ filter: `drop-shadow(0 0 2px ${color})` }} />
+        <path d={d} fill="none" stroke="#ffffff" strokeOpacity={0.28} strokeWidth={0.002} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" />
+        <path d={d} fill="none" stroke="transparent" strokeWidth={0.03} vectorEffect="non-scaling-stroke" />
       </g>;
     }
     const xy = geoPos(p); if (!xy) return null;
