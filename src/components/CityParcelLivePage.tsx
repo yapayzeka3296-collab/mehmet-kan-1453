@@ -17,7 +17,8 @@ const COLS = 12;
 const ROWS = 5;
 const MAP_IMAGE = "/images/cities/turkey-3d-map.png";
 const GOLD = "255,211,92";
-const TIER_COLOR: Record<ParcelTier, string> = { digital: GOLD, elite: GOLD, premium: GOLD };
+const TURQUOISE = "34,211,238";
+const TIER_COLOR: Record<ParcelTier, string> = { digital: TURQUOISE, elite: TURQUOISE, premium: TURQUOISE };
 const PRICES: Record<ParcelTier, number> = { digital: 199, elite: 499, premium: 999 };
 
 function toCartItem(p: MapParcel): ParcelCartItem { return { id: p.id, parcel_number: p.parcel_number, city_name: p.city_name, tier: p.tier, tier_price: Number(p.tier_price ?? PRICES[p.tier]) }; }
@@ -91,19 +92,19 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
         <div className="pointer-events-auto absolute inset-4 z-[100] grid gap-1.5 sm:inset-8" style={{ gridTemplateColumns: `repeat(${COLS},minmax(0,1fr))`, gridTemplateRows: `repeat(${ROWS},minmax(0,1fr))`, touchAction: "manipulation", perspective: "1200px", transform: "perspective(1200px) rotateX(7deg)", transformOrigin: "50% 100%" }}>
           {Array.from({ length: VISIBLE_COUNT }, (_, i) => {
             const slot = slots[i];
-            if (!slot) return <div key={`empty-${i}`} className="pointer-events-none rounded-sm border-[3px] border-amber-200/45 bg-amber-100/[0.025]" />;
-            const p = slot.parcel; const isSelected = selectedIds.has(p.id); const rgb = TIER_COLOR[p.tier];
+            if (!slot) return <div key={`empty-${i}`} className="pointer-events-none rounded-sm border-[3px] border-cyan-200/45 bg-cyan-100/[0.025]" />;
+            const p = slot.parcel; const isSelected = selectedIds.has(p.id); const rgb = isSelected ? GOLD : TIER_COLOR[p.tier];
             const borderRgb = isSelected ? "255,225,120" : rgb;
             const fill = isSelected ? "rgba(255,211,92,.48)" : `rgba(${rgb},.13)`;
-            const glow = isSelected ? "0 0 16px rgba(255,211,92,1),0 0 38px rgba(255,211,92,.95),0 0 80px rgba(255,211,92,.45),inset 0 0 26px rgba(255,225,135,.95)" : "0 0 8px rgba(255,211,92,.72),0 0 18px rgba(255,211,92,.22),inset 0 0 0 1px rgba(255,244,176,.55)";
+            const glow = isSelected ? "0 0 16px rgba(255,211,92,1),0 0 38px rgba(255,211,92,.95),0 0 80px rgba(255,211,92,.45),inset 0 0 26px rgba(255,225,135,.95)" : "0 0 8px rgba(34,211,238,.72),0 0 18px rgba(34,211,238,.22),inset 0 0 0 1px rgba(165,243,252,.55)";
             return <button key={p.id} type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); activateSlot(i); }} className="relative z-[110] block h-full w-full min-h-0 min-w-0 cursor-pointer select-none rounded-sm border-[3px] p-0 transition-all duration-200 hover:brightness-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-200" aria-pressed={isSelected} aria-label={`${p.parcel_number} parseli ${isSelected ? "seçildi, kaldır" : "seç"}`} style={{ WebkitTapHighlightColor: "transparent", WebkitAppearance: "none", borderColor: `rgba(${borderRgb},1)`, backgroundColor: fill, boxShadow: glow, touchAction: "manipulation", pointerEvents: "auto", transform: isSelected ? "scale(1.018)" : undefined }}>
-              <span className="pointer-events-none absolute inset-[8%] rounded-sm" style={{ background: isSelected ? "linear-gradient(135deg,rgba(255,248,196,.42),rgba(255,193,7,.16))" : "linear-gradient(135deg,rgba(255,239,164,.12),rgba(255,193,7,.04))", border: "1px solid rgba(255,244,176,.35)" }} />
+              <span className="pointer-events-none absolute inset-[8%] rounded-sm" style={{ background: isSelected ? "linear-gradient(135deg,rgba(255,248,196,.42),rgba(255,193,7,.16))" : "linear-gradient(135deg,rgba(165,243,252,.10),rgba(34,211,238,.035))", border: isSelected ? "1px solid rgba(255,244,176,.35)" : "1px solid rgba(165,243,252,.28)" }} />
               <span className={`pointer-events-none absolute inset-0 flex items-center justify-center font-semibold ${isSelected ? "text-[7px] text-slate-950 sm:text-[10px]" : "text-[6px] text-white/90 sm:text-[9px]"}`}>{p.parcel_number}</span>
               {isSelected && <><span className="pointer-events-none absolute -top-2 left-1/2 z-[130] h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white/90 bg-amber-300 shadow-[0_0_16px_rgba(255,211,92,1)] sm:-top-3 sm:h-5 sm:w-5"><MapPin className="h-full w-full p-[2px] text-slate-950" /></span><span className="pointer-events-none absolute left-1/2 top-1/2 z-[130] -translate-x-1/2 translate-y-[115%] whitespace-nowrap rounded-full border border-amber-100/80 bg-slate-950/90 px-2 py-0.5 text-[7px] font-bold uppercase tracking-[.12em] text-amber-100 shadow-[0_0_14px_rgba(255,211,92,.65)] sm:text-[8px]">MY PARSEL · {p.parcel_number}</span><span className="pointer-events-none absolute inset-0 animate-pulse rounded-sm" style={{ boxShadow: "inset 0 0 22px rgba(255,221,110,.95),0 0 34px rgba(255,211,92,.58)" }} /></>}
             </button>;
           })}
         </div>
-        <div className="pointer-events-none absolute bottom-5 left-5 z-20"><p className="text-xs uppercase tracking-[.2em] text-amber-200/70">MySkyParcel · Türkiye Gökyüzü Parsel Haritası</p><h1 className="mt-1 text-3xl font-bold">{city.name}</h1><p className="mt-1 text-sm text-white/70">Altın çizgi · ışıklı parsel sınırı · Seçtiğiniz parsel altın pin ile işaretlenir.</p></div>
+        <div className="pointer-events-none absolute bottom-5 left-5 z-20"><p className="text-xs uppercase tracking-[.2em] text-cyan-200/70">MySkyParcel · Türkiye Gökyüzü Parsel Haritası</p><h1 className="mt-1 text-3xl font-bold">{city.name}</h1><p className="mt-1 text-sm text-white/70">Normal parseller turkuaz · seçilen parsel altın ışık ve pin ile işaretlenir.</p></div>
       </div>
       <div className="grid gap-3 p-4 sm:grid-cols-4">
         <div className="rounded-xl border border-amber-300/15 bg-slate-950/60 p-3"><span className="text-xs text-white/45">Ekrandaki parsel</span><div className="text-xl font-bold text-amber-200">{slots.filter(Boolean).length}</div></div>
