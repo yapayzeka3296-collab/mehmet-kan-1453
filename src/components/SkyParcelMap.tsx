@@ -5,17 +5,7 @@ import { PARCEL_CART_EVENT, readParcelCart, writeParcelCart, type ParcelCartItem
 type CityCenter = { lat: number; lng: number };
 type ViewportBounds = { minLat: number; minLng: number; maxLat: number; maxLng: number };
 type FocusTarget = { city: CityCenter; parcel: CityCenter; token: string };
-type Props = {
-  parcels: Parcel[];
-  selectedId: string | null;
-  selectedIds?: Set<string>;
-  multiSelect?: boolean;
-  onSelect: (id: string | null) => void;
-  onToggleSelect?: (id: string) => void;
-  onViewportChange?: (bounds: ViewportBounds) => void;
-  center: CityCenter;
-  focusTarget?: FocusTarget | null;
-};
+type Props = { parcels: Parcel[]; selectedId: string | null; selectedIds?: Set<string>; multiSelect?: boolean; onSelect: (id: string | null) => void; onToggleSelect?: (id: string) => void; onViewportChange?: (bounds: ViewportBounds) => void; center: CityCenter; focusTarget?: FocusTarget | null };
 type Tier = "digital" | "elite" | "premium";
 type XY = { x: number; y: number };
 
@@ -55,9 +45,7 @@ function geometryPath(geometry?: ParcelGeometry) {
 
 function hasUsableGeometry(p: Parcel) { return Boolean(p.geometry && (p.geometry.type === "Polygon" || p.geometry.type === "MultiPolygon")); }
 
-function SciFiGrid() {
-  return <div aria-hidden className="pointer-events-none absolute inset-0 z-[3] overflow-hidden"><div className="absolute inset-[-25%] opacity-75" style={{ backgroundImage: "linear-gradient(rgba(76,224,255,.34) 1px,transparent 1px),linear-gradient(90deg,rgba(76,224,255,.34) 1px,transparent 1px),linear-gradient(rgba(177,108,255,.13) 1px,transparent 1px),linear-gradient(90deg,rgba(177,108,255,.13) 1px,transparent 1px)", backgroundSize: "32px 32px,32px 32px,160px 160px,160px 160px", transform: "perspective(680px) rotateX(54deg) scale(1.55) translateY(12%)", transformOrigin: "50% 57%", maskImage: "linear-gradient(to bottom,transparent 0%,black 25%,black 85%,transparent 100%)" }} /><div className="absolute inset-0" style={{ background: "radial-gradient(circle at 50% 52%,transparent 0 25%,rgba(0,15,30,.12) 48%,rgba(0,3,12,.65) 100%)" }} /></div>;
-}
+function SciFiGrid() { return null; }
 
 export function SkyParcelMap({ parcels, selectedId, selectedIds = new Set<string>(), multiSelect = false, onSelect, onToggleSelect, onViewportChange, center, focusTarget }: Props) {
   const [focus, setFocus] = useState(false); const [hover, setHover] = useState<string | null>(null);
@@ -95,16 +83,14 @@ export function SkyParcelMap({ parcels, selectedId, selectedIds = new Set<string
       </g>;
     }
     const xy = geoPos(p); if (!xy) return null;
-    return <button key={p.id} type="button" disabled={p.status !== "available"} aria-label={p.parcel_number} onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} className="absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-[3px] border p-0 sm:h-7 sm:w-7" style={{ left: `${xy.left}%`, top: `${xy.top}%`, borderColor: selected ? "#fff4b0" : PARCEL_LINE_COLOR, background: selected ? "rgba(255,211,92,.25)" : "rgba(4,18,30,.8)", boxShadow: selected ? "0 0 8px #fff4b0,0 0 22px rgba(255,211,92,.8)" : `0 0 5px ${PARCEL_LINE_COLOR}66`, opacity: p.status === "sold" ? 0.82 : 1 }}><span className="absolute inset-[5px] rounded-full" style={{ background: PARCEL_LINE_COLOR }} />{(hover === p.id || selected) && <span className="pointer-events-none absolute left-1/2 top-[-30px] -translate-x-1/2 whitespace-nowrap rounded bg-[#020914]/95 px-2 py-1 text-[9px] text-white shadow-lg">{p.parcel_number}</span>}</button>;
+    return <button key={p.id} type="button" disabled={p.status !== "available"} aria-label={p.parcel_number} onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} className="absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-[3px] border p-0 sm:h-7 sm:w-7" style={{ left: `${xy.left}%`, top: `${xy.top}%`, borderColor: selected ? "#fff4b0" : PARCEL_LINE_COLOR, background: selected ? "rgba(255,211,92,.25)" : "transparent", boxShadow: selected ? "0 0 8px #fff4b0,0 0 22px rgba(255,211,92,.8)" : `0 0 5px ${PARCEL_LINE_COLOR}66`, opacity: p.status === "sold" ? 0.82 : 1 }}><span className="absolute inset-[5px] rounded-full" style={{ background: PARCEL_LINE_COLOR }} />{(hover === p.id || selected) && <span className="pointer-events-none absolute left-1/2 top-[-30px] -translate-x-1/2 whitespace-nowrap rounded bg-[#020914]/95 px-2 py-1 text-[9px] text-white shadow-lg">{p.parcel_number}</span>}</button>;
   };
 
-  return <div className={`relative h-[420px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[420px] lg:h-[469px] ${focus ? "ring-2 ring-cyan-300/40" : ""}`} data-center-lat={center.lat} data-center-lng={center.lng}>
-    <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(30,112,160,.3),transparent_32%),linear-gradient(145deg,#030b17,#071a2d_52%,#020711)]" />
-    <div className="absolute inset-0 opacity-50" style={{ backgroundImage: "radial-gradient(circle,rgba(255,255,255,.7) .8px,transparent .9px)", backgroundSize: "31px 31px" }} />
+  return <div className={`relative h-[420px] w-full overflow-visible rounded-2xl border border-transparent bg-transparent sm:h-[420px] lg:h-[469px] ${focus ? "ring-2 ring-cyan-300/40" : ""}`} data-center-lat={center.lat} data-center-lng={center.lng}>
     <SciFiGrid />
-    <div className="absolute left-3 top-3 z-20 rounded-lg border border-cyan-300/20 bg-[#020914]/75 px-3 py-2 text-[10px] text-cyan-100 backdrop-blur-sm"><div className="font-semibold tracking-wide">GÖKYÜZÜ PARSEL HARİTASI</div><div className="mt-1 text-white/60">{available.toLocaleString("tr-TR")} uygun parsel</div></div>
+    <div className="absolute left-3 top-3 z-20 rounded-lg border border-cyan-300/20 bg-[#020914]/65 px-3 py-2 text-[10px] text-cyan-100 backdrop-blur-sm"><div className="font-semibold tracking-wide">GÖKYÜZÜ PARSEL HARİTASI</div><div className="mt-1 text-white/60">{available.toLocaleString("tr-TR")} uygun parsel</div></div>
     <div className="absolute right-3 top-3 z-20 flex gap-2 text-[9px] text-white/75">{(["digital", "elite", "premium"] as Tier[]).map((tier) => <span key={tier} className="rounded border border-white/10 bg-black/35 px-2 py-1 backdrop-blur-sm"><span className="mr-1 inline-block h-1.5 w-1.5 rounded-full" style={{ background: colors[tier] }} />{tier} {groups[tier].length}</span>)}</div>
-    {polygonMode ? <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 z-[5] h-full w-full">{parcels.map(renderParcel)}</svg> : <div className="absolute inset-0 z-[5]">{parcels.map(renderParcel)}</div>}
+    {polygonMode ? <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 z-[5] h-full w-full" style={{ transform: "perspective(1100px) rotateX(38deg) scale(1.08) translateY(5%)", transformOrigin: "50% 82%", filter: "drop-shadow(0 0 1px rgba(85,201,255,.55))" }}>{parcels.map(renderParcel)}</svg> : <div className="absolute inset-0 z-[5]">{parcels.map(renderParcel)}</div>}
     {parcels.length === 0 && <div className="absolute inset-0 z-20 flex items-center justify-center px-6 text-center text-sm text-white/70">Bu görünüm için parsel verisi bulunamadı. Haritayı yenileyerek tekrar deneyin.</div>}
   </div>;
 }
