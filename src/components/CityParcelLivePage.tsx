@@ -8,6 +8,7 @@ import type { ParcelTier } from "@/types/parcel";
 type City = { id: string; name: string; slug: string };
 type MapParcel = { id: string; parcel_number: string; status: "available" | "reserved" | "sold"; tier: ParcelTier; tier_price: number; city_name: string; city_slug: string; grid_x: number | null; grid_y: number | null };
 type Slot = { parcel: MapParcel; tier: ParcelTier };
+type OwnedParcelRow = { id: string; parcel_number: string; tier: ParcelTier; tier_price: number | null; price: number | null; cities: { name: string; slug: string }[] | null };
 
 const TIERS: ParcelTier[] = ["digital", "elite", "premium"];
 const PER_TIER = 20;
@@ -56,9 +57,6 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
         setSelected(existing);
         const selectedIds = new Set(existing.map(p => p.id));
 
-        // /gokyuzu-haritasi?...&parcels=<id> is used by "Konuma Git".
-        // A purchased parcel is sold and therefore excluded from parcels_in_view;
-        // load it separately so it can still appear in the list below the map.
         const params = new URLSearchParams(window.location.search);
         const targetId = params.get("parcels")?.split(",").map(s => s.trim()).find(Boolean);
         if (targetId && user) {
@@ -67,8 +65,9 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
             .eq("id", targetId).eq("owner_id", user.id).eq("status", "sold").maybeSingle();
           if (ownedError) throw ownedError;
           if (owned && alive) {
-            const p = owned as any;
-            setPurchasedParcel({ id: p.id, parcel_number: p.parcel_number, city_name: p.cities?.name ?? cityData.name, tier: p.tier, tier_price: Number(p.tier_price ?? p.price ?? PRICES[p.tier]) });
+            const p = owned as OwnedParcelRow;
+            const ownedCity = p.cities?.[0];
+            setPurchasedParcel({ id: p.id, parcel_number: p.parcel_number, city_name: ownedCity?.name ?? cityData.name, tier: p.tier, tier_price: Number(p.tier_price ?? p.price ?? PRICES[p.tier]) });
           }
         }
 
@@ -125,6 +124,20 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
       <div className="relative min-h-[380px] overflow-hidden bg-[#020914] sm:min-h-[650px]">
         <img src={MAP_IMAGE} alt="Türkiye gökyüzü parsel haritası" className="pointer-events-none absolute inset-0 z-0 h-full w-full object-contain opacity-90" />
         <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle_at_50%_45%,rgba(30,150,220,.22),transparent_42%),linear-gradient(145deg,rgba(2,7,17,.55),rgba(7,26,45,.18),rgba(1,4,11,.55)]" />
+        <div className="pointer-events-none absolute inset-4 z-20 sm:inset-8" aria-hidden="true">
+          <svg className="h-full w-full" viewBox="0 0 1200 500" preserveAspectRatio="none">
+            {Array.from({ length: COLS + 1 }, (_, i) => {
+              const x = (1200 / COLS) * i;
+              const curve = (i - COLS / 2) * 3;
+              return <path key={`grid-v-${i}`} d={`M ${x} 0 Q ${x + curve} 250 ${x} 500`} fill="none" stroke="rgba(210,238,255,.42)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />;
+            })}
+            {Array.from({ length: ROWS + 1 }, (_, i) => {
+              const y = (500 / ROWS) * i;
+              const curve = (i - ROWS / 2) * 7;
+              return <path key={`grid-h-${i}`} d={`M 0 ${y} Q 600 ${y + curve} 1200 ${y}`} fill="none" stroke="rgba(210,238,255,.42)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />;
+            })}
+          </svg>
+        </div>
         <div className="pointer-events-auto absolute inset-4 z-[100] grid gap-1.5 sm:inset-8" style={{ gridTemplateColumns: `repeat(${COLS},minmax(0,1fr))`, gridTemplateRows: `repeat(${ROWS},minmax(0,1fr))`, touchAction: "manipulation" }}>
           {Array.from({ length: VISIBLE_COUNT }, (_, i) => {
             const slot = slots[i];

@@ -77,7 +77,8 @@ export function CityParcelPage({ slug }: { slug: string }) {
   const selected = useMemo(() => parcels.filter((p) => selectedIds.has(p.id)), [parcels, selectedIds]);
   const total = selected.reduce((sum, p) => sum + Number(p.tier_price ?? PRICE[p.tier]), 0);
 
-  const toggle = (id: string) => {
+  const toggle = (id: string | null) => {
+    if (!id) return;
     setSelectedIds((previous) => {
       const next = new Set(previous);
       const parcel = parcels.find((p) => p.id === id);

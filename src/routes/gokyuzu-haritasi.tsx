@@ -40,7 +40,20 @@ function SkyMapPage() {
         .eq("owner_id", user.id)
         .eq("status", "sold")
         .maybeSingle();
-      if (!error && data && alive) setPurchasedParcel(data as PurchasedParcel);
+      if (!error && data && alive) {
+        const cityRelation = Array.isArray(data.cities) ? data.cities[0] ?? null : data.cities;
+        setPurchasedParcel({
+          id: data.id,
+          parcel_number: data.parcel_number,
+          status: data.status,
+          tier: data.tier,
+          tier_price: data.tier_price,
+          price: data.price,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          cities: cityRelation,
+        });
+      }
     }
     void loadPurchasedParcel();
     return () => { alive = false; };
