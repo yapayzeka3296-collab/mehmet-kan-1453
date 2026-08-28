@@ -5,74 +5,11 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { CityParcelLivePage } from "@/components/CityParcelLivePage";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { useAuth } from "@/hooks/useAuth";
-
 export const Route = createFileRoute("/gokyuzu-haritasi")({ component: SkyMapPage });
-
-type PurchasedParcel = {
-  id: string;
-  parcel_number: string;
-  status: string;
-  tier: "digital" | "elite" | "premium";
-  tier_price: number | null;
-  price: number | null;
-  latitude: number | null;
-  longitude: number | null;
-  cities: { name: string; code: string } | null;
-};
-
+type PurchasedParcel = { id: string; parcel_number: string; status: string; tier: "digital" | "elite" | "premium"; tier_price: number | null; price: number | null; latitude: number | null; longitude: number | null; cities: { name: string; code: string } | null };
 const TIER_LABELS = { digital: "Dijital", elite: "Elit", premium: "Premium" } as const;
-
 function SkyMapPage() {
-  const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
-  const city = params.get("city") || "istanbul";
-  const parcelId = params.get("parcels");
-  const { user, loading: authLoading } = useAuth();
-  const [purchasedParcel, setPurchasedParcel] = useState<PurchasedParcel | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    async function loadPurchasedParcel() {
-      if (!parcelId || !user || !supabaseBrowser) return;
-      const { data, error } = await supabaseBrowser
-        .from("parcels")
-        .select("id,parcel_number,status,tier,tier_price,price,latitude,longitude,cities(name,code)")
-        .eq("id", parcelId)
-        .eq("owner_id", user.id)
-        .eq("status", "sold")
-        .maybeSingle();
-      if (!error && data && alive) setPurchasedParcel(data as PurchasedParcel);
-    }
-    void loadPurchasedParcel();
-    return () => { alive = false; };
-  }, [parcelId, user]);
-
-  return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <SiteHeader />
-      <CityParcelLivePage slug={city} />
-      {parcelId && !authLoading && purchasedParcel && (
-        <section className="mx-auto max-w-[1800px] px-3 pb-8 sm:px-5 lg:px-8" aria-label="Konumdan açılan satın alınmış parsel">
-          <div className="rounded-2xl border border-emerald-300/20 bg-slate-900/90 p-4 shadow-xl sm:p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300">
-                  <PackageCheck className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-emerald-300">Satın alınan parsel</p>
-                  <p className="mt-1 truncate font-display text-lg">{purchasedParcel.parcel_number}</p>
-                  <p className="mt-1 text-xs text-white/55">
-                    {purchasedParcel.cities?.name ?? "—"} · {TIER_LABELS[purchasedParcel.tier]} · Sahipliğinizde
-                  </p>
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2 rounded-lg border border-emerald-300/15 bg-emerald-400/5 px-3 py-2 text-xs text-emerald-200">
-                <MapPin className="h-4 w-4" /> Konumdan açıldı
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-    </div>
-  );
+ const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search); const city = params.get("city") || "istanbul"; const parcelId = params.get("parcels"); const { user, loading: authLoading } = useAuth(); const [purchasedParcel, setPurchasedParcel] = useState<PurchasedParcel | null>(null);
+ useEffect(() => { let alive = true; async function loadPurchasedParcel() { if (!parcelId || !user || !supabaseBrowser) return; const { data, error } = await supabaseBrowser.from("parcels").select("id,parcel_number,status,tier,tier_price,price,latitude,longitude,cities(name,code)").eq("id", parcelId).eq("owner_id", user.id).eq("status", "sold").maybeSingle(); if (!error && data && alive) { const row = data as unknown as { id: string; parcel_number: string; status: string; tier: PurchasedParcel["tier"]; tier_price: number | null; price: number | null; latitude: number | null; longitude: number | null; cities: { name: string; code: string } | { name: string; code: string }[] | null }; const cities = Array.isArray(row.cities) ? row.cities[0] ?? null : row.cities; setPurchasedParcel({ id: row.id, parcel_number: row.parcel_number, status: row.status, tier: row.tier, tier_price: row.tier_price, price: row.price, latitude: row.latitude, longitude: row.longitude, cities }); } } void loadPurchasedParcel(); return () => { alive = false; }; }, [parcelId, user]);
+ return <div className="min-h-screen bg-slate-950 text-white"><SiteHeader /><CityParcelLivePage slug={city} />{parcelId && !authLoading && purchasedParcel && <section className="mx-auto max-w-[1800px] px-3 pb-8 sm:px-5 lg:px-8" aria-label="Konumdan açılan satın alınmış parsel"><div className="rounded-2xl border border-emerald-300/20 bg-slate-900/90 p-4 shadow-xl sm:p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-center gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300"><PackageCheck className="h-5 w-5" /></div><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-emerald-300">Satın alınan parsel</p><p className="mt-1 truncate font-display text-lg">{purchasedParcel.parcel_number}</p><p className="mt-1 text-xs text-white/55">{purchasedParcel.cities?.name ?? "—"} · {TIER_LABELS[purchasedParcel.tier]} · Sahipliğinizde</p></div></div><div className="flex shrink-0 items-center gap-2 rounded-lg border border-emerald-300/15 bg-emerald-400/5 px-3 py-2 text-xs text-emerald-200"><MapPin className="h-4 w-4" /> Konumdan açıldı</div></div></div></section>}</div>;
 }
