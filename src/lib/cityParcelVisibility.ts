@@ -9,27 +9,23 @@ function hash(id: string) {
   return Math.abs(value);
 }
 
-/** Keep 30 Digital + 22 Elite + 8 Premium while showing only real sales.
- * The visible sold count is capped at six (10% of 60); available parcels are
- * never fabricated as sold. Selected sold records are deterministically mixed
- * into the 60 visible positions so they do not form a fixed cluster.
+/** Keep 30 Digital + 22 Elite + 8 Premium while ensuring every real sale up to
+ * the 10% visual cap is included in the city's 60 visible parcels.
  */
 export function selectVisibleCityParcels(parcels: Parcel[]) {
-  let soldRemaining = MAX_VISIBLE_SOLD;
   const result: Parcel[] = [];
+  const allSold = parcels.filter((parcel) => parcel.status === "sold").sort((a, b) => hash(a.id) - hash(b.id));
+  const soldToShow = allSold.slice(0, MAX_VISIBLE_SOLD);
+  const soldIds = new Set(soldToShow.map((parcel) => parcel.id));
 
   (Object.keys(TIER_COUNTS) as ParcelTier[]).forEach((tier) => {
-    const tierRows = parcels.filter((parcel) => parcel.tier === tier);
     const count = TIER_COUNTS[tier];
-    const sold = tierRows.filter((parcel) => parcel.status === "sold");
-    const nonSold = tierRows.filter((parcel) => parcel.status !== "sold");
-    const soldToShow = sold.slice(0, soldRemaining);
-    soldRemaining -= soldToShow.length;
-
-    const nonSoldToShow = nonSold.slice(0, Math.max(0, count - soldToShow.length));
-    const chosen = [...soldToShow, ...nonSoldToShow].sort((a, b) => hash(a.id) - hash(b.id));
-    result.push(...chosen.slice(0, count));
+    const tierRows = parcels.filter((parcel) => parcel.tier === tier && !soldIds.has(parcel.id));
+    const tierSold = soldToShow.filter((parcel) => parcel.tier === tier);
+    const remaining = Math.max(0, count - tierSold.length);
+    const nonSoldToShow = tierRows.slice(0, remaining);
+    result.push(...tierSold, ...nonSoldToShow);
   });
 
-  return result.slice(0, 60);
+  return result.sort((a, b) => hash(a.id) - hash(b.id)).slice(0, 60);
 }
