@@ -8,6 +8,7 @@ import type { ParcelTier } from "@/types/parcel";
 type City = { id: string; name: string; slug: string };
 type MapParcel = { id: string; parcel_number: string; status: "available" | "reserved" | "sold"; tier: ParcelTier; tier_price: number; city_name: string; city_slug: string; grid_x: number | null; grid_y: number | null };
 type Slot = { parcel: MapParcel; tier: ParcelTier };
+type OwnedParcelRow = { id: string; parcel_number: string; tier: ParcelTier; tier_price: number | null; price: number | null; cities: { name: string; slug: string } | null };
 
 const TIERS: ParcelTier[] = ["digital", "elite", "premium"];
 const PER_TIER = 20;
@@ -64,7 +65,7 @@ export function CityParcelLivePage({ slug }: { slug: string }) {
             .eq("id", targetId).eq("owner_id", user.id).eq("status", "sold").maybeSingle();
           if (ownedError) throw ownedError;
           if (owned && alive) {
-            const p = owned as any;
+            const p = owned as OwnedParcelRow;
             setPurchasedParcel({ id: p.id, parcel_number: p.parcel_number, city_name: p.cities?.name ?? cityData.name, tier: p.tier, tier_price: Number(p.tier_price ?? p.price ?? PRICES[p.tier]) });
           }
         }
