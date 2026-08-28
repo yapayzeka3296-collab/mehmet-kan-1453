@@ -18,6 +18,8 @@ export const Route = createFileRoute("/iletisim")({
   component: Iletisim,
 });
 
+const CONTACT_EMAIL = "info.myskyparcel@gmail.com";
+
 function Iletisim() {
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [statusText, setStatusText] = useState("");
@@ -54,8 +56,12 @@ function Iletisim() {
       setStatusText("Mesajınız başarıyla gönderildi. En kısa sürede size dönüş yapacağız.");
     } catch (error) {
       console.error("Contact form error", error);
-      setStatus("error");
-      setStatusText("Mesaj gönderilemedi. Lütfen biraz sonra tekrar deneyin veya info.myskyparcel@gmail.com adresine e-posta gönderin.");
+      const subject = payload.subject || "MySkyParcel İletişim Mesajı";
+      const body = `Ad Soyad: ${payload.name}\nE-posta: ${payload.email}\n\n${payload.message}`;
+      const mailto = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.location.href = mailto;
+      setStatus("success");
+      setStatusText(`Otomatik gönderim servisine ulaşılamadı. E-posta uygulamanız ${CONTACT_EMAIL} adresine hazır mesajı açtı; Gönder'e basmanız yeterli.`);
     }
   }
 
@@ -75,7 +81,7 @@ function Iletisim() {
               <div className="min-w-0"><p className="text-xs text-muted-foreground">Satıcı / İşletme</p><p className="text-sm font-medium">MySkyParcel</p></div>
             </div>
             {[
-              { icon: Mail, t: "E-posta", v: "info.myskyparcel@gmail.com" },
+              { icon: Mail, t: "E-posta", v: CONTACT_EMAIL },
               { icon: Phone, t: "Telefon", v: "0541 615 97 43" },
               { icon: MapPin, t: "Adres", v: "Kuştepe Mah. Mecidiyeköy Yolu Cad. No:18 34318 Şişli/İstanbul" },
             ].map((c) => (
