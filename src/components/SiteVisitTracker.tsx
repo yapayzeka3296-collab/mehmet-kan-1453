@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
@@ -24,6 +25,7 @@ function isAdminDashboard() {
 export function SiteVisitTracker() {
   const [stats, setStats] = useState<SiteStats | null>(null);
   const [showStats, setShowStats] = useState(false);
+  const [statsHost, setStatsHost] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!supabaseBrowser) return;
@@ -45,7 +47,26 @@ export function SiteVisitTracker() {
   useEffect(() => {
     if (!supabaseBrowser || window.location.pathname !== "/yonetim") return;
     let cancelled = false;
-    const syncVisibility = () => setShowStats(isAdminDashboard());
+    let host: HTMLDivElement | null = null;
+
+    const syncVisibility = () => {
+      const dashboard = isAdminDashboard();
+      setShowStats(dashboard);
+      if (dashboard && !host) {
+        const container = document.querySelector("main .space-y-6");
+        if (container) {
+          host = document.createElement("div");
+          host.className = "w-full";
+          container.appendChild(host);
+          setStatsHost(host);
+        }
+      } else if (!dashboard && host) {
+        host.remove();
+        host = null;
+        setStatsHost(null);
+      }
+    };
+
     syncVisibility();
     const observer = new MutationObserver(syncVisibility);
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
@@ -65,10 +86,12 @@ export function SiteVisitTracker() {
       cancelled = true;
       observer.disconnect();
       window.clearInterval(timer);
+      host?.remove();
+      setStatsHost(null);
     };
   }, []);
 
-  if (!showStats || !stats) return null;
+  if (!showStats || !stats || !statsHost) return null;
 
   const cards = [
     ["Şu an aktif", stats.active_now],
@@ -79,8 +102,8 @@ export function SiteVisitTracker() {
     ["Bugünkü sayfa görüntüleme", stats.pages_today],
   ] as const;
 
-  return (
-    <section className="mx-4 mt-4 rounded-xl border border-gold/30 bg-background/95 p-4 shadow-lg lg:ml-[266px] lg:mr-6 lg:p-5">
+  return createPortal(
+    <section className="rounded-xl border border-gold/30 bg-background/95 p-4 shadow-lg lg:p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-lg font-semibold">Site İstatistikleri</h2>
@@ -96,6 +119,7 @@ export function SiteVisitTracker() {
           </div>
         ))}
       </div>
-    </section>
+    </section>,
+    statsHost,
   );
 }
