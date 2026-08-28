@@ -86,9 +86,15 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       positions[i * 3 + 2] = radius * xy * Math.sin(theta);
     }
     starsGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.035, sizeAttenuation: true, transparent: true, opacity: 0.9 });
+    const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.048, sizeAttenuation: true, transparent: true, opacity: 1 });
     const stars = new THREE.Points(starsGeometry, starsMaterial);
-    scene.add(stars);
+    const starsGroup = new THREE.Group();
+    starsGroup.add(stars);
+    scene.add(starsGroup);
+
+    const syncStarsToEarth = () => {
+      starsGroup.rotation.copy(earth.rotation);
+    };
 
     const applyZoom = (next: number) => {
       const clamped = THREE.MathUtils.clamp(next, MIN_ZOOM, MAX_ZOOM);
@@ -141,6 +147,7 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       earth.rotation.x = Math.max(-1.15, Math.min(1.15, earth.rotation.x));
       clouds.rotation.y += dx * 0.002;
       clouds.rotation.x += dy * 0.0012;
+      syncStarsToEarth();
     };
 
     const onPointerUp = (event: PointerEvent) => {
@@ -182,7 +189,7 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       if (!dragging && pointers.size === 0) {
         earth.rotation.y += delta * 0.018;
         clouds.rotation.y += delta * 0.004;
-        stars.rotation.y += delta * 0.00012;
+        syncStarsToEarth();
       }
       renderer.render(scene, camera);
     };
@@ -197,17 +204,9 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       renderer.domElement.removeEventListener("pointercancel", onPointerUp);
-      earthTexture.dispose();
-      cloudTexture.dispose();
-      earthGeometry.dispose();
-      earthMaterial.dispose();
-      cloudGeometry.dispose();
-      cloudMaterial.dispose();
-      atmosphereGeometry.dispose();
-      atmosphereMaterial.dispose();
-      starsGeometry.dispose();
-      starsMaterial.dispose();
-      renderer.dispose();
+      earthTexture.dispose(); cloudTexture.dispose(); earthGeometry.dispose(); earthMaterial.dispose();
+      cloudGeometry.dispose(); cloudMaterial.dispose(); atmosphereGeometry.dispose(); atmosphereMaterial.dispose();
+      starsGeometry.dispose(); starsMaterial.dispose(); renderer.dispose();
       if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
     };
   }, []);
