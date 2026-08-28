@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
 type Props = { className?: string };
@@ -12,15 +12,6 @@ const DEFAULT_CAMERA_Z = 5.05;
 export function MySkyParcelEarthGlobe({ className = "" }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const cameraZRef = useRef(DEFAULT_CAMERA_Z);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const [zoom, setZoom] = useState(DEFAULT_CAMERA_Z);
-
-  const changeZoom = (delta: number) => {
-    const next = THREE.MathUtils.clamp(cameraZRef.current + delta, MIN_ZOOM, MAX_ZOOM);
-    cameraZRef.current = next;
-    if (cameraRef.current) cameraRef.current.position.z = next;
-    setZoom(next);
-  };
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -36,7 +27,6 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     scene.background = new THREE.Color(0x01040b);
     const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
     camera.position.set(0, 0.35, cameraZRef.current);
-    cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
@@ -104,7 +94,6 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       const clamped = THREE.MathUtils.clamp(next, MIN_ZOOM, MAX_ZOOM);
       cameraZRef.current = clamped;
       camera.position.z = clamped;
-      setZoom(clamped);
     };
 
     const onWheel = (event: WheelEvent) => {
@@ -208,7 +197,6 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       renderer.domElement.removeEventListener("pointercancel", onPointerUp);
-      if (cameraRef.current === camera) cameraRef.current = null;
       earthTexture.dispose();
       cloudTexture.dispose();
       earthGeometry.dispose();
@@ -228,12 +216,6 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     <div className={`relative h-[560px] w-full overflow-hidden rounded-3xl border border-sky-200/15 bg-[#01040b] shadow-2xl shadow-black/40 ${className}`}>
       <div ref={mountRef} className="absolute inset-0" aria-label="MySkyParcel görsel 3D Dünya küresi" />
       <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">İki parmakla yakınlaştır · fare tekerleğiyle zoom</div>
-      <div className="absolute right-4 top-4 z-20 flex flex-col overflow-hidden rounded-xl border border-white/15 bg-black/45 shadow-lg backdrop-blur-md">
-        <button type="button" aria-label="Küreyi yakınlaştır" onClick={() => changeZoom(-0.45)} className="h-10 w-10 text-xl font-semibold text-white hover:bg-white/10 active:bg-white/20">+</button>
-        <div className="h-px bg-white/10" />
-        <button type="button" aria-label="Küreyi uzaklaştır" onClick={() => changeZoom(0.45)} className="h-10 w-10 text-xl font-semibold text-white hover:bg-white/10 active:bg-white/20">−</button>
-      </div>
-      <div className="pointer-events-none absolute right-4 bottom-4 rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[9px] text-white/45">{Math.round((MAX_ZOOM - zoom) / (MAX_ZOOM - MIN_ZOOM) * 100)}% yakın</div>
     </div>
   );
 }
