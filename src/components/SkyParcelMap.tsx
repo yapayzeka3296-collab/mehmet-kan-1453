@@ -20,6 +20,7 @@ type Tier = "digital" | "elite" | "premium";
 type XY = { x: number; y: number };
 
 const colors: Record<Tier, string> = { digital: "#55c9ff", elite: "#b77cff", premium: "#f6c453" };
+const PARCEL_LINE_COLOR = "#55c9ff";
 const B: ViewportBounds = { minLat: 35.75, maxLat: 42.15, minLng: 25.65, maxLng: 44.85 };
 const MAX_POLYGON_FEATURES = 2500;
 
@@ -87,14 +88,14 @@ export function SkyParcelMap({ parcels, selectedId, selectedIds = new Set<string
         </g>;
       }
       return <g key={p.id} className="cursor-pointer" onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} aria-label={p.parcel_number}>
-        <path d={d} fill={`${color}0D`} stroke={color} strokeOpacity={0.05} strokeWidth={0.0175} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" style={{ filter: `drop-shadow(0 0 2px ${color}) drop-shadow(0 0 6px ${color})`, opacity: p.status === "sold" ? 0.82 : 1 }} />
-        <path d={d} fill="none" stroke={color} strokeOpacity={0.16} strokeWidth={0.0065} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" style={{ filter: `drop-shadow(0 0 2px ${color})` }} />
+        <path d={d} fill={`${PARCEL_LINE_COLOR}0D`} stroke={PARCEL_LINE_COLOR} strokeOpacity={0.05} strokeWidth={0.01375} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" style={{ filter: `drop-shadow(0 0 2px ${PARCEL_LINE_COLOR}) drop-shadow(0 0 6px ${PARCEL_LINE_COLOR})`, opacity: p.status === "sold" ? 0.82 : 1 }} />
+        <path d={d} fill="none" stroke={PARCEL_LINE_COLOR} strokeOpacity={0.16} strokeWidth={0.0065} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" style={{ filter: `drop-shadow(0 0 2px ${PARCEL_LINE_COLOR})` }} />
         <path d={d} fill="none" stroke="#ffffff" strokeOpacity={0.28} strokeWidth={0.002} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" />
         <path d={d} fill="none" stroke="transparent" strokeWidth={0.03} vectorEffect="non-scaling-stroke" />
       </g>;
     }
     const xy = geoPos(p); if (!xy) return null;
-    return <button key={p.id} type="button" disabled={p.status !== "available"} aria-label={p.parcel_number} onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} className="absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-[3px] border p-0 sm:h-7 sm:w-7" style={{ left: `${xy.left}%`, top: `${xy.top}%`, borderColor: selected ? "#fff4b0" : color, background: selected ? "rgba(255,211,92,.25)" : "rgba(4,18,30,.8)", boxShadow: selected ? "0 0 8px #fff4b0,0 0 22px rgba(255,211,92,.8)" : `0 0 5px ${color}66`, opacity: p.status === "sold" ? 0.82 : 1 }}><span className="absolute inset-[5px] rounded-full" style={{ background: color }} />{(hover === p.id || selected) && <span className="pointer-events-none absolute left-1/2 top-[-30px] -translate-x-1/2 whitespace-nowrap rounded bg-[#020914]/95 px-2 py-1 text-[9px] text-white shadow-lg">{p.parcel_number}</span>}</button>;
+    return <button key={p.id} type="button" disabled={p.status !== "available"} aria-label={p.parcel_number} onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} className="absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-[3px] border p-0 sm:h-7 sm:w-7" style={{ left: `${xy.left}%`, top: `${xy.top}%`, borderColor: selected ? "#fff4b0" : PARCEL_LINE_COLOR, background: selected ? "rgba(255,211,92,.25)" : "rgba(4,18,30,.8)", boxShadow: selected ? "0 0 8px #fff4b0,0 0 22px rgba(255,211,92,.8)" : `0 0 5px ${PARCEL_LINE_COLOR}66`, opacity: p.status === "sold" ? 0.82 : 1 }}><span className="absolute inset-[5px] rounded-full" style={{ background: PARCEL_LINE_COLOR }} />{(hover === p.id || selected) && <span className="pointer-events-none absolute left-1/2 top-[-30px] -translate-x-1/2 whitespace-nowrap rounded bg-[#020914]/95 px-2 py-1 text-[9px] text-white shadow-lg">{p.parcel_number}</span>}</button>;
   };
 
   return <div className={`relative h-[420px] w-full overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] sm:h-[420px] lg:h-[469px] ${focus ? "ring-2 ring-cyan-300/40" : ""}`} data-center-lat={center.lat} data-center-lng={center.lng}>
