@@ -1,5 +1,5 @@
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { Award, Globe, Search, Star } from "lucide-react";
+import { Award, Bell, Globe, Search, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -78,6 +78,7 @@ function Panelim() {
   if (loading) return <div className="starfield min-h-screen" aria-busy="true" />;
   if (!user) return <Navigate to="/giris" replace />;
   const stats = { parcels: parcelCount, certificates: certificateCount, favorites: "—" };
+  const pendingCertificateCount = certificates.filter((certificate) => certificate.status === "requested").length;
 
   return (
     <div className="starfield min-h-screen">
@@ -86,6 +87,7 @@ function Panelim() {
         <UserSidebar active="/panelim" />
         <section className="min-w-0" aria-label="Kullanıcı paneli">
           <div className="panel p-6"><h1 className="font-display text-3xl font-bold">PANELİM</h1><p className="mt-2 text-sm text-muted-foreground">Hesabınızın güncel durumu</p></div>
+          {pendingCertificateCount > 0 && <div className="mt-6 rounded-lg border border-gold/40 bg-gold/10 p-4" role="status" aria-live="polite"><div className="flex items-start gap-3"><Bell className="mt-0.5 h-5 w-5 shrink-0 text-gold" /><div><p className="font-display text-sm text-gold">SERTİFİKA TALEBİNİZ ALINDI</p><p className="mt-1 text-xs text-muted-foreground">{pendingCertificateCount === 1 ? "Sertifika talebiniz" : `${pendingCertificateCount} sertifika talebiniz`} başarıyla alındı ve yönetici onayı bekliyor.</p><button type="button" onClick={() => void navigate({ to: "/sertifikalarim" })} className="mt-3 rounded-md border border-gold/40 px-3 py-2 text-xs text-gold hover:bg-gold/10">SERTİFİKALARIMI GÖR</button></div></div></div>}
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{emptyStats.map((item) => <div key={item.title} className="panel flex min-w-0 items-center gap-4 p-5"><item.icon className="h-8 w-8 shrink-0 text-gold" /><div><p className="font-display text-2xl">{dataLoading ? "…" : stats[item.key]}</p><p className="text-sm">{item.title}</p></div></div>)}</div>
           <section className="panel mt-6 p-6">
             <div className="flex items-center gap-3"><Search className="h-5 w-5 text-gold" /><div><h2 className="font-display text-base tracking-[0.06em]">PARSEL ARA</h2><p className="mt-1 text-xs text-muted-foreground">81 ilden istediğiniz parsel numarasını Supabase kayıtlarından arayın.</p></div></div>
