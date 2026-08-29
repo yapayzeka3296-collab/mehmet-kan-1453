@@ -47,18 +47,20 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     const earthTexture = loader.load(EARTH_TEXTURE);
     earthTexture.colorSpace = THREE.SRGBColorSpace;
     earthTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
-    const earthGeometry = new THREE.SphereGeometry(EARTH_RADIUS, 128, 128);
+    const mobileScale = window.matchMedia("(max-width: 767px)").matches ? 0.7 : 1;
+    const earthRadius = EARTH_RADIUS * mobileScale;
+    const earthGeometry = new THREE.SphereGeometry(earthRadius, 128, 128);
     const earthMaterial = new THREE.MeshPhongMaterial({ map: earthTexture, shininess: 8, specular: new THREE.Color(0x1c3550) });
     const earth = new THREE.Mesh(earthGeometry, earthMaterial);
     scene.add(earth);
     const cloudTexture = loader.load(CLOUD_TEXTURE);
     cloudTexture.colorSpace = THREE.SRGBColorSpace;
     cloudTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 2);
-    const cloudGeometry = new THREE.SphereGeometry(EARTH_RADIUS * 1.014, 96, 96);
+    const cloudGeometry = new THREE.SphereGeometry(earthRadius * 1.014, 96, 96);
     const cloudMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, alphaMap: cloudTexture, transparent: true, opacity: 0.42, depthWrite: false });
     const clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
     scene.add(clouds);
-    const atmosphereGeometry = new THREE.SphereGeometry(EARTH_RADIUS * 1.085, 96, 96);
+    const atmosphereGeometry = new THREE.SphereGeometry(earthRadius * 1.085, 96, 96);
     const atmosphereMaterial = new THREE.ShaderMaterial({
       vertexShader: `varying vec3 vNormal; varying vec3 vWorldPosition; void main(){vNormal=normalize(normalMatrix*normal);vec4 worldPosition=modelMatrix*vec4(position,1.0);vWorldPosition=worldPosition.xyz;gl_Position=projectionMatrix*viewMatrix*worldPosition;}`,
       fragmentShader: `varying vec3 vNormal; varying vec3 vWorldPosition; void main(){vec3 viewDir=normalize(cameraPosition-vWorldPosition);float intensity=pow(0.76-max(dot(vNormal,viewDir),0.0),3.0);gl_FragColor=vec4(vec3(0.302,0.639,1.0),intensity*0.78);}`,
