@@ -1,10 +1,11 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Award, Bell, FileText, Home, Layers, LogOut, RefreshCw, ShieldCheck, Sparkles, User } from "lucide-react";
+import { Award, Bell, FileText, Gift, Home, Layers, LogOut, RefreshCw, ShieldCheck, Sparkles, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 const ITEMS = [
   { to: "/panelim", label: "Panelim", icon: Home },
   { to: "/parsellerim", label: "Parsellerim", icon: Layers },
+  { to: "/hediye-et", label: "Parsel Hediye Et", icon: Gift },
   { to: "/siparislerim", label: "Siparişlerim", icon: FileText },
   { to: "/sertifikalarim", label: "Sertifikalarım", icon: Award },
   { to: "/bildirimler", label: "Bildirimler", icon: Bell },
