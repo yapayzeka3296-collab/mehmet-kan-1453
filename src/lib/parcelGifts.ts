@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabaseBrowser as supabase } from "./supabaseBrowser";
 
 export async function createParcelGift(parcelId: string, recipientEmail: string, message?: string) {
   const { data: userData } = await supabase.auth.getUser();
