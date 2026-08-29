@@ -8,6 +8,10 @@ alter table public.parcel_gifts
   alter column created_at set default now(),
   alter column updated_at set default now();
 
+-- The client needs only the minimum table privileges required by the existing flow.
+-- RLS below still restricts which rows an authenticated user may access.
+grant select, insert, delete on table public.parcel_gifts to authenticated;
+
 -- A user may only create a gift for a parcel they currently own and that is sold.
 drop policy if exists parcel_gifts_insert_own on public.parcel_gifts;
 create policy parcel_gifts_insert_own on public.parcel_gifts
