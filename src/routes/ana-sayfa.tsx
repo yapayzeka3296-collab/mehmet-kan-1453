@@ -11,9 +11,9 @@ export const Route = createFileRoute("/ana-sayfa")({ head: () => ({ meta: [{ tit
 const SKY_PARCEL_MODEL = { cityCount: 81, layersPerCity: 10, sectorsPerCity: 1_000, parcelsPerCity: 1_000_000, totalParcels: 81_000_000 } as const;
 const STATS = [{ icon: Globe, big: "81 MİLYON", title: "TOPLAM GÖKYÜZÜ PARSELİ", text: "81 il × 1.000.000 parsel uzun vadeli hedef" }, { icon: Layers, big: "10", title: "KATMAN / İL", text: "Her il için 10 katman" }, { icon: ShieldCheck, big: "1.000", title: "SEKTÖR / İL", text: "Her il için 1.000 sektör" }, { icon: Boxes, big: "1.000.000", title: "PARSEL / İL", text: "Her il için 1.000.000 parsel" }, { icon: Headphones, big: "DESTEK", title: "DESTEK EKİBİ", text: "İletişim kanalları üzerinden bize ulaşabilirsiniz" }, { icon: Lock, big: "", title: "GÜVENLİ ALTYAPI", text: "Güvenlik ve ödeme altyapısı ayrıca doğrulanmalıdır" }];
 const CERTIFICATE_PACKAGES = [
-  { id: "digital", name: "DİJİTAL PARSEL SERTİFİKA", price: 199, features: ["Dijital sertifika", "Parsel kodu ve kayıt bilgileri"] },
-  { id: "elite", name: "ÖZEL PARSEL SERTİFİKA", price: 499, features: ["Özel tasarım sertifika", "A4 fiziksel baskı", "Dijital sertifika"] },
-  { id: "premium", name: "PREMİUM PARSEL SERTİFİKA", price: 999, features: ["Premium tasarım sertifika", "Çerçeveli baskı", "Dijital sertifika"] },
+  { id: "digital", name: "DİJİTAL PARSEL SERTİFİKA", price: 149, features: ["Dijital sertifika", "Parsel kodu ve kayıt bilgileri"] },
+  { id: "elite", name: "ÖZEL PARSEL SERTİFİKA", price: 349, features: ["Özel tasarım sertifika", "A4 fiziksel baskı", "Dijital sertifika"] },
+  { id: "premium", name: "PREMİUM PARSEL SERTİFİKA", price: 699, features: ["Premium tasarım sertifika", "Çerçeveli baskı", "Dijital sertifika"] },
 ] as const;
 const POPULAR_CITIES = [{ name: "İSTANBUL", slug: "istanbul", code: "IST", image: CITY_IMAGES.IST }, { name: "ANKARA", slug: "ankara", code: "ANK", image: CITY_IMAGES.ANK }, { name: "İZMİR", slug: "izmir", code: "IZM", image: CITY_IMAGES.IZM }, { name: "ANTALYA", slug: "antalya", code: "ANT", image: CITY_IMAGES.ANT }, { name: "BURSA", slug: "bursa", code: "BUR", image: CITY_IMAGES.BUR }, { name: "KAYSERİ", slug: "kayseri", code: "KAY", image: CITY_IMAGES.KAY }, { name: "GAZİANTEP", slug: "gaziantep", code: "GZT", image: CITY_IMAGES.GZT }] as const;
 function Index() {
