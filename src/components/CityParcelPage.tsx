@@ -8,7 +8,7 @@ import { selectVisibleCityParcels } from "@/lib/cityParcelVisibility";
 import type { Parcel, ParcelTier } from "@/types/parcel";
 
 type City = { id: string; name: string; slug: string };
-const PRICE: Record<ParcelTier, number> = { digital: 199, elite: 499, premium: 999 };
+const PRICE: Record<ParcelTier, number> = { digital: 149, elite: 349, premium: 699 };
 
 export function CityParcelPage({ slug }: { slug: string }) {
   const { user, loading: authLoading } = useAuth();
