@@ -32,12 +32,12 @@ function SertifikalarimPage() {
 
       {previewOpen && selectedCertificate && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4">
-          <div className="relative z-[101] flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] items-center justify-center">
+          <div className="relative z-[101] flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] items-center justify-center pt-5">
             <button
               type="button"
               aria-label="Önizlemeyi kapat"
               onClick={() => setPreviewOpen(false)}
-              className="absolute -right-3 -top-3 z-[110] flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-xl hover:bg-muted"
+              className="absolute right-1 top-1 z-[999] flex h-10 w-10 translate-y-[-100%] items-center justify-center rounded-full border-2 border-white bg-black text-white shadow-2xl hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-white"
             >
               <X className="h-5 w-5" />
             </button>
