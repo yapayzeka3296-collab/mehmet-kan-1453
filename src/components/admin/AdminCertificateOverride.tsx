@@ -1,13 +1,36 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, Loader2, ShieldAlert, XCircle } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 type CertificateRow = { id: string; status?: string | null; certificate_number?: string | null; parcel_id?: string | null; user_id?: string | null; tier?: string | null };
 
-export function AdminCertificateOverride({ rows, onRefresh }: { rows: CertificateRow[]; onRefresh: () => Promise<void> }) {
+type Props = {
+  rows?: CertificateRow[];
+  onRefresh?: () => Promise<void>;
+};
+
+export function AdminCertificateOverride({ rows: externalRows, onRefresh: externalRefresh }: Props) {
+  const [rows, setRows] = useState<CertificateRow[]>(externalRows ?? []);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+
+  async function loadRows() {
+    if (!supabaseBrowser) return;
+    const { data, error: rpcError } = await supabaseBrowser.rpc("admin_list_certificates", { p_limit: 100, p_offset: 0 });
+    if (rpcError) setError(rpcError.message);
+    else setRows((data ?? []) as CertificateRow[]);
+  }
+
+  useEffect(() => {
+    if (externalRows) setRows(externalRows);
+    else void loadRows();
+  }, [externalRows]);
+
+  async function refresh() {
+    if (externalRefresh) await externalRefresh();
+    else await loadRows();
+  }
 
   async function updateCertificate(id: string, action: "approve" | "reject" | "revoke") {
     if (!supabaseBrowser) return;
@@ -17,7 +40,11 @@ export function AdminCertificateOverride({ rows, onRefresh }: { rows: Certificat
     setBusy(`${action}:${id}`); setMessage(null); setError(null);
     const { error: rpcError } = await supabaseBrowser.rpc("admin_update_certificate", { p_certificate_id: id, p_action: action, p_reason: reason });
     setBusy(null);
-    if (rpcError) setError(rpcError.message); else { setMessage(action === "approve" ? "Sertifika talebi onaylandı." : action === "reject" ? "Sertifika talebi reddedildi." : "Sertifika iptal edildi."); await onRefresh(); }
+    if (rpcError) setError(rpcError.message);
+    else {
+      setMessage(action === "approve" ? "Sertifika talebi onaylandı." : action === "reject" ? "Sertifika talebi reddedildi." : "Sertifika iptal edildi.");
+      await refresh();
+    }
   }
 
   async function issueCertificate(id: string) {
@@ -25,7 +52,8 @@ export function AdminCertificateOverride({ rows, onRefresh }: { rows: Certificat
     setBusy(`issue:${id}`); setMessage(null); setError(null);
     const { error: rpcError } = await supabaseBrowser.rpc("issue_certificate_request", { p_request_id: id });
     setBusy(null);
-    if (rpcError) setError(rpcError.message); else { setMessage("Sertifika yayınlandı."); await onRefresh(); }
+    if (rpcError) setError(rpcError.message);
+    else { setMessage("Sertifika yayınlandı."); await refresh(); }
   }
 
   return <div className="panel p-5">
