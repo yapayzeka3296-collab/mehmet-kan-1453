@@ -12,7 +12,7 @@ type Tier = ParcelTier;
 type PurchaseItem = { id: string; tier: Tier; price: number };
 type PurchaseSearch = { parcels?: string; certificateParcel?: string };
 export const Route = createFileRoute("/parsel-satin-al")({ validateSearch: (search: Record<string, unknown>): PurchaseSearch => ({ parcels: typeof search.parcels === "string" ? search.parcels : undefined, certificateParcel: typeof search.certificateParcel === "string" ? search.certificateParcel : undefined }), head: () => ({ meta: [{ title: "Parsel Satın Al — MySkyParcel" }, { name: "description", content: "İstediğiniz sayıda sembolik parsel seçin ve yalnızca bir parsel için sertifika talep edin." }] }), component: SatinAl });
-const PRICES: Record<Tier, number> = { digital: 199, elite: 499, premium: 999 };
+const PRICES: Record<Tier, number> = { digital: 149, elite: 349, premium: 699 };
 const NAMES: Record<Tier, string> = { digital: "Dijital", elite: "Özel", premium: "Premium" };
 const PHYSICAL: Record<Tier, boolean> = { digital: false, elite: true, premium: true };
 function SatinAl() {
