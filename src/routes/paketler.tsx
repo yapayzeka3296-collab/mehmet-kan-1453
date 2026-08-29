@@ -8,9 +8,9 @@ export const Route = createFileRoute("/paketler")({ head: () => ({ meta: [{ titl
 type Tier = "digital" | "elite" | "premium";
 type Plan = { tier: Tier; name: string; price: string; popular: boolean; description: string; features: string[] };
 const PLANS: Plan[] = [
-  { tier: "digital", name: "DİJİTAL PARSEL SERTİFİKASI", price: "199", popular: false, description: "Seçtiğiniz sembolik parsel kaydını ve kişiselleştirilmiş dijital sertifikayı sunar.", features: ["Kişiye özel dijital sertifika", "Parsel kodu ve dijital kayıt bilgileri", "Elektronik teslim"] },
-  { tier: "elite", name: "ÖZEL PARSEL SERTİFİKASI", price: "499", popular: true, description: "Sembolik parsel kaydı, kişiselleştirilmiş sertifika ve A4 baskı sunumunu içerir.", features: ["Kişiye özel dijital sertifika", "Özel sertifika tasarımı", "A4 fiziksel baskı", "Belirtilen teslimat adresine gönderim"] },
-  { tier: "premium", name: "PREMİUM PARSEL SERTİFİKASI", price: "999", popular: false, description: "Sembolik parsel kaydı, premium sertifika tasarımı ve çerçeveli A4 baskı sunumunu içerir.", features: ["Kişiye özel dijital sertifika", "Premium sertifika tasarımı", "Premium dokulu kâğıt", "Çerçeveli A4 fiziksel baskı", "Belirtilen teslimat adresine gönderim"] },
+  { tier: "digital", name: "DİJİTAL PARSEL SERTİFİKASI", price: "149", popular: false, description: "Seçtiğiniz sembolik parsel kaydını ve kişiselleştirilmiş dijital sertifikayı sunar.", features: ["Kişiye özel dijital sertifika", "Parsel kodu ve dijital kayıt bilgileri", "Elektronik teslim"] },
+  { tier: "elite", name: "ÖZEL PARSEL SERTİFİKASI", price: "349", popular: true, description: "Sembolik parsel kaydı, kişiselleştirilmiş sertifika ve A4 baskı sunumunu içerir.", features: ["Kişiye özel dijital sertifika", "Özel sertifika tasarımı", "A4 fiziksel baskı", "Belirtilen teslimat adresine gönderim"] },
+  { tier: "premium", name: "PREMİUM PARSEL SERTİFİKASI", price: "699", popular: false, description: "Sembolik parsel kaydı, premium sertifika tasarımı ve çerçeveli A4 baskı sunumunu içerir.", features: ["Kişiye özel dijital sertifika", "Premium sertifika tasarımı", "Premium dokulu kâğıt", "Çerçeveli A4 fiziksel baskı", "Belirtilen teslimat adresine gönderim"] },
 ];
 const BENEFITS = [
   { icon: Star, title: "KİŞİYE ÖZEL", text: "Sertifika, satın alınan sembolik parsel kaydı ve kullanıcı bilgileriyle ilişkilendirilir." },
