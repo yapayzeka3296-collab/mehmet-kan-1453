@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 // The public anon/publishable key is safe to expose in browser code; database
 // access is still enforced by Supabase RLS and function privileges.
 const DEFAULT_SUPABASE_URL = 'https://agfxwddvobkhwbbrdzpt.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnZnh3ZGR2b2JraGJ3YnJkenB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTgxNDAsImV4cCI6MjEwMTc5NDE0MH0.T_CEm6eUddkxL2mqDpSfHl5WJqw4uufLi5fRqueGm5s';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnZnh3ZGR2b2JraHdiYnJkenB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTgxNDAsImV4cCI6MjEwMTc5NDE0MH0.T_CEm6eUddkxL2mqDpSfHl5WJqw4uufLi5fRqueGm5s';
 
 const configuredUrl = import.meta.env['VITE_SUPABASE_URL'];
 const configuredAnonKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
@@ -28,7 +28,7 @@ function getSessionStorage(): Storage | undefined {
 // null. Keeping the client non-nullable also prevents every consumer from
 // having to duplicate defensive checks around an already guaranteed client.
 export function createBrowserSupabase() {
-  return createClient(url, anonKey, {
+  const client = createClient(url, anonKey, {
     auth: {
       storage: getSessionStorage(),
       persistSession: true,
@@ -36,6 +36,19 @@ export function createBrowserSupabase() {
       detectSessionInUrl: true,
     },
   });
+
+  // Yönetim panelindeki "Çıkış Yap" yalnızca yönetim panelinden çıkar.
+  // Site oturumunu kapatmaz; böylece ana sayfaya dönen kullanıcı giriş yapmış
+  // olarak kalır. Diğer sayfalardaki gerçek signOut davranışı değişmez.
+  const originalSignOut = client.auth.signOut.bind(client.auth);
+  client.auth.signOut = async (options) => {
+    if (typeof window !== 'undefined' && window.location.pathname === '/yonetim') {
+      return { error: null };
+    }
+    return originalSignOut(options);
+  };
+
+  return client;
 }
 
 export const supabaseBrowser = createBrowserSupabase();
