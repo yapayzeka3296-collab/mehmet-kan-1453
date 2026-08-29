@@ -22,7 +22,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     { rel: "stylesheet", href: appCss },
     { rel: "preload", as: "image", href: "/images/cities/turkey-3d-map.png", fetchPriority: "high" },
     { rel: "preconnect", href: "https://fonts.googleapis.com" }, { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-    { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Jost:wght@300;400;500;600&display=swap" }, { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+    { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Jost:wght@300;400;500;600&display=swap" },
   ] }), shellComponent: RootShell, component: RootComponent, notFoundComponent: NotFoundComponent, errorComponent: ErrorComponent,
 });
 function RootShell({ children }: { children: ReactNode }) { return <html lang="tr" translate="no"><head><HeadContent /><meta name="google-site-verification" content="FnBKvdIxURn7yQQY7YNxhbM-sxPfNEjJf4GgmZKh0ec" /></head><body>{children}<Scripts /></body></html>; }
