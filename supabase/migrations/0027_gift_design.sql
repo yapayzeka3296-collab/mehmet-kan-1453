@@ -1,0 +1,3 @@
+-- Design note for the gift workflow. Implementation must use the project's existing parcel ownership and certificate tables/columns after schema verification.
+-- Flow: pending gift -> recipient verifies email/account -> accept -> atomic ownership transfer -> archive old issued certificate -> new certificate requested for recipient.
+-- Never expose a service/secret key in the browser. Recipient acceptance must be server-side and protected by RLS/authorization.
