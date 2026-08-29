@@ -17,7 +17,7 @@ const MAX_POLYGON_FEATURES = 2500;
 function cartItem(p: Parcel): ParcelCartItem | undefined {
   const tier = p.tier;
   if (tier !== "digital" && tier !== "elite" && tier !== "premium") return undefined;
-  return { id: p.id, parcel_number: p.parcel_number, city_name: p.city_name, tier, tier_price: Number(p.tier_price ?? (tier === "digital" ? 199 : tier === "elite" ? 499 : 999)) };
+  return { id: p.id, parcel_number: p.parcel_number, city_name: p.city_name, tier, tier_price: Number(p.tier_price ?? (tier === "digital" ? 149 : tier === "elite" ? 349 : 699)) };
 }
 
 function geoPos(p: Parcel) {
