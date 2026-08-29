@@ -21,9 +21,9 @@ const FEATURES = [
 ];
 
 function getSafeRedirect() {
-  if (typeof window === "undefined") return "/";
+  if (typeof window === "undefined") return "/ana-sayfa";
   const value = new URLSearchParams(window.location.search).get("redirect");
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/";
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/ana-sayfa";
   return value;
 }
 
@@ -73,7 +73,7 @@ function GirisPage() {
   }
 
   async function completeLogin() {
-    await navigate({ to: getSafeRedirect() as "/" });
+    await navigate({ to: "/ana-sayfa" });
   }
 
   useEffect(() => {
