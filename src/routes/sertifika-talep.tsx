@@ -15,6 +15,7 @@ export const Route = createFileRoute("/sertifika-talep")({
 
 type Parcel = { id: string; parcel_number: string; tier: "digital" | "elite" | "premium"; city?: { name?: string | null } | null };
 const TIER_LABELS = { digital: "Dijital", elite: "Özel", premium: "Premium" } as const;
+const ACTIVE_CERTIFICATE_STATUSES = new Set(["requested", "approved", "issued", "revoked"]);
 
 function SertifikaTalep() {
   const { user, loading: authLoading } = useAuth();
@@ -26,8 +27,17 @@ function SertifikaTalep() {
   useEffect(() => {
     if (!user || !supabaseBrowser) { setLoading(false); return; }
     void (async () => {
-      const { data } = await supabaseBrowser.from("parcels").select("id,parcel_number,tier,cities(name)").eq("owner_id", user.id).eq("status", "sold").order("created_at", { ascending: false });
-      setParcels((data ?? []) as Parcel[]);
+      const [parcelResult, certificateResult] = await Promise.all([
+        supabaseBrowser.from("parcels").select("id,parcel_number,tier,cities(name)").eq("owner_id", user.id).eq("status", "sold").order("created_at", { ascending: false }),
+        supabaseBrowser.from("certificate_requests").select("parcel_id,status").eq("user_id", user.id),
+      ]);
+      if (parcelResult.error) {
+        console.error("Owned parcels for certificate request failed", parcelResult.error);
+        setParcels([]);
+      } else {
+        const existingParcelIds = new Set((certificateResult.data ?? []).filter((row) => ACTIVE_CERTIFICATE_STATUSES.has(String(row.status))).map((row) => String(row.parcel_id)));
+        setParcels(((parcelResult.data ?? []) as Parcel[]).filter((parcel) => !existingParcelIds.has(parcel.id)));
+      }
       setLoading(false);
     })();
   }, [user]);
@@ -37,7 +47,7 @@ function SertifikaTalep() {
     setBusy(parcelId); setMessage(null);
     const { error } = await supabaseBrowser.rpc("request_certificate", { p_parcel_id: parcelId });
     if (error) setMessage(error.message === "certificate_already_requested" ? "Bu parsel için zaten aktif bir sertifika talebiniz var." : "Sertifika talebi oluşturulamadı.");
-    else setMessage("Sertifika talebiniz oluşturuldu. Onay ve yayın işlemi tamamlandığında Sertifikalarım bölümünde görünecektir.");
+    else { setMessage("Sertifika talebiniz oluşturuldu. Onay ve yayın işlemi tamamlandığında Sertifikalarım bölümünde görünecektir."); setParcels((current) => current.filter((parcel) => parcel.id !== parcelId)); }
     setBusy(null);
   }
 
