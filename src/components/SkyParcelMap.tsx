@@ -5,7 +5,7 @@ import { PARCEL_CART_EVENT, readParcelCart, writeParcelCart, type ParcelCartItem
 type CityCenter = { lat: number; lng: number };
 type ViewportBounds = { minLat: number; minLng: number; maxLat: number; maxLng: number };
 type FocusTarget = { city: CityCenter; parcel: CityCenter; token: string };
-type Props = { parcels: Parcel[]; selectedId: string | null; selectedIds?: Set<string>; multiSelect?: boolean; onSelect: (id: string | null) => void; onToggleSelect?: (id: string) => void; onViewportChange?: (bounds: ViewportBounds) => void; center: CityCenter; focusTarget?: FocusTarget | null };
+type Props = { parcels: Parcel[]; selectedId: string | null; selectedIds?: Set<string>; multiSelect?: boolean; onSelect: (id: string | null) => void; onToggleSelect?: (id: string) => void; onViewportChange?: (bounds: ViewportBounds) => void; center: CityCenter; focusTarget?: FocusTarget | null; memoryParcelIds?: Set<string> };
 type Tier = "digital" | "elite" | "premium";
 type XY = { x: number; y: number };
 
@@ -14,83 +14,33 @@ const PARCEL_LINE_COLOR = "#55c9ff";
 const B: ViewportBounds = { minLat: 35.75, maxLat: 42.15, minLng: 25.65, maxLng: 44.85 };
 const MAX_POLYGON_FEATURES = 2500;
 
-function cartItem(p: Parcel): ParcelCartItem | undefined {
-  const tier = p.tier;
-  if (tier !== "digital" && tier !== "elite" && tier !== "premium") return undefined;
-  return { id: p.id, parcel_number: p.parcel_number, city_name: p.city_name, tier, tier_price: Number(p.tier_price ?? (tier === "digital" ? 149 : tier === "elite" ? 349 : 699)) };
-}
-
-function geoPos(p: Parcel) {
-  const lat = Number(p.latitude); const lng = Number(p.longitude);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { left: Math.max(2, Math.min(98, ((lng - B.minLng) / (B.maxLng - B.minLng)) * 100)), top: Math.max(2, Math.min(98, ((B.maxLat - lat) / (B.maxLat - B.minLat)) * 100)) };
-}
-
-function geometryPoint(point: number[]): XY | null {
-  const lng = Number(point[0]); const lat = Number(point[1]);
-  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
-  return { x: Math.max(0, Math.min(100, ((lng - B.minLng) / (B.maxLng - B.minLng)) * 100)), y: Math.max(0, Math.min(100, ((B.maxLat - lat) / (B.maxLat - B.minLat)) * 100)) };
-}
-
-function ringPath(ring: number[][]) {
-  const points = ring.map((point, index) => { const xy = geometryPoint(point); return xy ? `${index === 0 ? "M" : "L"}${xy.x.toFixed(4)} ${xy.y.toFixed(4)}` : ""; }).filter(Boolean);
-  return points.length ? `${points.join(" ")} Z` : "";
-}
-
-function geometryPath(geometry?: ParcelGeometry) {
-  if (!geometry) return "";
-  if (geometry.type === "Polygon") return geometry.coordinates.map(ringPath).filter(Boolean).join(" ");
-  return geometry.coordinates.map((polygon) => polygon.map(ringPath).filter(Boolean).join(" ")).filter(Boolean).join(" ");
-}
-
+function cartItem(p: Parcel): ParcelCartItem | undefined { const tier = p.tier; if (tier !== "digital" && tier !== "elite" && tier !== "premium") return undefined; return { id: p.id, parcel_number: p.parcel_number, city_name: p.city_name, tier, tier_price: Number(p.tier_price ?? (tier === "digital" ? 149 : tier === "elite" ? 349 : 699)) }; }
+function geoPos(p: Parcel) { const lat = Number(p.latitude); const lng = Number(p.longitude); if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null; return { left: Math.max(2, Math.min(98, ((lng - B.minLng) / (B.maxLng - B.minLng)) * 100)), top: Math.max(2, Math.min(98, ((B.maxLat - lat) / (B.maxLat - B.minLat)) * 100)) }; }
+function geometryPoint(point: number[]): XY | null { const lng = Number(point[0]); const lat = Number(point[1]); if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null; return { x: Math.max(0, Math.min(100, ((lng - B.minLng) / (B.maxLng - B.minLng)) * 100)), y: Math.max(0, Math.min(100, ((B.maxLat - lat) / (B.maxLat - B.minLat)) * 100)) }; }
+function ringPath(ring: number[][]) { const points = ring.map((point, index) => { const xy = geometryPoint(point); return xy ? `${index === 0 ? "M" : "L"}${xy.x.toFixed(4)} ${xy.y.toFixed(4)}` : ""; }).filter(Boolean); return points.length ? `${points.join(" ")} Z` : ""; }
+function geometryPath(geometry?: ParcelGeometry) { if (!geometry) return ""; if (geometry.type === "Polygon") return geometry.coordinates.map(ringPath).filter(Boolean).join(" "); return geometry.coordinates.map((polygon) => polygon.map(ringPath).filter(Boolean).join(" ")).filter(Boolean).join(" "); }
 function hasUsableGeometry(p: Parcel) { return Boolean(p.geometry && (p.geometry.type === "Polygon" || p.geometry.type === "MultiPolygon")); }
-
+function MemoryMarker({ p }: { p: Parcel }) { const xy = geoPos(p); if (!xy) return null; return <text x={xy.left} y={xy.top} textAnchor="middle" dominantBaseline="central" fontSize="2.5" className="pointer-events-none select-none">🧡</text>; }
 function SciFiGrid() { return null; }
 
-export function SkyParcelMap({ parcels, selectedId, selectedIds = new Set<string>(), multiSelect = false, onSelect, onToggleSelect, onViewportChange, center, focusTarget }: Props) {
+export function SkyParcelMap({ parcels, selectedId, selectedIds = new Set<string>(), multiSelect = false, onSelect, onToggleSelect, onViewportChange, center, focusTarget, memoryParcelIds = new Set<string>() }: Props) {
   const [focus, setFocus] = useState(false); const [hover, setHover] = useState<string | null>(null);
   const groups = useMemo(() => { const result: Record<Tier, Parcel[]> = { digital: [], elite: [], premium: [] }; parcels.forEach((p) => { if (p.tier in result) result[p.tier as Tier].push(p); }); return result; }, [parcels]);
   const available = useMemo(() => parcels.filter((p) => p.status === "available").length, [parcels]);
   const cartIds = useMemo(() => new Set(readParcelCart().map((item) => item.id)), [parcels, selectedId, selectedIds]);
   const polygonMode = parcels.length <= MAX_POLYGON_FEATURES && parcels.some(hasUsableGeometry);
-
   useEffect(() => { onViewportChange?.(B); }, [onViewportChange]);
   useEffect(() => { if (!focusTarget) return; setFocus(true); const timer = window.setTimeout(() => setFocus(false), 6000); return () => window.clearTimeout(timer); }, [focusTarget?.token]);
-
-  const click = (p: Parcel) => {
-    if (p.status !== "available") return;
-    const item = cartItem(p);
-    if (multiSelect && item) { const current = readParcelCart(); const next = current.some((x) => x.id === p.id) ? current.filter((x) => x.id !== p.id) : [...current, item]; writeParcelCart(next); window.dispatchEvent(new CustomEvent(PARCEL_CART_EVENT, { detail: next })); onToggleSelect?.(p.id); return; }
-    onSelect(p.id);
-  };
-
+  const click = (p: Parcel) => { if (p.status !== "available") return; const item = cartItem(p); if (multiSelect && item) { const current = readParcelCart(); const next = current.some((x) => x.id === p.id) ? current.filter((x) => x.id !== p.id) : [...current, item]; writeParcelCart(next); window.dispatchEvent(new CustomEvent(PARCEL_CART_EVENT, { detail: next })); onToggleSelect?.(p.id); return; } onSelect(p.id); };
   const renderParcel = (p: Parcel) => {
-    const selected = selectedId === p.id || selectedIds.has(p.id) || cartIds.has(p.id); const tier = p.tier as Tier; const color = colors[tier] ?? colors.digital;
+    const selected = selectedId === p.id || selectedIds.has(p.id) || cartIds.has(p.id);
     if (polygonMode && hasUsableGeometry(p)) {
       const d = geometryPath(p.geometry); if (!d) return null;
-      if (selected) {
-        return <g key={p.id} className="cursor-pointer" onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} aria-label={p.parcel_number}>
-          <path d={d} fill="rgba(255,211,92,.28)" stroke="#ffd35c" strokeOpacity={0.32} strokeWidth={0.0175} vectorEffect="non-scaling-stroke" fillRule="evenodd" style={{ filter: "drop-shadow(0 0 3px rgba(255,211,92,.95)) drop-shadow(0 0 9px rgba(255,211,92,.75))", opacity: p.status === "sold" ? 0.82 : 1 }} />
-          <path d={d} fill="none" stroke="#fff4b0" strokeOpacity={0.9} strokeWidth={0.0065} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" />
-          <path d={d} fill="none" stroke="#ffffff" strokeOpacity={0.42} strokeWidth={0.00225} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" />
-        </g>;
-      }
-      return <g key={p.id} className="cursor-pointer" onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} aria-label={p.parcel_number}>
-        <path d={d} fill={`${PARCEL_LINE_COLOR}0D`} stroke={PARCEL_LINE_COLOR} strokeOpacity={0.05} strokeWidth={0.01375} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" style={{ filter: `drop-shadow(0 0 2px ${PARCEL_LINE_COLOR}) drop-shadow(0 0 6px ${PARCEL_LINE_COLOR})`, opacity: p.status === "sold" ? 0.82 : 1 }} />
-        <path d={d} fill="none" stroke={PARCEL_LINE_COLOR} strokeOpacity={0.16} strokeWidth={0.0065} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" style={{ filter: `drop-shadow(0 0 2px ${PARCEL_LINE_COLOR})` }} />
-        <path d={d} fill="none" stroke="#ffffff" strokeOpacity={0.28} strokeWidth={0.002} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" />
-        <path d={d} fill="none" stroke="transparent" strokeWidth={0.03} vectorEffect="non-scaling-stroke" />
-      </g>;
+      if (selected) return <g key={p.id} className="cursor-pointer" onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} aria-label={p.parcel_number}><path d={d} fill="rgba(255,211,92,.28)" stroke="#ffd35c" strokeOpacity={0.32} strokeWidth={0.0175} vectorEffect="non-scaling-stroke" fillRule="evenodd" style={{ filter: "drop-shadow(0 0 3px rgba(255,211,92,.95)) drop-shadow(0 0 9px rgba(255,211,92,.75))", opacity: p.status === "sold" ? 0.82 : 1 }} /><path d={d} fill="none" stroke="#fff4b0" strokeOpacity={0.9} strokeWidth={0.0065} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" /><path d={d} fill="none" stroke="#ffffff" strokeOpacity={0.42} strokeWidth={0.00225} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" />{memoryParcelIds.has(p.id) && <MemoryMarker p={p} />}</g>;
+      return <g key={p.id} className="cursor-pointer" onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} aria-label={p.parcel_number}><path d={d} fill={`${PARCEL_LINE_COLOR}0D`} stroke={PARCEL_LINE_COLOR} strokeOpacity={0.05} strokeWidth={0.01375} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" style={{ filter: `drop-shadow(0 0 2px ${PARCEL_LINE_COLOR}) drop-shadow(0 0 6px ${PARCEL_LINE_COLOR})`, opacity: p.status === "sold" ? 0.82 : 1 }} /><path d={d} fill="none" stroke={PARCEL_LINE_COLOR} strokeOpacity={0.16} strokeWidth={0.0065} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" style={{ filter: `drop-shadow(0 0 2px ${PARCEL_LINE_COLOR})` }} /><path d={d} fill="none" stroke="#ffffff" strokeOpacity={0.28} strokeWidth={0.002} vectorEffect="non-scaling-stroke" fillRule="evenodd" className="pointer-events-none" /><path d={d} fill="none" stroke="transparent" strokeWidth={0.03} vectorEffect="non-scaling-stroke" />{memoryParcelIds.has(p.id) && <MemoryMarker p={p} />}</g>;
     }
     const xy = geoPos(p); if (!xy) return null;
-    return <button key={p.id} type="button" disabled={p.status !== "available"} aria-label={p.parcel_number} onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} className="absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-[3px] border p-0 sm:h-7 sm:w-7" style={{ left: `${xy.left}%`, top: `${xy.top}%`, borderColor: selected ? "#fff4b0" : PARCEL_LINE_COLOR, background: selected ? "rgba(255,211,92,.25)" : "transparent", boxShadow: selected ? "0 0 8px #fff4b0,0 0 22px rgba(255,211,92,.8)" : `0 0 5px ${PARCEL_LINE_COLOR}66`, opacity: p.status === "sold" ? 0.82 : 1 }}><span className="absolute inset-[5px] rounded-full" style={{ background: PARCEL_LINE_COLOR }} />{(hover === p.id || selected) && <span className="pointer-events-none absolute left-1/2 top-[-30px] -translate-x-1/2 whitespace-nowrap rounded bg-[#020914]/95 px-2 py-1 text-[9px] text-white shadow-lg">{p.parcel_number}</span>}</button>;
+    return <button key={p.id} type="button" disabled={p.status !== "available"} aria-label={p.parcel_number} onClick={() => click(p)} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)} className="absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-[3px] border p-0 sm:h-7 sm:w-7" style={{ left: `${xy.left}%`, top: `${xy.top}%`, borderColor: selected ? "#fff4b0" : PARCEL_LINE_COLOR, background: selected ? "rgba(255,211,92,.25)" : "transparent", boxShadow: selected ? "0 0 8px #fff4b0,0 0 22px rgba(255,211,92,.8)" : `0 0 5px ${PARCEL_LINE_COLOR}66`, opacity: p.status === "sold" ? 0.82 : 1 }}><span className="absolute inset-[5px] rounded-full" style={{ background: PARCEL_LINE_COLOR }} />{memoryParcelIds.has(p.id) && <span className="pointer-events-none absolute -right-2 -top-2 text-[10px] leading-none">🧡</span>}{(hover === p.id || selected) && <span className="pointer-events-none absolute left-1/2 top-[-30px] -translate-x-1/2 whitespace-nowrap rounded bg-[#020914]/95 px-2 py-1 text-[9px] text-white shadow-lg">{p.parcel_number}</span>}</button>;
   };
-
-  return <div className={`relative h-[420px] w-full overflow-visible rounded-2xl border border-transparent bg-transparent sm:h-[420px] lg:h-[469px] ${focus ? "ring-2 ring-cyan-300/40" : ""}`} data-center-lat={center.lat} data-center-lng={center.lng}>
-    <SciFiGrid />
-    <div className="absolute left-3 top-3 z-20 rounded-lg border border-cyan-300/20 bg-[#020914]/65 px-3 py-2 text-[10px] text-cyan-100 backdrop-blur-sm"><div className="font-semibold tracking-wide">GÖKYÜZÜ PARSEL HARİTASI</div><div className="mt-1 text-white/60">{available.toLocaleString("tr-TR")} uygun parsel</div></div>
-    <div className="absolute right-3 top-3 z-20 flex gap-2 text-[9px] text-white/75">{(["digital", "elite", "premium"] as Tier[]).map((tier) => <span key={tier} className="rounded border border-white/10 bg-black/35 px-2 py-1 backdrop-blur-sm"><span className="mr-1 inline-block h-1.5 w-1.5 rounded-full" style={{ background: colors[tier] }} />{tier} {groups[tier].length}</span>)}</div>
-    {polygonMode ? <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 z-[5] h-full w-full" style={{ transform: "perspective(1100px) rotateX(38deg) scale(1.08) translateY(5%)", transformOrigin: "50% 82%", filter: "drop-shadow(0 0 1px rgba(85,201,255,.55))" }}>{parcels.map(renderParcel)}</svg> : <div className="absolute inset-0 z-[5]">{parcels.map(renderParcel)}</div>}
-    {parcels.length === 0 && <div className="absolute inset-0 z-20 flex items-center justify-center px-6 text-center text-sm text-white/70">Bu görünüm için parsel verisi bulunamadı. Haritayı yenileyerek tekrar deneyin.</div>}
-  </div>;
+  return <div className={`relative h-[420px] w-full overflow-visible rounded-2xl border border-transparent bg-transparent sm:h-[420px] lg:h-[469px] ${focus ? "ring-2 ring-cyan-300/40" : ""}`} data-center-lat={center.lat} data-center-lng={center.lng}><SciFiGrid /><div className="absolute left-3 top-3 z-20 rounded-lg border border-cyan-300/20 bg-[#020914]/65 px-3 py-2 text-[10px] text-cyan-100 backdrop-blur-sm"><div className="font-semibold tracking-wide">GÖKYÜZÜ PARSEL HARİTASI</div><div className="mt-1 text-white/60">{available.toLocaleString("tr-TR")} uygun parsel</div></div><div className="absolute right-3 top-3 z-20 flex gap-2 text-[9px] text-white/75">{(["digital", "elite", "premium"] as Tier[]).map((tier) => <span key={tier} className="rounded border border-white/10 bg-black/35 px-2 py-1 backdrop-blur-sm"><span className="mr-1 inline-block h-1.5 w-1.5 rounded-full" style={{ background: colors[tier] }} />{tier} {groups[tier].length}</span>)}</div>{polygonMode ? <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 z-[5] h-full w-full" style={{ transform: "perspective(1100px) rotateX(38deg) scale(1.08) translateY(5%)", transformOrigin: "50% 82%", filter: "drop-shadow(0 0 1px rgba(85,201,255,.55))" }}>{parcels.map(renderParcel)}</svg> : <div className="absolute inset-0 z-[5]">{parcels.map(renderParcel)}</div>}{parcels.length === 0 && <div className="absolute inset-0 z-20 flex items-center justify-center px-6 text-center text-sm text-white/70">Bu görünüm için parsel verisi bulunamadı. Haritayı yenileyerek tekrar deneyin.</div>}</div>;
 }
