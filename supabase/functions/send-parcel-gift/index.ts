@@ -5,12 +5,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function getAdminClient() {
-  const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}") as Record<string, string>;
-  const key = secretKeys.default ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  return createClient(Deno.env.get("SUPABASE_URL") ?? "", key);
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -22,14 +16,15 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } },
     );
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Authentication required");
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) throw new Error("Authentication required");
 
     const { giftId, token } = await req.json();
     if (!giftId || !token || typeof token !== "string") throw new Error("Gift data is incomplete");
 
-    const admin = getAdminClient();
-    const { data: gift, error: giftError } = await admin
+    // Use the authenticated client for this sender-owned read. This preserves the
+    // existing RLS boundary and removes the fragile service-role secret dependency.
+    const { data: gift, error: giftError } = await supabase
       .from("parcel_gifts")
       .select("id, parcel_id, sender_user_id, recipient_email, message, expires_at, status")
       .eq("id", giftId)
@@ -39,10 +34,11 @@ Deno.serve(async (req) => {
     if (gift.status !== "pending") throw new Error("Gift is not pending");
     if (new Date(gift.expires_at) <= new Date()) throw new Error("Gift expired");
 
-    const { data: parcel } = await admin
+    const { data: parcel } = await supabase
       .from("parcels")
       .select("parcel_number, tier, cities(name)")
       .eq("id", gift.parcel_id)
+      .eq("owner_id", user.id)
       .single();
 
     const appUrl = Deno.env.get("PUBLIC_APP_URL") ?? "https://myskyparcel.com";
