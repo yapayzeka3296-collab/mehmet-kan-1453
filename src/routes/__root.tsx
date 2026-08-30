@@ -20,7 +20,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     { name: "twitter:card", content: "summary_large_image" }, { name: "google", content: "notranslate" },
   ], links: [
     { rel: "stylesheet", href: appCss },
-    { rel: "preload", as: "image", href: "/images/cities/turkey-3d-map.png", fetchPriority: "high" },
     { rel: "preconnect", href: "https://fonts.googleapis.com" }, { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
     { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Jost:wght@300;400;500;600&display=swap" },
   ] }), shellComponent: RootShell, component: RootComponent, notFoundComponent: NotFoundComponent, errorComponent: ErrorComponent,
