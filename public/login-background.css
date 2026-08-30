@@ -46,9 +46,7 @@
 
   .starfield:has(#email) main > div.relative > div:nth-child(2) {
     order: 2;
-    width: 100%;
-    justify-self: stretch;
-    max-height: 60vh;
-    overflow-y: auto;
+    width: 60%;
+    justify-self: center;
   }
 }
