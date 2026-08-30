@@ -64,6 +64,11 @@ export function CertificateTemplatePreview({ tier, className = "" }: Certificate
       </button>
       <div className="mt-2 text-center"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gold">{LABELS[tier]} Sertifika</p><p className="mt-0.5 text-[9px] text-muted-foreground">Büyük görüntülemek için şablona tıklayın</p></div>
     </div>
-    {open && src && <div role="dialog" aria-modal="true" aria-label={`${LABELS[tier]} sertifika şablonu büyük önizleme`} className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/85 p-3 backdrop-blur-sm sm:p-6" onClick={() => setOpen(false)}><div className="relative flex max-h-[95vh] w-full max-w-[1400px] items-center justify-center" onClick={(event) => event.stopPropagation()}><button type="button" onClick={() => setOpen(false)} aria-label="Büyük önizlemeyi kapat" className="absolute right-2 top-2 z-[2010] flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/80 text-2xl leading-none text-white shadow-xl transition hover:bg-black/95 focus:outline-none focus:ring-2 focus:ring-gold/70">×</button><img src={src} alt={`${LABELS[tier]} MySkyParcel sertifika şablonu büyük önizleme`} width={1122} height={794} className="max-h-[92vh] w-auto max-w-full rounded-md object-contain shadow-2xl" /></div></div>}
+    {open && src && <div role="dialog" aria-modal="true" aria-label={`${LABELS[tier]} sertifika şablonu büyük önizleme`} className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/85 p-3 backdrop-blur-sm sm:p-6" onClick={() => setOpen(false)}>
+      <button type="button" onClick={() => setOpen(false)} aria-label="Büyük önizlemeyi kapat" className="fixed right-4 top-20 z-[9999] flex h-11 w-11 items-center justify-center rounded-full border-2 border-white/50 bg-black text-3xl font-bold leading-none text-white shadow-2xl transition hover:bg-black/90 focus:outline-none focus:ring-2 focus:ring-gold/70 sm:right-6 sm:top-24">×</button>
+      <div className="relative flex max-h-[95vh] w-full max-w-[1400px] items-center justify-center" onClick={(event) => event.stopPropagation()}>
+        <img src={src} alt={`${LABELS[tier]} MySkyParcel sertifika şablonu büyük önizleme`} width={1122} height={794} className="max-h-[92vh] w-auto max-w-full rounded-md object-contain shadow-2xl" />
+      </div>
+    </div>}
   </>;
 }
