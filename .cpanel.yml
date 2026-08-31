@@ -1,4 +1,5 @@
 deployment:
   tasks:
+    - cd /home/myskypar/repositories/pixel-perfect-clone-14793 && npm ci --omit=dev --no-audit --no-fund
     - /bin/mkdir -p /home/myskypar/repositories/pixel-perfect-clone-14793/tmp
     - /bin/touch /home/myskypar/repositories/pixel-perfect-clone-14793/tmp/restart.txt
