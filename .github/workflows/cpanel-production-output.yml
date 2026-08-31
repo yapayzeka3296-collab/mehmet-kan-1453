@@ -1,0 +1,55 @@
+name: Build cPanel production output
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cpanel-production-output
+  cancel-in-progress: true
+
+jobs:
+  build-output:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production output
+        run: npm run build
+
+      - name: Verify Passenger entrypoint
+        run: |
+          test -f .output/server/index.mjs
+          test -d .output/server
+          echo "Production Nitro output verified."
+
+      - name: Publish generated output to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f .output
+          if git diff --cached --quiet; then
+            echo "No .output changes to publish."
+            exit 0
+          fi
+          git commit -m "chore: update cPanel production output"
+          git push origin HEAD:main
