@@ -1,0 +1,41 @@
+name: Fix Turkey city map navigation
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, 'fix: restore Turkey province navigation') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Patch existing city marker click handling
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/Turkey3DParcelMap.tsx')
+          s = p.read_text()
+          s = s.replace('import { useEffect, useMemo, useRef, useState } from "react";\n', 'import { useEffect, useMemo, useRef, useState } from "react";\nimport { useNavigate } from "@tanstack/react-router";\n', 1)
+          s = s.replace('  const [hover, setHover] = useState<string | null>(null);\n', '  const [hover, setHover] = useState<string | null>(null);\n  const navigate = useNavigate();\n', 1)
+          old = 'const onMove=(event:PointerEvent)=>{const hit=pick(event);const id=hit?.object.userData.parcelId;setHover(id?String(id):null);renderer.domElement.style.cursor=id?"pointer":"grab";};\n    const onClick=(event:MouseEvent)=>{const hit=pick(event);const id=hit?.object.userData.parcelId;if(id)onToggleSelect(String(id));};'
+          new = 'const onMove=(event:PointerEvent)=>{const hit=pick(event);const id=hit?.object.userData.parcelId;const cityCode=hit?.object.userData.cityCode;setHover(id?String(id):null);renderer.domElement.style.cursor=(id||cityCode)?"pointer":"grab";};\n    const onClick=(event:MouseEvent)=>{const hit=pick(event);const id=hit?.object.userData.parcelId;const cityCode=hit?.object.userData.cityCode;if(cityCode){const city=CITIES.find((item)=>item.code===String(cityCode));if(city)void navigate({to:"/sehir/$slug",params:{slug:city.slug}});return;}if(id)onToggleSelect(String(id));};'
+          if old not in s:
+              raise SystemExit('Expected city click handler was not found; refusing to modify the file.')
+          s = s.replace(old, new, 1)
+          s = s.replace('  },[parcels,selectedIds,selectedCity.slug,onToggleSelect]);', '  },[parcels,selectedIds,selectedCity.slug,onToggleSelect,navigate]);', 1)
+          p.write_text(s)
+          PY
+      - name: Remove temporary workflow and commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-turkey-city-navigation.yml
+          git add src/components/Turkey3DParcelMap.tsx
+          git commit -m "fix: restore Turkey province navigation"
+          git push origin HEAD:main
