@@ -33,10 +33,13 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Regenerate TanStack route tree
-        run: npx tsr generate
+      - name: Clean previous production output
+        run: rm -rf .output
 
-      - name: Verify generated route tree
+      - name: Build production output
+        run: npm run build
+
+      - name: Verify generated TanStack route tree
         run: |
           grep -q "'/kvkk'" src/routeTree.gen.ts
           grep -q "'/odeme'" src/routeTree.gen.ts
@@ -45,13 +48,9 @@ jobs:
           grep -q "'/turkiye-haritasi'" src/routeTree.gen.ts
           echo "TanStack route tree contains the required application routes."
 
-      - name: Build production output
-        run: npm run build
-
-      - name: Verify production route output
+      - name: Verify production output
         run: |
           test -f .output/server/index.mjs
-          test -d .output/server
           test -f .output/server/_tanstack-start-manifest_v-*.mjs
           grep -R -q "giris" .output/server
           grep -R -q "gokyuzu-haritasi" .output/server
@@ -62,13 +61,47 @@ jobs:
           grep -R -q "turkiye-haritasi" .output/server
           echo "Production Nitro output contains the expected application routes."
 
+      - name: Verify server bundle imports
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const root = path.resolve('.output/server');
+          const files = [];
+          function walk(dir) {
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const full = path.join(dir, entry.name);
+              if (entry.isDirectory()) walk(full);
+              else if (entry.name.endsWith('.mjs')) files.push(full);
+            }
+          }
+          walk(root);
+          const relativeFiles = new Set(files.map(file => path.relative(root, file).split(path.sep).join('/')));
+          const missing = [];
+          for (const file of files) {
+            const rel = path.relative(root, file).split(path.sep).join('/');
+            const text = fs.readFileSync(file, 'utf8');
+            for (const match of text.matchAll(/(?:from|import\\()\\s*["'](\\.\\/[^"']+)["']/g)) {
+              const target = match[1].split(/[?#]/)[0];
+              const candidate = path.posix.normalize(path.posix.join(path.posix.dirname(rel), target));
+              if (!relativeFiles.has(candidate)) missing.push(`${rel} -> ${candidate}`);
+            }
+          }
+          if (missing.length) {
+            console.error('Missing relative server imports:');
+            console.error(missing.join('\n'));
+            process.exit(1);
+          }
+          console.log(`Verified ${files.length} server modules and all relative imports.`);
+          NODE
+
       - name: Publish generated output to main
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f .output
+          git add -A -f .output src/routeTree.gen.ts
           if git diff --cached --quiet; then
-            echo "No .output changes to publish."
+            echo "No generated changes to publish."
             exit 0
           fi
           git commit -m "chore: update cPanel production output"
