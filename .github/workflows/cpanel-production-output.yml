@@ -82,13 +82,18 @@ jobs:
           walk(root);
           const relativeFiles = new Set(files.map(file => path.relative(root, file).split(path.sep).join('/')));
           const missing = [];
+          const resolveImport = (fromFile, specifier) => {
+            const clean = specifier.split(/[?#]/)[0];
+            const base = path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), clean));
+            const candidates = [base, `${base}.mjs`, `${base}.js`, `${base}/index.mjs`];
+            return candidates.find(candidate => relativeFiles.has(candidate));
+          };
           for (const file of files) {
             const rel = path.relative(root, file).split(path.sep).join('/');
             const text = fs.readFileSync(file, 'utf8');
-            for (const match of text.matchAll(/(?:from|import\()\s*["'](\.\/[^"']+)["']/g)) {
-              const target = match[1].split(/[?#]/)[0];
-              const candidate = path.posix.normalize(path.posix.join(path.posix.dirname(rel), target));
-              if (!relativeFiles.has(candidate)) missing.push(`${rel} -> ${candidate}`);
+            const importPattern = /(?:from\s*|import\s*(?:\(\s*)?)["'](\.[^"']+)["']/g;
+            for (const match of text.matchAll(importPattern)) {
+              if (!resolveImport(rel, match[1])) missing.push(`${rel} -> ${match[1]}`);
             }
           }
           if (missing.length) {
