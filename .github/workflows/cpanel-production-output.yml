@@ -33,6 +33,18 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Regenerate TanStack route tree
+        run: npx tsr generate
+
+      - name: Verify generated route tree
+        run: |
+          grep -q "'/kvkk'" src/routeTree.gen.ts
+          grep -q "'/odeme'" src/routeTree.gen.ts
+          grep -q "'/parsel-hatirasi'" src/routeTree.gen.ts
+          grep -q "'/pazar-yeri'" src/routeTree.gen.ts
+          grep -q "'/turkiye-haritasi'" src/routeTree.gen.ts
+          echo "TanStack route tree contains the required application routes."
+
       - name: Build production output
         run: npm run build
 
@@ -45,6 +57,9 @@ jobs:
           grep -R -q "gokyuzu-haritasi" .output/server
           grep -R -q "odeme" .output/server
           grep -R -q "kvkk" .output/server
+          grep -R -q "parsel-hatirasi" .output/server
+          grep -R -q "pazar-yeri" .output/server
+          grep -R -q "turkiye-haritasi" .output/server
           echo "Production Nitro output contains the expected application routes."
 
       - name: Publish generated output to main
