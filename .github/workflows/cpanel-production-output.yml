@@ -36,8 +36,8 @@ jobs:
       - name: Clean previous production output
         run: rm -rf .output
 
-      - name: Build production output
-        run: npm run build
+      - name: Regenerate TanStack route tree from src/routes
+        run: npx --yes @tanstack/router-cli@1.167.33 generate
 
       - name: Verify generated TanStack route tree
         run: |
@@ -47,6 +47,9 @@ jobs:
           grep -q "'/pazar-yeri'" src/routeTree.gen.ts
           grep -q "'/turkiye-haritasi'" src/routeTree.gen.ts
           echo "TanStack route tree contains the required application routes."
+
+      - name: Build production output
+        run: npm run build
 
       - name: Verify production output
         run: |
