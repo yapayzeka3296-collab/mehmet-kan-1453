@@ -16,7 +16,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fix parcel memory UI and route
+      - name: Repair sky map source without changing routes
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -24,45 +24,48 @@ jobs:
 
           path = Path('src/components/CityParcelLivePage.tsx')
           text = path.read_text()
-          text = re.sub(r'type MemoryNotice = \{.*?\};\n\n', '', text, count=1, flags=re.S)
-          text = text.replace(' const [memoryNotice, setMemoryNotice] = useState<MemoryNotice | null>(null);', '')
-          text = text.replace(' setMemoryNotice(null);', '')
-          text = re.sub(r' if \(targetId\) \{ const \{ data: targetMemory.*?\} \} \} catch', ' } catch', text, count=1, flags=re.S)
-          text = re.sub(r' const openMemory = \(\) => \{.*?\};', '', text, count=1, flags=re.S)
-          text = re.sub(r'\{memoryNotice && <div className="fixed right-4 top-20.*?</div></div></div>\}', '', text, count=1, flags=re.S)
-          old_click = 'disabled={sold} onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleParcel(p); }}'
-          new_click = 'onClick={(event) => { event.preventDefault(); event.stopPropagation(); if (sold) { if (hasMemory) window.location.href = `/parsel-hatirasi?parcel=${encodeURIComponent(p.id)}`; return; } toggleParcel(p); }}'
-          text = text.replace(old_click, new_click)
-          marker = '<span className="pointer-events-none absolute inset-[8%] rounded-sm"'
-          tooltip = '<span className="pointer-events-none absolute bottom-full left-1/2 z-[300] mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-orange-300/30 bg-[#071a2d]/95 px-2 py-1 text-[9px] font-bold text-orange-100 opacity-0 shadow-lg backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100">HATIRAYI GÖR</span><span className="pointer-events-none absolute inset-0 z-[250] grid place-items-center">{hasMemory && <Heart className="h-5 w-5 fill-orange-300 text-orange-200 drop-shadow-[0_0_7px_rgba(251,146,60,.9)]" />}</span>'
-          if marker not in text:
-              raise SystemExit('Parcel button marker not found')
-          text = text.replace(marker, tooltip + marker, 1)
-          text = re.sub(r'\{hasMemory && <>(.*?)</>\}', '', text, count=1, flags=re.S)
-          text = text.replace('import { ArrowLeft, Heart, MapPin, ShoppingCart, X } from "lucide-react";', 'import { ArrowLeft, Heart, MapPin, ShoppingCart } from "lucide-react";')
-          path.write_text(text)
 
-          route = Path('src/routes/parsel-hatirasi.tsx')
-          r = route.read_text()
-          if 'createFileRoute' not in r:
-              r = r.replace('import { useSearch } from "@tanstack/react-router";', 'import { createFileRoute, useSearch } from "@tanstack/react-router";')
-              r += '\nexport const Route = createFileRoute("/parsel-hatirasi")({ component: ParcelHatirasiPage });\n'
-          route.write_text(r)
+          # The previous automated memory patch removed the state/handler but
+          # left the old fixed notification JSX behind. That makes the sky-map
+          # component fail to compile because memoryNotice/openMemory are gone.
+          text = re.sub(
+              r'\{memoryNotice && <div className="fixed right-4 top-20.*?</div></div></div>\}',
+              '',
+              text,
+              count=1,
+              flags=re.S,
+          )
+
+          # X is still used by the parcel-list remove button.
+          text = text.replace(
+              'import { ArrowLeft, Heart, MapPin, ShoppingCart } from "lucide-react";',
+              'import { ArrowLeft, Heart, MapPin, ShoppingCart, X } from "lucide-react";',
+          )
+
+          # Show the small memory tooltip only on parcels that actually have a public memory.
+          text = text.replace(
+              '<span className="pointer-events-none absolute bottom-full left-1/2 z-[300] mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-orange-300/30 bg-[#071a2d]/95 px-2 py-1 text-[9px] font-bold text-orange-100 opacity-0 shadow-lg backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100">HATIRAYI GÖR</span>',
+              '{hasMemory && <span className="pointer-events-none absolute bottom-full left-1/2 z-[300] mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-orange-300/30 bg-[#071a2d]/95 px-2 py-1 text-[9px] font-bold text-orange-100 opacity-0 shadow-lg backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100">HATIRAYI GÖR</span>}',
+          )
+
+          if 'memoryNotice && <div className="fixed' in text:
+              raise SystemExit('Stale memoryNotice JSX remains')
+          if 'onClick={openMemory}' in text:
+              raise SystemExit('Stale openMemory handler remains')
+
+          path.write_text(text)
           PY
 
-      - name: Update generated route tree
-        run: node scripts/ensure-parsel-hatirasi-route.mjs
-
-      - name: Install and build
+      - name: Build production output
         run: |
-          npm install
+          npm ci
           npm run build
 
-      - name: Commit fix
+      - name: Commit source fix
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/components/CityParcelLivePage.tsx src/routes/parsel-hatirasi.tsx src/routeTree.gen.ts
+          git add src/components/CityParcelLivePage.tsx
           git diff --cached --quiet && exit 0
-          git commit -m "fix: show parcel memory tooltip and route"
+          git commit -m "fix: restore sky map rendering"
           git push origin HEAD:main
