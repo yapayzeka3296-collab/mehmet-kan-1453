@@ -33,18 +33,19 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Regenerate TanStack route tree
-        run: npx tsr generate
-
       - name: Build production output
         run: npm run build
 
-      - name: Verify Passenger entrypoint
+      - name: Verify production route output
         run: |
           test -f .output/server/index.mjs
           test -d .output/server
-          grep -q "kvkk" .output/server/_tanstack-start-manifest_*.mjs
-          echo "Production Nitro output and KVKK route verified."
+          test -f .output/server/_tanstack-start-manifest_v-*.mjs
+          grep -R -q "giris" .output/server
+          grep -R -q "gokyuzu-haritasi" .output/server
+          grep -R -q "odeme" .output/server
+          grep -R -q "kvkk" .output/server
+          echo "Production Nitro output contains the expected application routes."
 
       - name: Publish generated output to main
         run: |
