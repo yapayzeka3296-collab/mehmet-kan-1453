@@ -33,6 +33,9 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Regenerate TanStack route tree
+        run: npx tsr generate
+
       - name: Build production output
         run: npm run build
 
@@ -40,7 +43,8 @@ jobs:
         run: |
           test -f .output/server/index.mjs
           test -d .output/server
-          echo "Production Nitro output verified."
+          grep -q "kvkk" .output/server/_tanstack-start-manifest_*.mjs
+          echo "Production Nitro output and KVKK route verified."
 
       - name: Publish generated output to main
         run: |
