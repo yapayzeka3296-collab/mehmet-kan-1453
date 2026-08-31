@@ -11,11 +11,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
-  // cPanel/CloudLinux runs this application as a normal Node.js Passenger app.
-  // The Lovable wrapper defaults Nitro to Cloudflare; that output is not the correct
-  // runtime target for cPanel. Keep the existing .output/server/index.mjs startup path,
-  // but generate it with Nitro's standard Node server preset.
+  // Keep deployment targets separate: Vercel uses Nitro's Vercel target;
+  // cPanel/Passenger keeps the existing Node server output and startup path.
   nitro: {
-    preset: "node-server",
+    preset: process.env.VERCEL ? "vercel" : "node-server",
   },
 });
