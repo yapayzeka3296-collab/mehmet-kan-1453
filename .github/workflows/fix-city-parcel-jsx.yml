@@ -1,0 +1,42 @@
+name: Fix City Parcel JSX
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fix adjacent JSX in CityParcelLivePage
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('src/components/CityParcelLivePage.tsx')
+          text = path.read_text()
+          pattern = re.compile(r'\{hasMemory && (<span.*?</span><span.*?</span>)\}', re.DOTALL)
+          fixed, count = pattern.subn(r'{hasMemory && <>\1</>}', text, count=1)
+          if count != 1:
+              raise SystemExit(f'Expected exactly one hasMemory JSX block, found {count}')
+          path.write_text(fixed)
+          print('Fixed adjacent JSX elements:', count)
+          PY
+
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/CityParcelLivePage.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: wrap parcel memory marker JSX fragment"
+          git push origin HEAD:main
