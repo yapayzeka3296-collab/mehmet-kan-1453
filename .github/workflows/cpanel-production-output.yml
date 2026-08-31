@@ -15,7 +15,6 @@ concurrency:
 
 jobs:
   build-output:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     steps:
@@ -37,12 +36,13 @@ jobs:
         run: rm -rf .output
 
       - name: Regenerate TanStack route tree from src/routes
-        run: npx --yes @tanstack/router-cli@1.167.33 generate
+        run: npx --yes @tanstack/router-cli@1.170.18 generate
 
       - name: Verify generated TanStack route tree
         run: |
-          grep -q "'/kvkk'" src/routeTree.gen.ts
+          grep -q "'/ana-sayfa'" src/routeTree.gen.ts
           grep -q "'/odeme'" src/routeTree.gen.ts
+          grep -q "'/kvkk'" src/routeTree.gen.ts
           grep -q "'/parsel-hatirasi'" src/routeTree.gen.ts
           grep -q "'/pazar-yeri'" src/routeTree.gen.ts
           grep -q "'/turkiye-haritasi'" src/routeTree.gen.ts
@@ -57,6 +57,7 @@ jobs:
           test -f .output/server/_tanstack-start-manifest_v-*.mjs
           grep -R -q "giris" .output/server
           grep -R -q "gokyuzu-haritasi" .output/server
+          grep -R -q "ana-sayfa" .output/server
           grep -R -q "odeme" .output/server
           grep -R -q "kvkk" .output/server
           grep -R -q "parsel-hatirasi" .output/server
@@ -84,7 +85,7 @@ jobs:
           for (const file of files) {
             const rel = path.relative(root, file).split(path.sep).join('/');
             const text = fs.readFileSync(file, 'utf8');
-            for (const match of text.matchAll(/(?:from|import\\()\\s*["'](\\.\\/[^"']+)["']/g)) {
+            for (const match of text.matchAll(/(?:from|import\()\s*["'](\.\/[^"']+)["']/g)) {
               const target = match[1].split(/[?#]/)[0];
               const candidate = path.posix.normalize(path.posix.join(path.posix.dirname(rel), target));
               if (!relativeFiles.has(candidate)) missing.push(`${rel} -> ${candidate}`);
