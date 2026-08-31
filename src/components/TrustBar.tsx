@@ -4,15 +4,15 @@ import type { LucideIcon } from "lucide-react";
 export type TrustItem = { icon: LucideIcon; title: string; text: string };
 
 export const DEFAULT_TRUST: TrustItem[] = [
-  { icon: ShieldCheck, title: "GÜVENLİ ÖDEME", text: "Ödeme, iyzico Link ödeme sayfasında güvenli şekilde tamamlanır." },
+  { icon: ShieldCheck, title: "GÜVENLİ ÖDEME", text: "Ödeme, Shopier'in güvenli ödeme sayfasında tamamlanır." },
   { icon: Lock, title: "SSL / HTTPS", text: "Site ve ödeme yönlendirmesi güvenli HTTPS bağlantısı üzerinden sunulur." },
   { icon: Award, title: "SEMBOLİK PARSEL", text: "Satın alma gerçek taşınmaz veya gökyüzü mülkiyeti oluşturmaz." },
   { icon: Headphones, title: "DESTEK", text: "Sipariş ve destek talepleri için İletişim sayfasından bize ulaşabilirsiniz." },
 ];
 
 export const SECURITY_TRUST: TrustItem[] = [
-  { icon: ShieldCheck, title: "GÜVENLİ ÖDEME", text: "Ödeme işlemi iyzico Link ödeme sayfasında gerçekleştirilir." },
-  { icon: Lock, title: "3D SECURE", text: "iyzico Link ödeme yöntemi desteklediğinde 3D Secure güvenliği kullanır." },
+  { icon: ShieldCheck, title: "GÜVENLİ ÖDEME", text: "Ödeme işlemi Shopier'in güvenli ödeme sayfasında gerçekleştirilir." },
+  { icon: Lock, title: "GÜVENLİ ÖDEME", text: "Ödeme sağlayıcısının desteklediği güvenlik adımları kullanılır." },
   { icon: Award, title: "AÇIK ÜRÜN TANIMI", text: "Sunulan parsel dijital ve sembolik bir koleksiyon kaydıdır." },
   { icon: Headphones, title: "MÜŞTERİ DESTEĞİ", text: "İletişim kanallarımız ve satış sonrası destek bilgilerimiz sitede yer alır." },
 ];
