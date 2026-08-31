@@ -1,0 +1,38 @@
+name: Restore Sky Map Known Good
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore known-good sky map source
+        run: |
+          git checkout 169a2c16ac6f8e028007ef8421682506635e4366 -- src/components/CityParcelLivePage.tsx
+
+      - name: Verify build
+        run: |
+          npm ci
+          npm run build
+          test -f .output/server/index.mjs
+
+      - name: Commit restored sky map
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/CityParcelLivePage.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: restore known-good sky map"
+          git push origin HEAD:main
