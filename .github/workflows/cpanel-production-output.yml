@@ -36,7 +36,7 @@ jobs:
         run: rm -rf .output
 
       - name: Regenerate TanStack route tree from src/routes
-        run: npx --yes @tanstack/router-cli@1.170.18 generate
+        run: npx --yes @tanstack/router-cli@1.167.33 generate
 
       - name: Verify generated TanStack route tree
         run: |
