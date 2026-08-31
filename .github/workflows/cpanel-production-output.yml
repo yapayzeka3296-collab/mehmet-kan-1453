@@ -46,6 +46,15 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Do not overwrite a newer source commit that arrived while the build was running.
+          git fetch origin main
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "Source branch changed during build; skipping this stale output publish."
+            echo "The newer main commit will run its own production build."
+            exit 0
+          fi
+
           git add -f .output
           if git diff --cached --quiet; then
             echo "No .output changes to publish."
