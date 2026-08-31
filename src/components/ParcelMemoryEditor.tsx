@@ -3,18 +3,25 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 type MemoryEvent = { parcelId: string; parcelNumber: string; mode?: "edit" | "view" };
 type Props = { parcel: { id: string; parcel_number: string } | null };
-type Memory = { photo_path: string; note: string | null; updated_at: string };
+type Memory = { photo_path: string; music_path: string | null; note: string | null; updated_at: string };
+
+const MUSIC_EXTENSIONS = ["mp3", "m4a", "aac", "wav", "ogg", "webm"];
+const MUSIC_MIME_TYPES = ["audio/mpeg", "audio/mp4", "audio/aac", "audio/wav", "audio/x-wav", "audio/ogg", "audio/webm"];
 
 export function ParcelMemoryEditor({ parcel }: Props) {
   const [memory, setMemory] = useState<MemoryEvent | null>(null);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
+  const [musicPath, setMusicPath] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [musicFile, setMusicFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [viewer, setViewer] = useState<MemoryEvent | null>(null);
   const [publicMemory, setPublicMemory] = useState<Memory | null>(null);
   const [memoryLoading, setMemoryLoading] = useState(true);
+  const [musicUrl, setMusicUrl] = useState<string | null>(null);
+  const [musicError, setMusicError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!parcel) return;
@@ -67,8 +74,8 @@ export function ParcelMemoryEditor({ parcel }: Props) {
     if (!memory) return;
     let cancelled = false;
     (async () => {
-      const { data } = await supabaseBrowser.from("parcel_memories").select("photo_path,note").eq("parcel_id", memory.parcelId).maybeSingle();
-      if (!cancelled) { setPhotoPath(data?.photo_path ?? null); setNote(data?.note ?? ""); setFile(null); }
+      const { data } = await supabaseBrowser.from("parcel_memories").select("photo_path,music_path,note").eq("parcel_id", memory.parcelId).maybeSingle();
+      if (!cancelled) { setPhotoPath(data?.photo_path ?? null); setMusicPath(data?.music_path ?? null); setNote(data?.note ?? ""); setFile(null); setMusicFile(null); }
     })();
     return () => { cancelled = true; };
   }, [memory]);
@@ -76,10 +83,18 @@ export function ParcelMemoryEditor({ parcel }: Props) {
   useEffect(() => {
     if (!viewer) return;
     let cancelled = false;
-    setMemoryLoading(true); setPublicMemory(null);
+    setMemoryLoading(true); setPublicMemory(null); setMusicUrl(null); setMusicError(null);
     (async () => {
-      const { data, error } = await supabaseBrowser.from("parcel_memories").select("photo_path,note,updated_at").eq("parcel_id", viewer.parcelId).maybeSingle();
-      if (!cancelled) { if (!error && data?.photo_path && data.photo_path !== "note-only") setPublicMemory(data as Memory); setMemoryLoading(false); }
+      const { data, error } = await supabaseBrowser.from("parcel_memories").select("photo_path,music_path,note,updated_at,is_public").eq("parcel_id", viewer.parcelId).maybeSingle();
+      if (!cancelled) {
+        if (!error && data?.photo_path && data.photo_path !== "note-only") setPublicMemory(data as Memory);
+        setMemoryLoading(false);
+        if (!error && data?.music_path) {
+          const { data: signed, error: signedError } = await supabaseBrowser.storage.from("parcel-memories").createSignedUrl(data.music_path, 3600);
+          if (!signedError && signed?.signedUrl && !cancelled) setMusicUrl(signed.signedUrl);
+          else if (!cancelled) setMusicError(signedError?.message ?? "Müzik yüklenemedi.");
+        }
+      }
     })();
     return () => { cancelled = true; };
   }, [viewer]);
@@ -87,23 +102,26 @@ export function ParcelMemoryEditor({ parcel }: Props) {
   if (!memory && !viewer) return null;
   if (viewer) {
     const photoUrl = publicMemory ? supabaseBrowser.storage.from("parcel-memories").getPublicUrl(publicMemory.photo_path).data.publicUrl : null;
-    return <div className="fixed inset-0 z-[110] grid place-items-center bg-black/75 p-4 backdrop-blur-sm" onClick={() => setViewer(null)}><div className="w-full max-w-md overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] text-white shadow-2xl" onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4"><div><p className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/70">Parsel Hatırası</p><h2 className="mt-1 text-lg font-extrabold">{viewer.parcelNumber}</h2></div><button type="button" onClick={() => setViewer(null)} aria-label="Kapat" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-xl">×</button></div>{memoryLoading ? <div className="p-8 text-center text-sm text-white/55">Hatıra yükleniyor...</div> : publicMemory ? <div className="p-5">{photoUrl && <img src={photoUrl} alt={`${viewer.parcelNumber} parsel hatırası`} className="max-h-[55vh] w-full rounded-xl object-contain bg-black/20" loading="lazy" />}{publicMemory.note && <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200/60">Not</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/80">{publicMemory.note}</p></div>}</div> : <div className="p-8 text-center text-sm text-white/60">Bu parselde henüz bir hatıra bulunmuyor.</div>}</div></div>;
+    return <div className="fixed inset-0 z-[110] grid place-items-center bg-black/75 p-4 backdrop-blur-sm" onClick={() => setViewer(null)}><div className="w-full max-w-md overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#071a2d] text-white shadow-2xl" onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4"><div><p className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/70">Parsel Hatırası</p><h2 className="mt-1 text-lg font-extrabold">{viewer.parcelNumber}</h2></div><button type="button" onClick={() => setViewer(null)} aria-label="Kapat" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-xl">×</button></div>{memoryLoading ? <div className="p-8 text-center text-sm text-white/55">Hatıra yükleniyor...</div> : publicMemory ? <div className="p-5">{photoUrl && <img src={photoUrl} alt={`${viewer.parcelNumber} parsel hatırası`} className="max-h-[55vh] w-full rounded-xl object-contain bg-black/20" loading="lazy" />}{publicMemory.note && <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200/60">Not</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/80">{publicMemory.note}</p></div>}{musicUrl && <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] p-4"><p className="mb-2 text-[10px] uppercase tracking-[0.16em] text-cyan-200/60">Hatıra Müziği</p><audio controls preload="metadata" className="w-full" onError={() => setMusicError("Müzik tarayıcı tarafından oynatılamadı.")}><source src={musicUrl} type="audio/mpeg" /></audio>{musicError && <p className="mt-2 text-[10px] text-red-300">{musicError}</p>}</div>}</div> : <div className="p-8 text-center text-sm text-white/60">Bu parselde henüz bir hatıra bulunmuyor.</div>}</div></div>;
   }
 
   const close = () => setMemory(null);
   const save = async () => {
-    setSaving(true); setMessage(null); let uploadedPath: string | null = null;
+    setSaving(true); setMessage(null); let uploadedPath: string | null = null; let uploadedMusicPath: string | null = null;
     try {
       const { data: sessionData } = await supabaseBrowser.auth.getSession(); const user = sessionData.session?.user; if (!user) throw new Error("Oturum açmanız gerekiyor.");
-      if (note.length > 500) throw new Error("Not en fazla 500 karakter olabilir."); if (!file && !photoPath) throw new Error("Lütfen bir fotoğraf seçin.");
+      if (note.length > 500) throw new Error("Not en fazla 500 karakter olabilir."); if (!file && !photoPath) throw new Error("Lütfen bir fotoğraf seçin."); if (!musicFile && !musicPath) throw new Error("Lütfen bir müzik dosyası seçin.");
       let nextPhotoPath = photoPath;
+      let nextMusicPath = musicPath;
       if (file) { if (!file.type.startsWith("image/")) throw new Error("Lütfen bir fotoğraf seçin."); if (file.size > 5 * 1024 * 1024) throw new Error("Fotoğraf en fazla 5 MB olabilir."); const ext = (file.name.split(".").pop() || "jpg").toLowerCase(); if (!["jpg", "jpeg", "png", "webp"].includes(ext)) throw new Error("JPG, PNG veya WebP kullanın."); const path = `${user.id}/${memory!.parcelId}/memory-${Date.now()}.${ext}`; const { error: uploadError } = await supabaseBrowser.storage.from("parcel-memories").upload(path, file, { upsert: false, contentType: file.type, cacheControl: "3600" }); if (uploadError) throw new Error(`Fotoğraf yüklenemedi: ${uploadError.message}`); uploadedPath = path; nextPhotoPath = path; }
-      const { error: saveError } = await supabaseBrowser.rpc("save_parcel_memory", { p_parcel_id: memory!.parcelId, p_photo_path: nextPhotoPath, p_note: note.trim() });
-      if (saveError) { if (uploadedPath) await supabaseBrowser.storage.from("parcel-memories").remove([uploadedPath]); throw new Error(`Hatıra kaydedilemedi: ${saveError.message}`); }
+      if (musicFile) { const ext = (musicFile.name.split(".").pop() || "").toLowerCase(); const mime = musicFile.type || ""; if (!MUSIC_EXTENSIONS.includes(ext) || (mime && !MUSIC_MIME_TYPES.includes(mime))) throw new Error("MP3, M4A, AAC, WAV, OGG veya WebM müzik dosyası kullanın."); if (musicFile.size > 10 * 1024 * 1024) throw new Error("Müzik dosyası en fazla 10 MB olabilir."); const path = `${user.id}/${memory!.parcelId}/memory-music-${Date.now()}.${ext}`; const contentType = mime || (ext === "mp3" ? "audio/mpeg" : ext === "m4a" ? "audio/mp4" : ext === "wav" ? "audio/wav" : ext === "ogg" ? "audio/ogg" : ext === "webm" ? "audio/webm" : "audio/aac"); const { error: uploadError } = await supabaseBrowser.storage.from("parcel-memories").upload(path, musicFile, { upsert: false, contentType, cacheControl: "3600" }); if (uploadError) throw new Error(`Müzik yüklenemedi: ${uploadError.message}`); uploadedMusicPath = path; nextMusicPath = path; }
+      const { error: saveError } = await supabaseBrowser.rpc("save_parcel_memory", { p_parcel_id: memory!.parcelId, p_photo_path: nextPhotoPath, p_note: note.trim(), p_music_path: nextMusicPath, p_is_public: true });
+      if (saveError) { if (uploadedPath) await supabaseBrowser.storage.from("parcel-memories").remove([uploadedPath]); if (uploadedMusicPath) await supabaseBrowser.storage.from("parcel-memories").remove([uploadedMusicPath]); throw new Error(`Hatıra kaydedilemedi: ${saveError.message}`); }
       if (uploadedPath && photoPath && photoPath !== uploadedPath) await supabaseBrowser.storage.from("parcel-memories").remove([photoPath]);
-      setPhotoPath(nextPhotoPath); setFile(null); setMessage("Parsel hatıran kaydedildi.");
+      if (uploadedMusicPath && musicPath && musicPath !== uploadedMusicPath) await supabaseBrowser.storage.from("parcel-memories").remove([musicPath]);
+      setPhotoPath(nextPhotoPath); setMusicPath(nextMusicPath); setFile(null); setMusicFile(null); setMessage("Parsel hatıran kaydedildi.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Hatıra kaydedilemedi."); } finally { setSaving(false); }
   };
 
-  return <div className="fixed inset-0 z-[100] grid place-items-center bg-black/70 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-2xl border border-cyan-300/20 bg-[#071a2d] p-5 text-white shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/70">Parsel Hatırası</p><h2 className="mt-1 text-xl font-extrabold">{memory!.parcelNumber}</h2><p className="mt-1 text-xs text-white/50">Parseline bir fotoğraf ve kısa bir not bırak.</p></div><button type="button" onClick={close} aria-label="Kapat" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-xl">×</button></div><label className="mt-5 block cursor-pointer rounded-xl border border-dashed border-cyan-300/30 bg-white/[0.03] p-4"><span className="text-sm font-semibold">📷 Fotoğraf</span><span className="mt-1 block text-xs text-white/50">Her parsel için yalnızca 1 fotoğraf · Maks. 5 MB</span><input className="mt-3 block w-full text-xs" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label><label className="mt-4 block"><span className="text-sm font-semibold">📝 Not</span><textarea value={note} onChange={(e) => setNote(e.target.value.slice(0, 500))} maxLength={500} rows={4} placeholder="Bu parsel için bir anı veya kısa not..." className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm outline-none placeholder:text-white/30 focus:border-cyan-300/50" /><span className="mt-1 block text-right text-[10px] text-white/40">{note.length}/500</span></label>{message && <p className="mt-3 rounded-lg bg-white/5 px-3 py-2 text-xs text-white/70">{message}</p>}<button type="button" disabled={saving} onClick={save} className="mt-4 h-11 w-full rounded-xl bg-gradient-to-r from-cyan-300 to-cyan-100 font-extrabold text-[#071a2d] disabled:opacity-50">{saving ? "KAYDEDİLİYOR..." : "HATIRAYI KAYDET"}</button></div></div>;
+  return <div className="fixed inset-0 z-[100] grid place-items-center bg-black/70 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-2xl border border-cyan-300/20 bg-[#071a2d] p-5 text-white shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/70">Parsel Hatırası</p><h2 className="mt-1 text-xl font-extrabold">{memory!.parcelNumber}</h2><p className="mt-1 text-xs text-white/50">Parseline bir fotoğraf, müzik ve kısa bir not bırak.</p></div><button type="button" onClick={close} aria-label="Kapat" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-xl">×</button></div><label className="mt-5 block cursor-pointer rounded-xl border border-dashed border-cyan-300/30 bg-white/[0.03] p-4"><span className="text-sm font-semibold">📷 Fotoğraf</span><span className="mt-1 block text-xs text-white/50">Her parsel için yalnızca 1 fotoğraf · Maks. 5 MB</span><input className="mt-3 block w-full text-xs" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label><label className="mt-4 block cursor-pointer rounded-xl border border-dashed border-cyan-300/30 bg-white/[0.03] p-4"><span className="text-sm font-semibold">🎵 Müzik</span><span className="mt-1 block text-xs text-white/50">MP3, M4A, AAC, WAV, OGG veya WebM · Maks. 10 MB</span><input className="mt-3 block w-full text-xs" type="file" accept="audio/mpeg,audio/mp4,audio/aac,audio/wav,audio/ogg,audio/webm,.mp3,.m4a,.aac,.wav,.ogg,.webm" onChange={(e) => setMusicFile(e.target.files?.[0] ?? null)} /></label><label className="mt-4 block"><span className="text-sm font-semibold">📝 Not</span><textarea value={note} onChange={(e) => setNote(e.target.value.slice(0, 500))} maxLength={500} rows={4} placeholder="Bu parsel için bir anı veya kısa not..." className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm outline-none placeholder:text-white/30 focus:border-cyan-300/50" /><span className="mt-1 block text-right text-[10px] text-white/40">{note.length}/500</span></label>{message && <p className="mt-3 rounded-lg bg-white/5 px-3 py-2 text-xs text-white/70">{message}</p>}<button type="button" disabled={saving} onClick={save} className="mt-4 h-11 w-full rounded-xl bg-gradient-to-r from-cyan-300 to-cyan-100 font-extrabold text-[#071a2d] disabled:opacity-50">{saving ? "KAYDEDİLİYOR..." : "HATIRAYI KAYDET"}</button></div></div>;
 }
