@@ -1,4 +1,6 @@
 ---
+# cPanel deployment trigger: 2026-09-01 CSS fix
+# The Node.js application runs from .output/server/index.mjs.
 deployment:
   tasks:
     - /bin/mkdir -p /home/myskypar/repositories/pixel-perfect-clone-14793/tmp
