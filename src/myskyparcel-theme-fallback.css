@@ -1,0 +1,82 @@
+/* MySkyParcel theme fallback
+ * Plain CSS fallback intentionally kept outside Tailwind @theme/@utility so the
+ * visual identity remains available even if Tailwind does not emit a custom utility.
+ */
+:root {
+  --msp-navy-deep: oklch(0.16 0.045 260);
+  --msp-navy: oklch(0.21 0.05 260);
+  --msp-background: oklch(0.14 0.04 262);
+  --msp-foreground: oklch(0.96 0.005 250);
+  --msp-card: oklch(0.19 0.045 261);
+  --msp-gold: oklch(0.78 0.13 82);
+  --msp-gold-soft: oklch(0.88 0.09 88);
+  --msp-border: oklch(0.32 0.04 260);
+  --msp-gradient-gold: linear-gradient(135deg, oklch(0.72 0.12 74), oklch(0.9 0.1 90));
+  --msp-gradient-panel: linear-gradient(160deg, oklch(0.2 0.05 261), oklch(0.16 0.045 262));
+  --msp-shadow-gold: 0 10px 30px -12px oklch(0.78 0.13 82 / 0.45);
+  --msp-shadow-panel: 0 20px 50px -24px oklch(0 0 0 / 0.8);
+}
+
+body {
+  background-color: var(--background, var(--msp-background));
+  color: var(--foreground, var(--msp-foreground));
+  font-family: var(--font-sans, "Jost", ui-sans-serif, system-ui, sans-serif);
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display, "Cinzel", serif);
+  letter-spacing: 0.02em;
+}
+
+.panel {
+  background-image: var(--gradient-panel, var(--msp-gradient-panel));
+  border: 1px solid var(--color-border, var(--msp-border));
+  border-radius: var(--radius-xl, 1rem);
+  box-shadow: var(--shadow-panel, var(--msp-shadow-panel));
+}
+
+.btn-gold {
+  background-image: var(--gradient-gold, var(--msp-gradient-gold));
+  color: var(--primary-foreground, var(--msp-navy-deep));
+  box-shadow: var(--shadow-gold, var(--msp-shadow-gold));
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.btn-gold:hover {
+  filter: brightness(1.06);
+}
+
+.text-gradient-gold {
+  background-image: var(--gradient-gold, var(--msp-gradient-gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.starfield {
+  background-color: var(--background, var(--msp-background));
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, oklch(1 0 0 / 0.7), transparent),
+    radial-gradient(1px 1px at 70% 20%, oklch(1 0 0 / 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 40% 70%, oklch(1 0 0 / 0.55), transparent),
+    radial-gradient(1px 1px at 85% 60%, oklch(1 0 0 / 0.45), transparent),
+    radial-gradient(1px 1px at 10% 80%, oklch(1 0 0 / 0.4), transparent),
+    radial-gradient(1200px 600px at 60% -10%, oklch(0.35 0.09 255 / 0.55), transparent);
+}
+
+.hero-sky-parcels {
+  background-color: var(--background, var(--msp-background));
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+@media (max-width: 768px) {
+  .hero-sky-parcels {
+    background-position: 65% center;
+  }
+}
