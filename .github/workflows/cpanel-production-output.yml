@@ -30,13 +30,13 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Clean previous production output
         run: rm -rf .output
 
       - name: Regenerate TanStack route tree from src/routes
-        run: npx --yes @tanstack/router-cli@1.167.33 generate
+        run: npx --no-install @tanstack/router-cli@1.167.33 generate
 
       - name: Verify generated TanStack route tree
         run: |
@@ -46,7 +46,6 @@ jobs:
           grep -q "'/parsel-hatirasi'" src/routeTree.gen.ts
           grep -q "'/pazar-yeri'" src/routeTree.gen.ts
           grep -q "'/turkiye-haritasi'" src/routeTree.gen.ts
-          echo "TanStack route tree contains the required application routes."
 
       - name: Build production output
         run: npm run build
@@ -63,7 +62,6 @@ jobs:
           grep -R -q "parsel-hatirasi" .output/server
           grep -R -q "pazar-yeri" .output/server
           grep -R -q "turkiye-haritasi" .output/server
-          echo "Production Nitro output contains the expected application routes."
 
       - name: Verify server bundle imports
         run: |
@@ -97,11 +95,9 @@ jobs:
             }
           }
           if (missing.length) {
-            console.error('Missing relative server imports:');
             console.error(missing.join('\n'));
             process.exit(1);
           }
-          console.log(`Verified ${files.length} server modules and all relative imports.`);
           NODE
 
       - name: Publish generated output to main
