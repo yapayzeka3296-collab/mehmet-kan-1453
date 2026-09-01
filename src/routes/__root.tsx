@@ -3,6 +3,7 @@ import { Outlet, Link, createRootRouteWithContext, useRouter, HeadContent, Scrip
 import { useEffect, type ReactNode } from "react";
 import "../styles.css";
 import "../gokyuzu-scale.css";
+import "../myskyparcel-layer-fix.css";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider } from "@/hooks/useAuth";
 import { SiteVisitTracker } from "@/components/SiteVisitTracker";
