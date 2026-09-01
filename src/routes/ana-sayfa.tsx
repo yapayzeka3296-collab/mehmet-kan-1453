@@ -6,6 +6,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
 import { CertificateTemplatePreview } from "@/components/CertificateTemplatePreview";
 import { CITY_IMAGES } from "@/lib/cityImages";
+import "../ana-sayfa.css";
 
 export const Route = createFileRoute("/ana-sayfa")({ head: () => ({ meta: [{ title: "MySkyParcel — Gökyüzünde Sana Özel Sembolik Bir Yer" }, { name: "description", content: "81 il ve 81 milyon benzersiz gökyüzü parseli fikri." }] }), component: Index });
 const SKY_PARCEL_MODEL = { cityCount: 81, layersPerCity: 10, sectorsPerCity: 1_000, parcelsPerCity: 1_000_000, totalParcels: 81_000_000 } as const;
