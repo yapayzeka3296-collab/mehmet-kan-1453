@@ -1,1 +1,0 @@
-var e=`/assets/globe-N3120dWu.png`;export{e as t};

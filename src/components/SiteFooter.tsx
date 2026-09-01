@@ -31,7 +31,7 @@ export function SiteFooter() {
         </ul>
         <div className="flex flex-col items-start gap-2 lg:items-end">
           <div className="flex flex-wrap items-center gap-2" aria-label="Ödeme yöntemleri">
-            <span className="rounded border border-white/15 bg-white px-2.5 py-1 text-[10px] font-bold tracking-wide text-slate-900">Shopier ile Öde</span>
+            <span className="rounded border border-white/15 bg-white px-2.5 py-1 text-[10px] font-bold tracking-wide text-slate-900">iyzico ile Öde</span>
             <span className="rounded border border-white/15 bg-white px-2.5 py-1 text-[10px] font-bold italic text-slate-900">VISA</span>
             <span className="rounded border border-white/15 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-900">Mastercard</span>
           </div>

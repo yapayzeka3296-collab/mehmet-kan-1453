@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   build-output:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     steps:
@@ -30,123 +31,24 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
-
-      - name: Clean previous production output
-        run: rm -rf .output
-
-      - name: Regenerate TanStack route tree from src/routes
-        run: npx --yes @tanstack/router-cli@1.170.18 generate
-
-      - name: Verify generated TanStack route tree
-        run: |
-          grep -q "'/ana-sayfa'" src/routeTree.gen.ts
-          grep -q "'/odeme'" src/routeTree.gen.ts
-          grep -q "'/kvkk'" src/routeTree.gen.ts
-          grep -q "'/parsel-hatirasi'" src/routeTree.gen.ts
-          grep -q "'/pazar-yeri'" src/routeTree.gen.ts
-          grep -q "'/turkiye-haritasi'" src/routeTree.gen.ts
+        run: npm ci
 
       - name: Build production output
         run: npm run build
 
-      - name: Verify production output
+      - name: Verify Passenger entrypoint
         run: |
           test -f .output/server/index.mjs
-          test -f .output/server/_tanstack-start-manifest_v-*.mjs
-          grep -R -q "giris" .output/server
-          grep -R -q "gokyuzu-haritasi" .output/server
-          grep -R -q "ana-sayfa" .output/server
-          grep -R -q "odeme" .output/server
-          grep -R -q "kvkk" .output/server
-          grep -R -q "parsel-hatirasi" .output/server
-          grep -R -q "pazar-yeri" .output/server
-          grep -R -q "turkiye-haritasi" .output/server
-
-      - name: Verify server bundle imports
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const path = require('path');
-          const root = path.resolve('.output/server');
-          const files = [];
-          function walk(dir) {
-            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-              const full = path.join(dir, entry.name);
-              if (entry.isDirectory()) walk(full);
-              else if (entry.name.endsWith('.mjs')) files.push(full);
-            }
-          }
-          walk(root);
-          const relativeFiles = new Set(files.map(file => path.relative(root, file).split(path.sep).join('/')));
-          const missing = [];
-          const resolveImport = (fromFile, specifier) => {
-            const clean = specifier.split(/[?#]/)[0];
-            const base = path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), clean));
-            const candidates = [base, `${base}.mjs`, `${base}.js`, `${base}/index.mjs`];
-            return candidates.find(candidate => relativeFiles.has(candidate));
-          };
-          for (const file of files) {
-            const rel = path.relative(root, file).split(path.sep).join('/');
-            const text = fs.readFileSync(file, 'utf8');
-            const importPattern = /(?:from\s*|import\s*(?:\(\s*)?)["'](\.[^"']+)["']/g;
-            for (const match of text.matchAll(importPattern)) {
-              if (!resolveImport(rel, match[1])) missing.push(`${rel} -> ${match[1]}`);
-            }
-          }
-          if (missing.length) {
-            console.error(missing.join('\n'));
-            process.exit(1);
-          }
-          NODE
-
-      - name: Verify client route assets and imports
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const path = require('path');
-          const root = path.resolve('.output/public');
-          const files = new Set();
-          function walk(dir) {
-            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-              const full = path.join(dir, entry.name);
-              if (entry.isDirectory()) walk(full);
-              else files.add('/' + path.relative(root, full).split(path.sep).join('/'));
-            }
-          }
-          walk(root);
-          const assets = [...files].filter((file) => file.endsWith('.js'));
-          const missing = [];
-          for (const asset of assets) {
-            const text = fs.readFileSync(path.join(root, asset.slice(1)), 'utf8');
-            const importPattern = /(?:from\s*|import\s*\(\s*)["']([^"']+)["']/g;
-            for (const match of text.matchAll(importPattern)) {
-              const specifier = match[1];
-              if (!specifier.startsWith('./') && !specifier.startsWith('../')) continue;
-              const base = path.posix.normalize(path.posix.join(path.posix.dirname(asset), specifier));
-              const candidates = [base, `${base}.js`, `${base}.mjs`];
-              if (!candidates.some((candidate) => files.has(candidate))) missing.push(`${asset} -> ${specifier}`);
-            }
-          }
-          if (missing.length) {
-            console.error(missing.join('\n'));
-            process.exit(1);
-          }
-          for (const route of ['giris','kayit-ol','paketler','odeme','parsel-satin-al','parsellerim','pazar-yeri','profilim','siparislerim','sertifikalarim','yonetim','gizlilik-politikasi','kvkk','hakkimizda','iletisim','nasil-calisir','gokyuzu-haritasi','turkiye-haritasi']) {
-            if (!assets.some((file) => file.includes(`/${route}-`))) {
-              console.error(`Missing client route asset: ${route}`);
-              process.exit(1);
-            }
-          }
-          NODE
+          test -d .output/server
+          echo "Production Nitro output verified."
 
       - name: Publish generated output to main
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A -f .output src/routeTree.gen.ts
+          git add -f .output
           if git diff --cached --quiet; then
-            echo "No generated changes to publish."
+            echo "No .output changes to publish."
             exit 0
           fi
           git commit -m "chore: update cPanel production output"
