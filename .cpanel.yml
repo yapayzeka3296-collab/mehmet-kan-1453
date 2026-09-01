@@ -1,7 +1,10 @@
 ---
-# cPanel deployment trigger: 2026-09-01 CSS fix
-# The Node.js application runs from .output/server/index.mjs.
+# cPanel deployment: build the Nitro/TanStack Start production output in the
+# same repository that Passenger uses as its Application Root.
 deployment:
   tasks:
-    - /bin/mkdir -p /home/myskypar/repositories/pixel-perfect-clone-14793/tmp
-    - /bin/touch /home/myskypar/repositories/pixel-perfect-clone-14793/tmp/restart.txt
+    - export APP_ROOT=/home/myskypar/repositories/pixel-perfect-clone-14793
+    - cd $APP_ROOT && npm install
+    - cd $APP_ROOT && npm run build
+    - /bin/mkdir -p $APP_ROOT/tmp
+    - /bin/touch $APP_ROOT/tmp/restart.txt
