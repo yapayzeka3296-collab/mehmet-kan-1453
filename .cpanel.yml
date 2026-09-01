@@ -1,6 +1,5 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/NETLEN_CPANEL_KULLANICI_ADIN/public_html
-    - /bin/cp -R -f * $DEPLOYPATH/
-    - /bin/cp -R -f .output/* $DEPLOYPATH/.output/ 2>/dev/null || true
+    - export DEPLOYPATH=/home/myskypar/public_html
+    - /bin/cp -R * $DEPLOYPATH
