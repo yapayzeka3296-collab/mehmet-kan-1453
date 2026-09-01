@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1122" height="794" viewBox="0 0 1122 794" role="img" aria-labelledby="title desc">
+  <title id="title">MySkyParcel Özel Sertifika</title>
+  <desc id="desc">MySkyParcel special certificate template</desc>
+  <defs>
+    <linearGradient id="bgOverlay" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#071426" stop-opacity=".25"/><stop offset=".5" stop-color="#071426" stop-opacity=".12"/><stop offset="1" stop-color="#071426" stop-opacity=".62"/></linearGradient>
+    <radialGradient id="goldGlow"><stop offset="0" stop-color="#f1d486" stop-opacity=".28"/><stop offset="1" stop-color="#f1d486" stop-opacity="0"/></radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8f6d2c"/><stop offset=".5" stop-color="#f0d88c"/><stop offset="1" stop-color="#9a7934"/></linearGradient>
+  </defs>
+  <rect width="1122" height="794" fill="#24496e"/>
+  <image x="0" y="0" width="1122" height="794" preserveAspectRatio="xMidYMid slice" href="https://images.unsplash.com/photo-1513014939933-3b7e0cf15185?auto=format&amp;fit=crop&amp;w=1800&amp;q=90"/>
+  <rect width="1122" height="794" fill="url(#bgOverlay)"/>
+  <ellipse cx="180" cy="670" rx="260" ry="125" fill="url(#goldGlow)"/>
+  <path d="M55 55h1012v684H55z" fill="none" stroke="url(#gold)" stroke-width="3"/>
+  <path d="M75 75h972v644H75z" fill="none" stroke="#d7bc70" stroke-opacity=".28"/>
+  <g fill="none" stroke="#d7bc70" stroke-opacity=".45" stroke-width="1.5">
+    <path d="M55 145Q130 55 220 55M1067 145Q992 55 902 55M55 649Q130 739 220 739M1067 649Q992 739 902 739"/>
+    <circle cx="561" cy="102" r="24"/><circle cx="561" cy="102" r="10"/>
+  </g>
+  <text x="561" y="94" text-anchor="middle" fill="#f2df9c" font-family="Georgia,serif" font-size="28" letter-spacing="5">MY SKY PARCEL</text>
+  <text x="561" y="160" text-anchor="middle" fill="#c9aa5b" font-family="Georgia,serif" font-size="16" letter-spacing="6">ÖZEL SERTİFİKA</text>
+  <text x="561" y="278" text-anchor="middle" fill="#fffaf0" font-family="Georgia,serif" font-size="{{HOLDER_NAME_FONT_SIZE}}" font-style="italic">{{HOLDER_NAME}}</text>
+  <path d="M270 305H852" stroke="url(#gold)"/>
+  <text x="561" y="362" text-anchor="middle" fill="#d7e0ea" font-family="Arial,sans-serif" font-size="15" letter-spacing="2">MY SKYPARCEL PARSELİ</text>
+  <text x="561" y="410" text-anchor="middle" fill="#f0d88c" font-family="monospace" font-size="22" letter-spacing="2">{{PARCEL_CODE}}</text>
+  <text x="561" y="447" text-anchor="middle" fill="#b9c5d4" font-family="Arial,sans-serif" font-size="15">{{CITY_NAME}} • ÖZEL</text>
+  <text x="561" y="520" text-anchor="middle" fill="#8f9eb0" font-family="Arial,sans-serif" font-size="11" letter-spacing="2">SERTİFİKA NO</text>
+  <text x="561" y="548" text-anchor="middle" fill="#fffaf0" font-family="monospace" font-size="17">{{CERTIFICATE_NUMBER}}</text>
+  <text x="86" y="692" fill="#8d9caf" font-family="Arial,sans-serif" font-size="12">{{ISSUE_DATE}}</text>
+  <text x="1036" y="692" text-anchor="end" fill="#8d9caf" font-family="monospace" font-size="10">{{FINGERPRINT_SHORT}}</text>
+  <rect x="905" y="535" width="135" height="135" rx="10" fill="#fff"/>
+  <image x="915" y="545" width="115" height="115" preserveAspectRatio="xMidYMid meet" href="{{QR_IMAGE_URL}}"/>
+  <text x="972" y="686" text-anchor="middle" fill="#8d9caf" font-family="Arial,sans-serif" font-size="10">DOĞRULAMA</text>
+</svg>
