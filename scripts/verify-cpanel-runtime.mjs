@@ -42,7 +42,11 @@ for (const file of files) {
 const ssrFile = path.join(root, "_ssr", "ssr.mjs");
 const ssrText = fs.readFileSync(ssrFile, "utf8");
 const serverMatch = ssrText.match(/import\(["'](\.\/server-[^"']+\.mjs)["']\)/);
-if (!serverMatch) throw new Error("Could not find the generated SSR server entry import in .output/server/_ssr/ssr.mjs");
+if (!serverMatch) {
+  throw new Error(
+    "Could not find the generated SSR server entry import in .output/server/_ssr/ssr.mjs",
+  );
+}
 if (!resolveImport("_ssr/ssr.mjs", serverMatch[1])) {
   missing.push(`_ssr/ssr.mjs -> ${serverMatch[1]}`);
 }
@@ -53,11 +57,7 @@ if (missing.length) {
   process.exit(1);
 }
 
-for (const required of [
-  "index.mjs",
-  "_ssr/ssr.mjs",
-  "_ssr/server-COHtN24R.mjs",
-]) {
+for (const required of ["index.mjs", "_ssr/ssr.mjs"]) {
   if (!relativeFiles.has(required)) {
     throw new Error(`Required production server file is missing: ${required}`);
   }
