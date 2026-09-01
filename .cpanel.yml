@@ -1,10 +1,6 @@
 ---
-# cPanel deployment: build the Nitro/TanStack Start production output in the
-# same repository that Passenger uses as its Application Root.
 deployment:
   tasks:
-    - export APP_ROOT=/home/myskypar/repositories/pixel-perfect-clone-14793
-    - cd $APP_ROOT && npm install
-    - cd $APP_ROOT && npm run build
-    - /bin/mkdir -p $APP_ROOT/tmp
-    - /bin/touch $APP_ROOT/tmp/restart.txt
+    - export DEPLOYPATH=/home/NETLEN_CPANEL_KULLANICI_ADIN/public_html
+    - /bin/cp -R -f * $DEPLOYPATH/
+    - /bin/cp -R -f .output/* $DEPLOYPATH/.output/ 2>/dev/null || true
