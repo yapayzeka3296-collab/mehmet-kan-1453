@@ -1,4 +1,4 @@
-name: FTP Deploy to cPanel
+name: Automatic FTP Deploy to cPanel
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   web-deploy:
-    name: Deploy
+    name: Deploy Files
     runs-on: ubuntu-latest
     steps:
     - name: Get latest code
