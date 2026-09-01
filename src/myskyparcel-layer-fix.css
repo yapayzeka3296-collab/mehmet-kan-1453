@@ -1,0 +1,65 @@
+/* MySkyParcel 3D/UI katman izolasyonu ve tema sabitleme */
+html,
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+canvas {
+  position: relative;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.msp-three-interactive {
+  pointer-events: auto;
+  position: relative;
+  z-index: 0;
+}
+
+.msp-ui-layer {
+  position: relative;
+  z-index: 10;
+}
+
+.msp-nav-layer {
+  position: relative;
+  z-index: 1000;
+}
+
+.msp-sidebar-layer {
+  position: relative;
+  z-index: 20;
+}
+
+/* Orijinal MySkyParcel koyu tema varsayılan olarak aktiftir. */
+:root,
+.dark {
+  --background: oklch(0.14 0.04 262);
+  --foreground: oklch(0.96 0.005 250);
+  --card: oklch(0.19 0.045 261);
+  --card-foreground: oklch(0.96 0.005 250);
+  --popover: oklch(0.19 0.045 261);
+  --popover-foreground: oklch(0.96 0.005 250);
+  --primary: oklch(0.78 0.13 82);
+  --primary-foreground: oklch(0.18 0.04 262);
+  --secondary: oklch(0.24 0.05 261);
+  --secondary-foreground: oklch(0.96 0.005 250);
+  --muted: oklch(0.24 0.05 261);
+  --muted-foreground: oklch(0.72 0.02 258);
+  --accent: oklch(0.26 0.055 261);
+  --accent-foreground: oklch(0.88 0.09 88);
+  --border: oklch(0.32 0.04 260);
+  --input: oklch(0.3 0.04 260);
+  --ring: oklch(0.78 0.13 82);
+  --gold: oklch(0.78 0.13 82);
+  --gold-soft: oklch(0.88 0.09 88);
+  --navy: oklch(0.21 0.05 260);
+  --navy-deep: oklch(0.16 0.045 260);
+  --success: oklch(0.68 0.15 152);
+  --info: oklch(0.68 0.13 240);
+}
+
+body {
+  min-height: 100vh;
+}
