@@ -2,6 +2,7 @@
 deployment:
   tasks:
     - /bin/mkdir -p /home/myskypar/repositories/pixel-perfect-clone-14793/tmp
-    - cd /home/myskypar/repositories/pixel-perfect-clone-14793 && npm ci --no-audit --no-fund
-    - cd /home/myskypar/repositories/pixel-perfect-clone-14793 && npm run build
+    - /bin/test -f /home/myskypar/repositories/pixel-perfect-clone-14793/.output/server/index.mjs
+    - /bin/test -f /home/myskypar/repositories/pixel-perfect-clone-14793/app.js
+    - /bin/rm -f /home/myskypar/repositories/pixel-perfect-clone-14793/tmp/restart.txt
     - /bin/touch /home/myskypar/repositories/pixel-perfect-clone-14793/tmp/restart.txt
