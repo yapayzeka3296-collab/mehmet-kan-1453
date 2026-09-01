@@ -16,6 +16,10 @@ dist-ssr
 .nitro
 *.local
 
+# cPanel Passenger restart file
+# cPanel writes tmp/restart.txt during deployment; keep it out of Git's working-tree status.
+tmp/
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
