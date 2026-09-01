@@ -1,0 +1,35 @@
+.ana-sayfa {
+  isolation: isolate;
+  position: relative;
+  z-index: 0;
+}
+
+.ana-sayfa > main,
+.ana-sayfa > footer {
+  position: relative;
+  z-index: 10;
+}
+
+.ana-sayfa img[alt="MySkyParcel gökyüzü"] {
+  position: absolute;
+  inset: 0;
+  z-index: -10;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* Ana sayfa açık gökyüzü kullanır; global koyu body rengi bu sayfayı ezemez. */
+html:has(.ana-sayfa) body {
+  background-color: transparent;
+  color-scheme: light;
+}
+
+.ana-sayfa .panel {
+  color: rgb(15 23 42);
+}
+
+.ana-sayfa .text-muted-foreground {
+  color: rgb(71 85 105);
+}
