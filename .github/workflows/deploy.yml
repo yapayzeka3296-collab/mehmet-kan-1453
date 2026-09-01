@@ -1,4 +1,4 @@
-name: Automatic FTP Deploy to cPanel
+name: FTP Deploy to cPanel
 
 on:
   push:
@@ -7,15 +7,16 @@ on:
 
 jobs:
   web-deploy:
-    name: Deploy Files
+    name: Deploy
     runs-on: ubuntu-latest
     steps:
     - name: Get latest code
       uses: actions/checkout@v3
 
     - name: Sync files via FTP
-      uses: SamKirsch/cpanel-action@v1.0.0
+      uses: SamKirsch/FTP-Deploy-Action@v4.3.4
       with:
-        cpanel_url: 'https://myskyparcel.com:2083'
-        cpanel_username: '${{ secrets.CPANEL_USERNAME }}'
-        cpanel_password: '${{ secrets.CPANEL_PASSWORD }}'
+        server: ftp.myskyparcel.com
+        username: ${{ secrets.CPANEL_USERNAME }}
+        password: ${{ secrets.CPANEL_PASSWORD }}
+        server-dir: /public_html/
