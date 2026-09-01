@@ -1,4 +1,6 @@
-// Netlen cPanel / Phusion Passenger startup entry.
-// Passenger loads this file after the production build has created
+// Phusion Passenger production entry point.
+// Passenger starts this file after the production build has generated
 // .output/server/index.mjs.
-import "./.output/server/index.mjs";
+process.env.NODE_ENV ??= "production";
+
+await import("./.output/server/index.mjs");
