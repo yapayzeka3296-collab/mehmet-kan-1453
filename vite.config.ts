@@ -7,15 +7,13 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
   tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
+    // Use the project's explicit SSR server entry in both runtimes.
     server: { entry: "server" },
   },
-  // cPanel/CloudLinux runs this application as a normal Node.js Passenger app.
-  // The Lovable wrapper defaults Nitro to Cloudflare; that output is not the correct
-  // runtime target for cPanel. Keep the existing .output/server/index.mjs startup path,
-  // but generate it with Nitro's standard Node server preset.
+  // cPanel/CloudLinux needs the Node server preset, while Vercel needs Nitro's
+  // Vercel deployment preset. Selecting from VERCEL keeps one source tree usable
+  // on both platforms without changing the Node.js startup path on cPanel.
   nitro: {
-    preset: "node-server",
+    preset: process.env.VERCEL ? "vercel" : "node-server",
   },
 });
