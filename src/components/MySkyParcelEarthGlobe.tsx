@@ -22,13 +22,15 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     const pointers = new Map<number, { x: number; y: number }>();
     let pinchDistance: number | null = null;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x01040b);
+    scene.background = null;
     const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
     camera.position.set(0, 0.35, cameraZRef.current);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setSize(mount.clientWidth, mount.clientHeight, false);
+    renderer.domElement.classList.add("msp-three-interactive");
     renderer.domElement.style.display = "block";
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
@@ -192,9 +194,10 @@ export function MySkyParcelEarthGlobe({ className = "" }: Props) {
     };
   }, []);
   return (
-    <div className={`relative h-[560px] w-full overflow-hidden rounded-3xl border border-sky-200/15 bg-[#01040b] shadow-2xl shadow-black/40 ${className}`}>
-      <div ref={mountRef} className="absolute inset-0" aria-label="MySkyParcel görsel 3D Dünya küresi" />
-      <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">İki parmakla yakınlaştır · fare tekerleğiyle zoom</div>
+    <div className={`relative z-0 h-[560px] w-full overflow-hidden rounded-3xl border border-sky-200/15 bg-background shadow-2xl shadow-black/40 ${className}`}>
+      <div ref={mountRef} className="absolute inset-0 z-0" aria-label="MySkyParcel görsel 3D Dünya küresi" />
+      <div className="pointer-events-none absolute inset-0 z-10" aria-hidden="true" />
+      <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">İki parmakla yakınlaştır · fare tekerleğiyle zoom</div>
     </div>
   );
 }
