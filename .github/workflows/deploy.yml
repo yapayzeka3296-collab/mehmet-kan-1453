@@ -1,0 +1,21 @@
+name: FTP Deploy to cPanel
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  web-deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    steps:
+    - name: Get latest code
+      uses: actions/checkout@v3
+
+    - name: Sync files via FTP
+      uses: SamKirsch/cpanel-action@v1.0.0
+      with:
+        cpanel_url: 'https://myskyparcel.com:2083'
+        cpanel_username: '${{ secrets.CPANEL_USERNAME }}'
+        cpanel_password: '${{ secrets.CPANEL_PASSWORD }}'
