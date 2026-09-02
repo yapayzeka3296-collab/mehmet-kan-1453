@@ -6,5 +6,8 @@ deployment:
     - /bin/mkdir -p $DEPLOYPATH
     - /bin/rm -rf $DEPLOYPATH/assets
     - /bin/cp -R -f $APPROOT/.output/public/. $DEPLOYPATH/
+    - /bin/mkdir -p $DEPLOYPATH/assets
+    - /bin/cp -f $APPROOT/public/assets/.htaccess $DEPLOYPATH/assets/.htaccess
+    - /bin/sed -i 's#PassengerStartupFile .output/server/index.mjs#PassengerStartupFile app.js#' $DEPLOYPATH/.htaccess
     - /bin/mkdir -p $APPROOT/tmp
     - /bin/touch $APPROOT/tmp/restart.txt
