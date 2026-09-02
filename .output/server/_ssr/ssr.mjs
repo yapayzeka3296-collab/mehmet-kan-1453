@@ -96,15 +96,32 @@ async function getServerEntry() {
 	if (!serverEntryPromise) serverEntryPromise = import("./server-WZHqb1HR.mjs").then((m) => m.default ?? m);
 	return serverEntryPromise;
 }
+function preventStaleSsrCache(response) {
+	if (!(response.headers.get("content-type") ?? "").includes("text/html")) return response;
+	const headers = new Headers(response.headers);
+	headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+	headers.set("Pragma", "no-cache");
+	headers.set("Expires", "0");
+	return new Response(response.body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers
+	});
+}
 async function normalizeCatastrophicSsrResponse(response) {
-	if (response.status < 500) return response;
-	if (!(response.headers.get("content-type") ?? "").includes("application/json")) return response;
+	if (response.status < 500) return preventStaleSsrCache(response);
+	if (!(response.headers.get("content-type") ?? "").includes("application/json")) return preventStaleSsrCache(response);
 	const body = await response.clone().text();
-	if (!isH3SwallowedErrorBody(body)) return response;
+	if (!isH3SwallowedErrorBody(body)) return preventStaleSsrCache(response);
 	console.error(consumeLastCapturedError() ?? /* @__PURE__ */ new Error(`h3 swallowed SSR error: ${body}`));
 	return new Response(renderErrorPage(), {
 		status: 500,
-		headers: { "content-type": "text/html; charset=utf-8" }
+		headers: {
+			"content-type": "text/html; charset=utf-8",
+			"cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+			pragma: "no-cache",
+			expires: "0"
+		}
 	});
 }
 function isH3SwallowedErrorBody(body) {
@@ -122,7 +139,12 @@ var server_default = { async fetch(request, env, ctx) {
 		console.error(error);
 		return new Response(renderErrorPage(), {
 			status: 500,
-			headers: { "content-type": "text/html; charset=utf-8" }
+			headers: {
+				"content-type": "text/html; charset=utf-8",
+				"cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+				pragma: "no-cache",
+				expires: "0"
+			}
 		});
 	}
 } };
