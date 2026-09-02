@@ -17,18 +17,16 @@ canvas {
   z-index: 0;
 }
 
+/* Bu sınıf route içindeki absolute/fixed konumlandırmayı ezmemelidir. */
 .msp-ui-layer {
-  position: relative;
   z-index: 10;
 }
 
 .msp-nav-layer {
-  position: relative;
   z-index: 1000;
 }
 
 .msp-sidebar-layer {
-  position: relative;
   z-index: 20;
 }
 
