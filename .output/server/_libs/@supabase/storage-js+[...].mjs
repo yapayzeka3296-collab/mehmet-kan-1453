@@ -2009,7 +2009,7 @@ var StorageFileApi = class extends BaseApiClient {
 		return query;
 	}
 };
-var DEFAULT_HEADERS = { "X-Client-Info": `storage-js/2.112.4` };
+var DEFAULT_HEADERS = { "X-Client-Info": `storage-js/2.113.0` };
 var StorageBucketApi = class extends BaseApiClient {
 	constructor(url, headers = {}, fetch$1, opts) {
 		const baseUrl = new URL(url);

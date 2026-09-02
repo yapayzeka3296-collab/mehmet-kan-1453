@@ -39,7 +39,7 @@ var dist_exports = /* @__PURE__ */ __exportAll({
 	isAuthRetryableFetchError: () => isAuthRetryableFetchError,
 	isAuthSessionMissingError: () => isAuthSessionMissingError
 });
-var version = "2.112.4";
+var version = "2.113.0";
 var JS_ENV = "";
 var JS_RUNTIME_VERSION;
 if (typeof Deno !== "undefined") {
