@@ -30,6 +30,7 @@ import { Route as KvkkRouteImport } from './routes/kvkk'
 import { Route as MesafeliSatisSozlesmesiRouteImport } from './routes/mesafeli-satis-sozlesmesi'
 import { Route as NasilCalisirRouteImport } from './routes/nasil-calisir'
 import { Route as OdemeRouteImport } from './routes/odeme'
+import { Route as OdemeSonucRouteImport } from './routes/odeme-sonuc'
 import { Route as OnBilgilendirmeFormuRouteImport } from './routes/on-bilgilendirme-formu'
 import { Route as PaketlerRouteImport } from './routes/paketler'
 import { Route as PanelimRouteImport } from './routes/panelim'
@@ -155,6 +156,11 @@ const NasilCalisirRoute = NasilCalisirRouteImport.update({
 const OdemeRoute = OdemeRouteImport.update({
   id: '/odeme',
   path: '/odeme',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OdemeSonucRoute = OdemeSonucRouteImport.update({
+  id: '/odeme-sonuc',
+  path: '/odeme-sonuc',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnBilgilendirmeFormuRoute = OnBilgilendirmeFormuRouteImport.update({
@@ -285,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/mesafeli-satis-sozlesmesi': typeof MesafeliSatisSozlesmesiRoute
   '/nasil-calisir': typeof NasilCalisirRoute
   '/odeme': typeof OdemeRoute
+  '/odeme-sonuc': typeof OdemeSonucRoute
   '/on-bilgilendirme-formu': typeof OnBilgilendirmeFormuRoute
   '/paketler': typeof PaketlerRoute
   '/panelim': typeof PanelimRoute
@@ -329,6 +336,7 @@ export interface FileRoutesByTo {
   '/mesafeli-satis-sozlesmesi': typeof MesafeliSatisSozlesmesiRoute
   '/nasil-calisir': typeof NasilCalisirRoute
   '/odeme': typeof OdemeRoute
+  '/odeme-sonuc': typeof OdemeSonucRoute
   '/on-bilgilendirme-formu': typeof OnBilgilendirmeFormuRoute
   '/paketler': typeof PaketlerRoute
   '/panelim': typeof PanelimRoute
@@ -374,6 +382,7 @@ export interface FileRoutesById {
   '/mesafeli-satis-sozlesmesi': typeof MesafeliSatisSozlesmesiRoute
   '/nasil-calisir': typeof NasilCalisirRoute
   '/odeme': typeof OdemeRoute
+  '/odeme-sonuc': typeof OdemeSonucRoute
   '/on-bilgilendirme-formu': typeof OnBilgilendirmeFormuRoute
   '/paketler': typeof PaketlerRoute
   '/panelim': typeof PanelimRoute
@@ -420,6 +429,7 @@ export interface FileRouteTypes {
     | '/mesafeli-satis-sozlesmesi'
     | '/nasil-calisir'
     | '/odeme'
+    | '/odeme-sonuc'
     | '/on-bilgilendirme-formu'
     | '/paketler'
     | '/panelim'
@@ -464,6 +474,7 @@ export interface FileRouteTypes {
     | '/mesafeli-satis-sozlesmesi'
     | '/nasil-calisir'
     | '/odeme'
+    | '/odeme-sonuc'
     | '/on-bilgilendirme-formu'
     | '/paketler'
     | '/panelim'
@@ -508,6 +519,7 @@ export interface FileRouteTypes {
     | '/mesafeli-satis-sozlesmesi'
     | '/nasil-calisir'
     | '/odeme'
+    | '/odeme-sonuc'
     | '/on-bilgilendirme-formu'
     | '/paketler'
     | '/panelim'
@@ -553,6 +565,7 @@ export interface RootRouteChildren {
   MesafeliSatisSozlesmesiRoute: typeof MesafeliSatisSozlesmesiRoute
   NasilCalisirRoute: typeof NasilCalisirRoute
   OdemeRoute: typeof OdemeRoute
+  OdemeSonucRoute: typeof OdemeSonucRoute
   OnBilgilendirmeFormuRoute: typeof OnBilgilendirmeFormuRoute
   PaketlerRoute: typeof PaketlerRoute
   PanelimRoute: typeof PanelimRoute
@@ -723,6 +736,13 @@ declare module '@tanstack/react-router' {
       path: '/odeme'
       fullPath: '/odeme'
       preLoaderRoute: typeof OdemeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/odeme-sonuc': {
+      id: '/odeme-sonuc'
+      path: '/odeme-sonuc'
+      fullPath: '/odeme-sonuc'
+      preLoaderRoute: typeof OdemeSonucRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/on-bilgilendirme-formu': {
@@ -897,6 +917,7 @@ const rootRouteChildren: RootRouteChildren = {
   MesafeliSatisSozlesmesiRoute: MesafeliSatisSozlesmesiRoute,
   NasilCalisirRoute: NasilCalisirRoute,
   OdemeRoute: OdemeRoute,
+  OdemeSonucRoute: OdemeSonucRoute,
   OnBilgilendirmeFormuRoute: OnBilgilendirmeFormuRoute,
   PaketlerRoute: PaketlerRoute,
   PanelimRoute: PanelimRoute,
