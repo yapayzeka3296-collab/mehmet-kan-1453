@@ -1,0 +1,29 @@
+name: One-time fix memory audio
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fix
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('src/components/ParcelDetailPanel.tsx'); s=p.read_text(encoding='utf-8')
+          s=s.replace("const [memoryNote, setMemoryNote] = useState(''); const [memoryFile, setMemoryFile] = useState<File | null>(null); const [memoryMusicFile, setMemoryMusicFile] = useState<File | null>(null); const [memoryIsPublic, setMemoryIsPublic] = useState(false); const [memoryMessage, setMemoryMessage] = useState<string | null>(null); const [editingMemory, setEditingMemory] = useState(false); const memoryAudioRef = useRef<HTMLAudioElement | null>(null);", "const [memoryNote, setMemoryNote] = useState(''); const [memoryFile, setMemoryFile] = useState<File | null>(null); const [memoryMusicFile, setMemoryMusicFile] = useState<File | null>(null); const [memoryIsPublic, setMemoryIsPublic] = useState(false); const [memoryMessage, setMemoryMessage] = useState<string | null>(null); const [editingMemory, setEditingMemory] = useState(false); const memoryAudioRef = useRef<HTMLAudioElement | null>(null); const memoryPlaybackPromiseRef = useRef<Promise<void> | null>(null);", 1)
+          s=s.replace("async function toggleMemoryPlayback() { const audio = memoryAudioRef.current; if (!audio) return; setMemoryMusicError(null); try { if (audio.paused) await audio.play(); else audio.pause(); } catch (error) { setMemoryMusicError(error instanceof Error ? `Müzik başlatılamadı: ${error.message}` : 'Müzik başlatılamadı.'); } }", "async function toggleMemoryPlayback() { const audio = memoryAudioRef.current; if (!audio) return; setMemoryMusicError(null); if (!audio.paused) { audio.pause(); return; } if (memoryPlaybackPromiseRef.current) return; const playPromise = audio.play(); memoryPlaybackPromiseRef.current = playPromise; try { await playPromise; } catch (error) { if (error instanceof DOMException && error.name === 'AbortError') return; setMemoryMusicError(error instanceof Error ? `Müzik başlatılamadı: ${error.message}` : 'Müzik başlatılamadı.'); } finally { if (memoryPlaybackPromiseRef.current === playPromise) memoryPlaybackPromiseRef.current = null; } }", 1)
+          p.write_text(s,encoding='utf-8')
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/ParcelDetailPanel.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: make memory music playback reliable"
+          git push
