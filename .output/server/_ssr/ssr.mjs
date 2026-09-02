@@ -1,4 +1,4 @@
-//#region node_modules/.nitro/vite/services/ssr/index.js
+//#region node_modules/.nitro/vite/services/ssr/index.mjs
 var lastCapturedError;
 var TTL_MS = 5e3;
 function record(error) {
@@ -93,7 +93,7 @@ function renderErrorPage() {
 }
 var serverEntryPromise;
 async function getServerEntry() {
-	if (!serverEntryPromise) serverEntryPromise = import("./server-JxrtsIHV.mjs").then((m) => m.default ?? m);
+	if (!serverEntryPromise) serverEntryPromise = import("./server-CFuB8qXB.mjs").then((m) => m.default ?? m);
 	return serverEntryPromise;
 }
 function preventStaleSsrCache(response) {

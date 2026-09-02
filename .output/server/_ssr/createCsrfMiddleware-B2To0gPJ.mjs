@@ -1,4 +1,4 @@
-//#region node_modules/.nitro/vite/services/ssr/assets/createCsrfMiddleware-B2To0gPJ.js
+//#region node_modules/.nitro/vite/services/ssr/assets/createCsrfMiddleware-B2To0gPJ.mjs
 var createMiddleware = (options, __opts) => {
 	const resolvedOptions = {
 		type: "request",

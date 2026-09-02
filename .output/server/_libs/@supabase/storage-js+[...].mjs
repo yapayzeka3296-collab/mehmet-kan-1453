@@ -1310,6 +1310,7 @@ var StorageFileApi = class extends BaseApiClient {
 	* @param fromPath The original file path, including the current file name. For example `folder/image.png`.
 	* @param toPath The new file path, including the new file name. For example `folder/image-new.png`.
 	* @param options The destination options.
+	* @param options.sourceVersionId The version id of the source object to move.
 	* @returns Promise with response containing success message or error
 	*
 	* @example Move file
@@ -1343,7 +1344,8 @@ var StorageFileApi = class extends BaseApiClient {
 				bucketId: _this6.bucketId,
 				sourceKey: fromPath,
 				destinationKey: toPath,
-				destinationBucket: options === null || options === void 0 ? void 0 : options.destinationBucket
+				destinationBucket: options === null || options === void 0 ? void 0 : options.destinationBucket,
+				sourceVersionId: options === null || options === void 0 ? void 0 : options.sourceVersionId
 			}, { headers: _this6.headers });
 		});
 	}
@@ -1355,6 +1357,7 @@ var StorageFileApi = class extends BaseApiClient {
 	* @param fromPath The original file path, including the current file name. For example `folder/image.png`.
 	* @param toPath The new file path, including the new file name. For example `folder/image-copy.png`.
 	* @param options The destination options.
+	* @param options.sourceVersionId The version id of the source object to copy.
 	* @returns Promise with response containing copied file path or error
 	*
 	* @example Copy file
@@ -1388,7 +1391,8 @@ var StorageFileApi = class extends BaseApiClient {
 				bucketId: _this7.bucketId,
 				sourceKey: fromPath,
 				destinationKey: toPath,
-				destinationBucket: options === null || options === void 0 ? void 0 : options.destinationBucket
+				destinationBucket: options === null || options === void 0 ? void 0 : options.destinationBucket,
+				sourceVersionId: options === null || options === void 0 ? void 0 : options.sourceVersionId
 			}, { headers: _this7.headers })).Key };
 		});
 	}
@@ -1530,7 +1534,7 @@ var StorageFileApi = class extends BaseApiClient {
 	* @category Storage
 	* @subcategory File Buckets
 	* @param path The full path and file name of the file to be downloaded. For example `folder/image.png`.
-	* @param options Optional settings: `transform` to transform the asset before serving it to the client, and `cacheNonce` to append a cache nonce parameter to the URL to invalidate the cache.
+	* @param options Optional settings: `transform` to transform the asset before serving it to the client, `cacheNonce` to append a cache nonce parameter to the URL to invalidate the cache, and `versionId` to download a specific object version.
 	* @param parameters Additional fetch parameters like signal for cancellation. Supports standard fetch options including cache control.
 	* @returns BlobDownloadBuilder instance for downloading the file
 	*
@@ -1594,6 +1598,7 @@ var StorageFileApi = class extends BaseApiClient {
 		const query = new URLSearchParams();
 		if (options === null || options === void 0 ? void 0 : options.transform) this.applyTransformOptsToQuery(query, options.transform);
 		if ((options === null || options === void 0 ? void 0 : options.cacheNonce) != null) query.set("cacheNonce", String(options.cacheNonce));
+		if ((options === null || options === void 0 ? void 0 : options.versionId) != null) query.set("versionId", String(options.versionId));
 		const queryString = query.toString();
 		const _path = this._getFinalPath(path);
 		const downloadFn = () => get(this.fetch, `${this.url}/${renderPath}/${_path}${queryString ? `?${queryString}` : ""}`, {
@@ -1611,6 +1616,7 @@ var StorageFileApi = class extends BaseApiClient {
 	* @category Storage
 	* @subcategory File Buckets
 	* @param path The file path, including the file name. For example `folder/image.png`.
+	* @param options Optional settings, including `versionId` to retrieve a specific object version.
 	* @returns Promise with response containing file metadata or error
 	*
 	* @example Get file info
@@ -1626,11 +1632,14 @@ var StorageFileApi = class extends BaseApiClient {
 	* }
 	* ```
 	*/
-	async info(path) {
+	async info(path, options) {
 		var _this10 = this;
 		const _path = _this10._getFinalPath(path);
+		const query = new URLSearchParams();
+		if ((options === null || options === void 0 ? void 0 : options.versionId) != null) query.set("versionId", String(options.versionId));
+		const queryString = query.toString();
 		return _this10.handleOperation(async () => {
-			return recursiveToCamel(await get(_this10.fetch, `${_this10.url}/object/info/${_path}`, { headers: _this10.headers }));
+			return recursiveToCamel(await get(_this10.fetch, `${_this10.url}/object/info/${_path}${queryString ? `?${queryString}` : ""}`, { headers: _this10.headers }));
 		});
 	}
 	/**
@@ -1748,7 +1757,9 @@ var StorageFileApi = class extends BaseApiClient {
 	*
 	* @category Storage
 	* @subcategory File Buckets
-	* @param paths An array of files to delete, including the path and file name. For example [`'folder/image.png'`].
+	* @param paths An array of files to delete. Each entry is either a path (deletes whichever
+	* version is currently at that path, e.g. `'folder/image.png'`), or `{ path, versionId }` to
+	* delete an exact version current or archived (e.g. `{ path: 'folder/image.png', versionId: '...' }`).
 	* @returns Promise with response containing array of deleted file objects or error
 	*
 	* @example Delete file
@@ -1765,6 +1776,14 @@ var StorageFileApi = class extends BaseApiClient {
 	*   "data": [],
 	*   "error": null
 	* }
+	* ```
+	*
+	* @example Delete a specific object version
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .remove([{ path: 'folder/avatar1.png', versionId: 'noncurrent-version-id' }])
 	* ```
 	*
 	* @remarks
@@ -2009,7 +2028,7 @@ var StorageFileApi = class extends BaseApiClient {
 		return query;
 	}
 };
-var DEFAULT_HEADERS = { "X-Client-Info": `storage-js/2.113.0` };
+var DEFAULT_HEADERS = { "X-Client-Info": `storage-js/2.114.0` };
 var StorageBucketApi = class extends BaseApiClient {
 	constructor(url, headers = {}, fetch$1, opts) {
 		const baseUrl = new URL(url);
@@ -2127,6 +2146,8 @@ var StorageBucketApi = class extends BaseApiClient {
 	* Each mime type specified can be a wildcard, e.g. image/*, or a specific mime type, e.g. image/png.
 	* @param options.type (private-beta) specifies the bucket type. see `BucketType` for more details.
 	*   - default bucket type is `STANDARD`
+	* @param options.versioningStatus the bucket's initial object versioning status.
+	* The default value is `DISABLED`
 	* @returns Promise with response containing newly created bucket name or error
 	*
 	* @example Create bucket
@@ -2165,7 +2186,8 @@ var StorageBucketApi = class extends BaseApiClient {
 				type: options.type,
 				public: options.public,
 				file_size_limit: options.fileSizeLimit,
-				allowed_mime_types: options.allowedMimeTypes
+				allowed_mime_types: options.allowedMimeTypes,
+				versioning_status: options.versioningStatus
 			}, { headers: _this3.headers });
 		});
 	}
@@ -2182,6 +2204,8 @@ var StorageBucketApi = class extends BaseApiClient {
 	* @param options.allowedMimeTypes specifies the allowed mime types that this bucket can accept during upload.
 	* The default value is null, which allows files with all mime types to be uploaded.
 	* Each mime type specified can be a wildcard, e.g. image/*, or a specific mime type, e.g. image/png.
+	* @param options.versioningStatus the bucket's new object versioning status. `DISABLED` is not
+	* valid here, there's no transition back to it once versioning has been touched.
 	* @returns Promise with response containing success message or error
 	*
 	* @example Update bucket
@@ -2219,7 +2243,8 @@ var StorageBucketApi = class extends BaseApiClient {
 				name: id,
 				public: options.public,
 				file_size_limit: options.fileSizeLimit,
-				allowed_mime_types: options.allowedMimeTypes
+				allowed_mime_types: options.allowedMimeTypes,
+				versioning_status: options.versioningStatus
 			}, { headers: _this4.headers });
 		});
 	}

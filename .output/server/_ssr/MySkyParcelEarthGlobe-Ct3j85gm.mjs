@@ -1,8 +1,8 @@
 import { i as __toESM } from "../_runtime.mjs";
 import { n as require_jsx_runtime, r as require_react } from "../_libs/react+tanstack__react-query.mjs";
 import { _ as ShaderMaterial, a as Clock, c as Group, d as MeshPhongMaterial, f as PerspectiveCamera, g as Scene, h as SRGBColorSpace, i as BufferGeometry, l as MathUtils, m as PointsMaterial, n as AmbientLight, o as Color, p as Points, r as BufferAttribute, s as DirectionalLight, t as WebGLRenderer, u as Mesh, v as SphereGeometry, y as TextureLoader } from "../_libs/three.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/MySkyParcelEarthGlobe-Ct3j85gm.js
-var import_react = /* @__PURE__ */ __toESM(require_react());
+//#region node_modules/.nitro/vite/services/ssr/assets/MySkyParcelEarthGlobe-Ct3j85gm.mjs
+var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
 var EARTH_TEXTURE = "/api/earth-assets?type=earth";
 var CLOUD_TEXTURE = "/api/earth-assets?type=clouds";
