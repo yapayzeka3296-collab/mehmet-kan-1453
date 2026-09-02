@@ -1,0 +1,4 @@
+# Static Vite/Nitro assets must be served directly by Apache, not Passenger.
+# This prevents missing/stale asset requests from being answered by the SSR HTML page.
+PassengerEnabled off
+Options -MultiViews
