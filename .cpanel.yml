@@ -4,6 +4,7 @@ deployment:
     - export APPROOT=/home/myskypar/repositories/pixel-perfect-clone-14793
     - export DEPLOYPATH=/home/myskypar/public_html
     - /bin/mkdir -p $DEPLOYPATH
+    - /bin/rm -rf $DEPLOYPATH/assets
     - /bin/cp -R -f $APPROOT/.output/public/. $DEPLOYPATH/
     - /bin/mkdir -p $APPROOT/tmp
     - /bin/touch $APPROOT/tmp/restart.txt
