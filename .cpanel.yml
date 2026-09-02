@@ -1,6 +1,8 @@
 ---
 deployment:
   tasks:
+    - export APPROOT=/home/myskypar/repositories/pixel-perfect-clone-14793
     - export DEPLOYPATH=/home/myskypar/public_html
     - /bin/mkdir -p $DEPLOYPATH
-    - /bin/cp -R -f .output/public/. $DEPLOYPATH/
+    - /bin/bash -lc 'cd "$APPROOT" && npm ci && npm run build'
+    - /bin/cp -R -f $APPROOT/.output/public/. $DEPLOYPATH/
