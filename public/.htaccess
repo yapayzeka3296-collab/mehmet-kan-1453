@@ -1,3 +1,10 @@
 # cPanel/Apache static-file handling for the generated public directory.
 # Real CSS/JS/image files are served by Apache; Passenger handles application routes.
 Options -MultiViews
+
+# The application source lives outside the domain document root.
+# Explicitly bind the domain's document root to the Passenger Node.js app.
+PassengerEnabled on
+PassengerAppRoot /home/myskypar/repositories/mehmet-kan-1453
+PassengerAppType node
+PassengerStartupFile app.js
