@@ -48,8 +48,6 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            python3 -c 'from pathlib import Path; p=Path("src/styles.css"); t=p.read_text(encoding="utf-8"); ls=[x for x in t.splitlines() if x.strip() != "@import \\\"./myskyparcel-theme-fallback.css\\\";"]; im=[x for x in ls if x.startswith("@import ")]; rest=[x for x in ls if not x.startswith("@import ")]; p.write_text("\\n".join(["@import \\\"tailwindcss\\\";"]+[x for x in im if x.strip() != "@import \\\"tailwindcss\\\";"]+rest).rstrip()+"\\n",encoding="utf-8")'
-
             npm run build
 
             test -f .output/server/index.mjs
@@ -59,15 +57,14 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add src/routeTree.gen.ts
-            git add src/styles.css
             git add -f .output
 
             if git diff --cached --quiet; then
-              echo "No generated route tree, CSS or .output changes to commit."
+              echo "No generated route tree or .output changes to commit."
               exit 0
             fi
 
-            git commit -m "build: update generated routes, CSS and .output [skip ci]"
+            git commit -m "build: update generated routes and .output [skip ci]"
 
             git fetch origin main
             if git diff --quiet HEAD origin/main; then
