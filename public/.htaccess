@@ -1,5 +1,0 @@
-# cPanel/Apache static-file handling for the generated public directory.
-# Passenger configuration is managed by cPanel Application Manager.
-# PassengerAppRoot / PassengerStartupFile must NOT be placed here on modern Passenger.
-Options -MultiViews
-Options -Indexes
