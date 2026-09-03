@@ -47,6 +47,8 @@ jobs:
 
             git fetch origin main
             git reset --hard origin/main
+            BASE_SHA="$(git rev-parse HEAD)"
+            echo "Building from main at $BASE_SHA"
 
             npm run build
 
@@ -67,13 +69,14 @@ jobs:
             git commit -m "build: update generated routes and .output [skip ci]"
 
             git fetch origin main
-            if git diff --quiet HEAD origin/main; then
+            REMOTE_SHA="$(git rev-parse origin/main)"
+            if [ "$REMOTE_SHA" = "$BASE_SHA" ]; then
               git push origin HEAD:main
               echo "Generated build published successfully."
               exit 0
             fi
 
-            echo "main changed during the build; retrying from the newest main."
+            echo "main changed during the build ($BASE_SHA -> $REMOTE_SHA); retrying from the newest main."
             git reset --hard origin/main
           done
 
