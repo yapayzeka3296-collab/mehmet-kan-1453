@@ -71,4 +71,10 @@ jobs:
             exit 0
           fi
           git commit -m "build: update generated routes, CSS and .output [skip ci]"
+
+          # Another automation can update main while this build is running.
+          # Rebase the generated commit onto the newest main before pushing so
+          # a harmless race does not turn the workflow red.
+          git fetch origin main
+          git rebase origin/main
           git push origin HEAD:main
