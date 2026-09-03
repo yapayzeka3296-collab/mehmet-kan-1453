@@ -39,7 +39,7 @@ var dist_exports = /* @__PURE__ */ __exportAll({
 	isAuthRetryableFetchError: () => isAuthRetryableFetchError,
 	isAuthSessionMissingError: () => isAuthSessionMissingError
 });
-var version = "2.114.0";
+var version = "2.115.0";
 var JS_ENV = "";
 var JS_RUNTIME_VERSION;
 if (typeof Deno !== "undefined") {
@@ -687,6 +687,23 @@ var SupabaseClient = class {
 	*/
 	schema(schema) {
 		return this.rest.schema(schema);
+	}
+	/**
+	* Fetch the OpenAPI description PostgREST publishes for this client's schema.
+	*
+	* The document lists only the tables, views and functions the caller's role
+	* holds privileges on. The request carries the same `apikey` and
+	* `Authorization` headers as every other query, so the description is scoped
+	* to the signed-in user. Call `.schema()` first to describe a schema other
+	* than the client default.
+	*
+	* @example
+	* ```ts
+	* const { data, error } = await supabase.getOpenApiSpec()
+	* ```
+	*/
+	getOpenApiSpec() {
+		return this.rest.getOpenApiSpec();
 	}
 	/**
 	* Perform a function call.

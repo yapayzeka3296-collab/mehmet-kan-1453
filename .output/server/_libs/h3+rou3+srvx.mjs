@@ -171,6 +171,10 @@ var FastURL = /* @__PURE__ */ (() => {
 			}
 			return this.#protocol;
 		}
+		get hash() {
+			if (this.#url) return this.#url.hash;
+			return "";
+		}
 		toString() {
 			return this.href;
 		}
@@ -256,26 +260,28 @@ var NodeResponse = /* @__PURE__ */ (() => {
 			let contentType;
 			let contentLength;
 			if (this.#response) body = this.#response.body;
-			else if (this.#body != null) if (this.#body instanceof ReadableStream) body = this.#body;
-			else if (typeof this.#body === "string") {
-				body = this.#body;
-				contentType = "text/plain; charset=UTF-8";
-				contentLength = Buffer.byteLength(this.#body);
-			} else if (this.#body instanceof ArrayBuffer) {
-				body = Buffer.from(this.#body);
-				contentLength = this.#body.byteLength;
-			} else if (this.#body instanceof Uint8Array) {
-				body = this.#body;
-				contentLength = this.#body.byteLength;
-			} else if (this.#body instanceof DataView) {
-				body = Buffer.from(this.#body.buffer, this.#body.byteOffset, this.#body.byteLength);
-				contentLength = this.#body.byteLength;
-			} else if (this.#body instanceof Blob) {
-				body = this.#body.stream();
-				contentType = this.#body.type;
-				contentLength = this.#body.size;
-			} else if (typeof this.#body.pipe === "function") body = this.#body;
-			else body = this._response.body;
+			else if (this.#body != null) {
+				if (this.#body instanceof ReadableStream) body = this.#body;
+				else if (typeof this.#body === "string") {
+					body = this.#body;
+					contentType = "text/plain; charset=UTF-8";
+					contentLength = Buffer.byteLength(this.#body);
+				} else if (this.#body instanceof ArrayBuffer) {
+					body = Buffer.from(this.#body);
+					contentLength = this.#body.byteLength;
+				} else if (this.#body instanceof Uint8Array) {
+					body = this.#body;
+					contentLength = this.#body.byteLength;
+				} else if (this.#body instanceof DataView) {
+					body = Buffer.from(this.#body.buffer, this.#body.byteOffset, this.#body.byteLength);
+					contentLength = this.#body.byteLength;
+				} else if (this.#body instanceof Blob) {
+					body = this.#body.stream();
+					contentType = this.#body.type;
+					contentLength = this.#body.size;
+				} else if (typeof this.#body.pipe === "function") body = this.#body;
+				else body = this._response.body;
+			}
 			const headers = [];
 			const initHeaders = this.#init?.headers;
 			const headerEntries = this.#response?.headers || this.#headers || (initHeaders ? Array.isArray(initHeaders) ? initHeaders : initHeaders?.entries ? initHeaders.entries() : Object.entries(initHeaders) : void 0);
@@ -308,9 +314,22 @@ var NodeResponse = /* @__PURE__ */ (() => {
 	return NodeResponse;
 })();
 //#endregion
-//#region node_modules/h3/dist/h3.mjs
+//#region node_modules/h3/dist/response.mjs
+var NEEDLESS_ESCAPE_SRC = String.raw`%(?:2[146-9A-E]|3[0-9ABD]|4[0-9A-F]|5[0-9ABDF]|6[1-9A-F]|7[0-9ACE])`;
+var NEEDLESS_ESCAPE_RE = /* @__PURE__ */ new RegExp(NEEDLESS_ESCAPE_SRC, "i");
+var NEEDLESS_ESCAPE_RE_G = /* @__PURE__ */ new RegExp(NEEDLESS_ESCAPE_SRC, "gi");
+function isNonCanonicalPathname(pathname) {
+	return NEEDLESS_ESCAPE_RE.test(pathname);
+}
+function canonicalPathname(pathname) {
+	return pathname.replace(NEEDLESS_ESCAPE_RE_G, (m) => String.fromCharCode(Number.parseInt(m.slice(1), 16)));
+}
 function decodePathname(pathname) {
-	return decodeURI(pathname.includes("%25") ? pathname.replace(/%25/g, "%2525") : pathname);
+	try {
+		return decodeURI(pathname);
+	} catch {
+		return;
+	}
 }
 var kEventNS = "h3.internal.event.";
 var kEventRes = /* @__PURE__ */ Symbol.for(`${kEventNS}res`);
@@ -329,11 +348,10 @@ var H3Event = class {
 		this.app = app;
 		const _url = req._url;
 		let url = _url && _url instanceof URL ? _url : new FastURL(req.url);
-		if (url.pathname.includes("%")) try {
-			const pathname = decodePathname(url.pathname);
-			if (pathname !== url.pathname) url = new FastURL(`${url.protocol}//${url.host}${pathname}${url.search}`);
-		} catch {
-			this[kMalformedURL] = true;
+		const pathname = url.pathname;
+		if (pathname.includes("%")) {
+			if (decodePathname(pathname) === void 0) this[kMalformedURL] = true;
+			else if (isNonCanonicalPathname(pathname)) url = new FastURL(`${url.protocol}//${url.host}${canonicalPathname(pathname)}${url.search}`);
 		}
 		this.url = url;
 	}
@@ -486,6 +504,7 @@ function toError(value) {
 	error.cause = value;
 	return error;
 }
+var kHTTPResponse = /* @__PURE__ */ Symbol.for("h3.HTTPResponse");
 var HTTPResponse = class {
 	#headers;
 	#init;
@@ -504,6 +523,7 @@ var HTTPResponse = class {
 		return this.#headers ||= new Headers(this.#init?.headers);
 	}
 };
+HTTPResponse.prototype[kHTTPResponse] = true;
 function prepareResponse(val, event, config, nested) {
 	if (val === kHandled) return new NodeResponse(null);
 	if (val === kNotFound) val = new HTTPError({
@@ -520,37 +540,37 @@ function prepareResponse(val, event, config, nested) {
 		if (error.unhandled && !config.silent) console.error(error);
 		const { onError } = config;
 		const errHeaders = event[kEventRes]?.[kEventResErrHeaders];
-		return onError && !nested ? Promise.resolve().then(() => onError(error, event)).catch((error) => error).then((newVal) => prepareResponse(newVal ?? val, event, config, true)) : errorResponse(error, config.debug, errHeaders);
+		if (onError && !nested) return Promise.resolve().then(() => onError(error, event)).catch(toError).then((newVal) => prepareResponse(newVal ?? val, event, config, true));
+		event[kEventRes] = void 0;
+		return errorResponse(error, config.debug, errHeaders);
 	}
 	const preparedRes = event[kEventRes];
 	let preparedHeaders = preparedRes?.[kEventResHeaders];
 	event[kEventRes] = void 0;
 	if (!(val instanceof Response)) {
 		const res = prepareResponseBody(val, event, config);
-		const status = res.status || preparedRes?.status;
+		const rawStatus = res.status || preparedRes?.status;
+		const status = rawStatus ? sanitizeStatusCode(rawStatus) : void 0;
+		const rawStatusText = res.statusText || preparedRes?.statusText;
 		return new NodeResponse(nullBody(event.req.method, status) ? null : res.body, {
 			status,
-			statusText: res.statusText || preparedRes?.statusText,
-			headers: res.headers && preparedHeaders ? mergeHeaders$1(res.headers, preparedHeaders) : res.headers || preparedHeaders
+			statusText: rawStatusText === void 0 ? void 0 : sanitizeStatusMessage(rawStatusText),
+			headers: res.headers && preparedHeaders ? mergeHeaders(res.headers, preparedHeaders) : res.headers || preparedHeaders
 		});
 	}
 	if (val.status >= 400) preparedHeaders = preparedRes?.[kEventResErrHeaders];
-	if (preparedHeaders && !nested) try {
-		mergeHeaders$1(val.headers, preparedHeaders, val.headers);
-	} catch {
-		return new NodeResponse(nullBody(event.req.method, val.status) ? null : val.body, {
-			status: val.status,
-			statusText: val.statusText,
-			headers: mergeHeaders$1(val.headers, preparedHeaders)
-		});
-	}
+	if (preparedHeaders && !nested && !preparedHeaders.keys().next().done) return new NodeResponse(nullBody(event.req.method, val.status) ? null : val.body, {
+		status: val.status,
+		statusText: val.statusText,
+		headers: mergeHeaders(val.headers, preparedHeaders)
+	});
 	return event.req.method === "HEAD" && val.body !== null ? new NodeResponse(null, {
 		status: val.status,
 		statusText: val.statusText,
 		headers: val.headers
 	}) : val;
 }
-function mergeHeaders$1(base, overrides, target = new Headers(base)) {
+function mergeHeaders(base, overrides, target = new Headers(base)) {
 	for (const [name, value] of overrides) if (name === "set-cookie") target.append(name, value);
 	else target.set(name, value);
 	return target;
@@ -576,7 +596,7 @@ function prepareResponseBody(val, event, config) {
 		body: val,
 		headers: new Headers({ "content-length": val.byteLength.toString() })
 	};
-	if (val instanceof HTTPResponse || val?.constructor?.name === "HTTPResponse") return val;
+	if (val instanceof HTTPResponse || val?.[kHTTPResponse] === true) return val;
 	if (isJSONSerializable(val, valType)) return {
 		body: JSON.stringify(val, void 0, config.debug ? 2 : void 0),
 		headers: jsonHeaders
@@ -608,8 +628,8 @@ function nullBody(method, status) {
 	return method === "HEAD" || status === 100 || status === 101 || status === 102 || status === 204 || status === 205 || status === 304;
 }
 function errorResponse(error, debug, errHeaders) {
-	let headers = error.headers ? mergeHeaders$1(jsonHeaders, error.headers) : new Headers(jsonHeaders);
-	if (errHeaders) headers = mergeHeaders$1(headers, errHeaders);
+	let headers = error.headers ? mergeHeaders(jsonHeaders, error.headers) : new Headers(jsonHeaders);
+	if (errHeaders) headers = mergeHeaders(headers, errHeaders);
 	return new NodeResponse(JSON.stringify({
 		...error.toJSON(),
 		stack: debug && error.stack ? error.stack.split("\n").map((l) => l.trim()) : void 0
@@ -619,6 +639,8 @@ function errorResponse(error, debug, errHeaders) {
 		headers
 	});
 }
+//#endregion
+//#region node_modules/h3/dist/middleware.mjs
 function composeMiddleware(middleware) {
 	let chain = (event, handler) => handler(event);
 	for (let i = middleware.length - 1; i >= 0; i--) {
@@ -652,24 +674,27 @@ function callLayer(fn, event, handler, inner) {
 function isUnhandledResponse(val) {
 	return val === void 0 || val === kNotFound;
 }
+//#endregion
+//#region node_modules/h3/dist/cache.mjs
 function toRequest(input, options) {
 	if (typeof input === "string") {
 		let url = input;
-		if (url[0] === "/") {
-			const headers = options?.headers ? new Headers(options.headers) : void 0;
-			const host = headers?.get("host") || "localhost";
-			url = `${(headers?.get("x-forwarded-proto") || "").split(",")[0].trim() === "https" ? "https" : "http"}://${host}${url}`;
-		}
+		if (url[0] === "/") url = `http://${safeHost((options?.headers ? new Headers(options.headers) : void 0)?.get("host"))}${url}`;
 		return new Request(url, options);
 	} else if (options || input instanceof URL) return new Request(input, options);
 	return input;
+}
+function safeHost(host) {
+	return host && !/[/\\?#@\s]/.test(host) ? host : "localhost";
 }
 function defineHandler(input) {
 	if (typeof input === "function") return handlerWithFetch(input);
 	const handler = input.handler || (input.fetch ? function _fetchHandler(event) {
 		return input.fetch(event.req);
 	} : NoHandler);
-	return Object.assign(handlerWithFetch(input.middleware?.length ? composeHandler(input.middleware, handler) : handler), input);
+	const composed = input.middleware?.length && composeHandler(input.middleware, handler);
+	const eventHandler = handlerWithFetch(composed || handler);
+	return Object.assign(eventHandler, input, composed && { fetch: eventHandler.fetch });
 }
 function handlerWithFetch(handler) {
 	if ("fetch" in handler) return handler;
@@ -748,14 +773,12 @@ var H3Core = class {
 	"~addRoute"(_route) {
 		this["~routes"].push(_route);
 	}
-	"~getMiddleware"(_event, route) {
-		const routeMiddleware = route?.data.middleware;
-		const globalMiddleware = this["~middleware"];
-		return routeMiddleware ? [...globalMiddleware, ...routeMiddleware] : globalMiddleware;
+	"~getMiddleware"(_event, _route) {
+		return this["~middleware"];
 	}
 };
 function createDispatcher(app) {
-	if (app["~getMiddleware"] !== H3Core.prototype["~getMiddleware"]) return (event, route) => callMiddleware(event, app["~getMiddleware"](event, route), route?.data.handler || NoHandler);
+	if (app["~getMiddleware"] !== H3Core.prototype["~getMiddleware"]) return (event, route) => callMiddleware(event, app["~getMiddleware"](event, route || void 0), routeHandler(route));
 	const middleware = app["~middleware"];
 	if (middleware.length === 0) return (event, route) => routeHandler(route)(event);
 	const composed = app["~composed"] ??= composeMiddleware(middleware);
@@ -766,7 +789,5 @@ function routeHandler(route) {
 	if (!data) return NoHandler;
 	return data.middleware?.length ? data["~composed"] ??= composeHandler(data.middleware, data.handler) : data.handler;
 }
-String.raw`(?:^|/)(?:\.|%(?:25)*2e){1,2}(?:/|$)`;
-String.raw`%(?:25)*(?:2f|5c)`;
 //#endregion
-export { toEventHandler as a, defineLazyEventHandler as i, HTTPError as n, toRequest as o, defineHandler as r, H3Core as t };
+export { toRequest as a, toEventHandler as i, defineHandler as n, HTTPError as o, defineLazyEventHandler as r, H3Core as t };
