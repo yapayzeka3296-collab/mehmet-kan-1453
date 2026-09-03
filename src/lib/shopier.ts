@@ -52,12 +52,13 @@ export async function createShopierCheckout(input: { title: string; amount: numb
   const product = (await response.json()) as { id?: string; url?: string };
   if (!product.id || !product.url) throw new Error("Shopier product response is missing id or url");
 
-  const shopSlug = process.env.SHOPIER_SHOP_SLUG?.trim();
-  if (!shopSlug) throw new Error("SHOPIER_SHOP_SLUG is not configured");
-  const escapedId = product.id.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
-  const escapedSlug = encodeURIComponent(shopSlug).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
-  const checkoutHtml = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shopier Güvenli Ödeme</title></head><body><form id="shopier-checkout" method="POST" action="https://www.shopier.com/s/shipping/${escapedSlug}"><input type="hidden" name="product_id" value="${escapedId}"><input type="hidden" name="quantity" value="1"></form><script>document.getElementById('shopier-checkout').submit();</script></body></html>`;
-  return { productId: product.id, paymentUrl: product.url, checkoutHtml };
+  // Shopier API'nin döndürdüğü ürün URL'si, oluşturulan ürünün gerçek ve geçerli
+  // müşteri bağlantısıdır. Eski /s/shipping/{slug} POST formu bazı cihaz/tarayıcı
+  // kombinasyonlarında boş sayfada kalabiliyordu. Ürün URL'sine doğrudan yönlendiriyoruz.
+  const paymentUrl = product.url;
+  const escapedUrl = paymentUrl.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
+  const checkoutHtml = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=${escapedUrl}"><title>Shopier Güvenli Ödeme</title></head><body><p>Shopier güvenli ödeme sayfasına yönlendiriliyorsunuz...</p><script>window.location.replace(${JSON.stringify(paymentUrl)});</script></body></html>`;
+  return { productId: product.id, paymentUrl, checkoutHtml };
 }
 
 export function extractShopierOrderId(payload: Record<string, unknown>): string | null {
