@@ -1,7 +1,7 @@
 ---
 deployment:
   tasks:
-    - /bin/mkdir -p /home/myskypar/repositories/pixel-perfect-clone-14793/tmp
+    - /bin/mkdir -p /home/myskypar/repositories/mehmet-kan-1453/tmp
     - /bin/mkdir -p /home/myskypar/public_html
-    - /bin/cp -a /home/myskypar/repositories/pixel-perfect-clone-14793/.output/public/. /home/myskypar/public_html/
-    - /bin/touch /home/myskypar/repositories/pixel-perfect-clone-14793/tmp/restart.txt
+    - /bin/cp -a /home/myskypar/repositories/mehmet-kan-1453/.output/public/. /home/myskypar/public_html/
+    - /bin/touch /home/myskypar/repositories/mehmet-kan-1453/tmp/restart.txt
