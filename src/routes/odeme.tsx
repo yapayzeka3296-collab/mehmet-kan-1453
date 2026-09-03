@@ -39,17 +39,15 @@ function Odeme() {
   async function startPayment() {
     if (!supabaseBrowser || !verified.length || !certificateIsSelected || paying) return;
     setPaying(true); setError(null);
-    const popup = window.open("about:blank", "myskyparcel-shopier", "noopener,noreferrer");
     try {
       const { data: sessionData } = await supabaseBrowser.auth.getSession(); const token = sessionData.session?.access_token;
-      if (!token) { popup?.close(); await navigate({ to: "/giris" }); return; }
+      if (!token) { await navigate({ to: "/giris" }); return; }
       const response = await fetch("/api/shopier-checkout-intent", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ parcel_ids: selectedParcels, certificate_parcel_id: certificateParcel }) });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.ok || !result.checkout_url) throw new Error(result.reason || "Shopier ödeme sayfası oluşturulamadı.");
       localStorage.setItem("myskyparcel_shopier_intent", result.intent_id);
-      if (popup) { popup.location.href = result.checkout_url; } else { window.location.href = result.checkout_url; return; }
-      await navigate({ to: "/odeme-sonuc", search: { intent: result.intent_id } });
-    } catch (e) { popup?.close(); setError(e instanceof Error ? e.message : "Ödeme başlatılamadı."); setPaying(false); }
+      window.location.assign(result.checkout_url);
+    } catch (e) { setError(e instanceof Error ? e.message : "Ödeme başlatılamadı."); setPaying(false); }
   }
 
   if (loading) return <div className="starfield min-h-screen"><SiteHeader /><main className="mx-auto max-w-3xl px-4 py-16 lg:px-8"><div className="panel p-8 text-center"><Loader2 className="mx-auto h-7 w-7 animate-spin text-gold" /><p className="mt-4 text-sm text-muted-foreground">Ödeme öncesi parseller doğrulanıyor...</p></div></main><SiteFooter /></div>;
