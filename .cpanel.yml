@@ -7,6 +7,7 @@ deployment:
     - export APP_ROOT=/home/myskypar/repositories/mehmet-kan-1453
     - export DOCUMENT_ROOT=/home/myskypar/public_html
     - /bin/mkdir -p "$DOCUMENT_ROOT"
+    - /bin/mkdir -p "$APP_ROOT/tmp"
     - /bin/rm -rf "$DOCUMENT_ROOT/assets" "$DOCUMENT_ROOT/_payload" "$DOCUMENT_ROOT/_nuxt" "$DOCUMENT_ROOT/_tanstack"
     - /bin/cp -a "$APP_ROOT/.output/public/." "$DOCUMENT_ROOT/"
     - /bin/touch "$APP_ROOT/tmp/restart.txt"
