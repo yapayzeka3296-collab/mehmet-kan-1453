@@ -1,14 +1,12 @@
 ---
 # cPanel/CloudLinux deployment for the TanStack Start + Nitro node-server build.
-# GitHub Actions publishes .output before cPanel deployment, so cPanel does not
-# need to run the memory-heavy build itself.
+# The Node.js application owns both SSR routes and generated static assets.
+# Do not copy .output/public into public_html: that bypasses Passenger and can
+# expose a directory index instead of the running Nitro application.
 deployment:
   tasks:
     - export APP_ROOT=/home/myskypar/repositories/mehmet-kan-1453
-    - export DOCUMENT_ROOT=/home/myskypar/public_html
-    - /bin/mkdir -p "$DOCUMENT_ROOT"
-    - /bin/rm -rf "$DOCUMENT_ROOT/assets" "$DOCUMENT_ROOT/_payload" "$DOCUMENT_ROOT/_nuxt" "$DOCUMENT_ROOT/_tanstack"
-    - /bin/cp -a "$APP_ROOT/.output/public/." "$DOCUMENT_ROOT/"
+    - /bin/mkdir -p "$APP_ROOT/tmp"
     - /bin/touch "$APP_ROOT/tmp/restart.txt"
     - /bin/chmod -R u+rwX,go+rX "$APP_ROOT/.output" || true
     - /bin/chmod 644 "$APP_ROOT/app.js" || true
