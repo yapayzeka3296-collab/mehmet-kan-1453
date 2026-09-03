@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: write
 
-# Only one production build should publish generated files at a time.
 concurrency:
   group: build-and-commit-main
   cancel-in-progress: false
@@ -45,33 +45,30 @@ jobs:
           for attempt in 1 2 3; do
             echo "=== Build/publish attempt $attempt/3 ==="
 
-            # Always build from the newest main. If another workflow pushed a
-            # commit while we were building, discard the stale generated work
-            # and rebuild from that newer source instead of rebasing conflicts.
             git fetch origin main
             git reset --hard origin/main
 
             python3 - <<'PY'
-            from pathlib import Path
+from pathlib import Path
 
-            path = Path("src/styles.css")
-            text = path.read_text(encoding="utf-8")
-            lines = text.splitlines()
+path = Path("src/styles.css")
+text = path.read_text(encoding="utf-8")
+lines = text.splitlines()
 
-            lines = [
-                line for line in lines
-                if line.strip() != '@import "./myskyparcel-theme-fallback.css";'
-            ]
+lines = [
+    line for line in lines
+    if line.strip() != '@import "./myskyparcel-theme-fallback.css";'
+]
 
-            imports = [line for line in lines if line.startswith("@import ")]
-            rest = [line for line in lines if not line.startswith("@import ")]
-            lines = ['@import "tailwindcss";'] + [
-                line for line in imports
-                if line.strip() != '@import "tailwindcss";'
-            ] + rest
+imports = [line for line in lines if line.startswith("@import ")]
+rest = [line for line in lines if not line.startswith("@import ")]
+lines = ['@import "tailwindcss";'] + [
+    line for line in imports
+    if line.strip() != '@import "tailwindcss";'
+] + rest
 
-            path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-            PY
+path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+PY
 
             npm run build
 
@@ -88,8 +85,6 @@ jobs:
 
             git commit -m "build: update generated routes, CSS and .output [skip ci]"
 
-            # Check whether main changed during the build. If it did, retry
-            # from the newest main so we never overwrite a newer source commit.
             git fetch origin main
             if git diff --quiet HEAD origin/main; then
               git push origin HEAD:main
