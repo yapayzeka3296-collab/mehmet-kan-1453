@@ -45,9 +45,9 @@ function Odeme() {
       if (!token) { popup?.close(); await navigate({ to: "/giris" }); return; }
       const response = await fetch("/api/shopier-checkout-intent", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ parcel_ids: selectedParcels, certificate_parcel_id: certificateParcel }) });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.ok || !result.checkout_html) throw new Error(result.reason || "Shopier ödeme sayfası oluşturulamadı.");
+      if (!response.ok || !result.ok || !result.checkout_url) throw new Error(result.reason || "Shopier ödeme sayfası oluşturulamadı.");
       localStorage.setItem("myskyparcel_shopier_intent", result.intent_id);
-      if (popup) { popup.document.open(); popup.document.write(result.checkout_html); popup.document.close(); } else { window.location.href = result.checkout_url; return; }
+      if (popup) { popup.location.href = result.checkout_url; } else { window.location.href = result.checkout_url; return; }
       await navigate({ to: "/odeme-sonuc", search: { intent: result.intent_id } });
     } catch (e) { popup?.close(); setError(e instanceof Error ? e.message : "Ödeme başlatılamadı."); setPaying(false); }
   }
