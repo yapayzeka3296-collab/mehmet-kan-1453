@@ -1,7 +1,12 @@
 ---
 deployment:
   tasks:
+    # The cPanel Node.js application starts from app.js, which launches
+    # the Nitro production server at .output/server/index.mjs.
+    # Keep the Nitro server output inside the application root; only the
+    # generated public assets are copied to the domain's Apache document root.
     - /bin/mkdir -p /home/myskypar/repositories/mehmet-kan-1453/tmp
     - /bin/mkdir -p /home/myskypar/public_html
     - /bin/cp -a /home/myskypar/repositories/mehmet-kan-1453/.output/public/. /home/myskypar/public_html/
+    # Restart Passenger after deployment so it reloads .output/server/index.mjs.
     - /bin/touch /home/myskypar/repositories/mehmet-kan-1453/tmp/restart.txt
