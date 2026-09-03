@@ -1,12 +1,14 @@
 ---
+# cPanel/CloudLinux deployment for the TanStack Start + Nitro node-server build.
+# GitHub Actions publishes .output before cPanel deployment, so cPanel does not
+# need to run the memory-heavy build itself.
 deployment:
   tasks:
-    # The cPanel Node.js application starts from app.js, which launches
-    # the Nitro production server at .output/server/index.mjs.
-    # Keep the Nitro server output inside the application root; only the
-    # generated public assets are copied to the domain's Apache document root.
-    - /bin/mkdir -p /home/myskypar/repositories/mehmet-kan-1453/tmp
-    - /bin/mkdir -p /home/myskypar/public_html
-    - /bin/cp -a /home/myskypar/repositories/mehmet-kan-1453/.output/public/. /home/myskypar/public_html/
-    # Restart Passenger after deployment so it reloads .output/server/index.mjs.
-    - /bin/touch /home/myskypar/repositories/mehmet-kan-1453/tmp/restart.txt
+    - export APP_ROOT=/home/myskypar/repositories/mehmet-kan-1453
+    - export DOCUMENT_ROOT=/home/myskypar/public_html
+    - /bin/mkdir -p "$DOCUMENT_ROOT"
+    - /bin/rm -rf "$DOCUMENT_ROOT/assets" "$DOCUMENT_ROOT/_payload" "$DOCUMENT_ROOT/_nuxt" "$DOCUMENT_ROOT/_tanstack"
+    - /bin/cp -a "$APP_ROOT/.output/public/." "$DOCUMENT_ROOT/"
+    - /bin/touch "$APP_ROOT/tmp/restart.txt"
+    - /bin/chmod -R u+rwX,go+rX "$APP_ROOT/.output" || true
+    - /bin/chmod 644 "$APP_ROOT/app.js" || true
