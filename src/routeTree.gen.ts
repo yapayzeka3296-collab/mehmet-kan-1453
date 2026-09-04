@@ -51,6 +51,7 @@ import { Route as UyelikSozlesmesiRouteImport } from './routes/uyelik-sozlesmesi
 import { Route as YonetimRouteImport } from './routes/yonetim'
 import { Route as ApiEarthAssetsRouteImport } from './routes/api/earth-assets'
 import { Route as SehirSlugRouteImport } from './routes/sehir/$slug'
+import { Route as ApiShopierCheckoutRouteImport } from './routes/api/shopier/checkout'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -262,6 +263,11 @@ const SehirSlugRoute = SehirSlugRouteImport.update({
   path: '/sehir/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiShopierCheckoutRoute = ApiShopierCheckoutRouteImport.update({
+  id: '/api/shopier/checkout',
+  path: '/api/shopier/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -306,6 +312,7 @@ export interface FileRoutesByFullPath {
   '/yonetim': typeof YonetimRoute
   '/api/earth-assets': typeof ApiEarthAssetsRoute
   '/sehir/$slug': typeof SehirSlugRoute
+  '/api/shopier/checkout': typeof ApiShopierCheckoutRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -350,6 +357,7 @@ export interface FileRoutesByTo {
   '/yonetim': typeof YonetimRoute
   '/api/earth-assets': typeof ApiEarthAssetsRoute
   '/sehir/$slug': typeof SehirSlugRoute
+  '/api/shopier/checkout': typeof ApiShopierCheckoutRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -395,6 +403,7 @@ export interface FileRoutesById {
   '/yonetim': typeof YonetimRoute
   '/api/earth-assets': typeof ApiEarthAssetsRoute
   '/sehir/$slug': typeof SehirSlugRoute
+  '/api/shopier/checkout': typeof ApiShopierCheckoutRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -441,6 +450,7 @@ export interface FileRouteTypes {
     | '/yonetim'
     | '/api/earth-assets'
     | '/sehir/$slug'
+    | '/api/shopier/checkout'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -485,6 +495,7 @@ export interface FileRouteTypes {
     | '/yonetim'
     | '/api/earth-assets'
     | '/sehir/$slug'
+    | '/api/shopier/checkout'
   id:
     | '__root__'
     | '/'
@@ -529,6 +540,7 @@ export interface FileRouteTypes {
     | '/yonetim'
     | '/api/earth-assets'
     | '/sehir/$slug'
+    | '/api/shopier/checkout'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -574,6 +586,7 @@ export interface RootRouteChildren {
   YonetimRoute: typeof YonetimRoute
   ApiEarthAssetsRoute: typeof ApiEarthAssetsRoute
   SehirSlugRoute: typeof SehirSlugRoute
+  ApiShopierCheckoutRoute: typeof ApiShopierCheckoutRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -872,6 +885,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SehirSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/shopier/checkout': {
+      id: '/api/shopier/checkout'
+      path: '/api/shopier/checkout'
+      fullPath: '/api/shopier/checkout'
+      preLoaderRoute: typeof ApiShopierCheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -918,6 +938,7 @@ const rootRouteChildren: RootRouteChildren = {
   YonetimRoute: YonetimRoute,
   ApiEarthAssetsRoute: ApiEarthAssetsRoute,
   SehirSlugRoute: SehirSlugRoute,
+  ApiShopierCheckoutRoute: ApiShopierCheckoutRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
