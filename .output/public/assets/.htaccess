@@ -1,4 +1,6 @@
-# Static Vite/Nitro assets must be served directly by Apache, not Passenger.
-# This prevents missing/stale asset requests from being answered by the SSR HTML page.
-PassengerEnabled off
+# MySkyParcel static asset directory
+# Apache/LiteSpeed serves these files directly.
+# Passenger routing is intentionally not configured here.
+
 Options -MultiViews
+Options -Indexes

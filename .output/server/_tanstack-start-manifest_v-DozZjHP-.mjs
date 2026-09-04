@@ -1,4 +1,4 @@
-//#region node_modules/.nitro/vite/services/ssr/assets/_tanstack-start-manifest_v-CA3mLnH6.mjs
+//#region node_modules/.nitro/vite/services/ssr/assets/_tanstack-start-manifest_v-DozZjHP-.mjs
 var tsrStartManifest = () => ({ routes: {
 	__root__: {
 		filePath: "/home/runner/work/mehmet-kan-1453/mehmet-kan-1453/src/routes/__root.tsx",
@@ -46,9 +46,9 @@ var tsrStartManifest = () => ({ routes: {
 			"/api/earth-assets",
 			"/sehir/$slug"
 		],
-		css: ["/assets/index-DRzXNsMc.css"],
+		css: ["/assets/index-3s4m3F0n.css"],
 		preloads: [
-			"/assets/index-85B3_Uqu.js",
+			"/assets/index-DH9w4nXr.js",
 			"/assets/rolldown-runtime-hePW80VL.js",
 			"/assets/jsx-runtime-DE3RlOCf.js",
 			"/assets/link-D90cKH_E.js",
@@ -63,7 +63,7 @@ var tsrStartManifest = () => ({ routes: {
 		scripts: [{ attrs: {
 			type: "module",
 			async: !0,
-			src: "/assets/index-85B3_Uqu.js"
+			src: "/assets/index-DH9w4nXr.js"
 		} }]
 	},
 	"/": {

@@ -1,46 +1,62 @@
 # MySkyParcel — cPanel / CloudLinux Passenger
-# Passenger handles SSR/HTML routes. Apache/LiteSpeed serves real frontend
-# assets from public_html directly.
-
-PassengerAppRoot "/home/myskypar/repositories/mehmet-kan-1453"
-PassengerBaseURI "/"
-PassengerNodejs "/home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin/node"
-PassengerAppType node
-PassengerStartupFile app.js
-PassengerAppEnv production
-PassengerEnabled on
+#
+# Passenger/Application Manager owns the Node.js application mapping.
+# This file intentionally does NOT enable/configure Passenger itself.
+# Apache/LiteSpeed must serve real files from public_html directly.
 
 Options -MultiViews
 Options -Indexes
-DirectoryIndex disabled
 
-# Explicit MIME types prevent JS/CSS from being returned as text/html.
+# ----------------------------------------------------------
+# Static assets: never rewrite existing files to an app route.
+# ----------------------------------------------------------
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # /assets/* is a physical static directory copied from .output/public.
+  # Let Apache/LiteSpeed serve it directly. If a requested asset is missing,
+  # return a normal 404 instead of sending it to the Node.js application.
+  RewriteRule ^assets(?:/|$) - [L]
+
+  # All other real files/directories are also served directly.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Do NOT add an index.html SPA fallback here.
+  # MySkyParcel is TanStack Start/Nitro SSR; HTML/application routes are
+  # intentionally handled by the Passenger application.
+</IfModule>
+
+# ----------------------------------------------------------
+# Correct MIME types for frontend assets.
+# ----------------------------------------------------------
 <IfModule mod_mime.c>
   AddType text/css .css
   AddType application/javascript .js .mjs
   AddType application/json .json
   AddType image/svg+xml .svg
+  AddType image/png .png
+  AddType image/jpeg .jpg .jpeg
+  AddType image/webp .webp
+  AddType image/gif .gif
   AddType application/wasm .wasm
   AddType font/woff .woff
   AddType font/woff2 .woff2
+  AddType font/ttf .ttf
+  AddType font/otf .otf
 </IfModule>
 
-# Do not rewrite real assets to index.html. Existing files are served by
-# Apache/LiteSpeed; missing application routes fall through to Passenger/Nitro.
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
-  RewriteRule ^ - [L]
-</IfModule>
-
+# ----------------------------------------------------------
+# Security / cache headers.
+# ----------------------------------------------------------
 <IfModule mod_headers.c>
-  <FilesMatch "\.(css|js|mjs|wasm|woff|woff2|svg)$">
+  <FilesMatch "\.(css|js|mjs|json|wasm|woff|woff2|ttf|otf|svg|png|jpg|jpeg|webp|gif)$">
     Header set X-Content-Type-Options "nosniff"
   </FilesMatch>
-  <FilesMatch "\.(html?)$">
-    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
-    Header set Pragma "no-cache"
-    Header set Expires "0"
+
+  # Hashed Vite assets are immutable and can be cached aggressively.
+  <FilesMatch "\.(css|js|mjs|woff|woff2|ttf|otf|svg|png|jpg|jpeg|webp|gif)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
 </IfModule>
