@@ -33,6 +33,7 @@ import { Route as NasilCalisirRouteImport } from './routes/nasil-calisir'
 import { Route as OnBilgilendirmeFormuRouteImport } from './routes/on-bilgilendirme-formu'
 import { Route as PaketlerRouteImport } from './routes/paketler'
 import { Route as PanelimRouteImport } from './routes/panelim'
+import { Route as ParselHatirasiRouteImport } from './routes/parsel-hatirasi'
 import { Route as ParselSatinAlRouteImport } from './routes/parsel-satin-al'
 import { Route as ParsellerimRouteImport } from './routes/parsellerim'
 import { Route as PazarYeriRouteImport } from './routes/pazar-yeri'
@@ -171,6 +172,11 @@ const PanelimRoute = PanelimRouteImport.update({
   path: '/panelim',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ParselHatirasiRoute = ParselHatirasiRouteImport.update({
+  id: '/parsel-hatirasi',
+  path: '/parsel-hatirasi',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ParselSatinAlRoute = ParselSatinAlRouteImport.update({
   id: '/parsel-satin-al',
   path: '/parsel-satin-al',
@@ -282,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/on-bilgilendirme-formu': typeof OnBilgilendirmeFormuRoute
   '/paketler': typeof PaketlerRoute
   '/panelim': typeof PanelimRoute
+  '/parsel-hatirasi': typeof ParselHatirasiRoute
   '/parsel-satin-al': typeof ParselSatinAlRoute
   '/parsellerim': typeof ParsellerimRoute
   '/pazar-yeri': typeof PazarYeriRoute
@@ -325,6 +332,7 @@ export interface FileRoutesByTo {
   '/on-bilgilendirme-formu': typeof OnBilgilendirmeFormuRoute
   '/paketler': typeof PaketlerRoute
   '/panelim': typeof PanelimRoute
+  '/parsel-hatirasi': typeof ParselHatirasiRoute
   '/parsel-satin-al': typeof ParselSatinAlRoute
   '/parsellerim': typeof ParsellerimRoute
   '/pazar-yeri': typeof PazarYeriRoute
@@ -369,6 +377,7 @@ export interface FileRoutesById {
   '/on-bilgilendirme-formu': typeof OnBilgilendirmeFormuRoute
   '/paketler': typeof PaketlerRoute
   '/panelim': typeof PanelimRoute
+  '/parsel-hatirasi': typeof ParselHatirasiRoute
   '/parsel-satin-al': typeof ParselSatinAlRoute
   '/parsellerim': typeof ParsellerimRoute
   '/pazar-yeri': typeof PazarYeriRoute
@@ -414,6 +423,7 @@ export interface FileRouteTypes {
     | '/on-bilgilendirme-formu'
     | '/paketler'
     | '/panelim'
+    | '/parsel-hatirasi'
     | '/parsel-satin-al'
     | '/parsellerim'
     | '/pazar-yeri'
@@ -457,6 +467,7 @@ export interface FileRouteTypes {
     | '/on-bilgilendirme-formu'
     | '/paketler'
     | '/panelim'
+    | '/parsel-hatirasi'
     | '/parsel-satin-al'
     | '/parsellerim'
     | '/pazar-yeri'
@@ -500,6 +511,7 @@ export interface FileRouteTypes {
     | '/on-bilgilendirme-formu'
     | '/paketler'
     | '/panelim'
+    | '/parsel-hatirasi'
     | '/parsel-satin-al'
     | '/parsellerim'
     | '/pazar-yeri'
@@ -544,6 +556,7 @@ export interface RootRouteChildren {
   OnBilgilendirmeFormuRoute: typeof OnBilgilendirmeFormuRoute
   PaketlerRoute: typeof PaketlerRoute
   PanelimRoute: typeof PanelimRoute
+  ParselHatirasiRoute: typeof ParselHatirasiRoute
   ParselSatinAlRoute: typeof ParselSatinAlRoute
   ParsellerimRoute: typeof ParsellerimRoute
   PazarYeriRoute: typeof PazarYeriRoute
@@ -733,6 +746,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PanelimRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/parsel-hatirasi': {
+      id: '/parsel-hatirasi'
+      path: '/parsel-hatirasi'
+      fullPath: '/parsel-hatirasi'
+      preLoaderRoute: typeof ParselHatirasiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/parsel-satin-al': {
       id: '/parsel-satin-al'
       path: '/parsel-satin-al'
@@ -880,6 +900,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnBilgilendirmeFormuRoute: OnBilgilendirmeFormuRoute,
   PaketlerRoute: PaketlerRoute,
   PanelimRoute: PanelimRoute,
+  ParselHatirasiRoute: ParselHatirasiRoute,
   ParselSatinAlRoute: ParselSatinAlRoute,
   ParsellerimRoute: ParsellerimRoute,
   PazarYeriRoute: PazarYeriRoute,
