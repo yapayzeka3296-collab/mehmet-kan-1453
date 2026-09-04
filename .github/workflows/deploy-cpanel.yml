@@ -1,0 +1,60 @@
+name: Deploy MySkyParcel to cPanel
+
+on:
+  workflow_run:
+    workflows: ["Build and verify MySkyParcel"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Push verified main to cPanel Git
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CPANEL_REPO_URL: ${{ secrets.CPANEL_REPO_URL }}
+      CPANEL_SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+      CPANEL_KNOWN_HOSTS: ${{ secrets.CPANEL_KNOWN_HOSTS }}
+    steps:
+      - name: Checkout verified main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Validate cPanel deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .cpanel.yml
+          test -f app.js
+          test -f .output/server/index.mjs
+          test -f .output/nitro.json
+          test -d .output/public
+          if [[ -z "${CPANEL_REPO_URL}" || -z "${CPANEL_SSH_KEY}" || -z "${CPANEL_KNOWN_HOSTS}" ]]; then
+            echo "cPanel SSH deployment secrets are not configured; skipping remote push."
+            exit 0
+          fi
+
+      - name: Deploy verified commit to cPanel Git repository
+        if: ${{ env.CPANEL_REPO_URL != '' && env.CPANEL_SSH_KEY != '' && env.CPANEL_KNOWN_HOSTS != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$CPANEL_SSH_KEY" > "$HOME/.ssh/myskyparcel_cpanel_key"
+          chmod 600 "$HOME/.ssh/myskyparcel_cpanel_key"
+          printf '%s\n' "$CPANEL_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 644 "$HOME/.ssh/known_hosts"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add cpanel "$CPANEL_REPO_URL"
+
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/myskyparcel_cpanel_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          git push cpanel main:main
+          echo "cPanel Git push completed for $(git rev-parse HEAD)"
