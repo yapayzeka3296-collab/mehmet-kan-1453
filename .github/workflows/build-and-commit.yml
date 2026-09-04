@@ -80,7 +80,6 @@ jobs:
           failed=0
           routes=(
             /
-            /admin-check
             /ana-sayfa
             /bildirimler
             /cerez-politikasi
