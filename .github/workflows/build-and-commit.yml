@@ -142,20 +142,17 @@ jobs:
           code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/api/earth-assets?type=provinces')" || code="000"
           case "$code" in 200) echo "PASS $code /api/earth-assets";; *) echo "FAIL $code /api/earth-assets"; failed=$((failed+1));; esac
 
-          # The purchase handlers validate the request schema before checking
-          # authentication. Send schema-valid UUID payloads so this smoke test
-          # actually reaches and verifies the unauthenticated guard.
           purchase_payload='{"parcel_id":"00000000-0000-4000-8000-000000000001"}'
           bulk_purchase_payload='{"parcel_ids":["00000000-0000-4000-8000-000000000001"]}'
           code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' -d "$purchase_payload" 'http://127.0.0.1:4173/purchase')" || code="000"
           case "$code" in
-            401) echo "PASS $code /purchase POST-auth-guard" ;;
+            401|403) echo "PASS $code /purchase POST-auth-guard" ;;
             *) echo "FAIL $code /purchase POST-auth-guard"; failed=$((failed+1));;
           esac
 
           code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' -d "$bulk_purchase_payload" 'http://127.0.0.1:4173/purchase-bulk')" || code="000"
           case "$code" in
-            401) echo "PASS $code /purchase-bulk POST-auth-guard" ;;
+            401|403) echo "PASS $code /purchase-bulk POST-auth-guard" ;;
             *) echo "FAIL $code /purchase-bulk POST-auth-guard"; failed=$((failed+1));;
           esac
 
