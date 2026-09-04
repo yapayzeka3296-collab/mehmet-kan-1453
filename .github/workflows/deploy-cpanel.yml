@@ -35,13 +35,19 @@ jobs:
           test -f .output/server/index.mjs
           test -f .output/nitro.json
           test -d .output/public
-          if [[ -z "${CPANEL_REPO_URL}" || -z "${CPANEL_SSH_KEY}" || -z "${CPANEL_KNOWN_HOSTS}" ]]; then
-            echo "cPanel SSH deployment secrets are not configured; skipping remote push."
-            exit 0
+
+          missing=()
+          [[ -n "${CPANEL_REPO_URL}" ]] || missing+=(CPANEL_REPO_URL)
+          [[ -n "${CPANEL_SSH_KEY}" ]] || missing+=(CPANEL_SSH_KEY)
+          [[ -n "${CPANEL_KNOWN_HOSTS}" ]] || missing+=(CPANEL_KNOWN_HOSTS)
+
+          if (( ${#missing[@]} > 0 )); then
+            printf 'ERROR: cPanel deployment cannot start. Missing GitHub Actions secret(s): %s\n' "${missing[*]}"
+            echo 'The workflow is intentionally failing instead of reporting a false successful deployment.'
+            exit 1
           fi
 
       - name: Deploy verified commit to cPanel Git repository
-        if: ${{ env.CPANEL_REPO_URL != '' && env.CPANEL_SSH_KEY != '' && env.CPANEL_KNOWN_HOSTS != '' }}
         shell: bash
         run: |
           set -euo pipefail
