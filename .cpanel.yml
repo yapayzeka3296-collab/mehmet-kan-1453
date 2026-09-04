@@ -1,14 +1,20 @@
 ---
 # cPanel/CloudLinux deployment for TanStack Start + Nitro + Passenger.
-# GitHub Actions publishes .output; cPanel only installs the generated public
-# assets and restarts the Passenger application.
+# IMPORTANT: Nitro must handle application HTML/routes. Do not publish
+# .output/public/index.html into public_html because Apache can serve it
+# directly and bypass the Passenger/Nitro application.
 deployment:
   tasks:
     - export APP_ROOT=/home/myskypar/repositories/mehmet-kan-1453
     - export DOCUMENT_ROOT=/home/myskypar/public_html
     - /bin/mkdir -p "$DOCUMENT_ROOT" "$APP_ROOT/tmp"
+    # Remove the old static entry point and stale generated asset directories.
+    - /bin/rm -f "$DOCUMENT_ROOT/index.html"
     - /bin/rm -rf "$DOCUMENT_ROOT/assets" "$DOCUMENT_ROOT/_payload" "$DOCUMENT_ROOT/_nuxt" "$DOCUMENT_ROOT/_tanstack"
-    - /bin/cp -a "$APP_ROOT/.output/public/." "$DOCUMENT_ROOT/"
+    # Publish only static assets. Route HTML stays behind Passenger/Nitro.
+    - /usr/bin/rsync -a --exclude='index.html' "$APP_ROOT/.output/public/" "$DOCUMENT_ROOT/"
+    - /bin/rm -f "$DOCUMENT_ROOT/index.html"
+    # Restart Passenger after every cPanel Git deployment.
     - /bin/touch "$APP_ROOT/tmp/restart.txt"
     - /bin/chmod -R u+rwX,go+rX "$APP_ROOT/.output" || true
     - /bin/chmod 644 "$APP_ROOT/app.js" || true
