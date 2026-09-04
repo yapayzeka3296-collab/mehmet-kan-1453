@@ -1,33 +1,16 @@
 ---
 # MySkyParcel — cPanel manual/pull deployment
-# cPanel flow: Update from Remote -> Deploy HEAD Commit.
+# The cPanel repository receives the already-built production tree.
+# cPanel flow remains: Update from Remote -> Deploy HEAD Commit.
 deployment:
   tasks:
     - export DEPLOYPATH=/home/myskypar/public_html/
     - export APPROOT=/home/myskypar/repositories/mehmet-kan-1453/
-    - export NODEBIN=/home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin/
-    - export NODE_ENV=production
-    - export NPM_CONFIG_PRODUCTION=false
-    - export NPM_CONFIG_AUDIT=false
-    - export NPM_CONFIG_FUND=false
-    - export NPM_CONFIG_UPDATE_NOTIFIER=false
-    - export CI=true
-    - export PATH=$NODEBIN:$PATH
-    - cd $APPROOT
-    - /bin/test -x $NODEBIN/node || { echo 'ERROR: Node 22 not found'; exit 1; }
-    - /bin/test -x $NODEBIN/npm || { echo 'ERROR: npm not found'; exit 1; }
-    - /bin/test -f package.json || { echo 'ERROR: package.json missing'; exit 1; }
-    - /bin/test -f package-lock.json || { echo 'ERROR: package-lock.json missing'; exit 1; }
-    - /bin/test -f app.js || { echo 'ERROR: app.js missing'; exit 1; }
-    - /bin/test -f public/.htaccess || { echo 'ERROR: public/.htaccess missing'; exit 1; }
-    - /bin/mkdir -p $APPROOT/tmp
-    - /bin/rm -rf $APPROOT/.output
-    - $NODEBIN/npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
-    - $NODEBIN/npm run build:production
-    - /bin/test -f .output/server/index.mjs || { echo 'ERROR: Nitro server output missing'; exit 1; }
-    - /bin/test -d .output/public || { echo 'ERROR: Nitro public output missing'; exit 1; }
+    - /bin/test -f $APPROOT/.output/server/index.mjs || { echo 'ERROR: production .output is missing from cPanel repository'; exit 1; }
+    - /bin/test -d $APPROOT/.output/public || { echo 'ERROR: production .output/public is missing from cPanel repository'; exit 1; }
     - /bin/mkdir -p $DEPLOYPATH
-    - /bin/cp -a .output/public/. $DEPLOYPATH
-    - /bin/cp -f public/.htaccess $DEPLOYPATH/.htaccess
+    - /bin/cp -a $APPROOT/.output/public/. $DEPLOYPATH
+    - /bin/cp -f $APPROOT/public/.htaccess $DEPLOYPATH/.htaccess 2>/dev/null || /bin/cp -f $APPROOT/.htaccess $DEPLOYPATH/.htaccess
+    - /bin/mkdir -p $APPROOT/tmp
     - /bin/touch $APPROOT/tmp/restart.txt
-    - echo 'MySkyParcel deployment completed successfully.'
+    - echo 'MySkyParcel cPanel publication completed.'
