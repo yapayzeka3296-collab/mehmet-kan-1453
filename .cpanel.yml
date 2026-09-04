@@ -6,10 +6,11 @@ deployment:
     - export APP_ROOT=/home/myskypar/repositories/mehmet-kan-1453
     - export DOCUMENT_ROOT=/home/myskypar/public_html
     - export NODE_ENV=production
+    - export NPM_CONFIG_PRODUCTION=false
     - export PATH="/home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin:$PATH"
     - cd "$APP_ROOT"
     - /bin/rm -rf "$APP_ROOT/.output"
-    - npm install --legacy-peer-deps --no-package-lock --no-audit --no-fund
+    - npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
     - npm run build:production
     - /bin/test -f "$APP_ROOT/.output/server/index.mjs"
     - /bin/test -f "$APP_ROOT/.output/nitro.json"
