@@ -74,12 +74,34 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f .output/server/index.mjs
-          test -f .output/nitro.json
-          test -d .output/public
-          test -f app.js
-          test -f public/.htaccess
-          find .output/public -type f | grep -E '\\.(js|mjs|css|json|svg|woff2?|ttf|otf|wasm)$' >/dev/null
+          for required_file in \
+            .output/server/index.mjs \
+            .output/nitro.json \
+            app.js \
+            public/.htaccess; do
+            if [ ! -f "$required_file" ]; then
+              echo "MISSING REQUIRED FILE: $required_file"
+              exit 1
+            fi
+            echo "FOUND: $required_file"
+          done
+          if [ ! -d .output/public ]; then
+            echo "MISSING REQUIRED DIRECTORY: .output/public"
+            exit 1
+          fi
+          echo "FOUND: .output/public"
+          asset_count="$(find .output/public -type f | wc -l)"
+          echo "PUBLIC ASSET COUNT: $asset_count"
+          if [ "$asset_count" -eq 0 ]; then
+            echo "NO PUBLIC BUILD FILES FOUND"
+            exit 1
+          fi
+          asset_count="$(find .output/public -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.css' -o -name '*.json' -o -name '*.svg' -o -name '*.woff' -o -name '*.woff2' -o -name '*.ttf' -o -name '*.otf' -o -name '*.wasm' \) | wc -l)"
+          echo "JS/CSS/STATIC ASSET COUNT: $asset_count"
+          if [ "$asset_count" -eq 0 ]; then
+            echo "NO EXPECTED STATIC ASSETS FOUND"
+            exit 1
+          fi
 
       - name: Start Nitro server
         shell: bash
@@ -140,8 +162,8 @@ jobs:
           )
           for route in "${routes[@]}"; do
             curl -sS -L -D /tmp/route-headers -o /tmp/route-response --max-time 20 "http://127.0.0.1:4173${route}" || { echo "FAIL 000 $route"; failed=$((failed+1)); continue; }
-            code="$(awk 'toupper($1) ~ /^HTTP\\// {code=$2} END {print code}' /tmp/route-headers)"
-            content_type="$(awk -F': ' 'tolower($1)=="content-type" {v=$2} END {gsub(/\\r/,"",v); print tolower(v)}' /tmp/route-headers)"
+            code="$(awk 'toupper($1) ~ /^HTTP\// {code=$2} END {print code}' /tmp/route-headers)"
+            content_type="$(awk -F': ' 'tolower($1)=="content-type" {v=$2} END {gsub(/\r/,"",v); print tolower(v)}' /tmp/route-headers)"
             case "$code" in 2*) ;; *) echo "FAIL $code $route"; failed=$((failed+1)); continue;; esac
             case "$content_type" in text/html*) echo "PASS $code html $route";; *) echo "FAIL $code non-html($content_type) $route"; failed=$((failed+1));; esac
           done
@@ -149,8 +171,8 @@ jobs:
           for city in istanbul gaziantep; do
             route="/sehir/${city}"
             curl -sS -L -D /tmp/route-headers -o /tmp/route-response --max-time 20 "http://127.0.0.1:4173${route}" || { echo "FAIL 000 $route"; failed=$((failed+1)); continue; }
-            code="$(awk 'toupper($1) ~ /^HTTP\\// {code=$2} END {print code}' /tmp/route-headers)"
-            content_type="$(awk -F': ' 'tolower($1)=="content-type" {v=$2} END {gsub(/\\r/,"",v); print tolower(v)}' /tmp/route-headers)"
+            code="$(awk 'toupper($1) ~ /^HTTP\// {code=$2} END {print code}' /tmp/route-headers)"
+            content_type="$(awk -F': ' 'tolower($1)=="content-type" {v=$2} END {gsub(/\r/,"",v); print tolower(v)}' /tmp/route-headers)"
             case "$code" in 2*) ;; *) echo "FAIL $code $route"; failed=$((failed+1)); continue;; esac
             case "$content_type" in text/html*) echo "PASS $code html $route";; *) echo "FAIL $code non-html($content_type) $route"; failed=$((failed+1));; esac
           done
@@ -167,6 +189,7 @@ jobs:
           case "$code" in 401|403) echo "PASS $code /admin-check-auth";; *) echo "FAIL $code /admin-check-auth"; failed=$((failed+1));; esac
 
           if [ "$failed" -ne 0 ]; then
+            echo "ROUTE SMOKE TEST FAILURES: $failed"
             cat /tmp/myskyparcel-nitro.log
             exit 1
           fi
