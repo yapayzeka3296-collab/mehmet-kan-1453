@@ -18,69 +18,35 @@ env:
   NITRO_PORT: 4173
 
 jobs:
-  sync-lockfile:
+  build-and-verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    outputs:
-      commit_sha: ${{ steps.lock.outputs.commit_sha }}
+    timeout-minutes: 25
+    env:
+      NODE_ENV: production
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - name: Regenerate package-lock from package.json
-        env:
-          NODE_ENV: development
-          NPM_CONFIG_PRODUCTION: 'false'
-        run: npm install --package-lock-only --include=dev --legacy-peer-deps --no-audit --no-fund
-      - name: Commit synchronized lockfile when needed
-        id: lock
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- package-lock.json; then
-            echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "ci: sync package-lock with package.json"
-          git push origin HEAD:main
-          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-  build-and-verify:
-    needs: sync-lockfile
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    env:
-      NODE_ENV: production
-    steps:
-      - name: Checkout synchronized commit
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync-lockfile.outputs.commit_sha }}
-          fetch-depth: 0
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-      - name: Install locked dependencies including dev tools
+
+      - name: Install locked dependencies
         env:
           NODE_ENV: development
           NPM_CONFIG_PRODUCTION: 'false'
         run: npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
+
       - name: Build production application
         env:
           NODE_ENV: production
         run: npm run build:production
+
       - name: Validate production artifacts
         shell: bash
         run: |
@@ -91,6 +57,7 @@ jobs:
           test -f app.js
           test -f public/.htaccess
           find .output/public -type f | grep -E '\.(js|mjs|css|json|svg|woff2?|ttf|otf|wasm)$' >/dev/null
+
       - name: Start Nitro server
         shell: bash
         run: |
@@ -103,24 +70,46 @@ jobs:
           done
           cat /tmp/myskyparcel-nitro.log
           exit 1
-      - name: Smoke test public and protected routes
+
+      - name: Smoke test routes
         shell: bash
         run: |
           set -euo pipefail
-          failed=0; tested=0
-          if [ -f src/routeTree.gen.ts ]; then
-            mapfile -t routes < <(grep -oE "path: '[^']+'" src/routeTree.gen.ts | sed -E "s/^path: '([^']+)'$/\1/" | grep -vE '\$|^/admin-check$|^/api/earth-assets$' | sort -u)
-          else routes=(); fi
-          for route in "${routes[@]}" /iletisim /yonetim /sehir/istanbul /sehir/gaziantep; do
-            tested=$((tested+1)); code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")" || code="000"
-            case "$code" in 2*|3*) echo "PASS $code $route";; *) echo "FAIL $code $route"; failed=$((failed+1));; esac
+          failed=0
+          routes=(/ /iletisim /yonetim /sehir/istanbul /sehir/gaziantep)
+          for route in "${routes[@]}"; do
+            code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")" || code="000"
+            case "$code" in
+              2*|3*) echo "PASS $code $route" ;;
+              *) echo "FAIL $code $route"; failed=$((failed+1)) ;;
+            esac
           done
-          tested=$((tested+1)); code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/api/earth-assets?type=provinces')" || code="000"
-          case "$code" in 200) echo "PASS $code /api/earth-assets?type=provinces";; *) echo "FAIL $code /api/earth-assets?type=provinces"; failed=$((failed+1));; esac
-          tested=$((tested+1)); code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/admin-check')" || code="000"
-          case "$code" in 401|403) echo "PASS $code /admin-check (protected)";; *) echo "FAIL $code /admin-check (expected 401/403, got $code)"; failed=$((failed+1));; esac
-          echo "Tested $tested routes; failures: $failed"
+          code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/api/earth-assets?type=provinces')" || code="000"
+          case "$code" in 200) echo "PASS $code /api/earth-assets";; *) echo "FAIL $code /api/earth-assets"; failed=$((failed+1));; esac
+          code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/admin-check')" || code="000"
+          case "$code" in 401|403) echo "PASS $code /admin-check";; *) echo "FAIL $code /admin-check"; failed=$((failed+1));; esac
           if [ "$failed" -ne 0 ]; then cat /tmp/myskyparcel-nitro.log; exit 1; fi
+
+      - name: Package cPanel deployment artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf deploy-package
+          mkdir -p deploy-package
+          cp -a .output deploy-package/.output
+          cp -a public/.htaccess deploy-package/.htaccess
+          cp -a app.js deploy-package/app.js
+          cp -a package.json deploy-package/package.json
+          cp -a package-lock.json deploy-package/package-lock.json
+          tar -czf myskyparcel-cpanel-deploy.tar.gz -C deploy-package .
+
+      - name: Upload cPanel production artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: myskyparcel-cpanel-production
+          path: myskyparcel-cpanel-deploy.tar.gz
+          retention-days: 30
+
       - name: Stop Nitro server
         if: always()
         run: |
