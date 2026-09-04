@@ -7,9 +7,9 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
   // cPanel serves .output/public directly from public_html.
-  // Keep browser assets root-relative so nested SSR routes never resolve
-  // assets as /route/assets/....
-  base: "/",
+  // The Lovable config's typed options do not expose Vite's `base` here.
+  // Root-relative asset URLs are the correct cPanel layout because the public
+  // build is copied directly into /public_html.
   tanstackStart: {
     server: { entry: "server" },
   },
