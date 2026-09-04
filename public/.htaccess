@@ -1,19 +1,26 @@
 # MySkyParcel — cPanel / CloudLinux Passenger
-# Passenger handles application routes; Apache/LiteSpeed serves real static files.
+# Passenger handles SSR/HTML routes. Apache/LiteSpeed serves real frontend
+# assets from public_html directly.
+
+PassengerAppRoot "/home/myskypar/repositories/mehmet-kan-1453"
+PassengerBaseURI "/"
+PassengerNodejs "/home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin/node"
+PassengerAppType node
+PassengerStartupFile app.js
+PassengerAppEnv production
+PassengerEnabled on
 
 Options -MultiViews
 Options -Indexes
+DirectoryIndex disabled
 
+# Existing files/directories are served directly by Apache/LiteSpeed.
+# Application routes fall through to Passenger/Nitro.
 <IfModule mod_rewrite.c>
   RewriteEngine On
-
-  # Never send real files/directories to Passenger.
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
-
-  # Missing assets must remain a normal 404, not become an application route.
-  RewriteRule ^assets(?:/|$) - [R=404,L]
 </IfModule>
 
 <IfModule mod_mime.c>
@@ -36,7 +43,9 @@ Options -Indexes
   <FilesMatch "\.(css|js|mjs|json|wasm|woff|woff2|ttf|otf|svg|png|jpg|jpeg|webp|gif)$">
     Header set X-Content-Type-Options "nosniff"
   </FilesMatch>
-  <FilesMatch "\.(css|js|mjs|woff|woff2|ttf|otf|svg|png|jpg|jpeg|webp|gif)$">
-    Header set Cache-Control "public, max-age=31536000, immutable"
+  <FilesMatch "\.(html?)$">
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
   </FilesMatch>
 </IfModule>
