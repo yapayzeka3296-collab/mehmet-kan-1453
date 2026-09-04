@@ -7,9 +7,8 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
   // cPanel serves .output/public directly from public_html.
-  // The Lovable config's typed options do not expose Vite's `base` here.
-  // Root-relative asset URLs are the correct cPanel layout because the public
-  // build is copied directly into /public_html.
+  // The generated production HTML uses root-relative /assets/... URLs,
+  // which keeps assets working on every SSR route.
   tanstackStart: {
     server: { entry: "server" },
   },
@@ -18,14 +17,5 @@ export default defineConfig({
   // from an unrelated environment variable.
   nitro: {
     preset: "node-server",
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        entryFileNames: "assets/[name]-[hash].js",
-        chunkFileNames: "assets/[name]-[hash].js",
-        assetFileNames: "assets/[name]-[hash].[ext]",
-      },
-    },
   },
 });
