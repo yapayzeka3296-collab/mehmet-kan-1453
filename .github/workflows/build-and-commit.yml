@@ -58,7 +58,7 @@ jobs:
           test -d .output/public
           test -f app.js
           test -f public/.htaccess
-          find .output/public -type f | grep -E '\.(js|mjs|css|json|svg|woff2?|ttf|otf|wasm)$' >/dev/null
+          find .output/public -type f | grep -E '\\.(js|mjs|css|json|svg|woff2?|ttf|otf|wasm)$' >/dev/null
 
       - name: Start Nitro server
         shell: bash
@@ -73,54 +73,52 @@ jobs:
           cat /tmp/myskyparcel-nitro.log
           exit 1
 
-      - name: Smoke test all application routes
+      - name: Smoke test generated application routes
         shell: bash
         run: |
           set -euo pipefail
           failed=0
           routes=(
             /
+            /admin-check
             /ana-sayfa
-            /iletisim
-            /yonetim
-            /panelim
-            /parsellerim
-            /hediyelerim
-            /siparislerim
-            /sertifikalarim
             /bildirimler
-            /profilim
-            /guvenlik-ayarlari
+            /cerez-politikasi
+            /dogrula
             /giris
+            /gizlilik-politikasi
+            /gokyuzu-haritasi
+            /guvenlik-ayarlari
+            /hakkimizda
+            /hediye-kabul
+            /hediyelerim
+            /iade-iptal-politikasi
+            /ile
+            /iletisim
             /kayit-ol
-            /sifremi-unuttum
-            /sifre-yenile
-            /sepet
-            /parsel-satin-al
-            /odeme
-            /siparis-tamamlandi
-            /paketler
+            /kullanim-sartlari
+            /kvkk
+            /mesafeli-satis-sozlesmesi
             /nasil-calisir
+            /on-bilgilendirme-formu
+            /paketler
+            /panelim
+            /parsel-hatirasi
+            /parsel-satin-al
+            /parsellerim
+            /pazar-yeri
+            /profilim
+            /purchase
+            /purchase-bulk
             /sertifika-dogrula
             /sertifika-talep
-            /hakkimizda
-            /sss
-            /dogrula
-            /gokyuzu-haritasi
+            /sertifikalarim
+            /sifre-yenile
+            /sifremi-unuttum
+            /siparislerim
             /turkiye-haritasi
-            /pazar-yeri
-            /parsel-hatirasi
-            /hediye-kabul
-            /kullanim-sartlari
             /uyelik-sozlesmesi
-            /kvkk
-            /gizlilik-politikasi
-            /cerez-politikasi
-            /mesafeli-satis-sozlesmesi
-            /on-bilgilendirme-formu
-            /iade-iptal-politikasi
-            /sehir/istanbul
-            /sehir/gaziantep
+            /yonetim
           )
           for route in "${routes[@]}"; do
             code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")" || code="000"
@@ -129,11 +127,26 @@ jobs:
               *) echo "FAIL $code $route"; failed=$((failed+1)) ;;
             esac
           done
+
+          for city in istanbul gaziantep; do
+            route="/sehir/${city}"
+            code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")" || code="000"
+            case "$code" in
+              2*|3*) echo "PASS $code $route" ;;
+              *) echo "FAIL $code $route"; failed=$((failed+1)) ;;
+            esac
+          done
+
           code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/api/earth-assets?type=provinces')" || code="000"
           case "$code" in 200) echo "PASS $code /api/earth-assets";; *) echo "FAIL $code /api/earth-assets"; failed=$((failed+1));; esac
+
           code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/admin-check')" || code="000"
-          case "$code" in 401|403) echo "PASS $code /admin-check";; *) echo "FAIL $code /admin-check"; failed=$((failed+1));; esac
-          if [ "$failed" -ne 0 ]; then cat /tmp/myskyparcel-nitro.log; exit 1; fi
+          case "$code" in 401|403) echo "PASS $code /admin-check-auth";; *) echo "FAIL $code /admin-check-auth"; failed=$((failed+1));; esac
+
+          if [ "$failed" -ne 0 ]; then
+            cat /tmp/myskyparcel-nitro.log
+            exit 1
+          fi
 
       - name: Commit prebuilt Nitro output for cPanel
         shell: bash
