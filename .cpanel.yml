@@ -1,16 +1,16 @@
 ---
-# MySkyParcel — cPanel manual/pull deployment
-# The cPanel repository receives the already-built production tree.
-# cPanel flow remains: Update from Remote -> Deploy HEAD Commit.
+# MySkyParcel — cPanel pull deployment
+# cPanel flow: Update from Remote -> Deploy HEAD Commit.
+# The GitHub Actions workflow publishes the prebuilt Nitro output into .output.
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/myskypar/public_html/
     - export APPROOT=/home/myskypar/repositories/mehmet-kan-1453/
-    - /bin/test -f $APPROOT/.output/server/index.mjs || { echo 'ERROR: production .output is missing from cPanel repository'; exit 1; }
-    - /bin/test -d $APPROOT/.output/public || { echo 'ERROR: production .output/public is missing from cPanel repository'; exit 1; }
+    - export DEPLOYPATH=/home/myskypar/public_html/
+    - /bin/test -f $APPROOT/.output/server/index.mjs
+    - /bin/test -d $APPROOT/.output/public
     - /bin/mkdir -p $DEPLOYPATH
     - /bin/cp -a $APPROOT/.output/public/. $DEPLOYPATH
-    - /bin/cp -f $APPROOT/public/.htaccess $DEPLOYPATH/.htaccess 2>/dev/null || /bin/cp -f $APPROOT/.htaccess $DEPLOYPATH/.htaccess
+    - /bin/cp -f $APPROOT/public/.htaccess $DEPLOYPATH/.htaccess
     - /bin/mkdir -p $APPROOT/tmp
     - /bin/touch $APPROOT/tmp/restart.txt
-    - echo 'MySkyParcel cPanel publication completed.'
+    - echo MySkyParcel cPanel deployment completed
