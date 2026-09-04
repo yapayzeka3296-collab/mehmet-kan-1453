@@ -7,6 +7,7 @@ import { TrustBar } from "@/components/TrustBar";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 export const Route = createFileRoute("/iletisim")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "İletişim — MySkyParcel" },
