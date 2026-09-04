@@ -73,7 +73,12 @@ function GirisPage() {
   }
 
   async function completeLogin() {
-    await navigate({ to: "/ana-sayfa" });
+    const redirect = getSafeRedirect();
+    if (redirect === "/giris") {
+      await navigate({ to: "/ana-sayfa" });
+      return;
+    }
+    window.location.replace(redirect);
   }
 
   useEffect(() => {
@@ -147,8 +152,9 @@ function GirisPage() {
             <div className="flex items-center gap-4 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" /> veya <span className="h-px flex-1 bg-border" /></div>
             <div className="grid gap-3 sm:grid-cols-2"><button type="button" onClick={() => void handleOAuth("google")} disabled={loading || oauthLoading !== null} className="rounded-md border border-border py-3 text-sm transition-colors hover:border-gold disabled:pointer-events-none disabled:opacity-60">{oauthLoading === "google" ? "Google açılıyor..." : "Google ile giriş yap"}</button><button type="button" onClick={() => void handleOAuth("apple")} disabled={loading || oauthLoading !== null} className="rounded-md border border-border py-3 text-sm transition-colors hover:border-gold disabled:pointer-events-none disabled:opacity-60">{oauthLoading === "apple" ? "Apple açılıyor..." : "Apple ile giriş yap"}</button></div>
             <p className="text-center text-sm text-muted-foreground">Hesabınız yok mu? <Link to="/kayit-ol" className="text-gold hover:underline">Kayıt olun</Link></p>
-          </form> : <div className="mt-8 space-y-5"><label className="block"><span className="text-xs text-muted-foreground">Authenticator Kodu</span><input inputMode="numeric" maxLength={6} autoComplete="one-time-code" value={mfaCode} onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" className="mt-2 w-full rounded-md border border-input bg-background/50 px-3 py-3 text-center text-lg tracking-[0.4em] outline-none focus:border-gold" /></label>{message && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{message}</p>}<button type="button" onClick={() => void verifyMfa()} disabled={mfaBusy} className="btn-gold flex w-full items-center justify-center rounded-md py-3.5 text-sm disabled:opacity-60">{mfaBusy ? "DOĞRULANIYOR..." : "DOĞRULA VE DEVAM ET"}</button><p className="text-center text-xs text-muted-foreground">Bu adım, hesabınızda MFA etkin olduğu için zorunludur.</p></div>}
+          </form> : <div className="mt-8 space-y-5"><label className="block"><span className="text-xs text-muted-foreground">Authenticator Kodu</span><input inputMode="numeric" maxLength={6} autoComplete="one-time-code" value={mfaCode} onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" className="mt-2 w-full rounded-md border border-input bg-background/50 px-3 py-3 text-center text-lg tracking-[0.4em] outline-none focus:border-gold" /></label>{message && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{message}</p>}<button type="button" onClick={() => void verifyMfa()} disabled={mfaBusy} className="btn-gold flex w-full items-center justify-center rounded-md py-3.5 text-sm disabled:opacity-60">{mfaBusy ? "DOĞRULANIYOR..." : "DOĞRULA"}</button></div>}
         </div>
-      </div><TrustBar items={SECURITY_TRUST} /></main><SiteFooter /></div>
+      </div>
+    </main><SiteFooter /></div>
   );
 }
