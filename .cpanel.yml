@@ -1,17 +1,21 @@
 ---
 # MySkyParcel production deployment: TanStack Start + Nitro node-server on cPanel.
-# GitHub Actions publishes the generated .output directory; cPanel only deploys
-# the public assets and restarts the Passenger application.
+# GitHub Actions publishes the generated .output directory; cPanel deploys the
+# public assets, enforces Passenger at the document root, and restarts the app.
 deployment:
   tasks:
     - export APP_ROOT=/home/myskypar/repositories/mehmet-kan-1453
     - export DOCUMENT_ROOT=/home/myskypar/public_html
     - /bin/mkdir -p "$DOCUMENT_ROOT"
     - /bin/mkdir -p "$APP_ROOT/tmp"
-    # Remove obsolete static-framework artifacts, but preserve the intentional
-    # public/.htaccess that enables Passenger at the document root.
+    # Remove stale artifacts from previous static/framework deployments.
     - /bin/rm -rf "$DOCUMENT_ROOT/assets" "$DOCUMENT_ROOT/_payload" "$DOCUMENT_ROOT/_nuxt" "$DOCUMENT_ROOT/_tanstack"
+    # Nitro's public directory contains only browser/static assets.
     - /bin/cp -a "$APP_ROOT/.output/public/." "$DOCUMENT_ROOT/"
+    # Explicitly install the Passenger switch in the actual domain document root.
+    # Application root/type/startup are supplied by cPanel Application Manager.
+    - /bin/printf '%s\n' '# MySkyParcel Passenger entry' 'PassengerEnabled On' 'Options -Indexes' > "$DOCUMENT_ROOT/.htaccess"
+    # Passenger restart marker lives in the application root, not public_html.
     - /bin/touch "$APP_ROOT/tmp/restart.txt"
     - /bin/chmod -R u+rwX,go+rX "$APP_ROOT/.output" || true
     - /bin/chmod 644 "$APP_ROOT/app.js" || true
