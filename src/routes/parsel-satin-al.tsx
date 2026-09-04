@@ -19,6 +19,8 @@ type PublicParcelRow = {
   status: string;
 };
 
+const VALID_TIERS: Tier[] = ["digital", "elite", "premium"];
+
 export const Route = createFileRoute("/parsel-satin-al")({
   validateSearch: (search: Record<string, unknown>): PurchaseSearch => ({
     parcels: typeof search.parcels === "string" ? search.parcels : undefined,
@@ -34,7 +36,8 @@ const PHYSICAL: Record<Tier, boolean> = { digital: false, elite: true, premium: 
 
 function SatinAl() {
   const navigate = useNavigate({ from: "/parsel-satin-al" });
-  const { parcels, certificateParcel: requestedCertificate } = Route.useSearch();
+  const search = Route.useSearch() as PurchaseSearch;
+  const { parcels, certificateParcel: requestedCertificate } = search;
   const [cartIds, setCartIds] = useState<string[]>([]);
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +52,10 @@ function SatinAl() {
   const [district, setDistrict] = useState("");
 
   useEffect(() => { if (!parcels) setCartIds(readParcelCart().map((item) => item.id)); }, [parcels]);
-  const ids = useMemo(() => Array.from(new Set((parcels ?? cartIds.join(",")).split(",").map((v: string) => v.trim()).filter(Boolean))), [parcels, cartIds]);
+  const ids: string[] = useMemo(() => {
+    const source = parcels ?? cartIds.join(",");
+    return Array.from(new Set(source.split(",").map((value) => value.trim()).filter(Boolean)));
+  }, [parcels, cartIds]);
 
   useEffect(() => {
     let active = true;
@@ -60,16 +66,29 @@ function SatinAl() {
       const { data, error } = await (supabaseBrowser as any).from("parcel_map_public").select("id,tier,tier_price,status").in("id", ids);
       if (!active) return;
       if (error) { setValidationError("Parseller doğrulanamadı. Lütfen tekrar deneyin."); setItems([]); setLoading(false); return; }
-      const rows = (data ?? []) as PublicParcelRow[];
+      const rows: PublicParcelRow[] = Array.isArray(data) ? data.map((raw: unknown) => {
+        const row = raw as Record<string, unknown>;
+        const tierValue = typeof row.tier === "string" && VALID_TIERS.includes(row.tier as Tier) ? row.tier as Tier : null;
+        return {
+          id: typeof row.id === "string" ? row.id : String(row.id ?? ""),
+          tier: tierValue,
+          tier_price: typeof row.tier_price === "number" ? row.tier_price : Number(row.tier_price ?? NaN),
+          status: typeof row.status === "string" ? row.status : "",
+        };
+      }) : [];
       const byId = new Map<string, PublicParcelRow>(rows.map((row) => [row.id, row]));
       const missing = ids.filter((id) => !byId.has(id));
       const unavailable = rows.filter((row) => row.status !== "available");
-      const invalid = rows.filter((row) => !row.tier || !["digital", "elite", "premium"].includes(row.tier) || Number(row.tier_price) !== PRICES[row.tier]);
+      const invalid = rows.filter((row) => !row.tier || !VALID_TIERS.includes(row.tier) || Number(row.tier_price) !== PRICES[row.tier]);
       if (missing.length || unavailable.length || invalid.length) {
         setValidationError(unavailable.length ? `Şu parseller artık satışa uygun değil: ${unavailable.map((row) => row.id).join(", ")}` : invalid.length ? "Parsel fiyatı paket fiyatıyla eşleşmiyor." : "Seçilen parseller doğrulanamadı.");
         setItems([]); setLoading(false); return;
       }
-      const next: PurchaseItem[] = ids.map((id) => { const row = byId.get(id); if (!row || !row.tier) throw new Error("Validated parcel row missing"); return { id, tier: row.tier, price: PRICES[row.tier] }; });
+      const next: PurchaseItem[] = ids.map((id) => {
+        const row = byId.get(id);
+        if (!row || !row.tier) throw new Error("Validated parcel row missing");
+        return { id, tier: row.tier, price: PRICES[row.tier] };
+      });
       setItems(next);
       setCertificateParcel((current) => current && ids.includes(current) ? current : (requestedCertificate && ids.includes(requestedCertificate) ? requestedCertificate : (ids[0] ?? "")));
       setLoading(false);
