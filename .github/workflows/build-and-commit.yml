@@ -16,13 +16,14 @@ env:
   NODE_OPTIONS: --max-old-space-size=6144
   NITRO_HOST: 127.0.0.1
   NITRO_PORT: 4173
+  CPANEL_API_HOST: myskyparcel.com
+  CPANEL_REPOSITORY_ROOT: /home/myskypar/repositories/mehmet-kan-1453
 
 jobs:
   sync-lockfile:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
-      changed: ${{ steps.lock.outputs.changed }}
       commit_sha: ${{ steps.lock.outputs.commit_sha }}
     steps:
       - name: Checkout main
@@ -46,7 +47,6 @@ jobs:
         run: |
           set -euo pipefail
           if git diff --quiet -- package-lock.json; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -55,7 +55,6 @@ jobs:
           git add package-lock.json
           git commit -m "ci: sync package-lock with package.json"
           git push origin HEAD:main
-          echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build-and-verify:
@@ -129,94 +128,40 @@ jobs:
         run: |
           if [ -f /tmp/myskyparcel-nitro.pid ]; then kill "$(cat /tmp/myskyparcel-nitro.pid)" 2>/dev/null || true; fi
 
-  detect-cpanel:
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    outputs:
-      configured: ${{ steps.detect.outputs.configured }}
-    steps:
-      - name: Detect all cPanel deployment secrets
-        id: detect
-        shell: bash
-        env:
-          CPANEL_REPO_URL: ${{ secrets.CPANEL_REPO_URL }}
-          CPANEL_SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
-          CPANEL_KNOWN_HOSTS: ${{ secrets.CPANEL_KNOWN_HOSTS }}
-        run: |
-          if [ -n "${CPANEL_REPO_URL:-}" ] && [ -n "${CPANEL_SSH_KEY:-}" ] && [ -n "${CPANEL_KNOWN_HOSTS:-}" ]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-            echo "All cPanel deployment secrets are configured."
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "cPanel deployment secrets are incomplete; deployment will be skipped."
-          fi
-
-  diagnose-cpanel-ssh:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Diagnose cPanel SSH ports and host keys
-        shell: bash
-        run: |
-          set +e
-          HOST=77.92.151.228
-          echo "--- Testing common cPanel SSH ports on $HOST ---"
-          found=0
-          for port in 22 2022 2200 2222 2023; do
-            timeout 5 bash -c "</dev/tcp/$HOST/$port" >/dev/null 2>&1
-            if [ $? -eq 0 ]; then
-              echo "OPEN TCP PORT: $port"
-              found=1
-              echo "--- SSH host keys on port $port ---"
-              ssh-keyscan -T 8 -p "$port" -H "$HOST" 2>&1
-              echo "--- SSH fingerprints on port $port ---"
-              ssh-keyscan -T 8 -p "$port" "$HOST" 2>/dev/null | ssh-keygen -lf - -E sha256 2>&1
-            else
-              echo "CLOSED/UNREACHABLE TCP PORT: $port"
-            fi
-          done
-          if [ "$found" -eq 0 ]; then
-            echo "NO COMMON SSH PORT IS REACHABLE."
-            echo "The cPanel SSH service may use a different port, be disabled, or be blocked by the hosting provider/firewall."
-          fi
-          exit 0
-
   deploy-cpanel:
-    needs: [sync-lockfile, build-and-verify, detect-cpanel]
-    if: ${{ needs.build-and-verify.result == 'success' && needs.detect-cpanel.outputs.configured == 'true' }}
+    needs: [sync-lockfile, build-and-verify]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
-      - name: Checkout verified commit
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync-lockfile.outputs.commit_sha }}
-          fetch-depth: 0
-      - name: Install SSH client
-        run: sudo apt-get update -y && sudo apt-get install -y openssh-client
-      - name: Configure secure SSH
-        shell: bash
+      - name: Verify cPanel API secret is configured
         env:
-          CPANEL_SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
-          CPANEL_KNOWN_HOSTS: ${{ secrets.CPANEL_KNOWN_HOSTS }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh; chmod 700 ~/.ssh
-          printf '%s\n' "$CPANEL_SSH_KEY" > ~/.ssh/cpanel_deploy_key; chmod 600 ~/.ssh/cpanel_deploy_key
-          printf '%s\n' "$CPANEL_KNOWN_HOSTS" > ~/.ssh/known_hosts; chmod 644 ~/.ssh/known_hosts
-          cat > ~/.ssh/config <<'EOF'
-          Host cpanel-production
-            IdentityFile ~/.ssh/cpanel_deploy_key
-            IdentitiesOnly yes
-            StrictHostKeyChecking yes
-          EOF
-          chmod 600 ~/.ssh/config
-      - name: Push verified commit to cPanel Git remote
+          if [ -z "${CPANEL_API_TOKEN:-}" ]; then
+            echo "CPANEL_API_TOKEN is not configured; cPanel deployment cannot be triggered." >&2
+            exit 1
+          fi
+      - name: Trigger cPanel Git deployment through UAPI
         env:
-          CPANEL_REPO_URL: ${{ secrets.CPANEL_REPO_URL }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: |
           set -euo pipefail
-          git remote add cpanel "$CPANEL_REPO_URL"
-          GIT_SSH_COMMAND='ssh -F ~/.ssh/config -o HostKeyAlias=cpanel-production' git push cpanel "${{ needs.sync-lockfile.outputs.commit_sha }}:main"
-      - name: Deployment handoff complete
-        run: echo "Verified commit pushed to the cPanel-managed Git repository."
+          response_file=$(mktemp)
+          http_code=$(curl --silent --show-error --location \
+            --output "$response_file" --write-out '%{http_code}' \
+            --fail-with-body \
+            -H "Authorization: cpanel myskypar:${CPANEL_API_TOKEN}" \
+            --get "https://${CPANEL_API_HOST}:2083/execute/VersionControlDeployment/create" \
+            --data-urlencode "repository_root=${CPANEL_REPOSITORY_ROOT}") || {
+              echo "cPanel UAPI request failed (HTTP ${http_code:-unknown})."
+              cat "$response_file"
+              exit 1
+            }
+          echo "cPanel deployment trigger HTTP $http_code"
+          cat "$response_file"
+          if ! grep -q '"status"[[:space:]]*:[[:space:]]*1' "$response_file"; then
+            echo "cPanel rejected the deployment request."
+            exit 1
+          fi
+          echo "cPanel accepted the deployment task for the verified commit."
