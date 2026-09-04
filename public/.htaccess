@@ -1,6 +1,6 @@
 # MySkyParcel — cPanel / CloudLinux Passenger
-# ALL HTML application routes must be handled by Nitro through Passenger.
-# Only real static files are served directly by Apache/LiteSpeed.
+# Passenger handles SSR/HTML routes. Apache/LiteSpeed serves real frontend
+# assets from public_html directly.
 
 PassengerAppRoot "/home/myskypar/repositories/mehmet-kan-1453"
 PassengerBaseURI "/"
@@ -14,10 +14,30 @@ Options -MultiViews
 Options -Indexes
 DirectoryIndex disabled
 
-# Never let the web server substitute a static index for an application route.
-# Existing files (JS/CSS/images) remain directly accessible; everything else
-# is intentionally left for Passenger/Nitro.
+# Explicit MIME types prevent JS/CSS from being returned as text/html.
+<IfModule mod_mime.c>
+  AddType text/css .css
+  AddType application/javascript .js .mjs
+  AddType application/json .json
+  AddType image/svg+xml .svg
+  AddType application/wasm .wasm
+  AddType font/woff .woff
+  AddType font/woff2 .woff2
+</IfModule>
+
+# Do not rewrite real assets to index.html. Existing files are served by
+# Apache/LiteSpeed; missing application routes fall through to Passenger/Nitro.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+</IfModule>
+
 <IfModule mod_headers.c>
+  <FilesMatch "\.(css|js|mjs|wasm|woff|woff2|svg)$">
+    Header set X-Content-Type-Options "nosniff"
+  </FilesMatch>
   <FilesMatch "\.(html?)$">
     Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
     Header set Pragma "no-cache"
