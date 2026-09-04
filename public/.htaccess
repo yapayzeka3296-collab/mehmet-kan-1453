@@ -13,8 +13,3 @@ PassengerEnabled on
 Options -MultiViews
 Options -Indexes
 DirectoryIndex disabled
-
-# Static assets are served directly from /assets by Apache.
-<Directory "assets">
-  PassengerEnabled off
-</Directory>
