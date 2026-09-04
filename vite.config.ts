@@ -6,21 +6,22 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
-  // cPanel deploys .output/public directly into public_html, so all browser
-  // assets must resolve from the domain root (/assets, /images, etc.).
+  // cPanel serves .output/public directly from public_html.
+  // Keep browser assets root-relative so nested SSR routes never resolve
+  // assets as /route/assets/....
   base: "/",
   tanstackStart: {
     server: { entry: "server" },
   },
-  // Keep the same source compatible with both deployment targets.
+  // MySkyParcel production runtime is cPanel + Passenger + Nitro node-server.
+  // Keep the build deterministic and never select a platform-specific preset
+  // from an unrelated environment variable.
   nitro: {
-    preset: process.env.VERCEL ? "vercel" : "node-server",
+    preset: "node-server",
   },
   build: {
     rollupOptions: {
       output: {
-        // Content hashes guarantee that a new deployment gets a new URL,
-        // preventing stale desktop browser/CDN cache from serving old assets.
         entryFileNames: "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash].[ext]",
