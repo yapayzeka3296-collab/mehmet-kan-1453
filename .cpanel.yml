@@ -1,17 +1,23 @@
 ---
 # MySkyParcel — cPanel / CloudLinux Passenger deployment
-# Git checkout -> clean Nitro build -> publish static assets -> restart Passenger.
+# Build Nitro in the cPanel Node 22 environment, publish only public assets,
+# then restart the Passenger application.
 deployment:
   tasks:
     - export APP_ROOT=/home/myskypar/repositories/mehmet-kan-1453
     - export DOCUMENT_ROOT=/home/myskypar/public_html
     - export NODE_ENV=production
     - export NPM_CONFIG_PRODUCTION=false
-    - export PATH="/home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin:$PATH"
+    - export NODE_BIN=/home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin
+    - export PATH="$NODE_BIN:$PATH"
     - cd "$APP_ROOT"
+    - /bin/test -x "$NODE_BIN/node"
+    - /bin/test -x "$NODE_BIN/npm"
+    - "$NODE_BIN/node" --version
+    - "$NODE_BIN/npm" --version
     - /bin/rm -rf "$APP_ROOT/.output"
-    - npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
-    - npm run build:production
+    - "$NODE_BIN/npm" ci --include=dev --legacy-peer-deps --no-audit --no-fund
+    - "$NODE_BIN/npm" run build:production
     - /bin/test -f "$APP_ROOT/.output/server/index.mjs"
     - /bin/test -f "$APP_ROOT/.output/nitro.json"
     - /bin/test -d "$APP_ROOT/.output/public"
