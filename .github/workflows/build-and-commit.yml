@@ -155,14 +155,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Discover cPanel SSH host keys
+      - name: Diagnose cPanel SSH ports and host keys
         shell: bash
         run: |
-          set -euo pipefail
-          echo '--- SSH host keys for 77.92.151.228 ---'
-          ssh-keyscan -T 10 -H 77.92.151.228 2>/dev/null
-          echo '--- SSH key fingerprints ---'
-          ssh-keyscan -T 10 77.92.151.228 2>/dev/null | ssh-keygen -lf - -E sha256 || true
+          set +e
+          HOST=77.92.151.228
+          echo "--- Testing common cPanel SSH ports on $HOST ---"
+          found=0
+          for port in 22 2022 2200 2222 2023; do
+            timeout 5 bash -c "</dev/tcp/$HOST/$port" >/dev/null 2>&1
+            if [ $? -eq 0 ]; then
+              echo "OPEN TCP PORT: $port"
+              found=1
+              echo "--- SSH host keys on port $port ---"
+              ssh-keyscan -T 8 -p "$port" -H "$HOST" 2>&1
+              echo "--- SSH fingerprints on port $port ---"
+              ssh-keyscan -T 8 -p "$port" "$HOST" 2>/dev/null | ssh-keygen -lf - -E sha256 2>&1
+            else
+              echo "CLOSED/UNREACHABLE TCP PORT: $port"
+            fi
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "NO COMMON SSH PORT IS REACHABLE."
+            echo "The cPanel SSH service may use a different port, be disabled, or be blocked by the hosting provider/firewall."
+          fi
+          exit 0
 
   deploy-cpanel:
     needs: [sync-lockfile, build-and-verify, detect-cpanel]
