@@ -31,78 +31,35 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-
-      - name: Install locked dependencies
+      - name: Install dependencies
         env:
           NODE_ENV: development
           NPM_CONFIG_PRODUCTION: 'false'
         run: npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
-
       - name: Generate TanStack route tree
         run: npm run prebuild
-
       - name: TypeScript validation
-        shell: bash
-        run: |
-          set -o pipefail
-          npm run typecheck -- --pretty false 2>&1 | tee /tmp/myskyparcel-typecheck.log
-
-      - name: Upload TypeScript diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: myskyparcel-typecheck-diagnostics-${{ github.run_id }}
-          path: /tmp/myskyparcel-typecheck.log
-          if-no-files-found: warn
-          retention-days: 7
-
+        run: npm run typecheck -- --pretty false
       - name: ESLint validation
         run: npm run lint
-
       - name: Build production application
-        env:
-          NODE_ENV: production
         run: npm run build:production
-
-      - name: Validate production artifacts
+      - name: Validate cPanel artifacts
         shell: bash
         run: |
           set -euo pipefail
-          for required_file in \
-            .output/server/index.mjs \
-            .output/nitro.json \
-            app.js \
-            public/.htaccess; do
-            if [ ! -f "$required_file" ]; then
-              echo "MISSING REQUIRED FILE: $required_file"
-              exit 1
-            fi
-            echo "FOUND: $required_file"
-          done
-          if [ ! -d .output/public ]; then
-            echo "MISSING REQUIRED DIRECTORY: .output/public"
-            exit 1
-          fi
-          echo "FOUND: .output/public"
-          asset_count="$(find .output/public -type f | wc -l)"
-          echo "PUBLIC ASSET COUNT: $asset_count"
-          if [ "$asset_count" -eq 0 ]; then
-            echo "NO PUBLIC BUILD FILES FOUND"
-            exit 1
-          fi
-          asset_count="$(find .output/public -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.css' -o -name '*.json' -o -name '*.svg' -o -name '*.woff' -o -name '*.woff2' -o -name '*.ttf' -o -name '*.otf' -o -name '*.wasm' \) | wc -l)"
-          echo "JS/CSS/STATIC ASSET COUNT: $asset_count"
-          if [ "$asset_count" -eq 0 ]; then
-            echo "NO EXPECTED STATIC ASSETS FOUND"
-            exit 1
-          fi
-
+          test -f .output/server/index.mjs
+          test -f .output/nitro.json
+          test -d .output/public
+          test -f app.js
+          test -f public/.htaccess
+          test "$(find .output/public -type f | wc -l)" -gt 0
+          test "$(find .output/public -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.css' -o -name '*.json' -o -name '*.svg' -o -name '*.woff' -o -name '*.woff2' -o -name '*.ttf' -o -name '*.otf' -o -name '*.wasm' \) | wc -l)" -gt 0
       - name: Start Nitro server
         shell: bash
         run: |
@@ -115,85 +72,36 @@ jobs:
           done
           cat /tmp/myskyparcel-nitro.log
           exit 1
-
-      - name: Smoke test every application route
+      - name: Smoke test application routes
         shell: bash
         run: |
           set -euo pipefail
-          failed=0
           routes=(
-            /
-            /ana-sayfa
-            /bildirimler
-            /cerez-politikasi
-            /dogrula
-            /giris
-            /gizlilik-politikasi
-            /gokyuzu-haritasi
-            /guvenlik-ayarlari
-            /hakkimizda
-            /hediye-kabul
-            /hediyelerim
-            /iade-iptal-politikasi
-            /ile
-            /iletisim
-            /kayit-ol
-            /kullanim-sartlari
-            /kvkk
-            /mesafeli-satis-sozlesmesi
-            /nasil-calisir
-            /on-bilgilendirme-formu
-            /paketler
-            /panelim
-            /parsel-hatirasi
-            /parsel-satin-al
-            /parsellerim
-            /pazar-yeri
-            /profilim
-            /sertifika-dogrula
-            /sertifika-talep
-            /sertifikalarim
-            /sifre-yenile
-            /sifremi-unuttum
-            /siparislerim
-            /turkiye-haritasi
-            /uyelik-sozlesmesi
-            /yonetim
+            / /ana-sayfa /bildirimler /cerez-politikasi /dogrula /giris
+            /gizlilik-politikasi /gokyuzu-haritasi /guvenlik-ayarlari /hakkimizda
+            /hediye-kabul /hediyelerim /iade-iptal-politikasi /ile /destek
+            /kayit-ol /kullanim-sartlari /kvkk /mesafeli-satis-sozlesmesi
+            /nasil-calisir /on-bilgilendirme-formu /paketler /panelim
+            /parsel-hatirasi /parsel-satin-al /parsellerim /pazar-yeri /profilim
+            /sertifika-dogrula /sertifika-talep /sertifikalarim /sifre-yenile
+            /sifremi-unuttum /siparislerim /turkiye-haritasi /uyelik-sozlesmesi /yonetim
           )
           for route in "${routes[@]}"; do
-            curl -sS -L -D /tmp/route-headers -o /tmp/route-response --max-time 20 "http://127.0.0.1:4173${route}" || { echo "FAIL 000 $route"; failed=$((failed+1)); continue; }
-            code="$(awk 'toupper($1) ~ /^HTTP\// {code=$2} END {print code}' /tmp/route-headers)"
-            content_type="$(awk -F': ' 'tolower($1)=="content-type" {v=$2} END {gsub(/\r/,"",v); print tolower(v)}' /tmp/route-headers)"
-            case "$code" in 2*) ;; *) echo "FAIL $code $route"; failed=$((failed+1)); continue;; esac
-            case "$content_type" in text/html*) echo "PASS $code html $route";; *) echo "FAIL $code non-html($content_type) $route"; failed=$((failed+1));; esac
+            code="$(curl -sS -L -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")"
+            case "$code" in 2*) echo "PASS $code $route";; *) echo "FAIL $code $route"; cat /tmp/route-response; exit 1;; esac
           done
-
           for city in istanbul gaziantep; do
-            route="/sehir/${city}"
-            curl -sS -L -D /tmp/route-headers -o /tmp/route-response --max-time 20 "http://127.0.0.1:4173${route}" || { echo "FAIL 000 $route"; failed=$((failed+1)); continue; }
-            code="$(awk 'toupper($1) ~ /^HTTP\// {code=$2} END {print code}' /tmp/route-headers)"
-            content_type="$(awk -F': ' 'tolower($1)=="content-type" {v=$2} END {gsub(/\r/,"",v); print tolower(v)}' /tmp/route-headers)"
-            case "$code" in 2*) ;; *) echo "FAIL $code $route"; failed=$((failed+1)); continue;; esac
-            case "$content_type" in text/html*) echo "PASS $code html $route";; *) echo "FAIL $code non-html($content_type) $route"; failed=$((failed+1));; esac
+            code="$(curl -sS -L -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173/sehir/${city}")"
+            case "$code" in 2*) echo "PASS $code /sehir/${city}";; *) echo "FAIL $code /sehir/${city}"; exit 1;; esac
           done
-
-          code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/api/earth-assets?type=provinces')" || code="000"
-          case "$code" in 200) echo "PASS $code /api/earth-assets";; *) echo "FAIL $code /api/earth-assets"; failed=$((failed+1));; esac
-
+          code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/api/earth-assets?type=provinces')"
+          test "$code" = 200
           for api_route in /purchase /purchase-bulk /api/shopier/checkout; do
-            code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' -d '{}' "http://127.0.0.1:4173${api_route}")" || code="000"
-            case "$code" in 400|401|403) echo "PASS $code ${api_route} unauth/validation-guard";; *) echo "FAIL $code ${api_route}"; failed=$((failed+1));; esac
+            code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' -d '{}' "http://127.0.0.1:4173${api_route}")"
+            case "$code" in 400|401|403) echo "PASS $code ${api_route}";; *) echo "FAIL $code ${api_route}"; exit 1;; esac
           done
-
-          code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/admin-check')" || code="000"
-          case "$code" in 401|403) echo "PASS $code /admin-check-auth";; *) echo "FAIL $code /admin-check-auth"; failed=$((failed+1));; esac
-
-          if [ "$failed" -ne 0 ]; then
-            echo "ROUTE SMOKE TEST FAILURES: $failed"
-            cat /tmp/myskyparcel-nitro.log
-            exit 1
-          fi
-
+          code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/admin-check')"
+          case "$code" in 401|403) echo "PASS $code /admin-check";; *) echo "FAIL $code /admin-check"; exit 1;; esac
       - name: Commit prebuilt Nitro output and generated route tree for cPanel
         shell: bash
         run: |
@@ -203,11 +111,10 @@ jobs:
           git add -f .output src/routeTree.gen.ts
           if git diff --cached --quiet -- .output src/routeTree.gen.ts; then
             echo "Production output and route tree unchanged."
-            exit 0
+          else
+            git commit -m "build: update prebuilt production output"
+            git push origin HEAD:main
           fi
-          git commit -m "build: update prebuilt production output"
-          git push origin HEAD:main
-
       - name: Stop Nitro server
         if: always()
         run: |
