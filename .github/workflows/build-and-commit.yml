@@ -1,4 +1,4 @@
-name: Build and Commit .output
+name: Build, verify and deploy MySkyParcel
 
 on:
   push:
@@ -7,22 +7,25 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: build-and-commit-main
+  group: production-deploy-main
   cancel-in-progress: false
 
 env:
   NODE_OPTIONS: --max-old-space-size=6144
+  NODE_ENV: production
+  NITRO_HOST: 127.0.0.1
+  NITRO_PORT: 4173
 
 jobs:
-  build-and-commit:
-    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+  build-and-verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      - name: Checkout main
+      - name: Checkout source
         uses: actions/checkout@v4
         with:
           ref: main
@@ -35,52 +38,135 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: |
-          npm install --legacy-peer-deps --no-audit --no-fund
-          npm install --no-save --legacy-peer-deps --no-audit --no-fund nitro@3.0.260603-beta
+        run: npm install --legacy-peer-deps --no-audit --no-fund
 
-      - name: Build and publish generated files
+      - name: Build production Nitro application
+        run: npm run build:production
+
+      - name: Validate production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .output/server/index.mjs
+          test -f .output/nitro.json
+          test -d .output/public
+          test -f app.js
+          echo "Production build artifacts are present."
+
+      - name: Start Nitro server for route smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node app.js > /tmp/myskyparcel-nitro.log 2>&1 &
+          echo $! > /tmp/myskyparcel-nitro.pid
+
+          for attempt in {1..30}; do
+            if curl -fsS --max-time 2 http://127.0.0.1:4173/ >/dev/null; then
+              echo "Nitro server is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat /tmp/myskyparcel-nitro.log
+          exit 1
+
+      - name: Smoke test every generated static route
         shell: bash
         run: |
           set -euo pipefail
 
-          for attempt in 1 2 3; do
-            echo "=== Build/publish attempt $attempt/3 ==="
+          mapfile -t routes < <(
+            grep -oE "path: '[^']+'" src/routeTree.gen.ts \
+              | sed -E "s/^path: '([^']+)'$/\1/" \
+              | grep -v '\$' \
+              | sort -u
+          )
 
-            git fetch origin main
-            git reset --hard origin/main
-            BASE_SHA="$(git rev-parse HEAD)"
+          failed=0
+          tested=0
 
-            npm run build
+          for route in "${routes[@]}"; do
+            tested=$((tested + 1))
+            code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")" || code="000"
 
-            test -f .output/server/index.mjs
-            test -f .output/nitro.json
-            test -d .output/public
-
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add src/routeTree.gen.ts
-            git add -f .output
-
-            if git diff --cached --quiet; then
-              echo "No generated route tree or .output changes to commit."
-              exit 0
-            fi
-
-            git commit -m "build: update generated routes and .output [skip ci]"
-
-            git fetch origin main
-            REMOTE_SHA="$(git rev-parse origin/main)"
-
-            if [ "$REMOTE_SHA" = "$BASE_SHA" ]; then
-              git push origin HEAD:main
-              echo "Generated build published successfully."
-              exit 0
-            fi
-
-            echo "main changed during the build; retrying from the newest main."
-            git reset --hard origin/main
+            case "$code" in
+              2*|3*)
+                echo "PASS $code $route"
+                ;;
+              *)
+                echo "FAIL $code $route"
+                failed=$((failed + 1))
+                ;;
+            esac
           done
 
-          echo "Could not publish generated files after 3 attempts."
-          exit 1
+          echo "Tested $tested static routes; failures: $failed"
+
+          if [ "$failed" -ne 0 ]; then
+            echo "--- Nitro log ---"
+            cat /tmp/myskyparcel-nitro.log
+            exit 1
+          fi
+
+      - name: Stop Nitro smoke-test server
+        if: always()
+        run: |
+          if [ -f /tmp/myskyparcel-nitro.pid ]; then
+            kill "$(cat /tmp/myskyparcel-nitro.pid)" 2>/dev/null || true
+          fi
+
+  deploy-cpanel:
+    needs: build-and-verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ secrets.CPANEL_REPO_URL != '' && secrets.CPANEL_SSH_KEY != '' }}
+
+    steps:
+      - name: Checkout exact commit that passed verification
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install SSH client
+        run: sudo apt-get update -y && sudo apt-get install -y openssh-client
+
+      - name: Configure SSH for cPanel Git repository
+        shell: bash
+        env:
+          CPANEL_SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+          CPANEL_KNOWN_HOSTS: ${{ secrets.CPANEL_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$CPANEL_SSH_KEY" > ~/.ssh/cpanel_deploy_key
+          chmod 600 ~/.ssh/cpanel_deploy_key
+
+          if [ -z "${CPANEL_KNOWN_HOSTS:-}" ]; then
+            echo "CPANEL_KNOWN_HOSTS is required for secure SSH deployment."
+            exit 1
+          fi
+
+          printf '%s\n' "$CPANEL_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+          cat > ~/.ssh/config <<'EOF'
+          Host cpanel-production
+            IdentityFile ~/.ssh/cpanel_deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Push verified commit to cPanel repository
+        env:
+          CPANEL_REPO_URL: ${{ secrets.CPANEL_REPO_URL }}
+        run: |
+          set -euo pipefail
+          git remote add cpanel "$CPANEL_REPO_URL"
+          GIT_SSH_COMMAND='ssh -F ~/.ssh/config -o HostKeyAlias=cpanel-production' git push cpanel HEAD:main
+
+      - name: Deployment handoff complete
+        run: echo "Verified main commit pushed to the cPanel-managed Git repository; cPanel post-receive deployment should now run .cpanel.yml."
