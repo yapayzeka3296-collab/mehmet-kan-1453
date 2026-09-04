@@ -101,7 +101,18 @@ jobs:
             esac
           done
 
-          echo "Tested $tested static routes; failures: $failed"
+          # Explicitly cover the routes that previously regressed on cPanel and
+          # the dynamic/API routes omitted by the generated-static-route scan.
+          for route in /iletisim /yonetim /sehir/istanbul /sehir/gaziantep /api/earth-assets; do
+            tested=$((tested + 1))
+            code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")" || code="000"
+            case "$code" in
+              2*|3*) echo "PASS $code $route" ;;
+              *) echo "FAIL $code $route"; failed=$((failed + 1)) ;;
+            esac
+          done
+
+          echo "Tested $tested routes; failures: $failed"
 
           if [ "$failed" -ne 0 ]; then
             echo "--- Nitro log ---"
@@ -116,11 +127,31 @@ jobs:
             kill "$(cat /tmp/myskyparcel-nitro.pid)" 2>/dev/null || true
           fi
 
+  detect-cpanel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      configured: ${{ steps.detect.outputs.configured }}
+    steps:
+      - name: Detect cPanel deployment secrets
+        id: detect
+        shell: bash
+        env:
+          CPANEL_REPO_URL: ${{ secrets.CPANEL_REPO_URL }}
+          CPANEL_SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+        run: |
+          if [ -n "${CPANEL_REPO_URL:-}" ] && [ -n "${CPANEL_SSH_KEY:-}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "cPanel deployment secrets are not configured; cPanel deployment will be skipped."
+          fi
+
   deploy-cpanel:
-    needs: build-and-verify
+    needs: [build-and-verify, detect-cpanel]
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: ${{ secrets.CPANEL_REPO_URL != '' && secrets.CPANEL_SSH_KEY != '' }}
+    if: ${{ needs.detect-cpanel.outputs.configured == 'true' }}
 
     steps:
       - name: Checkout exact commit that passed verification
