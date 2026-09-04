@@ -10,14 +10,12 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-.output
+# .output is intentionally tracked: cPanel manual deployment publishes the
+# prebuilt Nitro production tree instead of running npm/build on the server.
 .vinxi
 .tanstack/**
 .nitro
 *.local
-
-# cPanel Passenger restart file
-# cPanel writes tmp/restart.txt during deployment; keep it out of Git's working-tree status.
 tmp/
 
 # Wrangler / Cloudflare
