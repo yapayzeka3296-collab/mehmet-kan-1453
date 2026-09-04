@@ -44,6 +44,12 @@ jobs:
           NPM_CONFIG_PRODUCTION: 'false'
         run: npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
 
+      - name: TypeScript validation
+        run: npm run typecheck
+
+      - name: ESLint validation
+        run: npm run lint
+
       - name: Build production application
         env:
           NODE_ENV: production
