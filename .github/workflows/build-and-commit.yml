@@ -44,6 +44,9 @@ jobs:
           NPM_CONFIG_PRODUCTION: 'false'
         run: npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
 
+      - name: Generate TanStack route tree
+        run: npm run prebuild
+
       - name: TypeScript validation
         run: npm run typecheck
 
@@ -156,15 +159,15 @@ jobs:
             exit 1
           fi
 
-      - name: Commit prebuilt Nitro output for cPanel
+      - name: Commit prebuilt Nitro output and generated route tree for cPanel
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f .output
-          if git diff --cached --quiet -- .output; then
-            echo "Production output unchanged."
+          git add -f .output src/routeTree.gen.ts
+          if git diff --cached --quiet -- .output src/routeTree.gen.ts; then
+            echo "Production output and route tree unchanged."
             exit 0
           fi
           git commit -m "build: update prebuilt production output"
