@@ -1,6 +1,6 @@
 # MySkyParcel — cPanel / CloudLinux Passenger
-# Passenger handles SSR/HTML routes. Apache/LiteSpeed serves static assets
-# directly from public_html without routing them through Nitro.
+# GitHub -> cPanel Git -> Nitro/Passenger -> public_html.
+# Static assets are served by Apache/LiteSpeed; SSR routes are handled by Passenger.
 
 PassengerAppRoot "/home/myskypar/repositories/mehmet-kan-1453"
 PassengerBaseURI "/"
@@ -18,12 +18,10 @@ DirectoryIndex disabled
   RewriteEngine On
   RewriteBase /
 
-  # Static Vite/Nitro assets must never be rewritten to an application route.
-  # Hashed asset filenames make these URLs safe to cache for a long time.
+  # Never send Vite/Nitro static files through the SSR application.
   RewriteRule ^assets(?:/|$) - [L]
 
-  # Existing files/directories are served directly by Apache/LiteSpeed.
-  # Application routes fall through to Passenger/Nitro.
+  # Existing public files/directories are served directly.
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
@@ -46,17 +44,26 @@ DirectoryIndex disabled
 </IfModule>
 
 <IfModule mod_headers.c>
-  # Hashed static assets can be cached for one year. A changed build produces
-  # a new hash/URL, so browsers do not reuse an old JS/CSS response.
-  <FilesMatch "\.(js|css|svg|png|jpg|jpeg|webp)$">
-    Header set Cache-Control "max-age=31536000, public"
-  </FilesMatch>
-  <FilesMatch "\.(mjs|json|wasm|woff|woff2|ttf|otf|gif)$">
+  # During the cPanel repair, do not let LiteSpeed/Apache or a desktop browser
+  # reuse an old JS/CSS response. The next deployment can safely re-enable
+  # long-lived caching after the production bundle is verified.
+  <FilesMatch "\.(js|css|mjs|json|wasm|svg|png|jpg|jpeg|webp|gif|woff|woff2|ttf|otf)$">
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
     Header set X-Content-Type-Options "nosniff"
   </FilesMatch>
+
   <FilesMatch "\.(html?)$">
     Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
     Header set Pragma "no-cache"
     Header set Expires "0"
   </FilesMatch>
+</IfModule>
+
+# LiteSpeed can keep a public cache independently of browser Cache-Control.
+# Disable that cache for this application while the desktop stale-build issue
+# is eliminated. This does not disable Passenger or static file serving.
+<IfModule LiteSpeed>
+  CacheLookup off
 </IfModule>
