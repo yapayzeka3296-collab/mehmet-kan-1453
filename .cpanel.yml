@@ -8,6 +8,10 @@ deployment:
     - export NODEBIN=/home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin/
     - export NODE_ENV=production
     - export NPM_CONFIG_PRODUCTION=false
+    - export NPM_CONFIG_AUDIT=false
+    - export NPM_CONFIG_FUND=false
+    - export NPM_CONFIG_UPDATE_NOTIFIER=false
+    - export CI=true
     - export PATH=$NODEBIN:$PATH
     - cd $APPROOT
     - /bin/test -x $NODEBIN/node || { echo 'ERROR: Node 22 not found'; exit 1; }
@@ -16,6 +20,8 @@ deployment:
     - /bin/test -f package-lock.json || { echo 'ERROR: package-lock.json missing'; exit 1; }
     - /bin/test -f app.js || { echo 'ERROR: app.js missing'; exit 1; }
     - /bin/test -f public/.htaccess || { echo 'ERROR: public/.htaccess missing'; exit 1; }
+    - /bin/mkdir -p $APPROOT/tmp
+    - /bin/rm -rf $APPROOT/.output
     - $NODEBIN/npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
     - $NODEBIN/npm run build:production
     - /bin/test -f .output/server/index.mjs || { echo 'ERROR: Nitro server output missing'; exit 1; }
