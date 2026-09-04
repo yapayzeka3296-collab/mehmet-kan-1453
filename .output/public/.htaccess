@@ -1,3 +1,12 @@
-# cPanel/Apache static-file handling for the generated public directory.
-# Real CSS/JS/image files are served by Apache; Passenger handles application routes.
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerAppRoot "/home/myskypar/repositories/mehmet-kan-1453"
+PassengerBaseURI "/"
+PassengerNodejs "/home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin/node"
+PassengerAppType node
+PassengerStartupFile app.js
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
+
+# cPanel/LiteSpeed static-file handling for the generated public directory.
+# Apache serves existing CSS/JS/images; Passenger handles application routes.
 Options -MultiViews
+Options -Indexes
