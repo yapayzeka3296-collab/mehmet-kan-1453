@@ -51,6 +51,8 @@ jobs:
           grep -Fq "'/destek'" src/routeTree.gen.ts
           ! grep -Fq "./routes/iletisim" src/routeTree.gen.ts
           ! grep -Fq "'/iletisim'" src/routeTree.gen.ts
+          ! grep -Fq "./routes/ile" src/routeTree.gen.ts
+          ! grep -Fq "'/ile'" src/routeTree.gen.ts
       - name: TypeScript validation
         run: npm run typecheck -- --pretty false
       - name: ESLint validation
@@ -87,7 +89,7 @@ jobs:
           routes=(
             / /ana-sayfa /bildirimler /cerez-politikasi /dogrula /giris
             /gizlilik-politikasi /gokyuzu-haritasi /guvenlik-ayarlari /hakkimizda
-            /hediye-kabul /hediyelerim /iade-iptal-politikasi /ile /destek
+            /hediye-kabul /hediyelerim /iade-iptal-politikasi /destek
             /kayit-ol /kullanim-sartlari /kvkk /mesafeli-satis-sozlesmesi
             /nasil-calisir /on-bilgilendirme-formu /paketler /panelim
             /parsel-hatirasi /parsel-satin-al /parsellerim /pazar-yeri /profilim
@@ -98,8 +100,10 @@ jobs:
             code="$(curl -sS -L -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")"
             case "$code" in 2*) echo "PASS $code $route";; *) echo "FAIL $code $route"; cat /tmp/route-response; exit 1;; esac
           done
-          code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/iletisim')"
-          case "$code" in 404) echo "PASS $code /iletisim removed";; *) echo "FAIL $code /iletisim should be removed"; cat /tmp/route-response; exit 1;; esac
+          for removed_route in /iletisim /ile; do
+            code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${removed_route}")"
+            case "$code" in 404) echo "PASS $code ${removed_route} removed";; *) echo "FAIL $code ${removed_route} should be removed"; cat /tmp/route-response; exit 1;; esac
+          done
           for city in istanbul gaziantep; do
             code="$(curl -sS -L -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173/sehir/${city}")"
             case "$code" in 2*) echo "PASS $code /sehir/${city}";; *) echo "FAIL $code /sehir/${city}"; exit 1;; esac
