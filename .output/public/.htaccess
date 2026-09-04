@@ -1,36 +1,21 @@
 # MySkyParcel — cPanel / CloudLinux Passenger
-#
-# Passenger/Application Manager owns the Node.js application mapping.
-# This file intentionally does NOT enable/configure Passenger itself.
-# Apache/LiteSpeed must serve real files from public_html directly.
+# Passenger handles application routes; Apache/LiteSpeed serves real static files.
 
 Options -MultiViews
 Options -Indexes
 
-# ----------------------------------------------------------
-# Static assets: never rewrite existing files to an app route.
-# ----------------------------------------------------------
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
-  # /assets/* is a physical static directory copied from .output/public.
-  # Let Apache/LiteSpeed serve it directly. If a requested asset is missing,
-  # return a normal 404 instead of sending it to the Node.js application.
-  RewriteRule ^assets(?:/|$) - [L]
-
-  # All other real files/directories are also served directly.
+  # Never send real files/directories to Passenger.
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # Do NOT add an index.html SPA fallback here.
-  # MySkyParcel is TanStack Start/Nitro SSR; HTML/application routes are
-  # intentionally handled by the Passenger application.
+  # Missing assets must remain a normal 404, not become an application route.
+  RewriteRule ^assets(?:/|$) - [R=404,L]
 </IfModule>
 
-# ----------------------------------------------------------
-# Correct MIME types for frontend assets.
-# ----------------------------------------------------------
 <IfModule mod_mime.c>
   AddType text/css .css
   AddType application/javascript .js .mjs
@@ -47,15 +32,10 @@ Options -Indexes
   AddType font/otf .otf
 </IfModule>
 
-# ----------------------------------------------------------
-# Security / cache headers.
-# ----------------------------------------------------------
 <IfModule mod_headers.c>
   <FilesMatch "\.(css|js|mjs|json|wasm|woff|woff2|ttf|otf|svg|png|jpg|jpeg|webp|gif)$">
     Header set X-Content-Type-Options "nosniff"
   </FilesMatch>
-
-  # Hashed Vite assets are immutable and can be cached aggressively.
   <FilesMatch "\.(css|js|mjs|woff|woff2|ttf|otf|svg|png|jpg|jpeg|webp|gif)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
