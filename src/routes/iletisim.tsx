@@ -6,6 +6,10 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { TrustBar } from "@/components/TrustBar";
 
 export const Route = createFileRoute("/iletisim")({
+  // cPanel Passenger/Nitro must not execute this UI component during SSR.
+  // The contact page is fully client-side and can still submit through the
+  // Supabase function or fall back to the user's mail client.
+  ssr: false,
   head: () => ({
     meta: [
       { title: "İletişim — MySkyParcel" },
@@ -47,9 +51,6 @@ function Iletisim() {
     setStatusText("");
 
     try {
-      // Do not import Supabase during route/module evaluation. The contact page
-      // must be renderable by Nitro/Passenger even when browser auth/storage
-      // dependencies are unavailable on the server.
       const { supabaseBrowser } = await import("@/lib/supabaseBrowser");
       const { data: result, error } = await supabaseBrowser.functions.invoke("contact-message", {
         body: payload,
@@ -65,10 +66,6 @@ function Iletisim() {
       console.error("Contact form error", error);
       const subject = payload.subject || "MySkyParcel İletişim Mesajı";
       const body = `Ad Soyad: ${payload.name}\nE-posta: ${payload.email}\n\n${payload.message}`;
-
-      // cPanel/Passenger must still provide a usable contact page if the
-      // Supabase function is unavailable. This fallback is browser-only and
-      // therefore cannot affect Nitro SSR rendering.
       window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       setStatus("success");
       setStatusText(
