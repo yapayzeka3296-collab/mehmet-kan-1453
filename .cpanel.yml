@@ -1,7 +1,8 @@
 ---
 # MySkyParcel — cPanel pull deployment
-# cPanel flow: Update from Remote -> Deploy HEAD Commit.
-# The GitHub Actions workflow publishes the prebuilt Nitro output into .output.
+# GitHub -> cPanel Git -> repository -> Nitro/Passenger -> public_html.
+# The deployment intentionally mirrors .output/public so deleted/renamed
+# assets from an older build cannot remain live in public_html.
 deployment:
   tasks:
     - export APPROOT=/home/myskypar/repositories/mehmet-kan-1453/
@@ -9,6 +10,9 @@ deployment:
     - /bin/test -f $APPROOT/.output/server/index.mjs
     - /bin/test -d $APPROOT/.output/public
     - /bin/mkdir -p $DEPLOYPATH
+    # Remove only the previously deployed public build. Never touch .git,
+    # the repository, or the Passenger application root.
+    - /bin/find $DEPLOYPATH -mindepth 1 -maxdepth 1 ! -name '.well-known' -exec /bin/rm -rf {} +
     - /bin/cp -a $APPROOT/.output/public/. $DEPLOYPATH
     - /bin/cp -f $APPROOT/public/.htaccess $DEPLOYPATH/.htaccess
     - /bin/mkdir -p $APPROOT/tmp
