@@ -1,7 +1,6 @@
 ---
 # MySkyParcel cPanel/CloudLinux deployment for TanStack Start + Nitro + Passenger.
-# Build the application on cPanel on every deployment so route chunks and the
-# Nitro manifest can never remain stale after a GitHub commit.
+# Build the application on every deployment so route chunks and the Nitro manifest stay fresh.
 deployment:
   tasks:
     - export APP_ROOT=/home/myskypar/repositories/mehmet-kan-1453
@@ -9,23 +8,17 @@ deployment:
     - export NODE_ENV=production
     - export PATH="/home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin:$PATH"
     - cd "$APP_ROOT"
-    # Do not reuse an old ignored .output directory from a previous deployment.
     - /bin/rm -rf "$APP_ROOT/.output"
-    # Install from package.json, then generate a fresh Nitro node-server build.
     - npm install --no-audit --no-fund
     - npm run build:production
     - /bin/mkdir -p "$DOCUMENT_ROOT" "$APP_ROOT/tmp"
-    # Remove stale static entry points/assets before publishing the new build.
     - /bin/rm -f "$DOCUMENT_ROOT/index.html" "$DOCUMENT_ROOT/.htaccess"
     - /bin/rm -rf "$DOCUMENT_ROOT/assets" "$DOCUMENT_ROOT/_payload" "$DOCUMENT_ROOT/_nuxt" "$DOCUMENT_ROOT/_tanstack"
-    # Publish only Nitro's static assets. Application HTML is rendered by Passenger/Nitro.
     - /bin/cp -a "$APP_ROOT/.output/public/." "$DOCUMENT_ROOT/"
     - /bin/rm -f "$DOCUMENT_ROOT/index.html"
-    # The build must contain the Passenger configuration required for nested routes.
     - /bin/test -f "$DOCUMENT_ROOT/.htaccess"
     - /bin/test -f "$APP_ROOT/.output/server/index.mjs"
     - /bin/test -f "$APP_ROOT/app.js"
-    # Restart Passenger so the new route manifest/chunks are loaded immediately.
     - /bin/touch "$APP_ROOT/tmp/restart.txt"
     - /bin/chmod -R u+rwX,go+rX "$APP_ROOT/.output" || true
     - /bin/chmod 644 "$APP_ROOT/app.js" || true
