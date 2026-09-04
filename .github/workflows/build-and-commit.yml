@@ -120,6 +120,7 @@ jobs:
     needs: build-and-verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    if: ${{ secrets.CPANEL_REPO_URL != '' && secrets.CPANEL_SSH_KEY != '' }}
 
     steps:
       - name: Checkout exact commit that passed verification
@@ -127,25 +128,6 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-
-      - name: Check required deployment secrets
-        env:
-          CPANEL_REPO_URL: ${{ secrets.CPANEL_REPO_URL }}
-          CPANEL_SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
-          CPANEL_KNOWN_HOSTS: ${{ secrets.CPANEL_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          missing=0
-          for name in CPANEL_REPO_URL CPANEL_SSH_KEY CPANEL_KNOWN_HOSTS; do
-            if [ -z "${!name:-}" ]; then
-              echo "Missing GitHub Actions secret: $name"
-              missing=1
-            fi
-          done
-          if [ "$missing" -ne 0 ]; then
-            echo "Add the three deployment secrets before production deployment can run."
-            exit 1
-          fi
 
       - name: Install SSH client
         run: sudo apt-get update -y && sudo apt-get install -y openssh-client
@@ -161,8 +143,22 @@ jobs:
           chmod 700 ~/.ssh
           printf '%s\n' "$CPANEL_SSH_KEY" > ~/.ssh/cpanel_deploy_key
           chmod 600 ~/.ssh/cpanel_deploy_key
+
+          if [ -z "${CPANEL_KNOWN_HOSTS:-}" ]; then
+            echo "CPANEL_KNOWN_HOSTS is required for secure SSH deployment."
+            exit 1
+          fi
+
           printf '%s\n' "$CPANEL_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
+
+          cat > ~/.ssh/config <<'EOF'
+          Host cpanel-production
+            IdentityFile ~/.ssh/cpanel_deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 ~/.ssh/config
 
       - name: Push verified commit to cPanel repository
         env:
@@ -170,7 +166,7 @@ jobs:
         run: |
           set -euo pipefail
           git remote add cpanel "$CPANEL_REPO_URL"
-          GIT_SSH_COMMAND='ssh -i ~/.ssh/cpanel_deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes' git push cpanel HEAD:main
+          GIT_SSH_COMMAND='ssh -F ~/.ssh/config -o HostKeyAlias=cpanel-production' git push cpanel HEAD:main
 
       - name: Deployment handoff complete
-        run: echo "Verified main commit pushed to the cPanel-managed Git repository. cPanel's post-receive hook should now execute .cpanel.yml and restart Passenger."
+        run: echo "Verified main commit pushed to the cPanel-managed Git repository; cPanel post-receive deployment should now run .cpanel.yml."
