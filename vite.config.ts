@@ -16,4 +16,15 @@ export default defineConfig({
   nitro: {
     preset: process.env.VERCEL ? "vercel" : "node-server",
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Content hashes guarantee that a new deployment gets a new URL,
+        // preventing stale desktop browser/CDN cache from serving old assets.
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash].[ext]",
+      },
+    },
+  },
 });
