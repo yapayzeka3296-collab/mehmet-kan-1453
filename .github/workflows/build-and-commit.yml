@@ -58,7 +58,7 @@ jobs:
           test -d .output/public
           test -f app.js
           test -f public/.htaccess
-          find .output/public -type f | grep -E '\\.(js|mjs|css|json|svg|woff2?|ttf|otf|wasm)$' >/dev/null
+          find .output/public -type f | grep -E '\.(js|mjs|css|json|svg|woff2?|ttf|otf|wasm)$' >/dev/null
 
       - name: Start Nitro server
         shell: bash
@@ -133,8 +133,7 @@ jobs:
             code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")" || code="000"
             case "$code" in
               2*|3*) echo "PASS $code $route" ;;
-              *) echo "FAIL $code $route"; failed=$((failed+1)) ;;
-            esac
+              *) echo "FAIL $code $route"; failed=$((failed+1));; esac
           done
 
           code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/api/earth-assets?type=provinces')" || code="000"
