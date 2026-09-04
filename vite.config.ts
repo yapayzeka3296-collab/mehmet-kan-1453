@@ -6,14 +6,13 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
-  base: "./",
+  // cPanel deploys .output/public directly into public_html, so all browser
+  // assets must resolve from the domain root (/assets, /images, etc.).
+  base: "/",
   tanstackStart: {
-    // Use the project's explicit SSR server entry in both runtimes.
     server: { entry: "server" },
   },
-  // cPanel/CloudLinux needs the Node server preset, while Vercel needs Nitro's
-  // Vercel deployment preset. Selecting from VERCEL keeps one source tree usable
-  // on both platforms without changing the Node.js startup path on cPanel.
+  // Keep the same source compatible with both deployment targets.
   nitro: {
     preset: process.env.VERCEL ? "vercel" : "node-server",
   },
