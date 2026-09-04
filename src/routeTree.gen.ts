@@ -29,8 +29,6 @@ import { Route as KullanimSartlariRouteImport } from './routes/kullanim-sartlari
 import { Route as KvkkRouteImport } from './routes/kvkk'
 import { Route as MesafeliSatisSozlesmesiRouteImport } from './routes/mesafeli-satis-sozlesmesi'
 import { Route as NasilCalisirRouteImport } from './routes/nasil-calisir'
-import { Route as OdemeRouteImport } from './routes/odeme'
-import { Route as OdemeSonucRouteImport } from './routes/odeme-sonuc'
 import { Route as OnBilgilendirmeFormuRouteImport } from './routes/on-bilgilendirme-formu'
 import { Route as PaketlerRouteImport } from './routes/paketler'
 import { Route as PanelimRouteImport } from './routes/panelim'
@@ -51,7 +49,6 @@ import { Route as UyelikSozlesmesiRouteImport } from './routes/uyelik-sozlesmesi
 import { Route as YonetimRouteImport } from './routes/yonetim'
 import { Route as ApiEarthAssetsRouteImport } from './routes/api/earth-assets'
 import { Route as SehirSlugRouteImport } from './routes/sehir/$slug'
-import { Route as ApiShopierWebhookRouteImport } from './routes/api/shopier/webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -151,16 +148,6 @@ const MesafeliSatisSozlesmesiRoute = MesafeliSatisSozlesmesiRouteImport.update({
 const NasilCalisirRoute = NasilCalisirRouteImport.update({
   id: '/nasil-calisir',
   path: '/nasil-calisir',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OdemeRoute = OdemeRouteImport.update({
-  id: '/odeme',
-  path: '/odeme',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OdemeSonucRoute = OdemeSonucRouteImport.update({
-  id: '/odeme-sonuc',
-  path: '/odeme-sonuc',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnBilgilendirmeFormuRoute = OnBilgilendirmeFormuRouteImport.update({
@@ -263,11 +250,6 @@ const SehirSlugRoute = SehirSlugRouteImport.update({
   path: '/sehir/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiShopierWebhookRoute = ApiShopierWebhookRouteImport.update({
-  id: '/api/shopier/webhook',
-  path: '/api/shopier/webhook',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -290,8 +272,6 @@ export interface FileRoutesByFullPath {
   '/kvkk': typeof KvkkRoute
   '/mesafeli-satis-sozlesmesi': typeof MesafeliSatisSozlesmesiRoute
   '/nasil-calisir': typeof NasilCalisirRoute
-  '/odeme': typeof OdemeRoute
-  '/odeme-sonuc': typeof OdemeSonucRoute
   '/on-bilgilendirme-formu': typeof OnBilgilendirmeFormuRoute
   '/paketler': typeof PaketlerRoute
   '/panelim': typeof PanelimRoute
@@ -312,7 +292,6 @@ export interface FileRoutesByFullPath {
   '/yonetim': typeof YonetimRoute
   '/api/earth-assets': typeof ApiEarthAssetsRoute
   '/sehir/$slug': typeof SehirSlugRoute
-  '/api/shopier/webhook': typeof ApiShopierWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -335,8 +314,6 @@ export interface FileRoutesByTo {
   '/kvkk': typeof KvkkRoute
   '/mesafeli-satis-sozlesmesi': typeof MesafeliSatisSozlesmesiRoute
   '/nasil-calisir': typeof NasilCalisirRoute
-  '/odeme': typeof OdemeRoute
-  '/odeme-sonuc': typeof OdemeSonucRoute
   '/on-bilgilendirme-formu': typeof OnBilgilendirmeFormuRoute
   '/paketler': typeof PaketlerRoute
   '/panelim': typeof PanelimRoute
@@ -357,7 +334,6 @@ export interface FileRoutesByTo {
   '/yonetim': typeof YonetimRoute
   '/api/earth-assets': typeof ApiEarthAssetsRoute
   '/sehir/$slug': typeof SehirSlugRoute
-  '/api/shopier/webhook': typeof ApiShopierWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -381,8 +357,6 @@ export interface FileRoutesById {
   '/kvkk': typeof KvkkRoute
   '/mesafeli-satis-sozlesmesi': typeof MesafeliSatisSozlesmesiRoute
   '/nasil-calisir': typeof NasilCalisirRoute
-  '/odeme': typeof OdemeRoute
-  '/odeme-sonuc': typeof OdemeSonucRoute
   '/on-bilgilendirme-formu': typeof OnBilgilendirmeFormuRoute
   '/paketler': typeof PaketlerRoute
   '/panelim': typeof PanelimRoute
@@ -403,7 +377,6 @@ export interface FileRoutesById {
   '/yonetim': typeof YonetimRoute
   '/api/earth-assets': typeof ApiEarthAssetsRoute
   '/sehir/$slug': typeof SehirSlugRoute
-  '/api/shopier/webhook': typeof ApiShopierWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -428,8 +401,6 @@ export interface FileRouteTypes {
     | '/kvkk'
     | '/mesafeli-satis-sozlesmesi'
     | '/nasil-calisir'
-    | '/odeme'
-    | '/odeme-sonuc'
     | '/on-bilgilendirme-formu'
     | '/paketler'
     | '/panelim'
@@ -450,7 +421,6 @@ export interface FileRouteTypes {
     | '/yonetim'
     | '/api/earth-assets'
     | '/sehir/$slug'
-    | '/api/shopier/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -473,8 +443,6 @@ export interface FileRouteTypes {
     | '/kvkk'
     | '/mesafeli-satis-sozlesmesi'
     | '/nasil-calisir'
-    | '/odeme'
-    | '/odeme-sonuc'
     | '/on-bilgilendirme-formu'
     | '/paketler'
     | '/panelim'
@@ -495,7 +463,6 @@ export interface FileRouteTypes {
     | '/yonetim'
     | '/api/earth-assets'
     | '/sehir/$slug'
-    | '/api/shopier/webhook'
   id:
     | '__root__'
     | '/'
@@ -518,8 +485,6 @@ export interface FileRouteTypes {
     | '/kvkk'
     | '/mesafeli-satis-sozlesmesi'
     | '/nasil-calisir'
-    | '/odeme'
-    | '/odeme-sonuc'
     | '/on-bilgilendirme-formu'
     | '/paketler'
     | '/panelim'
@@ -540,7 +505,6 @@ export interface FileRouteTypes {
     | '/yonetim'
     | '/api/earth-assets'
     | '/sehir/$slug'
-    | '/api/shopier/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -564,8 +528,6 @@ export interface RootRouteChildren {
   KvkkRoute: typeof KvkkRoute
   MesafeliSatisSozlesmesiRoute: typeof MesafeliSatisSozlesmesiRoute
   NasilCalisirRoute: typeof NasilCalisirRoute
-  OdemeRoute: typeof OdemeRoute
-  OdemeSonucRoute: typeof OdemeSonucRoute
   OnBilgilendirmeFormuRoute: typeof OnBilgilendirmeFormuRoute
   PaketlerRoute: typeof PaketlerRoute
   PanelimRoute: typeof PanelimRoute
@@ -586,7 +548,6 @@ export interface RootRouteChildren {
   YonetimRoute: typeof YonetimRoute
   ApiEarthAssetsRoute: typeof ApiEarthAssetsRoute
   SehirSlugRoute: typeof SehirSlugRoute
-  ApiShopierWebhookRoute: typeof ApiShopierWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -731,20 +692,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NasilCalisirRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/odeme': {
-      id: '/odeme'
-      path: '/odeme'
-      fullPath: '/odeme'
-      preLoaderRoute: typeof OdemeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/odeme-sonuc': {
-      id: '/odeme-sonuc'
-      path: '/odeme-sonuc'
-      fullPath: '/odeme-sonuc'
-      preLoaderRoute: typeof OdemeSonucRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/on-bilgilendirme-formu': {
       id: '/on-bilgilendirme-formu'
       path: '/on-bilgilendirme-formu'
@@ -885,13 +832,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SehirSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/shopier/webhook': {
-      id: '/api/shopier/webhook'
-      path: '/api/shopier/webhook'
-      fullPath: '/api/shopier/webhook'
-      preLoaderRoute: typeof ApiShopierWebhookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -916,8 +856,6 @@ const rootRouteChildren: RootRouteChildren = {
   KvkkRoute: KvkkRoute,
   MesafeliSatisSozlesmesiRoute: MesafeliSatisSozlesmesiRoute,
   NasilCalisirRoute: NasilCalisirRoute,
-  OdemeRoute: OdemeRoute,
-  OdemeSonucRoute: OdemeSonucRoute,
   OnBilgilendirmeFormuRoute: OnBilgilendirmeFormuRoute,
   PaketlerRoute: PaketlerRoute,
   PanelimRoute: PanelimRoute,
@@ -938,7 +876,6 @@ const rootRouteChildren: RootRouteChildren = {
   YonetimRoute: YonetimRoute,
   ApiEarthAssetsRoute: ApiEarthAssetsRoute,
   SehirSlugRoute: SehirSlugRoute,
-  ApiShopierWebhookRoute: ApiShopierWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
