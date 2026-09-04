@@ -1,23 +1,44 @@
 ---
 # MySkyParcel — cPanel / CloudLinux Passenger deployment
-# GitHub -> cPanel repository -> .output/server via Passenger + .output/public via Apache/LiteSpeed.
+#
+# Core runtime:
+#   cPanel Git repository (/home/myskypar/repositories/mehmet-kan-1453)
+#        ├─ app.js + .output/server  -> Passenger / Nitro SSR
+#        └─ .output/public           -> public_html static assets
+#
+# GitHub Actions is responsible for producing the complete .output before
+# cPanel pulls/deploys main. This file is intentionally deployment-only.
 deployment:
   tasks:
     - export APPROOT=/home/myskypar/repositories/mehmet-kan-1453
     - export DEPLOYPATH=/home/myskypar/public_html
-    - /bin/test -d $APPROOT
-    - /bin/test -f $APPROOT/app.js
-    - /bin/test -f $APPROOT/.output/server/index.mjs
-    - /bin/test -f $APPROOT/.output/nitro.json
-    - /bin/test -d $APPROOT/.output/public
-    - /bin/mkdir -p $DEPLOYPATH
-    # Replace only the deployed public build. Never delete the repository or .git.
-    - /bin/find $DEPLOYPATH -mindepth 1 -maxdepth 1 ! -name '.well-known' -exec /bin/rm -rf {} +
-    - /bin/cp -a $APPROOT/.output/public/. $DEPLOYPATH/
-    - /bin/cp -f $APPROOT/public/.htaccess $DEPLOYPATH/.htaccess
-    # Write a deterministic deployment marker so the cPanel build can be verified.
+
+    # Refuse partial/old deployments instead of publishing a broken build.
+    - /bin/test -d "$APPROOT/.git"
+    - /bin/test -f "$APPROOT/app.js"
+    - /bin/test -f "$APPROOT/.output/server/index.mjs"
+    - /bin/test -f "$APPROOT/.output/nitro.json"
+    - /bin/test -d "$APPROOT/.output/public"
+    - /bin/test -f "$APPROOT/public/.htaccess"
+    - /bin/test "$(/usr/bin/find "$APPROOT/.output/public" -type f | /usr/bin/wc -l)" -gt 0
+
+    - /bin/mkdir -p "$DEPLOYPATH"
+
+    # public_html contains only the current generated public bundle.
+    # Keep .well-known so SSL/hosting verification files survive deployment.
+    - /bin/find "$DEPLOYPATH" -mindepth 1 -maxdepth 1 ! -name '.well-known' -exec /bin/rm -rf {} +
+    - /bin/cp -a "$APPROOT/.output/public/." "$DEPLOYPATH/"
+    - /bin/cp -f "$APPROOT/public/.htaccess" "$DEPLOYPATH/.htaccess"
+
+    # Record exactly which Git commit is live in public_html.
     - /bin/sh -c 'cd "$APPROOT" && /bin/git rev-parse HEAD > "$DEPLOYPATH/__cpanel_build.txt" && /bin/date -u +%Y-%m-%dT%H:%M:%SZ >> "$DEPLOYPATH/__cpanel_build.txt"'
-    # Restart the Passenger application after the new server bundle is in place.
-    - /bin/mkdir -p $APPROOT/tmp
-    - /bin/touch $APPROOT/tmp/restart.txt
+
+    # Passenger only needs a restart signal; it continues to use the app root
+    # configured in cPanel Application Manager and starts app.js there.
+    - /bin/mkdir -p "$APPROOT/tmp"
+    - /bin/touch "$APPROOT/tmp/restart.txt"
+
+    # Final integrity checks after the files have been copied.
+    - /bin/test -f "$DEPLOYPATH/.htaccess"
+    - /bin/test -f "$DEPLOYPATH/__cpanel_build.txt"
     - echo MySkyParcel cPanel deployment completed
