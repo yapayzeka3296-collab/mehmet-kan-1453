@@ -2,12 +2,11 @@ name: Build, verify and deploy MySkyParcel
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: production-deploy-main
@@ -19,14 +18,13 @@ env:
   NITRO_PORT: 4173
 
 jobs:
-  build-and-verify:
+  sync-lockfile:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      NODE_ENV: production
-
+    timeout-minutes: 15
+    outputs:
+      changed: ${{ steps.lock.outputs.changed }}
     steps:
-      - name: Checkout source
+      - name: Checkout main
         uses: actions/checkout@v4
         with:
           ref: main
@@ -38,18 +36,64 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Install all dependencies required for build
+      - name: Regenerate package-lock from package.json
+        env:
+          NODE_ENV: development
+          NPM_CONFIG_PRODUCTION: 'false'
+        run: npm install --package-lock-only --include=dev --legacy-peer-deps --no-audit --no-fund
+
+      - name: Commit synchronized lockfile when needed
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- package-lock.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "package-lock.json is already synchronized."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "ci: sync package-lock with package.json"
+          git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "package-lock.json was synchronized and committed. A new main workflow run will perform the frozen build."
+
+  build-and-verify:
+    needs: sync-lockfile
+    if: ${{ needs.sync-lockfile.outputs.changed == 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_ENV: production
+
+    steps:
+      - name: Checkout verified main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked dependencies including dev tools
         env:
           NODE_ENV: development
           NPM_CONFIG_PRODUCTION: 'false'
         run: npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
 
-      - name: Build production Nitro application
+      - name: Build production application
         env:
           NODE_ENV: production
         run: npm run build:production
 
-      - name: Validate production build
+      - name: Validate production artifacts
         shell: bash
         run: |
           set -euo pipefail
@@ -57,23 +101,16 @@ jobs:
           test -f .output/nitro.json
           test -d .output/public
           test -f app.js
-          echo "Production build artifacts are present."
-
-      - name: Validate frontend assets and MIME-safe files
-        shell: bash
-        run: |
-          set -euo pipefail
           test -f public/.htaccess
           find .output/public -type f | grep -E '\.(js|mjs|css|json|svg|woff2?|ttf|otf|wasm)$' >/dev/null
-          echo "Frontend asset output is present."
+          echo "Production build artifacts and frontend assets are present."
 
-      - name: Start Nitro server for route smoke tests
+      - name: Start Nitro server
         shell: bash
         run: |
           set -euo pipefail
           node app.js > /tmp/myskyparcel-nitro.log 2>&1 &
           echo $! > /tmp/myskyparcel-nitro.pid
-
           for attempt in {1..30}; do
             if curl -fsS --max-time 2 http://127.0.0.1:4173/ >/dev/null; then
               echo "Nitro server is ready."
@@ -81,36 +118,28 @@ jobs:
             fi
             sleep 1
           done
-
           cat /tmp/myskyparcel-nitro.log
           exit 1
 
-      - name: Smoke test every generated static route
+      - name: Smoke test generated routes and critical routes
         shell: bash
         run: |
           set -euo pipefail
-
-          mapfile -t routes < <(
-            grep -oE "path: '[^']+'" src/routeTree.gen.ts \
-              | sed -E "s/^path: '([^']+)'$/\1/" \
-              | grep -v '\$' \
-              | sort -u
-          )
-
           failed=0
           tested=0
 
-          for route in "${routes[@]}"; do
-            tested=$((tested + 1))
-            code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")" || code="000"
+          if [ -f src/routeTree.gen.ts ]; then
+            mapfile -t routes < <(
+              grep -oE "path: '[^']+'" src/routeTree.gen.ts \
+                | sed -E "s/^path: '([^']+)'$/\1/" \
+                | grep -v '\$' \
+                | sort -u
+            )
+          else
+            routes=()
+          fi
 
-            case "$code" in
-              2*|3*) echo "PASS $code $route" ;;
-              *) echo "FAIL $code $route"; failed=$((failed + 1)) ;;
-            esac
-          done
-
-          for route in /iletisim /yonetim /sehir/istanbul /sehir/gaziantep /api/earth-assets; do
+          for route in "${routes[@]}" /iletisim /yonetim /sehir/istanbul /sehir/gaziantep /api/earth-assets; do
             tested=$((tested + 1))
             code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")" || code="000"
             case "$code" in
@@ -120,14 +149,13 @@ jobs:
           done
 
           echo "Tested $tested routes; failures: $failed"
-
           if [ "$failed" -ne 0 ]; then
             echo "--- Nitro log ---"
             cat /tmp/myskyparcel-nitro.log
             exit 1
           fi
 
-      - name: Stop Nitro smoke-test server
+      - name: Stop Nitro server
         if: always()
         run: |
           if [ -f /tmp/myskyparcel-nitro.pid ]; then
@@ -140,28 +168,30 @@ jobs:
     outputs:
       configured: ${{ steps.detect.outputs.configured }}
     steps:
-      - name: Detect cPanel deployment secrets
+      - name: Detect all cPanel deployment secrets
         id: detect
         shell: bash
         env:
           CPANEL_REPO_URL: ${{ secrets.CPANEL_REPO_URL }}
           CPANEL_SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+          CPANEL_KNOWN_HOSTS: ${{ secrets.CPANEL_KNOWN_HOSTS }}
         run: |
-          if [ -n "${CPANEL_REPO_URL:-}" ] && [ -n "${CPANEL_SSH_KEY:-}" ]; then
+          if [ -n "${CPANEL_REPO_URL:-}" ] && [ -n "${CPANEL_SSH_KEY:-}" ] && [ -n "${CPANEL_KNOWN_HOSTS:-}" ]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "All cPanel deployment secrets are configured."
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "cPanel deployment secrets are not configured; cPanel deployment will be skipped."
+            echo "cPanel deployment secrets are incomplete; deployment will be skipped."
           fi
 
   deploy-cpanel:
     needs: [build-and-verify, detect-cpanel]
+    if: ${{ needs.build-and-verify.result == 'success' && needs.detect-cpanel.outputs.configured == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: ${{ needs.build-and-verify.result == 'success' && needs.detect-cpanel.outputs.configured == 'true' }}
 
     steps:
-      - name: Checkout exact commit that passed verification
+      - name: Checkout verified main
         uses: actions/checkout@v4
         with:
           ref: main
@@ -170,7 +200,7 @@ jobs:
       - name: Install SSH client
         run: sudo apt-get update -y && sudo apt-get install -y openssh-client
 
-      - name: Configure SSH for cPanel Git repository
+      - name: Configure secure SSH
         shell: bash
         env:
           CPANEL_SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
@@ -181,15 +211,8 @@ jobs:
           chmod 700 ~/.ssh
           printf '%s\n' "$CPANEL_SSH_KEY" > ~/.ssh/cpanel_deploy_key
           chmod 600 ~/.ssh/cpanel_deploy_key
-
-          if [ -z "${CPANEL_KNOWN_HOSTS:-}" ]; then
-            echo "CPANEL_KNOWN_HOSTS is required for secure SSH deployment."
-            exit 1
-          fi
-
           printf '%s\n' "$CPANEL_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
-
           cat > ~/.ssh/config <<'EOF'
           Host cpanel-production
             IdentityFile ~/.ssh/cpanel_deploy_key
@@ -198,7 +221,7 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
 
-      - name: Push verified commit to cPanel repository
+      - name: Push verified main commit to cPanel Git remote
         env:
           CPANEL_REPO_URL: ${{ secrets.CPANEL_REPO_URL }}
         run: |
@@ -207,4 +230,4 @@ jobs:
           GIT_SSH_COMMAND='ssh -F ~/.ssh/config -o HostKeyAlias=cpanel-production' git push cpanel HEAD:main
 
       - name: Deployment handoff complete
-        run: echo "Verified main commit pushed to the cPanel-managed Git repository; cPanel post-receive deployment should now run .cpanel.yml."
+        run: echo "Verified main commit pushed to the cPanel-managed Git repository."
