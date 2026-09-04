@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths-ignore:
+      - '.output/**'
 
 permissions:
   contents: write
@@ -90,25 +92,19 @@ jobs:
           case "$code" in 401|403) echo "PASS $code /admin-check";; *) echo "FAIL $code /admin-check"; failed=$((failed+1));; esac
           if [ "$failed" -ne 0 ]; then cat /tmp/myskyparcel-nitro.log; exit 1; fi
 
-      - name: Package cPanel deployment artifact
+      - name: Commit prebuilt Nitro output for cPanel
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf deploy-package
-          mkdir -p deploy-package
-          cp -a .output deploy-package/.output
-          cp -a public/.htaccess deploy-package/.htaccess
-          cp -a app.js deploy-package/app.js
-          cp -a package.json deploy-package/package.json
-          cp -a package-lock.json deploy-package/package-lock.json
-          tar -czf myskyparcel-cpanel-deploy.tar.gz -C deploy-package .
-
-      - name: Upload cPanel production artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: myskyparcel-cpanel-production
-          path: myskyparcel-cpanel-deploy.tar.gz
-          retention-days: 30
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f .output
+          if git diff --cached --quiet -- .output; then
+            echo "Production output unchanged."
+            exit 0
+          fi
+          git commit -m "build: update prebuilt production output"
+          git push origin HEAD:main
 
       - name: Stop Nitro server
         if: always()
