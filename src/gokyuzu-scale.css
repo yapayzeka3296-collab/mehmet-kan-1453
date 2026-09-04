@@ -1,4 +1,9 @@
-/* Gökyüzü Haritası: yalnızca sayfanın görsel ölçeğini %25 küçültür. */
-body:has(input[aria-label="Pilot şehir ara"]) main {
-  zoom: 0.75;
-}
+/*
+ * Desktop layout fix
+ *
+ * The previous rule applied `zoom: 0.75` to the entire Sky Map <main>.
+ * That changed the CSS viewport, broke alignment of overlays and made the
+ * desktop composition appear incorrectly scaled. The map is now responsible
+ * for its own responsive sizing, so this file intentionally contains no
+ * global scaling rule.
+ */
