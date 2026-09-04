@@ -1,5 +1,5 @@
 import { n as require_jsx_runtime } from "../_libs/react+tanstack__react-query.mjs";
-import { H as Headphones, h as ShieldCheck, j as Lock, lt as Award } from "../_libs/lucide-react.mjs";
+import { H as Headphones, ct as Award, h as ShieldCheck, j as Lock } from "../_libs/lucide-react.mjs";
 //#region node_modules/.nitro/vite/services/ssr/assets/TrustBar-Ci8UbTsR.mjs
 var import_jsx_runtime = require_jsx_runtime();
 var DEFAULT_TRUST = [
