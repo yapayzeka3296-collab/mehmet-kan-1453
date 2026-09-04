@@ -10,13 +10,13 @@ const configuredUrl = import.meta.env['VITE_SUPABASE_URL'];
 const configuredAnonKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
 const configuredPublishableKey = import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY'];
 
-// Prefer an explicitly configured key, but never allow an unrelated Supabase
-// project URL to silently pair with the production credentials.
 const url = configuredUrl || DEFAULT_SUPABASE_URL;
 const anonKey = configuredAnonKey || configuredPublishableKey || DEFAULT_SUPABASE_ANON_KEY;
 
+const isBrowser = typeof window !== 'undefined';
+
 function getSessionStorage(): Storage | undefined {
-  if (typeof window === 'undefined') return undefined;
+  if (!isBrowser) return undefined;
   try {
     return window.sessionStorage;
   } catch {
@@ -24,16 +24,25 @@ function getSessionStorage(): Storage | undefined {
   }
 }
 
-// Both values always have production fallbacks, so this factory never returns
-// null. Keeping the client non-nullable also prevents every consumer from
-// having to duplicate defensive checks around an already guaranteed client.
+// Supabase's auth client must never fall back to browser localStorage while
+// Nitro is rendering a route on the server. A tiny in-memory storage keeps the
+// client constructible during SSR without leaking or persisting a session.
+const serverMemoryStorage: Storage = {
+  get length() { return 0; },
+  clear() {},
+  getItem() { return null; },
+  key() { return null; },
+  removeItem() {},
+  setItem() {},
+};
+
 export function createBrowserSupabase() {
   const client = createClient(url, anonKey, {
     auth: {
-      storage: getSessionStorage(),
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
+      storage: getSessionStorage() ?? serverMemoryStorage,
+      persistSession: isBrowser,
+      autoRefreshToken: isBrowser,
+      detectSessionInUrl: isBrowser,
     },
   });
 
@@ -42,7 +51,7 @@ export function createBrowserSupabase() {
   // olarak kalır. Diğer sayfalardaki gerçek signOut davranışı değişmez.
   const originalSignOut = client.auth.signOut.bind(client.auth);
   client.auth.signOut = async (options) => {
-    if (typeof window !== 'undefined' && window.location.pathname === '/yonetim') {
+    if (isBrowser && window.location.pathname === '/yonetim') {
       return { error: null };
     }
     return originalSignOut(options);
