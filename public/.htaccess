@@ -19,8 +19,7 @@ DirectoryIndex disabled
   RewriteBase /
 
   # Static Vite/Nitro assets must never be rewritten to an application route.
-  # When the requested asset exists physically under public_html, stop
-  # rewriting immediately so LiteSpeed/Apache serves it as a normal file.
+  # Hashed asset filenames make these URLs safe to cache for a long time.
   RewriteRule ^assets(?:/|$) - [L]
 
   # Existing files/directories are served directly by Apache/LiteSpeed.
@@ -47,7 +46,12 @@ DirectoryIndex disabled
 </IfModule>
 
 <IfModule mod_headers.c>
-  <FilesMatch "\.(css|js|mjs|json|wasm|woff|woff2|ttf|otf|svg|png|jpg|jpeg|webp|gif)$">
+  # Hashed static assets can be cached for one year. A changed build produces
+  # a new hash/URL, so browsers do not reuse an old JS/CSS response.
+  <FilesMatch "\.(js|css|svg|png|jpg|jpeg|webp)$">
+    Header set Cache-Control "max-age=31536000, public"
+  </FilesMatch>
+  <FilesMatch "\.(mjs|json|wasm|woff|woff2|ttf|otf|gif)$">
     Header set X-Content-Type-Options "nosniff"
   </FilesMatch>
   <FilesMatch "\.(html?)$">
