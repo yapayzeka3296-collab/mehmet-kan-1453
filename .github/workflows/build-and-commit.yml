@@ -23,6 +23,7 @@ jobs:
     timeout-minutes: 15
     outputs:
       changed: ${{ steps.lock.outputs.changed }}
+      commit_sha: ${{ steps.lock.outputs.commit_sha }}
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
@@ -49,6 +50,7 @@ jobs:
           set -euo pipefail
           if git diff --quiet -- package-lock.json; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
             echo "package-lock.json is already synchronized."
             exit 0
           fi
@@ -59,21 +61,21 @@ jobs:
           git commit -m "ci: sync package-lock with package.json"
           git push origin HEAD:main
           echo "changed=true" >> "$GITHUB_OUTPUT"
-          echo "package-lock.json was synchronized and committed. A new main workflow run will perform the frozen build."
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "package-lock.json was synchronized and the verified commit will be built in this workflow."
 
   build-and-verify:
     needs: sync-lockfile
-    if: ${{ needs.sync-lockfile.outputs.changed == 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       NODE_ENV: production
 
     steps:
-      - name: Checkout verified main
+      - name: Checkout synchronized commit
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ needs.sync-lockfile.outputs.commit_sha }}
           fetch-depth: 0
 
       - name: Setup Node.js 22
@@ -185,16 +187,16 @@ jobs:
           fi
 
   deploy-cpanel:
-    needs: [build-and-verify, detect-cpanel]
+    needs: [sync-lockfile, build-and-verify, detect-cpanel]
     if: ${{ needs.build-and-verify.result == 'success' && needs.detect-cpanel.outputs.configured == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
-      - name: Checkout verified main
+      - name: Checkout verified commit
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ needs.sync-lockfile.outputs.commit_sha }}
           fetch-depth: 0
 
       - name: Install SSH client
@@ -221,13 +223,13 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
 
-      - name: Push verified main commit to cPanel Git remote
+      - name: Push verified commit to cPanel Git remote
         env:
           CPANEL_REPO_URL: ${{ secrets.CPANEL_REPO_URL }}
         run: |
           set -euo pipefail
           git remote add cpanel "$CPANEL_REPO_URL"
-          GIT_SSH_COMMAND='ssh -F ~/.ssh/config -o HostKeyAlias=cpanel-production' git push cpanel HEAD:main
+          GIT_SSH_COMMAND='ssh -F ~/.ssh/config -o HostKeyAlias=cpanel-production' git push cpanel "${{ needs.sync-lockfile.outputs.commit_sha }}:main"
 
       - name: Deployment handoff complete
-        run: echo "Verified main commit pushed to the cPanel-managed Git repository."
+        run: echo "Verified commit pushed to the cPanel-managed Git repository."
