@@ -1,0 +1,5 @@
+# MySkyParcel: enable Phusion Passenger for the domain document root.
+# Application root, Node.js runtime, startup file and environment are managed
+# by cPanel's Setup Node.js App / Passenger configuration.
+# Do NOT rewrite requests to index.html or app.js/$1: Nitro handles routing.
+PassengerEnabled On
