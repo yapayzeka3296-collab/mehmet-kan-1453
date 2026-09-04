@@ -79,7 +79,7 @@ jobs:
           test -d .output/public
           test -f app.js
           test -f public/.htaccess
-          find .output/public -type f | grep -E '\.(js|mjs|css|json|svg|woff2?|ttf|otf|wasm)$' >/dev/null
+          find .output/public -type f | grep -E '\\.(js|mjs|css|json|svg|woff2?|ttf|otf|wasm)$' >/dev/null
 
       - name: Start Nitro server
         shell: bash
@@ -139,9 +139,9 @@ jobs:
             /yonetim
           )
           for route in "${routes[@]}"; do
-            headers="$(curl -sS -L -D /tmp/route-headers -o /tmp/route-response --max-time 20 "http://127.0.0.1:4173${route}")" || { echo "FAIL 000 $route"; failed=$((failed+1)); continue; }
-            code="$(awk 'toupper($1) ~ /^HTTP\// {code=$2} END {print code}' /tmp/route-headers)"
-            content_type="$(awk -F': ' 'tolower($1)=="content-type" {v=$2} END {gsub(/\r/,"",v); print tolower(v)}' /tmp/route-headers)"
+            curl -sS -L -D /tmp/route-headers -o /tmp/route-response --max-time 20 "http://127.0.0.1:4173${route}" || { echo "FAIL 000 $route"; failed=$((failed+1)); continue; }
+            code="$(awk 'toupper($1) ~ /^HTTP\\// {code=$2} END {print code}' /tmp/route-headers)"
+            content_type="$(awk -F': ' 'tolower($1)=="content-type" {v=$2} END {gsub(/\\r/,"",v); print tolower(v)}' /tmp/route-headers)"
             case "$code" in 2*) ;; *) echo "FAIL $code $route"; failed=$((failed+1)); continue;; esac
             case "$content_type" in text/html*) echo "PASS $code html $route";; *) echo "FAIL $code non-html($content_type) $route"; failed=$((failed+1));; esac
           done
@@ -149,8 +149,8 @@ jobs:
           for city in istanbul gaziantep; do
             route="/sehir/${city}"
             curl -sS -L -D /tmp/route-headers -o /tmp/route-response --max-time 20 "http://127.0.0.1:4173${route}" || { echo "FAIL 000 $route"; failed=$((failed+1)); continue; }
-            code="$(awk 'toupper($1) ~ /^HTTP\// {code=$2} END {print code}' /tmp/route-headers)"
-            content_type="$(awk -F': ' 'tolower($1)=="content-type" {v=$2} END {gsub(/\r/,"",v); print tolower(v)}' /tmp/route-headers)"
+            code="$(awk 'toupper($1) ~ /^HTTP\\// {code=$2} END {print code}' /tmp/route-headers)"
+            content_type="$(awk -F': ' 'tolower($1)=="content-type" {v=$2} END {gsub(/\\r/,"",v); print tolower(v)}' /tmp/route-headers)"
             case "$code" in 2*) ;; *) echo "FAIL $code $route"; failed=$((failed+1)); continue;; esac
             case "$content_type" in text/html*) echo "PASS $code html $route";; *) echo "FAIL $code non-html($content_type) $route"; failed=$((failed+1));; esac
           done
@@ -189,3 +189,5 @@ jobs:
         if: always()
         run: |
           if [ -f /tmp/myskyparcel-nitro.pid ]; then kill "$(cat /tmp/myskyparcel-nitro.pid)" 2>/dev/null || true; fi
+
+# cPanel deployment note: every source change must regenerate .output before cPanel pulls main.
