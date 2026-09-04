@@ -113,8 +113,6 @@ jobs:
             /parsellerim
             /pazar-yeri
             /profilim
-            /purchase
-            /purchase-bulk
             /sertifika-dogrula
             /sertifika-talep
             /sertifikalarim
@@ -143,6 +141,14 @@ jobs:
 
           code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/api/earth-assets?type=provinces')" || code="000"
           case "$code" in 200) echo "PASS $code /api/earth-assets";; *) echo "FAIL $code /api/earth-assets"; failed=$((failed+1));; esac
+
+          for purchase_route in purchase purchase-bulk; do
+            code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' -d '{}' "http://127.0.0.1:4173/${purchase_route}")" || code="000"
+            case "$code" in
+              401) echo "PASS $code /${purchase_route} POST-auth-guard" ;;
+              *) echo "FAIL $code /${purchase_route} POST-auth-guard"; failed=$((failed+1));;
+            esac
+          done
 
           code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/admin-check')" || code="000"
           case "$code" in 401|403) echo "PASS $code /admin-check-auth";; *) echo "FAIL $code /admin-check-auth"; failed=$((failed+1));; esac
