@@ -1,6 +1,6 @@
 ---
-# MySkyParcel cPanel/CloudLinux deployment for TanStack Start + Nitro + Passenger.
-# Build the application on every deployment so route chunks and the Nitro manifest stay fresh.
+# MySkyParcel — cPanel / CloudLinux Passenger deployment
+# Git checkout -> clean Nitro build -> publish static assets -> restart Passenger.
 deployment:
   tasks:
     - export APP_ROOT=/home/myskypar/repositories/mehmet-kan-1453
@@ -11,16 +11,16 @@ deployment:
     - /bin/rm -rf "$APP_ROOT/.output"
     - npm install --legacy-peer-deps --no-package-lock --no-audit --no-fund
     - npm run build:production
+    - /bin/test -f "$APP_ROOT/.output/server/index.mjs"
+    - /bin/test -f "$APP_ROOT/.output/nitro.json"
+    - /bin/test -d "$APP_ROOT/.output/public"
+    - /bin/test -f "$APP_ROOT/app.js"
     - /bin/mkdir -p "$DOCUMENT_ROOT" "$APP_ROOT/tmp"
-    - /bin/rm -f "$DOCUMENT_ROOT/index.html" "$DOCUMENT_ROOT/.htaccess"
+    - /bin/rm -f "$DOCUMENT_ROOT/index.html"
     - /bin/rm -rf "$DOCUMENT_ROOT/assets" "$DOCUMENT_ROOT/_payload" "$DOCUMENT_ROOT/_nuxt" "$DOCUMENT_ROOT/_tanstack"
     - /bin/cp -a "$APP_ROOT/.output/public/." "$DOCUMENT_ROOT/"
+    - /bin/cp -f "$APP_ROOT/public/.htaccess" "$DOCUMENT_ROOT/.htaccess"
     - /bin/rm -f "$DOCUMENT_ROOT/index.html"
-    - /bin/test -f "$DOCUMENT_ROOT/.htaccess"
-    - /bin/test -f "$APP_ROOT/.output/server/index.mjs"
-    - /bin/test -f "$APP_ROOT/app.js"
-    - /bin/test -d "$APP_ROOT/.output/public/assets"
-    - /bin/test -f "$APP_ROOT/.output/nitro.json"
     - /bin/touch "$APP_ROOT/tmp/restart.txt"
     - /bin/chmod -R u+rwX,go+rX "$APP_ROOT/.output" || true
-    - /bin/chmod 644 "$APP_ROOT/app.js" || true
+    - /bin/chmod 644 "$APP_ROOT/app.js" "$DOCUMENT_ROOT/.htaccess" || true
