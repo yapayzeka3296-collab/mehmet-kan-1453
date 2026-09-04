@@ -4,9 +4,12 @@ PassengerBaseURI "/"
 PassengerNodejs "/home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin/node"
 PassengerAppType node
 PassengerStartupFile app.js
+PassengerEnabled on
 # DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
 
-# cPanel/LiteSpeed static-file handling for the generated public directory.
-# Apache serves existing CSS/JS/images; Passenger handles application routes.
+# Nitro/TanStack Start is an SSR application.
+# Application routes must be handled by Passenger/Nitro instead of Apache
+# falling back to a static index.html. Static generated assets remain public.
 Options -MultiViews
 Options -Indexes
+DirectoryIndex disabled
