@@ -1,20 +1,23 @@
 ---
-# MySkyParcel — cPanel pull deployment
-# GitHub -> cPanel Git -> repository -> Nitro/Passenger -> public_html.
-# The deployment intentionally mirrors .output/public so deleted/renamed
-# assets from an older build cannot remain live in public_html.
+# MySkyParcel — cPanel / CloudLinux Passenger deployment
+# GitHub -> cPanel repository -> .output/server via Passenger + .output/public via Apache/LiteSpeed.
 deployment:
   tasks:
-    - export APPROOT=/home/myskypar/repositories/mehmet-kan-1453/
-    - export DEPLOYPATH=/home/myskypar/public_html/
+    - export APPROOT=/home/myskypar/repositories/mehmet-kan-1453
+    - export DEPLOYPATH=/home/myskypar/public_html
+    - /bin/test -d $APPROOT
+    - /bin/test -f $APPROOT/app.js
     - /bin/test -f $APPROOT/.output/server/index.mjs
+    - /bin/test -f $APPROOT/.output/nitro.json
     - /bin/test -d $APPROOT/.output/public
     - /bin/mkdir -p $DEPLOYPATH
-    # Remove only the previously deployed public build. Never touch .git,
-    # the repository, or the Passenger application root.
+    # Replace only the deployed public build. Never delete the repository or .git.
     - /bin/find $DEPLOYPATH -mindepth 1 -maxdepth 1 ! -name '.well-known' -exec /bin/rm -rf {} +
-    - /bin/cp -a $APPROOT/.output/public/. $DEPLOYPATH
+    - /bin/cp -a $APPROOT/.output/public/. $DEPLOYPATH/
     - /bin/cp -f $APPROOT/public/.htaccess $DEPLOYPATH/.htaccess
+    # Write a deterministic deployment marker so the cPanel build can be verified.
+    - /bin/sh -c 'cd "$APPROOT" && /bin/git rev-parse HEAD > "$DEPLOYPATH/__cpanel_build.txt" && /bin/date -u +%Y-%m-%dT%H:%M:%SZ >> "$DEPLOYPATH/__cpanel_build.txt"'
+    # Restart the Passenger application after the new server bundle is in place.
     - /bin/mkdir -p $APPROOT/tmp
     - /bin/touch $APPROOT/tmp/restart.txt
     - echo MySkyParcel cPanel deployment completed
