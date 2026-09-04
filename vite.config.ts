@@ -6,6 +6,7 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  base: "./",
   tanstackStart: {
     // Use the project's explicit SSR server entry in both runtimes.
     server: { entry: "server" },
