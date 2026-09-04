@@ -1,29 +1,50 @@
 ---
-# MySkyParcel — cPanel / CloudLinux Passenger deployment
-# Manual pull deployment: Update from Remote -> Deploy HEAD Commit.
-# Each task is self-contained so cPanel's task runner does not depend on
-# shell environment variables surviving between task entries.
+# MySkyParcel — cPanel / CloudLinux Passenger manual pull deployment
+# cPanel flow: Update from Remote -> Deploy HEAD Commit.
+# Keep the entire deployment in one Bash process so cd/env/error handling is reliable.
 deployment:
   tasks:
-    - /bin/test -x /home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin/node || { echo "ERROR: Node 22 not found"; exit 1; }
-    - /bin/test -x /home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin/npm || { echo "ERROR: npm not found"; exit 1; }
-    - /bin/test -f /home/myskypar/repositories/mehmet-kan-1453/package.json || { echo "ERROR: package.json missing"; exit 1; }
-    - /bin/test -f /home/myskypar/repositories/mehmet-kan-1453/package-lock.json || { echo "ERROR: package-lock.json missing"; exit 1; }
-    - /bin/test -f /home/myskypar/repositories/mehmet-kan-1453/app.js || { echo "ERROR: app.js missing"; exit 1; }
-    - /bin/test -f /home/myskypar/repositories/mehmet-kan-1453/public/.htaccess || { echo "ERROR: public/.htaccess missing"; exit 1; }
-    - /bin/rm -rf /home/myskypar/repositories/mehmet-kan-1453/.output
-    - cd /home/myskypar/repositories/mehmet-kan-1453 && NODE_ENV=production /home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin/npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
-    - cd /home/myskypar/repositories/mehmet-kan-1453 && NODE_ENV=production /home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin/npm run build:production
-    - /bin/test -f /home/myskypar/repositories/mehmet-kan-1453/.output/server/index.mjs || { echo "ERROR: Nitro server output missing"; exit 1; }
-    - /bin/test -d /home/myskypar/repositories/mehmet-kan-1453/.output/public || { echo "ERROR: Nitro public output missing"; exit 1; }
-    - /bin/mkdir -p /home/myskypar/public_html /home/myskypar/repositories/mehmet-kan-1453/tmp
-    - /bin/rm -f /home/myskypar/public_html/index.html
-    - /bin/rm -rf /home/myskypar/public_html/assets /home/myskypar/public_html/_payload /home/myskypar/public_html/_nuxt /home/myskypar/public_html/_tanstack
-    - /bin/cp -a /home/myskypar/repositories/mehmet-kan-1453/.output/public/. /home/myskypar/public_html/
-    - /bin/cp -f /home/myskypar/repositories/mehmet-kan-1453/public/.htaccess /home/myskypar/public_html/.htaccess
-    - /bin/rm -f /home/myskypar/public_html/index.html
-    - /bin/test -f /home/myskypar/public_html/.htaccess || { echo "ERROR: .htaccess publish failed"; exit 1; }
-    - /bin/touch /home/myskypar/repositories/mehmet-kan-1453/tmp/restart.txt
-    - /bin/chmod -R u+rwX,go+rX /home/myskypar/repositories/mehmet-kan-1453/.output || true
-    - /bin/chmod 644 /home/myskypar/repositories/mehmet-kan-1453/app.js /home/myskypar/public_html/.htaccess || true
-    - echo "MySkyParcel cPanel deployment completed successfully."
+    - /bin/bash -lc 'set -euo pipefail
+      APP_ROOT="/home/myskypar/repositories/mehmet-kan-1453"
+      DOCUMENT_ROOT="/home/myskypar/public_html"
+      NODE_BIN="/home/myskypar/nodevenv/repositories/mehmet-kan-1453/22/bin"
+      export NODE_ENV=production
+      export NPM_CONFIG_PRODUCTION=false
+      export PATH="$NODE_BIN:$PATH"
+
+      echo "[MySkyParcel] deployment started"
+      echo "[MySkyParcel] APP_ROOT=$APP_ROOT"
+      echo "[MySkyParcel] DOCUMENT_ROOT=$DOCUMENT_ROOT"
+
+      test -x "$NODE_BIN/node" || { echo "ERROR: Node 22 not found: $NODE_BIN/node"; exit 1; }
+      test -x "$NODE_BIN/npm" || { echo "ERROR: npm not found: $NODE_BIN/npm"; exit 1; }
+      test -f "$APP_ROOT/package.json" || { echo "ERROR: package.json missing"; exit 1; }
+      test -f "$APP_ROOT/package-lock.json" || { echo "ERROR: package-lock.json missing"; exit 1; }
+      test -f "$APP_ROOT/app.js" || { echo "ERROR: app.js missing"; exit 1; }
+      test -f "$APP_ROOT/public/.htaccess" || { echo "ERROR: public/.htaccess missing"; exit 1; }
+      test -f "$APP_ROOT/.cpanel.yml" || { echo "ERROR: .cpanel.yml missing"; exit 1; }
+
+      cd "$APP_ROOT"
+      echo "[MySkyParcel] node: $($NODE_BIN/node --version)"
+      echo "[MySkyParcel] npm: $($NODE_BIN/npm --version)"
+
+      rm -rf "$APP_ROOT/.output"
+      "$NODE_BIN/npm" ci --include=dev --legacy-peer-deps --no-audit --no-fund
+      "$NODE_BIN/npm" run build:production
+
+      test -f "$APP_ROOT/.output/server/index.mjs" || { echo "ERROR: Nitro server output missing"; exit 1; }
+      test -d "$APP_ROOT/.output/public" || { echo "ERROR: Nitro public output missing"; exit 1; }
+
+      mkdir -p "$DOCUMENT_ROOT" "$APP_ROOT/tmp"
+      rm -f "$DOCUMENT_ROOT/index.html"
+      rm -rf "$DOCUMENT_ROOT/assets" "$DOCUMENT_ROOT/_payload" "$DOCUMENT_ROOT/_nuxt" "$DOCUMENT_ROOT/_tanstack"
+      cp -a "$APP_ROOT/.output/public/." "$DOCUMENT_ROOT/"
+      cp -f "$APP_ROOT/public/.htaccess" "$DOCUMENT_ROOT/.htaccess"
+      rm -f "$DOCUMENT_ROOT/index.html"
+
+      test -f "$DOCUMENT_ROOT/.htaccess" || { echo "ERROR: .htaccess publish failed"; exit 1; }
+      touch "$APP_ROOT/tmp/restart.txt"
+      chmod -R u+rwX,go+rX "$APP_ROOT/.output" || true
+      chmod 644 "$APP_ROOT/app.js" "$DOCUMENT_ROOT/.htaccess" || true
+
+      echo "[MySkyParcel] deployment completed successfully"'
