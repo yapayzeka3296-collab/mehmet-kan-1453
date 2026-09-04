@@ -47,14 +47,14 @@ function Iletisim() {
     setStatusText("");
 
     try {
-      // Supabase client is loaded only when the form is submitted. This keeps
-      // the public contact route independent from browser storage/auth setup
-      // during Nitro/Passenger SSR and prevents the route from depending on a
-      // client-only integration merely to render the page.
+      // Do not import Supabase during route/module evaluation. The contact page
+      // must be renderable by Nitro/Passenger even when browser auth/storage
+      // dependencies are unavailable on the server.
       const { supabaseBrowser } = await import("@/lib/supabaseBrowser");
       const { data: result, error } = await supabaseBrowser.functions.invoke("contact-message", {
         body: payload,
       });
+
       if (error) throw error;
       if (!result?.ok) throw new Error(result?.error || "Mesaj gönderilemedi.");
 
@@ -66,8 +66,9 @@ function Iletisim() {
       const subject = payload.subject || "MySkyParcel İletişim Mesajı";
       const body = `Ad Soyad: ${payload.name}\nE-posta: ${payload.email}\n\n${payload.message}`;
 
-      // Keep a reliable browser-side fallback if the Supabase function is
-      // unavailable. The user can send the prepared message with one tap.
+      // cPanel/Passenger must still provide a usable contact page if the
+      // Supabase function is unavailable. This fallback is browser-only and
+      // therefore cannot affect Nitro SSR rendering.
       window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       setStatus("success");
       setStatusText(
