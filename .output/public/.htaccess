@@ -1,6 +1,6 @@
 # MySkyParcel — cPanel / CloudLinux Passenger
-# Passenger handles SSR/HTML routes. Apache/LiteSpeed serves real frontend
-# assets from public_html directly.
+# Passenger handles SSR/HTML routes. Apache/LiteSpeed serves static assets
+# directly from public_html without routing them through Nitro.
 
 PassengerAppRoot "/home/myskypar/repositories/mehmet-kan-1453"
 PassengerBaseURI "/"
@@ -14,10 +14,17 @@ Options -MultiViews
 Options -Indexes
 DirectoryIndex disabled
 
-# Existing files/directories are served directly by Apache/LiteSpeed.
-# Application routes fall through to Passenger/Nitro.
 <IfModule mod_rewrite.c>
   RewriteEngine On
+  RewriteBase /
+
+  # Static Vite/Nitro assets must never be rewritten to an application route.
+  # When the requested asset exists physically under public_html, stop
+  # rewriting immediately so LiteSpeed/Apache serves it as a normal file.
+  RewriteRule ^assets(?:/|$) - [L]
+
+  # Existing files/directories are served directly by Apache/LiteSpeed.
+  # Application routes fall through to Passenger/Nitro.
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
