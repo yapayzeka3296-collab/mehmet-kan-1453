@@ -123,7 +123,7 @@ jobs:
           cat /tmp/myskyparcel-nitro.log
           exit 1
 
-      - name: Smoke test generated routes and critical routes
+      - name: Smoke test public and protected routes
         shell: bash
         run: |
           set -euo pipefail
@@ -134,14 +134,14 @@ jobs:
             mapfile -t routes < <(
               grep -oE "path: '[^']+'" src/routeTree.gen.ts \
                 | sed -E "s/^path: '([^']+)'$/\1/" \
-                | grep -v '\$' \
+                | grep -vE '\$|^/admin-check$|^/api/earth-assets$' \
                 | sort -u
             )
           else
             routes=()
           fi
 
-          for route in "${routes[@]}" /iletisim /yonetim /sehir/istanbul /sehir/gaziantep /api/earth-assets; do
+          for route in "${routes[@]}" /iletisim /yonetim /sehir/istanbul /sehir/gaziantep; do
             tested=$((tested + 1))
             code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")" || code="000"
             case "$code" in
@@ -149,6 +149,20 @@ jobs:
               *) echo "FAIL $code $route"; failed=$((failed + 1)) ;;
             esac
           done
+
+          tested=$((tested + 1))
+          code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/api/earth-assets?type=provinces')" || code="000"
+          case "$code" in
+            200) echo "PASS $code /api/earth-assets?type=provinces" ;;
+            *) echo "FAIL $code /api/earth-assets?type=provinces"; failed=$((failed + 1)) ;;
+          esac
+
+          tested=$((tested + 1))
+          code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/admin-check')" || code="000"
+          case "$code" in
+            401|403) echo "PASS $code /admin-check (protected)" ;;
+            *) echo "FAIL $code /admin-check (expected 401/403, got $code)"; failed=$((failed + 1)) ;;
+          esac
 
           echo "Tested $tested routes; failures: $failed"
           if [ "$failed" -ne 0 ]; then
