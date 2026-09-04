@@ -43,6 +43,14 @@ jobs:
         run: npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
       - name: Generate TanStack route tree
         run: npm run prebuild
+      - name: Verify generated support route tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "./routes/destek" src/routeTree.gen.ts
+          grep -Fq "'/destek'" src/routeTree.gen.ts
+          ! grep -Fq "./routes/iletisim" src/routeTree.gen.ts
+          ! grep -Fq "'/iletisim'" src/routeTree.gen.ts
       - name: TypeScript validation
         run: npm run typecheck -- --pretty false
       - name: ESLint validation
@@ -90,6 +98,8 @@ jobs:
             code="$(curl -sS -L -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")"
             case "$code" in 2*) echo "PASS $code $route";; *) echo "FAIL $code $route"; cat /tmp/route-response; exit 1;; esac
           done
+          code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/iletisim')"
+          case "$code" in 404) echo "PASS $code /iletisim removed";; *) echo "FAIL $code /iletisim should be removed"; cat /tmp/route-response; exit 1;; esac
           for city in istanbul gaziantep; do
             code="$(curl -sS -L -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173/sehir/${city}")"
             case "$code" in 2*) echo "PASS $code /sehir/${city}";; *) echo "FAIL $code /sehir/${city}"; exit 1;; esac
