@@ -15570,6 +15570,41 @@ var CubeTexture = class extends Texture {
 	}
 };
 /**
+* Creates a texture from a canvas element.
+*
+* This is almost the same as the base texture class, except that it sets {@link Texture#needsUpdate}
+* to `true` immediately since a canvas can directly be used for rendering.
+*
+* @augments Texture
+*/
+var CanvasTexture = class extends Texture {
+	/**
+	* Constructs a new texture.
+	*
+	* @param {HTMLCanvasElement} [canvas] - The HTML canvas element.
+	* @param {number} [mapping=Texture.DEFAULT_MAPPING] - The texture mapping.
+	* @param {number} [wrapS=ClampToEdgeWrapping] - The wrapS value.
+	* @param {number} [wrapT=ClampToEdgeWrapping] - The wrapT value.
+	* @param {number} [magFilter=LinearFilter] - The mag filter value.
+	* @param {number} [minFilter=LinearMipmapLinearFilter] - The min filter value.
+	* @param {number} [format=RGBAFormat] - The texture format.
+	* @param {number} [type=UnsignedByteType] - The texture type.
+	* @param {number} [anisotropy=Texture.DEFAULT_ANISOTROPY] - The anisotropy value.
+	*/
+	constructor(canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy) {
+		super(canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy);
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isCanvasTexture = true;
+		this.needsUpdate = true;
+	}
+};
+/**
 * This class can be used to automatically save the depth information of a
 * rendering into a texture.
 *
@@ -18107,86 +18142,6 @@ var VectorKeyframeTrack = class extends KeyframeTrack {
 */
 VectorKeyframeTrack.prototype.ValueTypeName = "vector";
 /**
-* @class
-* @classdesc A simple caching system, used internally by {@link FileLoader}.
-* To enable caching across all loaders that use {@link FileLoader}, add `THREE.Cache.enabled = true.` once in your app.
-* @hideconstructor
-*/
-var Cache = {
-	/**
-	* Whether caching is enabled or not.
-	*
-	* @static
-	* @type {boolean}
-	* @default false
-	*/
-	enabled: false,
-	/**
-	* A dictionary that holds cached files.
-	*
-	* @static
-	* @type {Object<string,Object>}
-	*/
-	files: {},
-	/**
-	* Adds a cache entry with a key to reference the file. If this key already
-	* holds a file, it is overwritten.
-	*
-	* @static
-	* @param {string} key - The key to reference the cached file.
-	* @param {Object} file -  The file to be cached.
-	*/
-	add: function(key, file) {
-		if (this.enabled === false) return;
-		if (isBlobURL(key)) return;
-		this.files[key] = file;
-	},
-	/**
-	* Gets the cached value for the given key.
-	*
-	* @static
-	* @param {string} key - The key to reference the cached file.
-	* @return {Object|undefined} The cached file. If the key does not exist `undefined` is returned.
-	*/
-	get: function(key) {
-		if (this.enabled === false) return;
-		if (isBlobURL(key)) return;
-		return this.files[key];
-	},
-	/**
-	* Removes the cached file associated with the given key.
-	*
-	* @static
-	* @param {string} key - The key to reference the cached file.
-	*/
-	remove: function(key) {
-		delete this.files[key];
-	},
-	/**
-	* Remove all values from the cache.
-	*
-	* @static
-	*/
-	clear: function() {
-		this.files = {};
-	}
-};
-/**
-* Returns true if the given cache key contains the blob: scheme.
-*
-* @private
-* @param {string} key - The cache key.
-* @return {boolean} Whether the given cache key contains the blob: scheme or not.
-*/
-function isBlobURL(key) {
-	try {
-		const urlString = key.slice(key.indexOf(":") + 1);
-		return new URL(urlString).protocol === "blob:";
-	} catch (e) {
-		return false;
-	}
-}
-/**
 * Handles and keeps track of loaded and pending data. A default global
 * instance of this class is created and used by loaders if not supplied
 * manually.
@@ -18588,156 +18543,6 @@ var Loader = class {
 * @default '__DEFAULT'
 */
 Loader.DEFAULT_MATERIAL_NAME = "__DEFAULT";
-var _loading = /* @__PURE__ */ new WeakMap();
-/**
-* A loader for loading images. The class loads images with the HTML `Image` API.
-*
-* ```js
-* const loader = new THREE.ImageLoader();
-* const image = await loader.loadAsync( 'image.png' );
-* ```
-* Please note that `ImageLoader` has dropped support for progress
-* events in `r84`. For an `ImageLoader` that supports progress events, see
-* [this thread](https://github.com/mrdoob/three.js/issues/10439#issuecomment-275785639).
-*
-* @augments Loader
-*/
-var ImageLoader = class extends Loader {
-	/**
-	* Constructs a new image loader.
-	*
-	* @param {LoadingManager} [manager] - The loading manager.
-	*/
-	constructor(manager) {
-		super(manager);
-	}
-	/**
-	* Starts loading from the given URL and passes the loaded image
-	* to the `onLoad()` callback. The method also returns a new `Image` object which can
-	* directly be used for texture creation. If you do it this way, the texture
-	* may pop up in your scene once the respective loading process is finished.
-	*
-	* @param {string} url - The path/URL of the file to be loaded. This can also be a data URI.
-	* @param {function(Image)} onLoad - Executed when the loading process has been finished.
-	* @param {onProgressCallback} onProgress - Unsupported in this loader.
-	* @param {onErrorCallback} onError - Executed when errors occur.
-	* @return {Image} The image.
-	*/
-	load(url, onLoad, onProgress, onError) {
-		if (this.path !== void 0) url = this.path + url;
-		url = this.manager.resolveURL(url);
-		const scope = this;
-		const cached = Cache.get(`image:${url}`);
-		if (cached !== void 0) {
-			if (cached.complete === true) {
-				scope.manager.itemStart(url);
-				setTimeout(function() {
-					if (onLoad) onLoad(cached);
-					scope.manager.itemEnd(url);
-				}, 0);
-			} else {
-				let arr = _loading.get(cached);
-				if (arr === void 0) {
-					arr = [];
-					_loading.set(cached, arr);
-				}
-				arr.push({
-					onLoad,
-					onError
-				});
-			}
-			return cached;
-		}
-		const image = createElementNS("img");
-		function onImageLoad() {
-			removeEventListeners();
-			if (onLoad) onLoad(this);
-			const callbacks = _loading.get(this) || [];
-			for (let i = 0; i < callbacks.length; i++) {
-				const callback = callbacks[i];
-				if (callback.onLoad) callback.onLoad(this);
-			}
-			_loading.delete(this);
-			scope.manager.itemEnd(url);
-		}
-		function onImageError(event) {
-			removeEventListeners();
-			if (onError) onError(event);
-			Cache.remove(`image:${url}`);
-			const callbacks = _loading.get(this) || [];
-			for (let i = 0; i < callbacks.length; i++) {
-				const callback = callbacks[i];
-				if (callback.onError) callback.onError(event);
-			}
-			_loading.delete(this);
-			scope.manager.itemError(url);
-			scope.manager.itemEnd(url);
-		}
-		function removeEventListeners() {
-			image.removeEventListener("load", onImageLoad, false);
-			image.removeEventListener("error", onImageError, false);
-		}
-		image.addEventListener("load", onImageLoad, false);
-		image.addEventListener("error", onImageError, false);
-		if (url.slice(0, 5) !== "data:") {
-			if (this.crossOrigin !== void 0) image.crossOrigin = this.crossOrigin;
-		}
-		Cache.add(`image:${url}`, image);
-		scope.manager.itemStart(url);
-		image.src = url;
-		return image;
-	}
-};
-/**
-* Class for loading textures. Images are internally
-* loaded via {@link ImageLoader}.
-*
-* ```js
-* const loader = new THREE.TextureLoader();
-* const texture = await loader.loadAsync( 'textures/land_ocean_ice_cloud_2048.jpg' );
-*
-* const material = new THREE.MeshBasicMaterial( { map:texture } );
-* ```
-* Please note that `TextureLoader` has dropped support for progress
-* events in `r84`. For a `TextureLoader` that supports progress events, see
-* [this thread](https://github.com/mrdoob/three.js/issues/10439#issuecomment-293260145).
-*
-* @augments Loader
-*/
-var TextureLoader = class extends Loader {
-	/**
-	* Constructs a new texture loader.
-	*
-	* @param {LoadingManager} [manager] - The loading manager.
-	*/
-	constructor(manager) {
-		super(manager);
-	}
-	/**
-	* Starts loading from the given URL and pass the fully loaded texture
-	* to the `onLoad()` callback. The method also returns a new texture object which can
-	* directly be used for material creation. If you do it this way, the texture
-	* may pop up in your scene once the respective loading process is finished.
-	*
-	* @param {string} url - The path/URL of the file to be loaded. This can also be a data URI.
-	* @param {function(Texture)} onLoad - Executed when the loading process has been finished.
-	* @param {onProgressCallback} onProgress - Unsupported in this loader.
-	* @param {onErrorCallback} onError - Executed when errors occur.
-	* @return {Texture} The texture.
-	*/
-	load(url, onLoad, onProgress, onError) {
-		const texture = new Texture();
-		const loader = new ImageLoader(this.manager);
-		loader.setCrossOrigin(this.crossOrigin);
-		loader.setPath(this.path);
-		loader.load(url, function(image) {
-			texture.image = image;
-			texture.needsUpdate = true;
-			if (onLoad !== void 0) onLoad(texture);
-		}, onProgress, onError);
-		return texture;
-	}
-};
 /**
 * Abstract base class for lights - all other light types inherit the
 * properties and methods described here.
@@ -31517,4 +31322,4 @@ var WebGLRenderer = class {
 	}
 };
 //#endregion
-export { ShaderMaterial as _, Clock as a, Group as c, MeshPhongMaterial as d, PerspectiveCamera as f, Scene as g, SRGBColorSpace as h, BufferGeometry as i, MathUtils as l, PointsMaterial as m, AmbientLight as n, Color as o, Points as p, BufferAttribute as r, DirectionalLight as s, WebGLRenderer as t, Mesh as u, SphereGeometry as v, TextureLoader as y };
+export { Scene as _, CanvasTexture as a, DirectionalLight as c, MeshBasicMaterial as d, MeshPhongMaterial as f, SRGBColorSpace as g, PointsMaterial as h, BufferGeometry as i, MathUtils as l, Points as m, AmbientLight as n, Clock as o, PerspectiveCamera as p, BufferAttribute as r, Color as s, WebGLRenderer as t, Mesh as u, SphereGeometry as v };
