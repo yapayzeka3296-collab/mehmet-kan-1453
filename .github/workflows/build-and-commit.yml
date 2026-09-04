@@ -73,12 +73,55 @@ jobs:
           cat /tmp/myskyparcel-nitro.log
           exit 1
 
-      - name: Smoke test routes
+      - name: Smoke test all application routes
         shell: bash
         run: |
           set -euo pipefail
           failed=0
-          routes=(/ /iletisim /yonetim /sehir/istanbul /sehir/gaziantep)
+          routes=(
+            /
+            /ana-sayfa
+            /iletisim
+            /yonetim
+            /panelim
+            /parsellerim
+            /hediyelerim
+            /siparislerim
+            /sertifikalarim
+            /bildirimler
+            /profilim
+            /guvenlik-ayarlari
+            /giris
+            /kayit-ol
+            /sifremi-unuttum
+            /sifre-yenile
+            /sepet
+            /parsel-satin-al
+            /odeme
+            /siparis-tamamlandi
+            /paketler
+            /nasil-calisir
+            /sertifika-dogrula
+            /sertifika-talep
+            /hakkimizda
+            /sss
+            /dogrula
+            /gokyuzu-haritasi
+            /turkiye-haritasi
+            /pazar-yeri
+            /parsel-hatirasi
+            /hediye-kabul
+            /kullanim-sartlari
+            /uyelik-sozlesmesi
+            /kvkk
+            /gizlilik-politikasi
+            /cerez-politikasi
+            /mesafeli-satis-sozlesmesi
+            /on-bilgilendirme-formu
+            /iade-iptal-politikasi
+            /sehir/istanbul
+            /sehir/gaziantep
+          )
           for route in "${routes[@]}"; do
             code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")" || code="000"
             case "$code" in
