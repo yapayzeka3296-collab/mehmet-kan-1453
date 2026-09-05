@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Activity, Award, Bell, Boxes, ClipboardList, FileText, LogOut, RefreshCw, Search, ShieldCheck, ShoppingCart, Trash2, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AdminCertificateOverride } from "@/components/admin/AdminCertificateOverride";
+import { AdminUserSearch } from "@/components/admin/AdminUserSearch";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -73,7 +74,7 @@ function Dashboard({ stats }: { stats: Stats | null }) {
 
 function ModuleView({ module, rows, onReload }: { module: Module; rows: Row[]; onReload: () => Promise<void> }) {
   if (module === "certificates") return <><AdminCertificateOverride /><DataTable rows={rows} columns={["id", "user_id", "parcel_id", "tier", "status", "certificate_number", "issued_at", "revoked_at"]} /></>;
-  if (module === "users") return <DataTable rows={rows} columns={["id", "email", "full_name", "role", "created_at"]} />;
+  if (module === "users") return <AdminUserSearch initialRows={rows} />;
   if (module === "parcels") return <ParcelModule initialRows={rows} />;
   if (module === "orders") return <DataTable rows={rows} columns={["id", "user_id", "parcel_id", "amount", "currency", "status", "created_at"]} />;
   return <AuditModule rows={rows} onReload={onReload} />;
