@@ -19,7 +19,8 @@
   overflow: visible;
 }
 
-.login-page main > img[alt=""] {
+/* Hide only the decorative city image; keep the globe/3D visual available. */
+.login-page main > img:first-of-type[alt=""] {
   display: none;
 }
 
