@@ -26,9 +26,16 @@ export const Route = createFileRoute('/api/shopier/redirect')({
         try {
           const intentId = new URL(request.url).searchParams.get('intent')?.trim() || '';
           const supabaseUrl = getEnv('SUPABASE_URL') || getEnv('VITE_SUPABASE_URL');
-          const serviceRoleKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
+          // Keep the same server-key aliases used by the checkout endpoint.
+          const serviceRoleKey = getEnv('SUPABASE_SECRET_KEY') || getEnv('SUPABASE_SERVICE_ROLE_KEY');
           const shopSlug = getEnv('SHOPIER_SHOP_SLUG');
           if (!intentId || !supabaseUrl || !serviceRoleKey || !shopSlug) {
+            console.error('Shopier redirect is not configured', {
+              hasIntent: Boolean(intentId),
+              hasSupabaseUrl: Boolean(supabaseUrl),
+              hasServiceRoleKey: Boolean(serviceRoleKey),
+              hasShopSlug: Boolean(shopSlug),
+            });
             return html('<!doctype html><html lang="tr"><body>Ödeme bağlantısı yapılandırılamadı.</body></html>', 503);
           }
 
@@ -42,6 +49,7 @@ export const Route = createFileRoute('/api/shopier/redirect')({
             .maybeSingle();
 
           if (error || !intent?.shopier_product_id) {
+            console.error('Shopier redirect intent lookup failed', { intentId, code: error?.code, message: error?.message });
             return html('<!doctype html><html lang="tr"><body>Ödeme bağlantısı bulunamadı.</body></html>', 404);
           }
           if (!['pending', 'redirected'].includes(String(intent.status))) {
