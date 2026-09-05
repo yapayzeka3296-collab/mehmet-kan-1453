@@ -40,7 +40,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
         renderer.setClearColor(0, 0);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.domElement.style.cssText = "position:absolute;inset:0;display:block;width:100%;height:100%;max-width:100%;max-height:100%;touch-action:none;user-select:none;cursor:grab";
+        renderer.domElement.style.cssText = "position:absolute;inset:0;display:block;width:100%;height:100%;max-width:100%;max-height:100%;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab";
         mount.appendChild(renderer.domElement);
 
         const scene = new THREE.Scene();
@@ -77,7 +77,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
 
         const atmosphereGeometry = new THREE.SphereGeometry(radius * 1.09, 96, 96);
         const atmosphereMaterial = new THREE.ShaderMaterial({
-          uniforms: { glowColor: { value: new THREE.Color(0x4da6ff) }, glowPower: { value: 3.6 }, glowStrength: { value: 1.05 } },
+          uniforms: { glowColor: { value: new THREE.Color(0x71869b) }, glowPower: { value: 3.2 }, glowStrength: { value: 0.52 } },
           vertexShader: `varying vec3 vWorldNormal; varying vec3 vWorldPosition; void main(){vec4 worldPosition=modelMatrix*vec4(position,1.0);vWorldPosition=worldPosition.xyz;vWorldNormal=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*viewMatrix*worldPosition;}`,
           fragmentShader: `uniform vec3 glowColor; uniform float glowPower; uniform float glowStrength; varying vec3 vWorldNormal; varying vec3 vWorldPosition; void main(){vec3 viewDirection=normalize(cameraPosition-vWorldPosition);float fresnel=pow(1.0-max(dot(vWorldNormal,viewDirection),0.0),glowPower);gl_FragColor=vec4(glowColor,fresnel*glowStrength);}`,
           side: THREE.BackSide,
@@ -183,21 +183,51 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         const setZoom = (z: number) => { zoomRef.current = THREE.MathUtils.clamp(z, MIN_ZOOM, MAX_ZOOM); camera.position.z = zoomRef.current; };
         const wheel = (event: WheelEvent) => { event.preventDefault(); event.stopPropagation(); setZoom(camera.position.z + THREE.MathUtils.clamp(event.deltaY, -160, 160) * 0.008); };
         const down = (event: PointerEvent) => {
+          event.preventDefault();
           pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-          if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)); dragging = false; return; }
-          dragging = true; lastX = event.clientX; lastY = event.clientY; renderer.domElement.style.cursor = "grabbing"; renderer.domElement.setPointerCapture?.(event.pointerId);
+          renderer.domElement.setPointerCapture?.(event.pointerId);
+          if (pointers.size === 2) {
+            const [a, b] = [...pointers.values()];
+            pinch = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+            dragging = false;
+            return;
+          }
+          dragging = true;
+          lastX = event.clientX;
+          lastY = event.clientY;
+          renderer.domElement.style.cursor = "grabbing";
         };
         const move = (event: PointerEvent) => {
           if (!pointers.has(event.pointerId)) return;
+          event.preventDefault();
           pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-          if (pointers.size === 2 && pinch) { const [a, b] = [...pointers.values()]; const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)); setZoom(camera.position.z / (distance / pinch)); pinch = distance; return; }
+          if (pointers.size === 2 && pinch) {
+            const [a, b] = [...pointers.values()];
+            const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+            setZoom(camera.position.z / (distance / pinch));
+            pinch = distance;
+            return;
+          }
           if (!dragging) return;
-          const dx = event.clientX - lastX; const dy = event.clientY - lastY; lastX = event.clientX; lastY = event.clientY;
-          earth.rotation.y += dx * 0.006; earth.rotation.x = THREE.MathUtils.clamp(earth.rotation.x + dy * 0.0035, -1.15, 1.15); clouds.rotation.y += dx * 0.002; clouds.rotation.x += dy * 0.0012; syncStarsToEarth();
+          const dx = event.clientX - lastX;
+          const dy = event.clientY - lastY;
+          lastX = event.clientX;
+          lastY = event.clientY;
+          earth.rotation.y += dx * 0.006;
+          earth.rotation.x = THREE.MathUtils.clamp(earth.rotation.x + dy * 0.0035, -1.15, 1.15);
+          clouds.rotation.y += dx * 0.002;
+          clouds.rotation.x += dy * 0.0012;
+          syncStarsToEarth();
         };
         const up = (event: PointerEvent) => {
-          pointers.delete(event.pointerId); if (pointers.size < 2) pinch = null; dragging = pointers.size === 1;
-          if (dragging) { const remaining = [...pointers.values()][0]; lastX = remaining.x; lastY = remaining.y; }
+          pointers.delete(event.pointerId);
+          if (pointers.size < 2) pinch = null;
+          dragging = pointers.size === 1;
+          if (dragging) {
+            const remaining = [...pointers.values()][0];
+            lastX = remaining.x;
+            lastY = remaining.y;
+          }
           renderer.domElement.style.cursor = dragging ? "grabbing" : "grab";
           try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch { /* already released */ }
         };
@@ -207,7 +237,10 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => { const width = Math.floor(mount.clientWidth); const height = Math.floor(mount.clientHeight); if (width === lastWidth && height === lastHeight) return; lastWidth = width; lastHeight = height; resize(); }) : undefined;
         resizeObserver?.observe(mount); window.addEventListener("resize", resize); resize();
         renderer.domElement.addEventListener("wheel", wheel, { passive: false });
-        renderer.domElement.addEventListener("pointerdown", down); renderer.domElement.addEventListener("pointermove", move); renderer.domElement.addEventListener("pointerup", up); renderer.domElement.addEventListener("pointercancel", up);
+        renderer.domElement.addEventListener("pointerdown", down, { passive: false });
+        renderer.domElement.addEventListener("pointermove", move, { passive: false });
+        renderer.domElement.addEventListener("pointerup", up);
+        renderer.domElement.addEventListener("pointercancel", up);
 
         const clock = new THREE.Clock();
         const animate = () => {
