@@ -21,7 +21,7 @@ const verifySignature = (token: string, rawBody: string, received: string) => {
 
   const safeEqual = (expected: string) => {
     const a = Buffer.from(expected, 'utf8');
-    const b = Buffer.from(received, 'utf8');
+    const b = Buffer.from(received.trim(), 'utf8');
     return a.length === b.length && timingSafeEqual(a, b);
   };
 
@@ -46,7 +46,7 @@ export const Route = createFileRoute('/api/shopier/webhook')({
     handlers: {
       POST: async ({ request }) => {
         const rawBody = await request.text();
-        const signature = request.headers.get('shopier-signature') ?? '';
+        const signature = request.headers.get('Shopier-Signature') ?? request.headers.get('shopier-signature') ?? '';
         const webhookToken = getEnv('SHOPIER_WEBHOOK_TOKEN');
 
         if (!webhookToken) {
@@ -73,6 +73,7 @@ export const Route = createFileRoute('/api/shopier/webhook')({
         const webhookId = firstString(
           request.headers.get('shopier-webhook-id'),
           payload.webhookId,
+          payload.eventId,
           payload.id,
         );
 
@@ -102,7 +103,7 @@ export const Route = createFileRoute('/api/shopier/webhook')({
         );
 
         const supabaseUrl = getEnv('SUPABASE_URL') || getEnv('VITE_SUPABASE_URL');
-        const serviceRoleKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
+        const serviceRoleKey = getEnv('SUPABASE_SECRET_KEY') || getEnv('SUPABASE_SERVICE_ROLE_KEY');
         if (!supabaseUrl || !serviceRoleKey) {
           console.error('Supabase service configuration is missing for Shopier webhook');
           return json({ ok: false, reason: 'supabase_not_configured' }, 503);
@@ -171,6 +172,9 @@ export const Route = createFileRoute('/api/shopier/webhook')({
           return json({ ok: false, reason: 'event_persistence_failed' }, 500);
         }
 
+        // Shopier's order model uses `fulfilled` for the fulfillment state and
+        // `paid` for the payment state. We only grant ownership on the paid +
+        // fulfilled event boundary.
         if (eventType !== 'order.fulfilled') {
           await supabase
             .from('shopier_webhook_events')
