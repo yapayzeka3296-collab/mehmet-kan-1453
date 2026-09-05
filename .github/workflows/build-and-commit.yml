@@ -43,16 +43,23 @@ jobs:
         run: npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
       - name: Generate TanStack route tree
         run: npm run prebuild
-      - name: Verify generated support route tree
+      - name: Verify generated public/legal route tree
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq "./routes/destek" src/routeTree.gen.ts
-          grep -Fq "'/destek'" src/routeTree.gen.ts
-          ! grep -Fq "./routes/iletisim" src/routeTree.gen.ts
-          ! grep -Fq "'/iletisim'" src/routeTree.gen.ts
-          ! grep -Fq "./routes/ile" src/routeTree.gen.ts
-          ! grep -Fq "'/ile'" src/routeTree.gen.ts
+          for route in \
+            "./routes/iletisim" "./routes/kvkk" "./routes/gizlilik-politikasi" \
+            "./routes/kullanim-sartlari" "./routes/cerez-politikasi" \
+            "./routes/iade-iptal-politikasi" "./routes/on-bilgilendirme-formu" \
+            "./routes/mesafeli-satis-sozlesmesi" "./routes/uyelik-sozlesmesi"; do
+            grep -Fq "$route" src/routeTree.gen.ts
+          done
+          for route in \
+            "'/iletisim'" "'/kvkk'" "'/gizlilik-politikasi'" "'/kullanim-sartlari'" \
+            "'/cerez-politikasi'" "'/iade-iptal-politikasi'" "'/on-bilgilendirme-formu'" \
+            "'/mesafeli-satis-sozlesmesi'" "'/uyelik-sozlesmesi'"; do
+            grep -Fq "$route" src/routeTree.gen.ts
+          done
       - name: TypeScript validation
         run: npm run typecheck -- --pretty false
       - name: ESLint validation
@@ -69,7 +76,12 @@ jobs:
           test -f app.js
           test -f public/.htaccess
           test "$(find .output/public -type f | wc -l)" -gt 0
-          test "$(find .output/public -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.css' -o -name '*.json' -o -name '*.svg' -o -name '*.woff' -o -name '*.woff2' -o -name '*.ttf' -o -name '*.otf' -o -name '*.wasm' \) | wc -l)" -gt 0
+          for route in \
+            uyelik-sozlesmesi mesafeli-satis-sozlesmesi on-bilgilendirme-formu \
+            iade-iptal-politikasi kvkk gizlilik-politikasi kullanim-sartlari \
+            cerez-politikasi iletisim; do
+            test -f ".output/public/${route}/index.html"
+          done
       - name: Start Nitro server
         shell: bash
         run: |
@@ -89,7 +101,7 @@ jobs:
           routes=(
             / /ana-sayfa /bildirimler /cerez-politikasi /dogrula /giris
             /gizlilik-politikasi /gokyuzu-haritasi /guvenlik-ayarlari /hakkimizda
-            /hediye-kabul /hediyelerim /iade-iptal-politikasi /destek
+            /hediye-kabul /hediyelerim /iade-iptal-politikasi /destek /iletisim
             /kayit-ol /kullanim-sartlari /kvkk /mesafeli-satis-sozlesmesi
             /nasil-calisir /on-bilgilendirme-formu /paketler /panelim
             /parsel-hatirasi /parsel-satin-al /parsellerim /pazar-yeri /profilim
@@ -99,10 +111,6 @@ jobs:
           for route in "${routes[@]}"; do
             code="$(curl -sS -L -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")"
             case "$code" in 2*) echo "PASS $code $route";; *) echo "FAIL $code $route"; cat /tmp/route-response; exit 1;; esac
-          done
-          for removed_route in /iletisim /ile; do
-            code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${removed_route}")"
-            case "$code" in 404) echo "PASS $code ${removed_route} removed";; *) echo "FAIL $code ${removed_route} should be removed"; cat /tmp/route-response; exit 1;; esac
           done
           for city in istanbul gaziantep; do
             code="$(curl -sS -L -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173/sehir/${city}")"
