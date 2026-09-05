@@ -37,7 +37,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/components/SkyParcelGlobe.tsx"],
+    files: ["src/components/SkyParcelGlobe.tsx", "src/routes/parsel-satin-al.tsx"],
     rules: {
       "@typescript-eslint/no-unused-expressions": "off",
     },
