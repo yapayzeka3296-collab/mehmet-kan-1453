@@ -69,7 +69,7 @@ export const Route = createFileRoute('/api/shopier/webhook')({
           request.headers.get('shopier-event'),
           payload.event,
           payload.type,
-        );
+        ).toLowerCase();
         const webhookId = firstString(
           request.headers.get('shopier-webhook-id'),
           payload.webhookId,
@@ -122,16 +122,51 @@ export const Route = createFileRoute('/api/shopier/webhook')({
           processing_status: 'received',
         };
 
+        let eventRecordId: string | null = null;
         const { data: insertedEvent, error: eventInsertError } = await supabase
           .from('shopier_webhook_events')
           .insert(eventRow)
           .select('id')
           .maybeSingle();
 
-        if (eventInsertError) {
-          if (eventInsertError.code === '23505' && webhookId) {
+        if (!eventInsertError) {
+          eventRecordId = insertedEvent?.id ?? null;
+        } else if (eventInsertError.code === '23505' && webhookId) {
+          const { data: existingEvent, error: existingEventError } = await supabase
+            .from('shopier_webhook_events')
+            .select('id,processing_status')
+            .eq('event_id', webhookId)
+            .maybeSingle();
+
+          if (existingEventError || !existingEvent) {
+            console.error('Shopier webhook duplicate lookup failed', existingEventError);
+            return json({ ok: false, reason: 'event_persistence_failed' }, 500);
+          }
+
+          if (existingEvent.processing_status === 'processed') {
             return json({ ok: true, status: 'duplicate' }, 200);
           }
+
+          eventRecordId = existingEvent.id;
+          const { error: retryUpdateError } = await supabase
+            .from('shopier_webhook_events')
+            .update({
+              event_type: eventType || null,
+              shopier_order_id: orderId || null,
+              signature_valid: true,
+              payload,
+              received_at: new Date().toISOString(),
+              processing_status: 'received',
+              processing_error: null,
+              processed_at: null,
+            })
+            .eq('id', eventRecordId);
+
+          if (retryUpdateError) {
+            console.error('Shopier webhook retry persistence failed', retryUpdateError);
+            return json({ ok: false, reason: 'event_persistence_failed' }, 500);
+          }
+        } else {
           console.error('Shopier webhook event persistence failed', eventInsertError);
           return json({ ok: false, reason: 'event_persistence_failed' }, 500);
         }
@@ -143,7 +178,7 @@ export const Route = createFileRoute('/api/shopier/webhook')({
               processing_status: 'ignored',
               processed_at: new Date().toISOString(),
             })
-            .eq('id', insertedEvent?.id);
+            .eq('id', eventRecordId);
           return json({ ok: true, status: 'ignored', event: eventType || null }, 200);
         }
 
@@ -155,7 +190,7 @@ export const Route = createFileRoute('/api/shopier/webhook')({
               processing_error: 'order_not_paid_or_not_fulfilled',
               processed_at: new Date().toISOString(),
             })
-            .eq('id', insertedEvent?.id);
+            .eq('id', eventRecordId);
           return json({ ok: true, status: 'ignored' }, 200);
         }
 
@@ -167,7 +202,7 @@ export const Route = createFileRoute('/api/shopier/webhook')({
               processing_error: 'missing_or_invalid_order_fields',
               processed_at: new Date().toISOString(),
             })
-            .eq('id', insertedEvent?.id);
+            .eq('id', eventRecordId);
           return json({ ok: false, reason: 'invalid_order' }, 400);
         }
 
@@ -186,7 +221,7 @@ export const Route = createFileRoute('/api/shopier/webhook')({
               processing_error: message,
               processed_at: new Date().toISOString(),
             })
-            .eq('id', insertedEvent?.id);
+            .eq('id', eventRecordId);
           return json({ ok: false, reason: 'checkout_intent_not_found' }, 404);
         }
 
@@ -208,7 +243,7 @@ export const Route = createFileRoute('/api/shopier/webhook')({
               processing_error: completionError.message,
               processed_at: new Date().toISOString(),
             })
-            .eq('id', insertedEvent?.id);
+            .eq('id', eventRecordId);
           return json({ ok: false, reason: 'checkout_completion_failed' }, 500);
         }
 
@@ -216,9 +251,10 @@ export const Route = createFileRoute('/api/shopier/webhook')({
           .from('shopier_webhook_events')
           .update({
             processing_status: 'processed',
+            processing_error: null,
             processed_at: new Date().toISOString(),
           })
-          .eq('id', insertedEvent?.id);
+          .eq('id', eventRecordId);
 
         return json({ ok: true, status: 'processed', completion }, 200);
       },
