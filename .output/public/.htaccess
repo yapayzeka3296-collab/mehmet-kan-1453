@@ -1,7 +1,7 @@
 # MySkyParcel — cPanel / CloudLinux Passenger
 # GitHub -> cPanel Git -> Nitro/Passenger -> public_html.
-# Static assets and pre-rendered public pages are served directly by Apache/LiteSpeed.
-# Dynamic/SSR routes continue through Passenger.
+# Static assets are served directly by Apache/LiteSpeed.
+# All non-static requests are left for the enabled Passenger/Nitro application.
 
 PassengerAppRoot "/home/myskypar/repositories/mehmet-kan-1453"
 PassengerBaseURI "/"
@@ -13,22 +13,22 @@ PassengerEnabled on
 
 Options -MultiViews
 Options -Indexes
-DirectoryIndex index.html
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # Resolve pre-rendered public/legal pages directly to their generated HTML.
-  # This avoids DirectorySlash/Passenger ambiguity on the first request to /route.
-  RewriteRule ^(uyelik-sozlesmesi|mesafeli-satis-sozlesmesi|on-bilgilendirme-formu|iade-iptal-politikasi|kvkk|gizlilik-politikasi|kullanim-sartlari|cerez-politikasi|iletisim)/?$ /$1/index.html [L]
+  # Static files must stay in Apache/LiteSpeed and must never be sent to Nitro.
+  RewriteRule ^(?:assets/|.*\.(?:js|mjs|css|png|jpe?g|webp|gif|svg|ico|woff2?|ttf|otf|wasm|json|txt|xml|map|webmanifest|pdf))$ - [L,NC]
 
-  # Never send Vite/Nitro static files through the SSR application.
-  RewriteRule ^assets(?:/|$) - [L]
+  # Existing physical static files are served directly.
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
 
-  # Existing public files/directories are served directly.
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
+  # Every non-static route (including direct navigation/F5) is handled by
+  # Passenger, which starts app.js and serves the Nitro SSR application.
+  # The '-' substitution preserves the original URL; Passenger remains the
+  # request handler because PassengerEnabled is on for this application root.
   RewriteRule ^ - [L]
 </IfModule>
 
