@@ -182,7 +182,8 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             return json({ ok: false, reason: 'checkout_persistence_failed' }, 500);
           }
 
-          return json({ ok: true, ...intent, shopier_product_id: shopierProductId, checkout_url: productUrl, shopier_product_url: productUrl }, 200);
+          const hostedRedirectUrl = `/api/shopier/redirect?intent=${encodeURIComponent(intentId)}`;
+          return json({ ok: true, ...intent, shopier_product_id: shopierProductId, checkout_url: hostedRedirectUrl, shopier_product_url: productUrl }, 200);
         } catch (error) {
           console.error('Unexpected Shopier checkout error', { intentId, message: error instanceof Error ? error.message : String(error) });
           if (releaseIntent) await releaseIntent('internal_error').catch(() => undefined);
