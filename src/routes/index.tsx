@@ -13,21 +13,21 @@ function Landing() {
   return (
     <main className="relative z-0 min-h-screen overflow-hidden bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle_at_75%_20%,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(1,4,11,0.12),rgba(1,4,11,0.3))]" />
-      <div className="relative z-20 mx-auto grid min-h-screen w-full max-w-[1400px] min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <div className="relative z-20 flex min-w-0 items-start px-4 pb-10 pt-4 sm:px-8 sm:pt-8 lg:px-10 lg:pt-10 xl:px-14">
+      <div className="relative z-20 mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center justify-center gap-6 px-4 py-6 lg:flex-row lg:items-center lg:justify-between lg:gap-0 lg:px-6 lg:py-0 xl:px-10">
+        <div className="relative z-20 flex w-full min-w-0 items-center lg:w-1/2 lg:pr-8">
           <div className="pointer-events-auto flex min-w-0 flex-col items-start">
             <Logo />
-            <div className="mt-3 max-w-[360px] text-left drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]">
+            <div className="mt-3 max-w-[420px] text-left drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]">
               <p className="text-[9px] font-semibold tracking-[0.12em] text-cyan-100 sm:text-[10px]">81 İL · 81 MİLYON PARSEL</p>
               <p className="mt-1 text-[10px] font-medium text-foreground/90 sm:text-xs">Türkiye'den dünyaya açılacak bir proje.</p>
-              <h1 className="mt-2 text-base font-bold leading-tight tracking-tight text-white sm:text-xl">GÖKYÜZÜNDE KENDİ PARSELİNİ SEÇ.</h1>
+              <h1 className="mt-2 text-base font-bold leading-tight tracking-tight text-white sm:text-xl lg:text-2xl">GÖKYÜZÜNDE KENDİ PARSELİNİ SEÇ.</h1>
               <p className="mt-1.5 text-[10px] leading-4 text-foreground/85 sm:text-xs sm:leading-5">Gökyüzündeki yerini keşfet.<br />Şehrini seç, parselini seç ve sana ait dijital gökyüzü parselini oluştur.</p>
             </div>
           </div>
         </div>
-        <div className="relative z-0 min-h-[440px] min-w-0 w-full overflow-hidden lg:min-h-screen">
-          <Suspense fallback={<div className="absolute inset-0 z-0 bg-background" aria-label="Küre yükleniyor" />}>
-            <MySkyParcelEarthGlobe className="relative h-full min-h-[440px] w-full min-w-0 max-w-full overflow-hidden rounded-none border-0 bg-transparent shadow-none lg:min-h-screen" />
+        <div className="relative z-0 flex w-full min-w-0 items-center justify-center overflow-hidden lg:w-1/2">
+          <Suspense fallback={<div className="relative h-[500px] w-full overflow-hidden bg-transparent lg:h-[600px]" aria-label="Küre yükleniyor" />}>
+            <MySkyParcelEarthGlobe className="h-[500px] w-full max-w-full overflow-hidden rounded-none border-0 bg-transparent shadow-none lg:h-[600px]" />
           </Suspense>
         </div>
       </div>
