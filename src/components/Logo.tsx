@@ -12,8 +12,8 @@ export function Logo() {
         alt="MySkyParcel — Gökyüzünde Sana Özel Bir Yer"
         className="!block !h-auto !w-full !max-w-full object-contain"
         style={{ width: "100%", maxWidth: "100%", height: "auto" }}
-        width={1536}
-        height={526}
+        width={190}
+        height={65}
         decoding="async"
       />
     </Link>
