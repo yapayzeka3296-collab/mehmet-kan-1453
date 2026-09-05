@@ -53,6 +53,7 @@ import { Route as ApiEarthAssetsRouteImport } from './routes/api/earth-assets'
 import { Route as SehirSlugRouteImport } from './routes/sehir/$slug'
 import { Route as ApiShopierCheckoutRouteImport } from './routes/api/shopier/checkout'
 import { Route as ApiShopierRedirectRouteImport } from './routes/api/shopier/redirect'
+import { Route as ApiShopierWebhookRouteImport } from './routes/api/shopier/webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -274,6 +275,11 @@ const ApiShopierRedirectRoute = ApiShopierRedirectRouteImport.update({
   path: '/api/shopier/redirect',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiShopierWebhookRoute = ApiShopierWebhookRouteImport.update({
+  id: '/api/shopier/webhook',
+  path: '/api/shopier/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -320,6 +326,7 @@ export interface FileRoutesByFullPath {
   '/sehir/$slug': typeof SehirSlugRoute
   '/api/shopier/checkout': typeof ApiShopierCheckoutRoute
   '/api/shopier/redirect': typeof ApiShopierRedirectRoute
+  '/api/shopier/webhook': typeof ApiShopierWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -366,6 +373,7 @@ export interface FileRoutesByTo {
   '/sehir/$slug': typeof SehirSlugRoute
   '/api/shopier/checkout': typeof ApiShopierCheckoutRoute
   '/api/shopier/redirect': typeof ApiShopierRedirectRoute
+  '/api/shopier/webhook': typeof ApiShopierWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -413,6 +421,7 @@ export interface FileRoutesById {
   '/sehir/$slug': typeof SehirSlugRoute
   '/api/shopier/checkout': typeof ApiShopierCheckoutRoute
   '/api/shopier/redirect': typeof ApiShopierRedirectRoute
+  '/api/shopier/webhook': typeof ApiShopierWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -461,6 +470,7 @@ export interface FileRouteTypes {
     | '/sehir/$slug'
     | '/api/shopier/checkout'
     | '/api/shopier/redirect'
+    | '/api/shopier/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -507,6 +517,7 @@ export interface FileRouteTypes {
     | '/sehir/$slug'
     | '/api/shopier/checkout'
     | '/api/shopier/redirect'
+    | '/api/shopier/webhook'
   id:
     | '__root__'
     | '/'
@@ -553,6 +564,7 @@ export interface FileRouteTypes {
     | '/sehir/$slug'
     | '/api/shopier/checkout'
     | '/api/shopier/redirect'
+    | '/api/shopier/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -600,6 +612,7 @@ export interface RootRouteChildren {
   SehirSlugRoute: typeof SehirSlugRoute
   ApiShopierCheckoutRoute: typeof ApiShopierCheckoutRoute
   ApiShopierRedirectRoute: typeof ApiShopierRedirectRoute
+  ApiShopierWebhookRoute: typeof ApiShopierWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -912,6 +925,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiShopierRedirectRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/shopier/webhook': {
+      id: '/api/shopier/webhook'
+      path: '/api/shopier/webhook'
+      fullPath: '/api/shopier/webhook'
+      preLoaderRoute: typeof ApiShopierWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -960,6 +980,7 @@ const rootRouteChildren: RootRouteChildren = {
   SehirSlugRoute: SehirSlugRoute,
   ApiShopierCheckoutRoute: ApiShopierCheckoutRoute,
   ApiShopierRedirectRoute: ApiShopierRedirectRoute,
+  ApiShopierWebhookRoute: ApiShopierWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
