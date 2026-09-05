@@ -1,6 +1,7 @@
 # MySkyParcel — cPanel / CloudLinux Passenger
 # GitHub -> cPanel Git -> Nitro/Passenger -> public_html.
-# Static assets are served by Apache/LiteSpeed; SSR routes are handled by Passenger.
+# Static assets and pre-rendered public pages are served by Apache/LiteSpeed;
+# dynamic/SSR routes continue through Passenger.
 
 PassengerAppRoot "/home/myskypar/repositories/mehmet-kan-1453"
 PassengerBaseURI "/"
@@ -12,7 +13,9 @@ PassengerEnabled on
 
 Options -MultiViews
 Options -Indexes
-DirectoryIndex disabled
+# Pre-rendered legal/contact routes are emitted as /route/index.html.
+# Keep DirectoryIndex enabled so direct /route URLs resolve to that file.
+DirectoryIndex index.html
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
@@ -21,7 +24,8 @@ DirectoryIndex disabled
   # Never send Vite/Nitro static files through the SSR application.
   RewriteRule ^assets(?:/|$) - [L]
 
-  # Existing public files/directories are served directly.
+  # Existing public files/directories are served directly. DirectoryIndex
+  # resolves pre-rendered route folders such as /kvkk/ to index.html.
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
@@ -44,9 +48,7 @@ DirectoryIndex disabled
 </IfModule>
 
 <IfModule mod_headers.c>
-  # During the cPanel repair, do not let LiteSpeed/Apache or a desktop browser
-  # reuse an old JS/CSS response. The next deployment can safely re-enable
-  # long-lived caching after the production bundle is verified.
+  # Prevent stale bundles while the production deployment is being verified.
   <FilesMatch "\.(js|css|mjs|json|wasm|svg|png|jpg|jpeg|webp|gif|woff|woff2|ttf|otf)$">
     Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
     Header set Pragma "no-cache"
@@ -61,9 +63,6 @@ DirectoryIndex disabled
   </FilesMatch>
 </IfModule>
 
-# LiteSpeed can keep a public cache independently of browser Cache-Control.
-# Disable that cache for this application while the desktop stale-build issue
-# is eliminated. This does not disable Passenger or static file serving.
 <IfModule LiteSpeed>
   CacheLookup off
 </IfModule>

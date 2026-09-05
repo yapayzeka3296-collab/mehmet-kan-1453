@@ -24,6 +24,7 @@ import { Route as HakkimizdaRouteImport } from './routes/hakkimizda'
 import { Route as HediyeKabulRouteImport } from './routes/hediye-kabul'
 import { Route as HediyelerimRouteImport } from './routes/hediyelerim'
 import { Route as IadeIptalPolitikasiRouteImport } from './routes/iade-iptal-politikasi'
+import { Route as IletisimRouteImport } from './routes/iletisim'
 import { Route as KayitOlRouteImport } from './routes/kayit-ol'
 import { Route as KullanimSartlariRouteImport } from './routes/kullanim-sartlari'
 import { Route as KvkkRouteImport } from './routes/kvkk'
@@ -125,6 +126,11 @@ const HediyelerimRoute = HediyelerimRouteImport.update({
 const IadeIptalPolitikasiRoute = IadeIptalPolitikasiRouteImport.update({
   id: '/iade-iptal-politikasi',
   path: '/iade-iptal-politikasi',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IletisimRoute = IletisimRouteImport.update({
+  id: '/iletisim',
+  path: '/iletisim',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KayitOlRoute = KayitOlRouteImport.update({
@@ -279,6 +285,7 @@ export interface FileRoutesByFullPath {
   '/hediye-kabul': typeof HediyeKabulRoute
   '/hediyelerim': typeof HediyelerimRoute
   '/iade-iptal-politikasi': typeof IadeIptalPolitikasiRoute
+  '/iletisim': typeof IletisimRoute
   '/kayit-ol': typeof KayitOlRoute
   '/kullanim-sartlari': typeof KullanimSartlariRoute
   '/kvkk': typeof KvkkRoute
@@ -323,6 +330,7 @@ export interface FileRoutesByTo {
   '/hediye-kabul': typeof HediyeKabulRoute
   '/hediyelerim': typeof HediyelerimRoute
   '/iade-iptal-politikasi': typeof IadeIptalPolitikasiRoute
+  '/iletisim': typeof IletisimRoute
   '/kayit-ol': typeof KayitOlRoute
   '/kullanim-sartlari': typeof KullanimSartlariRoute
   '/kvkk': typeof KvkkRoute
@@ -368,6 +376,7 @@ export interface FileRoutesById {
   '/hediye-kabul': typeof HediyeKabulRoute
   '/hediyelerim': typeof HediyelerimRoute
   '/iade-iptal-politikasi': typeof IadeIptalPolitikasiRoute
+  '/iletisim': typeof IletisimRoute
   '/kayit-ol': typeof KayitOlRoute
   '/kullanim-sartlari': typeof KullanimSartlariRoute
   '/kvkk': typeof KvkkRoute
@@ -414,6 +423,7 @@ export interface FileRouteTypes {
     | '/hediye-kabul'
     | '/hediyelerim'
     | '/iade-iptal-politikasi'
+    | '/iletisim'
     | '/kayit-ol'
     | '/kullanim-sartlari'
     | '/kvkk'
@@ -458,6 +468,7 @@ export interface FileRouteTypes {
     | '/hediye-kabul'
     | '/hediyelerim'
     | '/iade-iptal-politikasi'
+    | '/iletisim'
     | '/kayit-ol'
     | '/kullanim-sartlari'
     | '/kvkk'
@@ -502,6 +513,7 @@ export interface FileRouteTypes {
     | '/hediye-kabul'
     | '/hediyelerim'
     | '/iade-iptal-politikasi'
+    | '/iletisim'
     | '/kayit-ol'
     | '/kullanim-sartlari'
     | '/kvkk'
@@ -547,6 +559,7 @@ export interface RootRouteChildren {
   HediyeKabulRoute: typeof HediyeKabulRoute
   HediyelerimRoute: typeof HediyelerimRoute
   IadeIptalPolitikasiRoute: typeof IadeIptalPolitikasiRoute
+  IletisimRoute: typeof IletisimRoute
   KayitOlRoute: typeof KayitOlRoute
   KullanimSartlariRoute: typeof KullanimSartlariRoute
   KvkkRoute: typeof KvkkRoute
@@ -681,6 +694,13 @@ declare module '@tanstack/react-router' {
       path: '/iade-iptal-politikasi'
       fullPath: '/iade-iptal-politikasi'
       preLoaderRoute: typeof IadeIptalPolitikasiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/iletisim': {
+      id: '/iletisim'
+      path: '/iletisim'
+      fullPath: '/iletisim'
+      preLoaderRoute: typeof IletisimRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/kayit-ol': {
@@ -891,6 +911,7 @@ const rootRouteChildren: RootRouteChildren = {
   HediyeKabulRoute: HediyeKabulRoute,
   HediyelerimRoute: HediyelerimRoute,
   IadeIptalPolitikasiRoute: IadeIptalPolitikasiRoute,
+  IletisimRoute: IletisimRoute,
   KayitOlRoute: KayitOlRoute,
   KullanimSartlariRoute: KullanimSartlariRoute,
   KvkkRoute: KvkkRoute,
