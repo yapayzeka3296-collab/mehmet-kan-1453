@@ -129,11 +129,14 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           }
 
           const shopierProductId = String(shopierBody.id);
-          const productUrl = typeof shopierBody.url === 'string' ? shopierBody.url.trim() : '';
-          if (!productUrl) {
-            console.error('Shopier product creation returned no product URL', { intentId, status: shopierResponse.status, body: shopierBody });
-            await releaseIntent('shopier_product_url_missing');
-            return json({ ok: false, reason: 'shopier_product_url_missing' }, 502);
+          const returnedProductUrl = typeof shopierBody.url === 'string' ? shopierBody.url.trim() : '';
+          const productUrl = `https://www.shopier.com/${encodeURIComponent(shopierProductId)}`;
+          if (!returnedProductUrl) {
+            console.warn('Shopier product creation returned no URL; using canonical product link', {
+              intentId,
+              shopierProductId,
+              status: shopierResponse.status,
+            });
           }
 
           const { error: intentUpdateError } = await serviceSupabase
