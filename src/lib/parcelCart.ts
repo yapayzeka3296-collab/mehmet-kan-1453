@@ -18,6 +18,14 @@ const TIER_PRICES: Record<ParcelCartItem["tier"], number> = {
 export function readParcelCart(): ParcelCartItem[] {
   if (typeof window === "undefined") return [];
   try {
+    // The checkout page receives its authoritative parcel selection through
+    // the `parcels` URL parameter. Do not let a previous localStorage cart
+    // leak into a new payment session or appear as an extra selection.
+    if (window.location.pathname === "/parsel-satin-al") {
+      window.localStorage.removeItem(PARCEL_CART_KEY);
+      return [];
+    }
+
     const raw = window.localStorage.getItem(PARCEL_CART_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
