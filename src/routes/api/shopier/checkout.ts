@@ -65,6 +65,7 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           });
           if (error) {
             const message = error.message ?? '';
+            if (/parcel_reserved_by_other_user/i.test(message)) return json({ ok: false, reason: 'parcel_reserved_by_other_user' }, 409);
             if (/parcel_unavailable/i.test(message)) return json({ ok: false, reason: 'not_available' }, 409);
             if (/parcel_not_found/i.test(message)) return json({ ok: false, reason: 'parcel_not_found' }, 404);
             if (/empty_parcel_selection/i.test(message)) return json({ ok: false, reason: 'empty_parcel_selection' }, 400);
@@ -164,10 +165,6 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             return json({ ok: false, reason: 'shopier_product_id_missing' }, 502);
           }
 
-          // Shopier documents the public product link as shopier.com/{productId}.
-          // Do not route through the undocumented /s/shipping/{shopSlug} endpoint:
-          // custom/private listings can be valid via their direct product link while
-          // the shop-level shipping endpoint may report that the product is missing.
           const canonicalProductUrl = `https://www.shopier.com/${encodeURIComponent(shopierProductId)}`;
           const checkoutUrl = canonicalProductUrl;
 
