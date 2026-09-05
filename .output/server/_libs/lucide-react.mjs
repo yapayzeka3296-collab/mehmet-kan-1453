@@ -115,6 +115,16 @@ var createLucideIcon = (iconName, iconNode) => {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var Activity = createLucideIcon("activity", [["path", {
+	d: "M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2",
+	key: "169zse"
+}]]);
+/**
+* @license lucide-react v0.575.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var ArrowLeft = createLucideIcon("arrow-left", [["path", {
 	d: "m12 19-7-7 7-7",
 	key: "1l729n"
@@ -1448,4 +1458,4 @@ var Youtube = createLucideIcon("youtube", [["path", {
 	key: "1jp15x"
 }]]);
 //#endregion
-export { CloudDownload as $, Lock as A, House as B, Pencil as C, MapPin as D, Menu as E, Layers as F, Gift as G, Headphones as H, KeyRound as I, Facebook as J, FileText as K, Instagram as L, LoaderCircle as M, List as N, Mail as O, Linkedin as P, Earth as Q, Info as R, Phone as S, Music2 as T, Grid2x2 as U, Heart as V, Globe as W, EyeOff as X, Eye as Y, EllipsisVertical as Z, Send as _, UserLock as a, Calendar as at, QrCode as b, Store as c, Award as ct, Smartphone as d, ClipboardList as et, ShoppingCart as f, Share2 as g, ShieldAlert as h, User as i, Check as it, LockKeyhole as j, LogOut as k, Star as l, ArrowRight as lt, ShieldCheck as m, X as n, CircleCheck as nt, Twitter as o, Boxes as ot, ShoppingBag as p, FileBadge as q, Users as r, ChevronDown as rt, Trash2 as s, Bell as st, Youtube as t, CircleX as tt, Sparkles as u, ArrowLeft as ut, Search as v, PackageCheck as w, Play as x, RefreshCw as y, ImagePlus as z };
+export { CloudDownload as $, Lock as A, House as B, Pencil as C, MapPin as D, Menu as E, Layers as F, Gift as G, Headphones as H, KeyRound as I, Facebook as J, FileText as K, Instagram as L, LoaderCircle as M, List as N, Mail as O, Linkedin as P, Earth as Q, Info as R, Phone as S, Music2 as T, Grid2x2 as U, Heart as V, Globe as W, EyeOff as X, Eye as Y, EllipsisVertical as Z, Send as _, UserLock as a, Calendar as at, QrCode as b, Store as c, Award as ct, Smartphone as d, Activity as dt, ClipboardList as et, ShoppingCart as f, Share2 as g, ShieldAlert as h, User as i, Check as it, LockKeyhole as j, LogOut as k, Star as l, ArrowRight as lt, ShieldCheck as m, X as n, CircleCheck as nt, Twitter as o, Boxes as ot, ShoppingBag as p, FileBadge as q, Users as r, ChevronDown as rt, Trash2 as s, Bell as st, Youtube as t, CircleX as tt, Sparkles as u, ArrowLeft as ut, Search as v, PackageCheck as w, Play as x, RefreshCw as y, ImagePlus as z };
