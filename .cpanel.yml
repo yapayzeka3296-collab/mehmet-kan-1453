@@ -24,9 +24,14 @@ deployment:
 
     - /bin/mkdir -p "$DEPLOYPATH"
 
-    # public_html contains only the current generated public bundle.
-    # Keep .well-known so SSL/hosting verification files survive deployment.
-    - /bin/find "$DEPLOYPATH" -mindepth 1 -maxdepth 1 ! -name '.well-known' -exec /bin/rm -rf {} +
+    # IMPORTANT: never delete the hashed /assets directory during deployment.
+    # Vite filenames are content-hashed. An older HTML document can remain in
+    # a browser, proxy or open tab and legitimately request a previous hash.
+    # Keeping previous hashed assets available prevents that version skew from
+    # turning into a 500 while the new HTML points at the new build.
+    # .well-known and assets survive; other generated public files are replaced.
+    - /bin/find "$DEPLOYPATH" -mindepth 1 -maxdepth 1 ! -name '.well-known' ! -name 'assets' -exec /bin/rm -rf {} +
+    - /bin/mkdir -p "$DEPLOYPATH/assets"
     - /bin/cp -a "$APPROOT/.output/public/." "$DEPLOYPATH/"
     - /bin/cp -f "$APPROOT/public/.htaccess" "$DEPLOYPATH/.htaccess"
 
@@ -41,4 +46,5 @@ deployment:
     # Final integrity checks after the files have been copied.
     - /bin/test -f "$DEPLOYPATH/.htaccess"
     - /bin/test -f "$DEPLOYPATH/__cpanel_build.txt"
+    - /bin/test -d "$DEPLOYPATH/assets"
     - echo MySkyParcel cPanel deployment completed
