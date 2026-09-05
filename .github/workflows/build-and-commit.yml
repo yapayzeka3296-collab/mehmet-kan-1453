@@ -157,3 +157,4 @@ jobs:
           if [ -f /tmp/myskyparcel-nitro.pid ]; then kill "$(cat /tmp/myskyparcel-nitro.pid)" 2>/dev/null || true; fi
 
 # cPanel deployment note: every source change must regenerate .output before cPanel pulls main.
+# Verification trigger: static route generation runs before cPanel artifact validation.
