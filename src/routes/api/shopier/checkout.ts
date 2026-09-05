@@ -56,7 +56,7 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           const publishableKey = getEnv('SUPABASE_PUBLISHABLE_KEY') || getEnv('VITE_SUPABASE_PUBLISHABLE_KEY') || getEnv('VITE_SUPABASE_ANON_KEY');
           const serviceRoleKey = getEnv('SUPABASE_SECRET_KEY') || getEnv('SUPABASE_SERVICE_ROLE_KEY');
           const shopierPat = getEnv('SHOPIER_PAT');
-          const imageUrl = getEnv('SHOPIER_PRODUCT_IMAGE_URL') || 'https://myskyparcel.com/images/cities/turkey-3d-map.png';
+          const thumbnailBaseUrl = getEnv('SHOPIER_PARCEL_THUMBNAIL_URL') || 'https://myskyparcel.com/api/shopier/parcel-image';
 
           if (!supabaseUrl || !publishableKey || !serviceRoleKey) return json({ ok: false, reason: 'supabase_not_configured' }, 503);
           if (!shopierPat) return json({ ok: false, reason: 'shopier_not_configured' }, 503);
@@ -100,6 +100,19 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           const serviceSupabase = createClient(supabaseUrl, serviceRoleKey, {
             auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
           });
+
+          const { data: parcelRows, error: parcelLookupError } = await serviceSupabase
+            .from('parcels')
+            .select('id,parcel_number')
+            .in('id', parcelIds);
+          if (parcelLookupError || !parcelRows?.length) {
+            console.error('Shopier parcel thumbnail data lookup failed', { intentId, code: parcelLookupError?.code, message: parcelLookupError?.message });
+            return json({ ok: false, reason: 'checkout_intent_invalid' }, 500);
+          }
+
+          const parcelThumbnailUrl = new URL(thumbnailBaseUrl);
+          parcelThumbnailUrl.searchParams.set('ids', parcelIds.join(','));
+          const imageUrl = parcelThumbnailUrl.toString();
 
           releaseIntent = async (reason: string) => {
             const now = new Date().toISOString();
