@@ -43,6 +43,7 @@ function SatinAl() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [reservationConflict, setReservationConflict] = useState(false);
   const [certificateParcel, setCertificateParcel] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [name, setName] = useState("");
@@ -62,7 +63,7 @@ function SatinAl() {
     async function validateParcels() {
       if (!ids.length) { if (active) { setItems([]); setLoading(false); } return; }
       if (!supabaseBrowser) { if (active) { setValidationError("Parsel doğrulama altyapısı kullanılamıyor."); setLoading(false); } return; }
-      setLoading(true); setValidationError(null);
+      setLoading(true); setValidationError(null); setReservationConflict(false);
       const { data, error } = await (supabaseBrowser as any).from("parcel_map_public").select("id,tier,tier_price,status").in("id", ids);
       if (!active) return;
       if (error) { setValidationError("Parseller doğrulanamadı. Lütfen tekrar deneyin."); setItems([]); setLoading(false); return; }
@@ -78,7 +79,7 @@ function SatinAl() {
       }) : [];
       const byId = new Map<string, PublicParcelRow>(rows.map((row) => [row.id, row]));
       const missing = ids.filter((id) => !byId.has(id));
-      const unavailable = rows.filter((row) => row.status !== "available");
+      const unavailable = rows.filter((row) => row.status !== "available" && row.status !== "reserved");
       const invalid = rows.filter((row) => !row.tier || !VALID_TIERS.includes(row.tier) || Number(row.tier_price) !== PRICES[row.tier]);
       if (missing.length || unavailable.length || invalid.length) {
         setValidationError(unavailable.length ? `Şu parseller artık satışa uygun değil: ${unavailable.map((row) => row.id).join(", ")}` : invalid.length ? "Parsel fiyatı paket fiyatıyla eşleşmiyor." : "Seçilen parseller doğrulanamadı.");
@@ -104,7 +105,7 @@ function SatinAl() {
 
   async function startPayment() {
     if (!supabaseBrowser || paying || !accepted || !physicalReady || !items.length) return;
-    setPaying(true); setValidationError(null);
+    setPaying(true); setValidationError(null); setReservationConflict(false);
     try {
       const { data: sessionData } = await supabaseBrowser.auth.getSession();
       const token = sessionData.session?.access_token;
@@ -116,6 +117,7 @@ function SatinAl() {
           shopier_not_configured: "Shopier ödeme bağlantısı henüz yapılandırılmamış. cPanel ortam değişkenlerini kontrol edin.",
           supabase_not_configured: "Ödeme altyapısı yapılandırılmamış. cPanel Supabase ayarlarını kontrol edin.",
           not_available: "Seçtiğiniz parsellerden biri artık satışa uygun değil.",
+          parcel_reserved_by_other_user: "Bu parsel başka kullanıcı tarafından şu an satın alınmaktadır. 5 dk sonra yine deneyebilirsiniz.",
           parcel_not_found: "Seçilen parsel bulunamadı. Lütfen haritadan yeniden seçim yapın.",
           empty_parcel_selection: "Ödenecek parsel seçilmedi.",
           too_many_parcels: "Tek işlemde en fazla 100 parsel satın alınabilir.",
@@ -130,7 +132,9 @@ function SatinAl() {
           checkout_persistence_failed: "Ödeme bağlantısı oluşturuldu ancak sipariş kaydı tamamlanamadı. Lütfen tekrar deneyin.",
           internal_error: "Sunucu tarafında beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.",
         };
-        setValidationError(messages[String(result.reason)] ?? "Ödeme başlatılamadı. Lütfen tekrar deneyin.");
+        const reason = String(result.reason);
+        setValidationError(messages[reason] ?? "Ödeme başlatılamadı. Lütfen tekrar deneyin.");
+        if (reason === "parcel_reserved_by_other_user") setItems([]), setReservationConflict(true);
         return;
       }
       window.location.assign(result.checkout_url);
@@ -141,7 +145,7 @@ function SatinAl() {
   }
 
   if (loading) return <div className="starfield min-h-screen"><SiteHeader /><main className="mx-auto max-w-3xl px-4 py-16 lg:px-8"><div className="panel p-8 text-center"><Loader2 className="mx-auto h-7 w-7 animate-spin text-gold" /><p className="mt-4 text-sm text-muted-foreground">Parseller ve paket türleri doğrulanıyor...</p></div></main><SiteFooter /></div>;
-  if (!items.length) return <div className="starfield min-h-screen"><SiteHeader /><main className="mx-auto max-w-3xl px-4 py-16 lg:px-8"><div className="panel p-8 text-center"><h1 className="font-display text-3xl font-bold">SATIN ALMA HAZIRLANAMADI</h1><p className="mt-3 text-sm text-muted-foreground">{validationError ?? "Sepetinizde satışa uygun parsel bulunamadı."}</p><button type="button" onClick={() => void navigate({ to: "/gokyuzu-haritasi" })} className="btn-gold mt-6 rounded-md px-6 py-3 text-xs">HARİTAYA DÖN</button></div></main><SiteFooter /></div>;
+  if (!items.length) return <div className="starfield min-h-screen"><SiteHeader /><main className="mx-auto max-w-3xl px-4 py-16 lg:px-8"><div className="panel p-8 text-center"><h1 className="font-display text-3xl font-bold">{reservationConflict ? "BU PARSEL ŞU AN SATIN ALINIYOR" : "SATIN ALMA HAZIRLANAMADI"}</h1><p className="mt-3 text-sm text-muted-foreground">{validationError ?? "Sepetinizde satışa uygun parsel bulunamadı."}</p><button type="button" onClick={() => void navigate({ to: "/gokyuzu-haritasi" })} className="btn-gold mt-6 rounded-md px-6 py-3 text-xs">HARİTAYA DÖN</button></div></main><SiteFooter /></div>;
 
   return <div className="starfield min-h-screen"><SiteHeader /><main className="mx-auto w-full max-w-[1200px] px-4 py-12 lg:px-8"><h1 className="text-center font-display text-4xl font-bold sm:text-5xl">SATIN ALMA</h1><p className="mx-auto mt-3 max-w-2xl text-center text-sm text-muted-foreground">İstediğiniz sayıda ve farklı türlerde parsel seçebilirsiniz. Bu işlemde yalnızca <strong className="text-foreground">bir parsel için sertifika</strong> talep edilebilir.</p><div className="mt-10 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]"><section className="panel min-w-0 p-6 sm:p-8"><h2 className="font-display text-lg">SEÇİLEN PARSELLER ({items.length})</h2><div className="mt-5 space-y-3">{items.map((item) => <div key={item.id} className={`rounded-xl border p-4 ${certificateParcel === item.id ? "border-gold/50 bg-gold/[0.05]" : "border-border"}`}><div className="flex min-w-0 flex-wrap items-center justify-between gap-4"><div className="min-w-0"><p className="truncate font-medium">{item.id}</p><p className="mt-1 text-xs text-muted-foreground">{NAMES[item.tier]} · {item.price.toLocaleString("tr-TR")} TL</p></div><label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs text-gold"><input type="radio" name="certificateParcel" checked={certificateParcel === item.id} onChange={() => setCertificateParcel(item.id)} /><FileBadge2 className="h-4 w-4" /> Sertifika bu parsele</label></div></div>)}</div><div className="mt-6 rounded-xl border border-gold/20 bg-gold/[0.04] p-5"><p className="text-sm font-semibold text-gold">Tek sertifika kuralı</p><p className="mt-2 text-xs leading-5 text-muted-foreground">Siparişte kaç parsel olursa olsun yalnızca seçtiğiniz <strong className="text-foreground">{certificateParcel}</strong> için sertifika talebi oluşturulur.</p></div>{PHYSICAL[certificateTier] && <div className="mt-6 rounded-xl border border-gold/20 bg-gold/[0.04] p-5"><p className="text-sm font-semibold text-gold">FİZİKSEL SERTİFİKA TESLİMATI</p><p className="mt-2 text-xs leading-5 text-muted-foreground">Seçtiğiniz sertifika {NAMES[certificateTier]} paketine ait olduğu için fiziksel sertifika hazırlanır ve verdiğiniz adrese gönderilir.</p><div className="mt-4 grid gap-3 sm:grid-cols-2"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ad Soyad" autoComplete="name" className="rounded-md border border-border bg-background/40 px-3 py-3 text-sm" /><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Telefon" autoComplete="tel" className="rounded-md border border-border bg-background/40 px-3 py-3 text-sm" /><input value={city} onChange={(e) => setCity(e.target.value)} placeholder="İl" autoComplete="address-level1" className="rounded-md border border-border bg-background/40 px-3 py-3 text-sm" /><input value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="İlçe" autoComplete="address-level2" className="rounded-md border border-border bg-background/40 px-3 py-3 text-sm" /><textarea value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Açık teslimat adresi" autoComplete="street-address" className="min-h-24 rounded-md border border-border bg-background/40 px-3 py-3 text-sm sm:col-span-2" /></div></div>}<label className="mt-6 flex cursor-pointer items-start gap-3 text-xs text-muted-foreground"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className="mt-0.5 accent-current" /><span>Seçtiğim parselleri, sertifika talep ettiğim tek parseli ve satış sözleşmelerine eriştiğimi onaylıyorum.</span></label>{validationError && <div role="alert" className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-xs text-destructive">{validationError}</div>}<button type="button" disabled={!accepted || !physicalReady || paying} onClick={() => void startPayment()} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-gold/50 bg-gold px-6 py-3 text-[11px] font-bold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50">{paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />} {paying ? "ÖDEME HAZIRLANIYOR..." : "SHOPIER İLE GÜVENLİ ÖDEMEYE GEÇ"}</button><p className="mt-2 text-center text-[10px] text-muted-foreground">Kart bilgileri MySkyParcel sunucusunda tutulmaz; ödeme Shopier tarafında tamamlanır.</p></section><aside className="panel h-fit min-w-0 p-6 lg:sticky lg:top-6"><h2 className="font-display text-base">SEÇİM ÖZETİ</h2><div className="mt-5 space-y-3 text-sm">{(["digital", "elite", "premium"] as Tier[]).filter((tier) => grouped[tier] > 0).map((tier) => <div key={tier} className="flex justify-between gap-4"><span className="text-muted-foreground">{NAMES[tier]} × {grouped[tier]}</span><span className="shrink-0">{(PRICES[tier] * grouped[tier]).toLocaleString("tr-TR")} TL</span></div>)}<div className="border-t border-border pt-4 flex justify-between gap-4"><span className="font-semibold">Toplam</span><span className="shrink-0 font-display text-2xl text-gold">{total.toLocaleString("tr-TR")} TL</span></div><div className="border-t border-border pt-4 text-xs text-muted-foreground"><p><strong className="text-foreground">Sertifika:</strong> {certificateParcel}</p><p className="mt-1">Toplam parsel: {items.length}</p></div></div><ul className="mt-5 space-y-3 text-sm">{["İstediğiniz sayıda sembolik parsel", "Farklı paket türlerini aynı seçimde kullanabilme", "Yalnızca bir parsel için sertifika talebi", "Her parsel için benzersiz kayıt"].map((item) => <li key={item} className="flex items-start gap-2 text-muted-foreground"><Check className="mt-0.5 h-4 w-4 shrink-0 text-gold" />{item}</li>)}</ul></aside></div></main><TrustBar /><SiteFooter /></div>;
 }
