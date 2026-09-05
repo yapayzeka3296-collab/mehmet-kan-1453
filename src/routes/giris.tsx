@@ -56,28 +56,18 @@ function GirisPage() {
     const { data: aal, error: aalError } = await supabaseBrowser.auth.mfa.getAuthenticatorAssuranceLevel();
     if (aalError) { setMessage("Güvenlik doğrulaması başlatılamadı. Lütfen tekrar deneyin."); return true; }
     if (aal?.nextLevel !== "aal2" || aal.currentLevel === "aal2") return false;
-
     const { data: factors, error: factorError } = await supabaseBrowser.auth.mfa.listFactors();
     if (factorError) { setMessage("İki adımlı doğrulama durumu alınamadı."); return true; }
     const factor = (factors?.totp ?? []).find((item) => item.status === "verified");
     if (!factor) { setMessage("Hesabınızda doğrulanmış iki adımlı doğrulama faktörü bulunamadı. Güvenlik ayarlarından MFA durumunu kontrol edin."); return true; }
-
     const { data: challenge, error: challengeError } = await supabaseBrowser.auth.mfa.challenge({ factorId: factor.id });
     if (challengeError || !challenge) { setMessage("İki adımlı doğrulama başlatılamadı."); return true; }
-    setMfaFactorId(factor.id);
-    setMfaChallengeId(challenge.id);
-    setMfaCode("");
-    setMfaRequired(true);
-    setMessage("Authenticator uygulamanızdaki 6 haneli kodu girin.");
-    return true;
+    setMfaFactorId(factor.id); setMfaChallengeId(challenge.id); setMfaCode(""); setMfaRequired(true); setMessage("Authenticator uygulamanızdaki 6 haneli kodu girin."); return true;
   }
 
   async function completeLogin() {
     const redirect = getSafeRedirect();
-    if (redirect === "/giris") {
-      await navigate({ to: "/ana-sayfa" });
-      return;
-    }
+    if (redirect === "/giris") { await navigate({ to: "/ana-sayfa" }); return; }
     window.location.replace(redirect);
   }
 
@@ -95,8 +85,7 @@ function GirisPage() {
   }, [navigate]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
+    event.preventDefault(); setMessage("");
     if (!supabaseBrowser) { setMessage("Giriş sistemi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin."); return; }
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !password) { setMessage("E-posta ve şifre alanlarını doldurun."); return; }
@@ -107,8 +96,7 @@ function GirisPage() {
       if (/invalid login credentials/i.test(text)) setMessage("E-posta adresi veya şifre hatalı.");
       else if (/email not confirmed/i.test(text)) setMessage("E-posta adresiniz henüz doğrulanmamış. Lütfen doğrulama e-postanızı kontrol edin.");
       else setMessage(text);
-      setLoading(false);
-      return;
+      setLoading(false); return;
     }
     const mfaRequiredNow = await beginMfaIfRequired();
     if (!mfaRequiredNow) await completeLogin();
@@ -135,7 +123,7 @@ function GirisPage() {
   }
 
   return (
-    <div className="starfield min-h-screen"><SiteHeader /><main className="relative overflow-hidden">
+    <div className="login-page starfield min-h-screen"><SiteHeader /><main className="relative overflow-hidden">
       <img src={heroCity} alt="" aria-hidden width={1920} height={1088} className="absolute inset-x-0 bottom-0 h-[70%] w-full object-cover opacity-50" />
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
       <img src={globe} alt="" aria-hidden width={1024} height={1024} className="pointer-events-none absolute right-[28%] top-0 hidden h-[110%] opacity-40 mix-blend-screen xl:block" />
