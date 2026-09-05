@@ -1,4 +1,3 @@
-import { n as __exportAll } from "../_runtime.mjs";
 /**
 * @license
 * Copyright 2010-2026 Three.js Authors
@@ -596,26 +595,12 @@ var KeepStencilOp = 7680;
 */
 var StaticDrawUsage = 35044;
 /**
-* GLSL 3 shader code.
-*
-* @type {string}
-* @constant
-*/
-var GLSL3 = "300 es";
-/**
 * WebGL coordinate system.
 *
 * @type {number}
 * @constant
 */
 var WebGLCoordinateSystem = 2e3;
-/**
-* WebGPU coordinate system.
-*
-* @type {number}
-* @constant
-*/
-var WebGPUCoordinateSystem = 2001;
 /**
 * This type represents mouse buttons and interaction types in context of controls.
 *
@@ -15585,41 +15570,6 @@ var CubeTexture = class extends Texture {
 	}
 };
 /**
-* Creates a texture from a canvas element.
-*
-* This is almost the same as the base texture class, except that it sets {@link Texture#needsUpdate}
-* to `true` immediately since a canvas can directly be used for rendering.
-*
-* @augments Texture
-*/
-var CanvasTexture = class extends Texture {
-	/**
-	* Constructs a new texture.
-	*
-	* @param {HTMLCanvasElement} [canvas] - The HTML canvas element.
-	* @param {number} [mapping=Texture.DEFAULT_MAPPING] - The texture mapping.
-	* @param {number} [wrapS=ClampToEdgeWrapping] - The wrapS value.
-	* @param {number} [wrapT=ClampToEdgeWrapping] - The wrapT value.
-	* @param {number} [magFilter=LinearFilter] - The mag filter value.
-	* @param {number} [minFilter=LinearMipmapLinearFilter] - The min filter value.
-	* @param {number} [format=RGBAFormat] - The texture format.
-	* @param {number} [type=UnsignedByteType] - The texture type.
-	* @param {number} [anisotropy=Texture.DEFAULT_ANISOTROPY] - The anisotropy value.
-	*/
-	constructor(canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy) {
-		super(canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy);
-		/**
-		* This flag can be used for type testing.
-		*
-		* @type {boolean}
-		* @readonly
-		* @default true
-		*/
-		this.isCanvasTexture = true;
-		this.needsUpdate = true;
-	}
-};
-/**
 * This class can be used to automatically save the depth information of a
 * rendering into a texture.
 *
@@ -18157,6 +18107,86 @@ var VectorKeyframeTrack = class extends KeyframeTrack {
 */
 VectorKeyframeTrack.prototype.ValueTypeName = "vector";
 /**
+* @class
+* @classdesc A simple caching system, used internally by {@link FileLoader}.
+* To enable caching across all loaders that use {@link FileLoader}, add `THREE.Cache.enabled = true.` once in your app.
+* @hideconstructor
+*/
+var Cache = {
+	/**
+	* Whether caching is enabled or not.
+	*
+	* @static
+	* @type {boolean}
+	* @default false
+	*/
+	enabled: false,
+	/**
+	* A dictionary that holds cached files.
+	*
+	* @static
+	* @type {Object<string,Object>}
+	*/
+	files: {},
+	/**
+	* Adds a cache entry with a key to reference the file. If this key already
+	* holds a file, it is overwritten.
+	*
+	* @static
+	* @param {string} key - The key to reference the cached file.
+	* @param {Object} file -  The file to be cached.
+	*/
+	add: function(key, file) {
+		if (this.enabled === false) return;
+		if (isBlobURL(key)) return;
+		this.files[key] = file;
+	},
+	/**
+	* Gets the cached value for the given key.
+	*
+	* @static
+	* @param {string} key - The key to reference the cached file.
+	* @return {Object|undefined} The cached file. If the key does not exist `undefined` is returned.
+	*/
+	get: function(key) {
+		if (this.enabled === false) return;
+		if (isBlobURL(key)) return;
+		return this.files[key];
+	},
+	/**
+	* Removes the cached file associated with the given key.
+	*
+	* @static
+	* @param {string} key - The key to reference the cached file.
+	*/
+	remove: function(key) {
+		delete this.files[key];
+	},
+	/**
+	* Remove all values from the cache.
+	*
+	* @static
+	*/
+	clear: function() {
+		this.files = {};
+	}
+};
+/**
+* Returns true if the given cache key contains the blob: scheme.
+*
+* @private
+* @param {string} key - The cache key.
+* @return {boolean} Whether the given cache key contains the blob: scheme or not.
+*/
+function isBlobURL(key) {
+	try {
+		const urlString = key.slice(key.indexOf(":") + 1);
+		return new URL(urlString).protocol === "blob:";
+	} catch (e) {
+		return false;
+	}
+}
+/**
 * Handles and keeps track of loaded and pending data. A default global
 * instance of this class is created and used by loaders if not supplied
 * manually.
@@ -18558,6 +18588,156 @@ var Loader = class {
 * @default '__DEFAULT'
 */
 Loader.DEFAULT_MATERIAL_NAME = "__DEFAULT";
+var _loading = /* @__PURE__ */ new WeakMap();
+/**
+* A loader for loading images. The class loads images with the HTML `Image` API.
+*
+* ```js
+* const loader = new THREE.ImageLoader();
+* const image = await loader.loadAsync( 'image.png' );
+* ```
+* Please note that `ImageLoader` has dropped support for progress
+* events in `r84`. For an `ImageLoader` that supports progress events, see
+* [this thread](https://github.com/mrdoob/three.js/issues/10439#issuecomment-275785639).
+*
+* @augments Loader
+*/
+var ImageLoader = class extends Loader {
+	/**
+	* Constructs a new image loader.
+	*
+	* @param {LoadingManager} [manager] - The loading manager.
+	*/
+	constructor(manager) {
+		super(manager);
+	}
+	/**
+	* Starts loading from the given URL and passes the loaded image
+	* to the `onLoad()` callback. The method also returns a new `Image` object which can
+	* directly be used for texture creation. If you do it this way, the texture
+	* may pop up in your scene once the respective loading process is finished.
+	*
+	* @param {string} url - The path/URL of the file to be loaded. This can also be a data URI.
+	* @param {function(Image)} onLoad - Executed when the loading process has been finished.
+	* @param {onProgressCallback} onProgress - Unsupported in this loader.
+	* @param {onErrorCallback} onError - Executed when errors occur.
+	* @return {Image} The image.
+	*/
+	load(url, onLoad, onProgress, onError) {
+		if (this.path !== void 0) url = this.path + url;
+		url = this.manager.resolveURL(url);
+		const scope = this;
+		const cached = Cache.get(`image:${url}`);
+		if (cached !== void 0) {
+			if (cached.complete === true) {
+				scope.manager.itemStart(url);
+				setTimeout(function() {
+					if (onLoad) onLoad(cached);
+					scope.manager.itemEnd(url);
+				}, 0);
+			} else {
+				let arr = _loading.get(cached);
+				if (arr === void 0) {
+					arr = [];
+					_loading.set(cached, arr);
+				}
+				arr.push({
+					onLoad,
+					onError
+				});
+			}
+			return cached;
+		}
+		const image = createElementNS("img");
+		function onImageLoad() {
+			removeEventListeners();
+			if (onLoad) onLoad(this);
+			const callbacks = _loading.get(this) || [];
+			for (let i = 0; i < callbacks.length; i++) {
+				const callback = callbacks[i];
+				if (callback.onLoad) callback.onLoad(this);
+			}
+			_loading.delete(this);
+			scope.manager.itemEnd(url);
+		}
+		function onImageError(event) {
+			removeEventListeners();
+			if (onError) onError(event);
+			Cache.remove(`image:${url}`);
+			const callbacks = _loading.get(this) || [];
+			for (let i = 0; i < callbacks.length; i++) {
+				const callback = callbacks[i];
+				if (callback.onError) callback.onError(event);
+			}
+			_loading.delete(this);
+			scope.manager.itemError(url);
+			scope.manager.itemEnd(url);
+		}
+		function removeEventListeners() {
+			image.removeEventListener("load", onImageLoad, false);
+			image.removeEventListener("error", onImageError, false);
+		}
+		image.addEventListener("load", onImageLoad, false);
+		image.addEventListener("error", onImageError, false);
+		if (url.slice(0, 5) !== "data:") {
+			if (this.crossOrigin !== void 0) image.crossOrigin = this.crossOrigin;
+		}
+		Cache.add(`image:${url}`, image);
+		scope.manager.itemStart(url);
+		image.src = url;
+		return image;
+	}
+};
+/**
+* Class for loading textures. Images are internally
+* loaded via {@link ImageLoader}.
+*
+* ```js
+* const loader = new THREE.TextureLoader();
+* const texture = await loader.loadAsync( 'textures/land_ocean_ice_cloud_2048.jpg' );
+*
+* const material = new THREE.MeshBasicMaterial( { map:texture } );
+* ```
+* Please note that `TextureLoader` has dropped support for progress
+* events in `r84`. For a `TextureLoader` that supports progress events, see
+* [this thread](https://github.com/mrdoob/three.js/issues/10439#issuecomment-293260145).
+*
+* @augments Loader
+*/
+var TextureLoader = class extends Loader {
+	/**
+	* Constructs a new texture loader.
+	*
+	* @param {LoadingManager} [manager] - The loading manager.
+	*/
+	constructor(manager) {
+		super(manager);
+	}
+	/**
+	* Starts loading from the given URL and pass the fully loaded texture
+	* to the `onLoad()` callback. The method also returns a new texture object which can
+	* directly be used for material creation. If you do it this way, the texture
+	* may pop up in your scene once the respective loading process is finished.
+	*
+	* @param {string} url - The path/URL of the file to be loaded. This can also be a data URI.
+	* @param {function(Texture)} onLoad - Executed when the loading process has been finished.
+	* @param {onProgressCallback} onProgress - Unsupported in this loader.
+	* @param {onErrorCallback} onError - Executed when errors occur.
+	* @return {Texture} The texture.
+	*/
+	load(url, onLoad, onProgress, onError) {
+		const texture = new Texture();
+		const loader = new ImageLoader(this.manager);
+		loader.setCrossOrigin(this.crossOrigin);
+		loader.setPath(this.path);
+		loader.load(url, function(image) {
+			texture.image = image;
+			texture.needsUpdate = true;
+			if (onLoad !== void 0) onLoad(texture);
+		}, onProgress, onError);
+		return texture;
+	}
+};
 /**
 * Abstract base class for lights - all other light types inherit the
 * properties and methods described here.
@@ -20480,274 +20660,6 @@ if (typeof window !== "undefined") {
 * Copyright 2010-2026 Three.js Authors
 * SPDX-License-Identifier: MIT
 */
-var three_module_exports = /* @__PURE__ */ __exportAll({
-	ACESFilmicToneMapping: () => 4,
-	AddEquation: () => 100,
-	AddOperation: () => 2,
-	AdditiveAnimationBlendMode: () => AdditiveAnimationBlendMode,
-	AdditiveBlending: () => 2,
-	AgXToneMapping: () => 6,
-	AlphaFormat: () => AlphaFormat,
-	AlwaysCompare: () => 519,
-	AlwaysDepth: () => 1,
-	AlwaysStencilFunc: () => 519,
-	AmbientLight: () => AmbientLight,
-	ArrayCamera: () => ArrayCamera,
-	AttachedBindMode: () => AttachedBindMode,
-	BackSide: () => 1,
-	BasicDepthPacking: () => BasicDepthPacking,
-	BasicShadowMap: () => 0,
-	BoxGeometry: () => BoxGeometry,
-	BufferAttribute: () => BufferAttribute,
-	BufferGeometry: () => BufferGeometry,
-	ByteType: () => ByteType,
-	CanvasTexture: () => CanvasTexture,
-	CineonToneMapping: () => 3,
-	ClampToEdgeWrapping: () => ClampToEdgeWrapping,
-	Clock: () => Clock,
-	Color: () => Color,
-	ColorManagement: () => ColorManagement,
-	ConstantAlphaFactor: () => 213,
-	ConstantColorFactor: () => 211,
-	CubeCamera: () => CubeCamera,
-	CubeDepthTexture: () => CubeDepthTexture,
-	CubeReflectionMapping: () => 301,
-	CubeRefractionMapping: () => 302,
-	CubeTexture: () => CubeTexture,
-	CubeUVReflectionMapping: () => 306,
-	CullFaceBack: () => 1,
-	CullFaceFront: () => 2,
-	CullFaceFrontBack: () => 3,
-	CullFaceNone: () => 0,
-	CustomBlending: () => 5,
-	CustomToneMapping: () => 5,
-	Data3DTexture: () => Data3DTexture,
-	DataArrayTexture: () => DataArrayTexture,
-	DataTexture: () => DataTexture,
-	DecrementStencilOp: () => DecrementStencilOp,
-	DecrementWrapStencilOp: () => DecrementWrapStencilOp,
-	DepthFormat: () => DepthFormat,
-	DepthStencilFormat: () => DepthStencilFormat,
-	DepthTexture: () => DepthTexture,
-	DetachedBindMode: () => DetachedBindMode,
-	DirectionalLight: () => DirectionalLight,
-	DoubleSide: () => 2,
-	DstAlphaFactor: () => 206,
-	DstColorFactor: () => 208,
-	DynamicCopyUsage: () => DynamicCopyUsage,
-	DynamicDrawUsage: () => DynamicDrawUsage,
-	DynamicReadUsage: () => DynamicReadUsage,
-	EqualCompare: () => 514,
-	EqualDepth: () => 4,
-	EqualStencilFunc: () => 514,
-	EquirectangularReflectionMapping: () => 303,
-	EquirectangularRefractionMapping: () => 304,
-	EventDispatcher: () => EventDispatcher,
-	ExternalTexture: () => ExternalTexture,
-	Float32BufferAttribute: () => Float32BufferAttribute,
-	FloatType: () => FloatType,
-	FrontSide: () => 0,
-	Frustum: () => Frustum,
-	GLSL1: () => "100",
-	GLSL3: () => GLSL3,
-	GreaterCompare: () => 516,
-	GreaterDepth: () => 6,
-	GreaterEqualCompare: () => 518,
-	GreaterEqualDepth: () => 5,
-	GreaterEqualStencilFunc: () => 518,
-	GreaterStencilFunc: () => 516,
-	HalfFloatType: () => HalfFloatType,
-	IncrementStencilOp: () => IncrementStencilOp,
-	IncrementWrapStencilOp: () => IncrementWrapStencilOp,
-	IntType: () => IntType,
-	InterpolateBezier: () => InterpolateBezier,
-	InterpolateDiscrete: () => InterpolateDiscrete,
-	InterpolateLinear: () => InterpolateLinear,
-	InterpolateSmooth: () => InterpolateSmooth,
-	InvertStencilOp: () => InvertStencilOp,
-	KeepStencilOp: () => KeepStencilOp,
-	Layers: () => Layers,
-	LessCompare: () => 513,
-	LessDepth: () => 2,
-	LessEqualCompare: () => 515,
-	LessEqualDepth: () => 3,
-	LessEqualStencilFunc: () => 515,
-	LessStencilFunc: () => 513,
-	LinearFilter: () => LinearFilter,
-	LinearMipMapLinearFilter: () => LinearMipMapLinearFilter,
-	LinearMipMapNearestFilter: () => LinearMipMapNearestFilter,
-	LinearMipmapLinearFilter: () => LinearMipmapLinearFilter,
-	LinearMipmapNearestFilter: () => LinearMipmapNearestFilter,
-	LinearSRGBColorSpace: () => LinearSRGBColorSpace,
-	LinearToneMapping: () => 1,
-	LinearTransfer: () => LinearTransfer,
-	LoopOnce: () => LoopOnce,
-	LoopPingPong: () => LoopPingPong,
-	LoopRepeat: () => LoopRepeat,
-	MaterialBlending: () => 6,
-	MathUtils: () => MathUtils,
-	Matrix3: () => Matrix3,
-	Matrix4: () => Matrix4,
-	MaxEquation: () => 104,
-	Mesh: () => Mesh,
-	MeshBasicMaterial: () => MeshBasicMaterial,
-	MeshDepthMaterial: () => MeshDepthMaterial,
-	MeshDistanceMaterial: () => MeshDistanceMaterial,
-	MeshPhongMaterial: () => MeshPhongMaterial,
-	MinEquation: () => 103,
-	MirroredRepeatWrapping: () => MirroredRepeatWrapping,
-	MixOperation: () => 1,
-	MultiplyBlending: () => 4,
-	MultiplyOperation: () => 0,
-	NearestFilter: () => NearestFilter,
-	NearestMipMapLinearFilter: () => NearestMipMapLinearFilter,
-	NearestMipMapNearestFilter: () => NearestMipMapNearestFilter,
-	NearestMipmapLinearFilter: () => NearestMipmapLinearFilter,
-	NearestMipmapNearestFilter: () => NearestMipmapNearestFilter,
-	NeutralToneMapping: () => 7,
-	NeverCompare: () => 512,
-	NeverDepth: () => 0,
-	NeverStencilFunc: () => 512,
-	NoBlending: () => 0,
-	NoColorSpace: () => "",
-	NoNormalPacking: () => "",
-	NoToneMapping: () => 0,
-	NormalAnimationBlendMode: () => NormalAnimationBlendMode,
-	NormalBlending: () => 1,
-	NormalGAPacking: () => "ga",
-	NormalRGPacking: () => "rg",
-	NotEqualCompare: () => 517,
-	NotEqualDepth: () => 7,
-	NotEqualStencilFunc: () => 517,
-	ObjectSpaceNormalMap: () => 1,
-	OneFactor: () => 201,
-	OneMinusConstantAlphaFactor: () => 214,
-	OneMinusConstantColorFactor: () => 212,
-	OneMinusDstAlphaFactor: () => 207,
-	OneMinusDstColorFactor: () => 209,
-	OneMinusSrcAlphaFactor: () => 205,
-	OneMinusSrcColorFactor: () => 203,
-	OrthographicCamera: () => OrthographicCamera,
-	PCFShadowMap: () => 1,
-	PCFSoftShadowMap: () => 2,
-	PMREMGenerator: () => PMREMGenerator,
-	PerspectiveCamera: () => PerspectiveCamera,
-	Plane: () => Plane,
-	PlaneGeometry: () => PlaneGeometry,
-	Points: () => Points,
-	PointsMaterial: () => PointsMaterial,
-	R11_EAC_Format: () => R11_EAC_Format,
-	RED_GREEN_RGTC2_Format: () => RED_GREEN_RGTC2_Format,
-	RED_RGTC1_Format: () => RED_RGTC1_Format,
-	REVISION: () => "185",
-	RG11_EAC_Format: () => RG11_EAC_Format,
-	RGBADepthPacking: () => RGBADepthPacking,
-	RGBAFormat: () => RGBAFormat,
-	RGBAIntegerFormat: () => RGBAIntegerFormat,
-	RGBA_ASTC_10x10_Format: () => RGBA_ASTC_10x10_Format,
-	RGBA_ASTC_10x5_Format: () => RGBA_ASTC_10x5_Format,
-	RGBA_ASTC_10x6_Format: () => RGBA_ASTC_10x6_Format,
-	RGBA_ASTC_10x8_Format: () => RGBA_ASTC_10x8_Format,
-	RGBA_ASTC_12x10_Format: () => RGBA_ASTC_12x10_Format,
-	RGBA_ASTC_12x12_Format: () => RGBA_ASTC_12x12_Format,
-	RGBA_ASTC_4x4_Format: () => RGBA_ASTC_4x4_Format,
-	RGBA_ASTC_5x4_Format: () => RGBA_ASTC_5x4_Format,
-	RGBA_ASTC_5x5_Format: () => RGBA_ASTC_5x5_Format,
-	RGBA_ASTC_6x5_Format: () => RGBA_ASTC_6x5_Format,
-	RGBA_ASTC_6x6_Format: () => RGBA_ASTC_6x6_Format,
-	RGBA_ASTC_8x5_Format: () => RGBA_ASTC_8x5_Format,
-	RGBA_ASTC_8x6_Format: () => RGBA_ASTC_8x6_Format,
-	RGBA_ASTC_8x8_Format: () => RGBA_ASTC_8x8_Format,
-	RGBA_BPTC_Format: () => RGBA_BPTC_Format,
-	RGBA_ETC2_EAC_Format: () => RGBA_ETC2_EAC_Format,
-	RGBA_PVRTC_2BPPV1_Format: () => RGBA_PVRTC_2BPPV1_Format,
-	RGBA_PVRTC_4BPPV1_Format: () => RGBA_PVRTC_4BPPV1_Format,
-	RGBA_S3TC_DXT1_Format: () => RGBA_S3TC_DXT1_Format,
-	RGBA_S3TC_DXT3_Format: () => RGBA_S3TC_DXT3_Format,
-	RGBA_S3TC_DXT5_Format: () => RGBA_S3TC_DXT5_Format,
-	RGBDepthPacking: () => RGBDepthPacking,
-	RGBFormat: () => RGBFormat,
-	RGBIntegerFormat: () => RGBIntegerFormat,
-	RGB_BPTC_SIGNED_Format: () => RGB_BPTC_SIGNED_Format,
-	RGB_BPTC_UNSIGNED_Format: () => RGB_BPTC_UNSIGNED_Format,
-	RGB_ETC1_Format: () => RGB_ETC1_Format,
-	RGB_ETC2_Format: () => RGB_ETC2_Format,
-	RGB_PVRTC_2BPPV1_Format: () => RGB_PVRTC_2BPPV1_Format,
-	RGB_PVRTC_4BPPV1_Format: () => RGB_PVRTC_4BPPV1_Format,
-	RGB_S3TC_DXT1_Format: () => RGB_S3TC_DXT1_Format,
-	RGDepthPacking: () => RGDepthPacking,
-	RGFormat: () => RGFormat,
-	RGIntegerFormat: () => RGIntegerFormat,
-	RawShaderMaterial: () => RawShaderMaterial,
-	RedFormat: () => RedFormat,
-	RedIntegerFormat: () => RedIntegerFormat,
-	ReinhardToneMapping: () => 2,
-	RepeatWrapping: () => RepeatWrapping,
-	ReplaceStencilOp: () => ReplaceStencilOp,
-	ReverseSubtractEquation: () => 102,
-	SIGNED_R11_EAC_Format: () => SIGNED_R11_EAC_Format,
-	SIGNED_RED_GREEN_RGTC2_Format: () => SIGNED_RED_GREEN_RGTC2_Format,
-	SIGNED_RED_RGTC1_Format: () => SIGNED_RED_RGTC1_Format,
-	SIGNED_RG11_EAC_Format: () => SIGNED_RG11_EAC_Format,
-	SRGBColorSpace: () => SRGBColorSpace,
-	SRGBTransfer: () => SRGBTransfer,
-	Scene: () => Scene,
-	ShaderChunk: () => ShaderChunk,
-	ShaderLib: () => ShaderLib,
-	ShaderMaterial: () => ShaderMaterial,
-	ShortType: () => ShortType,
-	SphereGeometry: () => SphereGeometry,
-	SrcAlphaFactor: () => 204,
-	SrcAlphaSaturateFactor: () => 210,
-	SrcColorFactor: () => 202,
-	StaticCopyUsage: () => StaticCopyUsage,
-	StaticDrawUsage: () => StaticDrawUsage,
-	StaticReadUsage: () => StaticReadUsage,
-	StreamCopyUsage: () => StreamCopyUsage,
-	StreamDrawUsage: () => StreamDrawUsage,
-	StreamReadUsage: () => StreamReadUsage,
-	SubtractEquation: () => 101,
-	SubtractiveBlending: () => 3,
-	TangentSpaceNormalMap: () => 0,
-	Texture: () => Texture,
-	TriangleFanDrawMode: () => 2,
-	TriangleStripDrawMode: () => 1,
-	TrianglesDrawMode: () => 0,
-	UVMapping: () => 300,
-	Uint16BufferAttribute: () => Uint16BufferAttribute,
-	Uint32BufferAttribute: () => Uint32BufferAttribute,
-	UniformsLib: () => UniformsLib,
-	UniformsUtils: () => UniformsUtils,
-	UnsignedByteType: () => UnsignedByteType,
-	UnsignedInt101111Type: () => UnsignedInt101111Type,
-	UnsignedInt248Type: () => UnsignedInt248Type,
-	UnsignedInt5999Type: () => UnsignedInt5999Type,
-	UnsignedIntType: () => UnsignedIntType,
-	UnsignedShort4444Type: () => UnsignedShort4444Type,
-	UnsignedShort5551Type: () => UnsignedShort5551Type,
-	UnsignedShortType: () => UnsignedShortType,
-	VSMShadowMap: () => 3,
-	Vector2: () => Vector2,
-	Vector3: () => Vector3,
-	Vector4: () => Vector4,
-	WebGLCoordinateSystem: () => WebGLCoordinateSystem,
-	WebGLCubeRenderTarget: () => WebGLCubeRenderTarget,
-	WebGLRenderTarget: () => WebGLRenderTarget,
-	WebGLRenderer: () => WebGLRenderer,
-	WebGLUtils: () => WebGLUtils,
-	WebGPUCoordinateSystem: () => WebGPUCoordinateSystem,
-	WebXRController: () => WebXRController,
-	WrapAroundEnding: () => WrapAroundEnding,
-	ZeroCurvatureEnding: () => ZeroCurvatureEnding,
-	ZeroFactor: () => 200,
-	ZeroSlopeEnding: () => ZeroSlopeEnding,
-	ZeroStencilOp: () => 0,
-	createCanvasElement: () => createCanvasElement,
-	error: () => error,
-	log: () => log,
-	warn: () => warn,
-	warnOnce: () => warnOnce
-});
 function WebGLAnimation() {
 	let context = null;
 	let isAnimating = false;
@@ -31605,4 +31517,4 @@ var WebGLRenderer = class {
 	}
 };
 //#endregion
-export { three_module_exports as t };
+export { ShaderMaterial as _, Clock as a, Group as c, MeshPhongMaterial as d, PerspectiveCamera as f, Scene as g, SRGBColorSpace as h, BufferGeometry as i, MathUtils as l, PointsMaterial as m, AmbientLight as n, Color as o, Points as p, BufferAttribute as r, DirectionalLight as s, WebGLRenderer as t, Mesh as u, SphereGeometry as v, TextureLoader as y };
