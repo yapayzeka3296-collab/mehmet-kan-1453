@@ -68,10 +68,38 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           const { data: authData, error: authError } = await supabase.auth.getUser(token);
           if (authError || !authData.user) return json({ ok: false, reason: 'unauthenticated' }, 401);
 
-          const { data, error } = await supabase.rpc('create_shopier_checkout_intent', {
-            p_parcel_ids: [...new Set(parsed.data.parcel_ids)],
+          const serviceSupabase = createClient(supabaseUrl, serviceRoleKey, {
+            auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+          });
+
+          // Clean expired reservations/intents before every checkout attempt.
+          // This makes the five-minute window authoritative even when no other
+          // request has touched the expired parcel since the user left Shopier.
+          const { error: cleanupError } = await serviceSupabase.rpc('cleanup_expired_shopier_checkout_state');
+          if (cleanupError) {
+            console.error('Shopier expired-state cleanup failed', { code: cleanupError.code, message: cleanupError.message });
+          }
+
+          const parcelIdsRequest = [...new Set(parsed.data.parcel_ids)];
+          let { data, error } = await supabase.rpc('create_shopier_checkout_intent', {
+            p_parcel_ids: parcelIdsRequest,
             p_certificate_parcel_id: parsed.data.certificate_parcel_id ?? null,
           });
+
+          // A stale active-intent/index state can survive an abandoned payment
+          // session. Perform one authoritative cleanup and retry the intent RPC
+          // before exposing the generic checkout error to the customer.
+          if (error && !/parcel_reserved_by_other_user|parcel_unavailable|parcel_not_found|empty_parcel_selection|too_many_parcels|invalid_certificate_parcel|invalid_parcel_price|unauthorized/i.test(error.message ?? '')) {
+            const { error: retryCleanupError } = await serviceSupabase.rpc('cleanup_expired_shopier_checkout_state');
+            if (retryCleanupError) {
+              console.error('Shopier checkout retry cleanup failed', { code: retryCleanupError.code, message: retryCleanupError.message });
+            }
+            ({ data, error } = await supabase.rpc('create_shopier_checkout_intent', {
+              p_parcel_ids: parcelIdsRequest,
+              p_certificate_parcel_id: parsed.data.certificate_parcel_id ?? null,
+            }));
+          }
+
           if (error) {
             const message = error.message ?? '';
             if (/parcel_reserved_by_other_user/i.test(message)) return json({ ok: false, reason: 'parcel_reserved_by_other_user' }, 409);
@@ -82,7 +110,7 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             if (/invalid_certificate_parcel/i.test(message)) return json({ ok: false, reason: 'invalid_certificate_parcel' }, 400);
             if (/invalid_parcel_price/i.test(message)) return json({ ok: false, reason: 'invalid_parcel_price' }, 409);
             if (/unauthorized/i.test(message)) return json({ ok: false, reason: 'unauthenticated' }, 401);
-            console.error('Shopier checkout intent failed', { code: error.code, message: error.message });
+            console.error('Shopier checkout intent failed after cleanup retry', { code: error.code, message: error.message });
             return json({ ok: false, reason: 'checkout_intent_failed' }, 500);
           }
 
@@ -96,10 +124,6 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             console.error('Invalid Shopier checkout intent data', { intentId, amount, currency, parcelCount: parcelIds.length });
             return json({ ok: false, reason: 'checkout_intent_invalid' }, 500);
           }
-
-          const serviceSupabase = createClient(supabaseUrl, serviceRoleKey, {
-            auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
-          });
 
           const { data: parcelRows, error: parcelLookupError } = await serviceSupabase
             .from('parcels')
@@ -188,8 +212,6 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             return json({ ok: false, reason: 'shopier_product_id_missing' }, 502);
           }
 
-          // Shopier's API-generated product URL is authoritative. Only fall back to
-          // the canonical numeric URL when the API does not return one.
           const canonicalProductUrl = `https://www.shopier.com/${encodeURIComponent(shopierProductId)}`;
           const checkoutUrl = [explicitCheckoutUrl, productUrl, canonicalProductUrl]
             .find((candidate) => isShopierUrl(candidate)) || canonicalProductUrl;
