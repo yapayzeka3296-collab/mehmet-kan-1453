@@ -112,13 +112,32 @@ function SatinAl() {
       const response = await fetch("/api/shopier/checkout", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ parcel_ids: items.map((item) => item.id), certificate_parcel_id: certificateParcel }) });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.checkout_url) {
-        const messages: Record<string, string> = { shopier_not_configured: "Shopier ödeme bağlantısı henüz yapılandırılmamış.", not_available: "Seçtiğiniz parsellerden biri artık satışa uygun değil.", unauthenticated: "Ödeme için giriş yapmanız gerekiyor.", checkout_intent_failed: "Ödeme hazırlığı tamamlanamadı. Lütfen tekrar deneyin." };
-        setValidationError(messages[result.reason] ?? "Ödeme başlatılamadı. Lütfen tekrar deneyin.");
+        const messages: Record<string, string> = {
+          shopier_not_configured: "Shopier ödeme bağlantısı henüz yapılandırılmamış. cPanel ortam değişkenlerini kontrol edin.",
+          supabase_not_configured: "Ödeme altyapısı yapılandırılmamış. cPanel Supabase ayarlarını kontrol edin.",
+          not_available: "Seçtiğiniz parsellerden biri artık satışa uygun değil.",
+          parcel_not_found: "Seçilen parsel bulunamadı. Lütfen haritadan yeniden seçim yapın.",
+          empty_parcel_selection: "Ödenecek parsel seçilmedi.",
+          too_many_parcels: "Tek işlemde en fazla 100 parsel satın alınabilir.",
+          invalid_certificate_parcel: "Sertifika için seçilen parsel, satın alma listesinin içinde olmalıdır.",
+          invalid_parcel_price: "Parsel fiyatı doğrulanamadı. Lütfen tekrar deneyin.",
+          unauthenticated: "Ödeme için giriş yapmanız gerekiyor.",
+          checkout_intent_failed: "Ödeme hazırlığı tamamlanamadı. Lütfen tekrar deneyin.",
+          checkout_intent_invalid: "Ödeme tutarı doğrulanamadı. Lütfen tekrar deneyin.",
+          shopier_product_creation_failed: "Shopier ödeme ürünü oluşturamadı. Shopier API/PAT ayarlarını kontrol edin.",
+          shopier_product_url_missing: "Shopier ödeme bağlantısı döndürmedi. Shopier ürün API yanıtını kontrol edin.",
+          shopier_unreachable: "Shopier ödeme servisine ulaşılamadı. Lütfen birkaç dakika sonra tekrar deneyin.",
+          checkout_persistence_failed: "Ödeme bağlantısı oluşturuldu ancak sipariş kaydı tamamlanamadı. Lütfen tekrar deneyin.",
+          internal_error: "Sunucu tarafında beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.",
+        };
+        setValidationError(messages[String(result.reason)] ?? "Ödeme başlatılamadı. Lütfen tekrar deneyin.");
         return;
       }
       window.location.assign(result.checkout_url);
-    } catch (error) { console.error("Shopier payment start failed", error); setValidationError("Ödeme bağlantısı oluşturulamadı. Lütfen tekrar deneyin."); }
-    finally { setPaying(false); }
+    } catch (error) {
+      console.error("Shopier payment start failed", error);
+      setValidationError("Ödeme bağlantısı oluşturulamadı. Lütfen tekrar deneyin.");
+    } finally { setPaying(false); }
   }
 
   if (loading) return <div className="starfield min-h-screen"><SiteHeader /><main className="mx-auto max-w-3xl px-4 py-16 lg:px-8"><div className="panel p-8 text-center"><Loader2 className="mx-auto h-7 w-7 animate-spin text-gold" /><p className="mt-4 text-sm text-muted-foreground">Parseller ve paket türleri doğrulanıyor...</p></div></main><SiteFooter /></div>;
