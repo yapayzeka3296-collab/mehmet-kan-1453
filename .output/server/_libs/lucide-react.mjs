@@ -166,6 +166,21 @@ var Award = createLucideIcon("award", [["path", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var Ban = createLucideIcon("ban", [["circle", {
+	cx: "12",
+	cy: "12",
+	r: "10",
+	key: "1mglay"
+}], ["path", {
+	d: "M4.929 4.929 19.07 19.071",
+	key: "196cmz"
+}]]);
+/**
+* @license lucide-react v0.575.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var Bell = createLucideIcon("bell", [["path", {
 	d: "M10.268 21a2 2 0 0 0 3.464 0",
 	key: "vwvbt9"
@@ -1396,6 +1411,38 @@ var UserLock = createLucideIcon("user-lock", [
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var UserPlus = createLucideIcon("user-plus", [
+	["path", {
+		d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2",
+		key: "1yyitq"
+	}],
+	["circle", {
+		cx: "9",
+		cy: "7",
+		r: "4",
+		key: "nufk8"
+	}],
+	["line", {
+		x1: "19",
+		x2: "19",
+		y1: "8",
+		y2: "14",
+		key: "1bvyxn"
+	}],
+	["line", {
+		x1: "22",
+		x2: "16",
+		y1: "11",
+		y2: "11",
+		key: "1shjgl"
+	}]
+]);
+/**
+* @license lucide-react v0.575.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var UserRound = createLucideIcon("user-round", [["circle", {
 	cx: "12",
 	cy: "8",
@@ -1473,4 +1520,4 @@ var Youtube = createLucideIcon("youtube", [["path", {
 	key: "1jp15x"
 }]]);
 //#endregion
-export { Earth as $, LogOut as A, ImagePlus as B, Phone as C, Menu as D, Music2 as E, Linkedin as F, Globe as G, Heart as H, Layers as I, FileBadge as J, Gift as K, KeyRound as L, LockKeyhole as M, LoaderCircle as N, MapPin as O, List as P, EllipsisVertical as Q, Instagram as R, Play as S, PackageCheck as T, Headphones as U, House as V, Grid2x2 as W, Eye as X, Facebook as Y, EyeOff as Z, Share2 as _, UserRound as a, Check as at, RefreshCw as b, Trash2 as c, Bell as ct, Sparkles as d, ArrowLeft as dt, CloudDownload as et, Smartphone as f, Activity as ft, ShieldAlert as g, ShieldCheck as h, User as i, ChevronDown as it, Lock as j, Mail as k, Store as l, Award as lt, ShoppingBag as m, X as n, CircleX as nt, UserLock as o, Calendar as ot, ShoppingCart as p, FileText as q, Users as r, CircleCheck as rt, Twitter as s, Boxes as st, Youtube as t, ClipboardList as tt, Star as u, ArrowRight as ut, Send as v, Pencil as w, QrCode as x, Search as y, Info as z };
+export { EllipsisVertical as $, Mail as A, Info as B, Play as C, Music2 as D, PackageCheck as E, List as F, Grid2x2 as G, House as H, Linkedin as I, FileText as J, Globe as K, Layers as L, Lock as M, LockKeyhole as N, Menu as O, LoaderCircle as P, EyeOff as Q, KeyRound as R, QrCode as S, Pencil as T, Heart as U, ImagePlus as V, Headphones as W, Facebook as X, FileBadge as Y, Eye as Z, ShieldAlert as _, UserRound as a, ChevronDown as at, Search as b, Twitter as c, Boxes as ct, Star as d, Award as dt, Earth as et, Sparkles as f, ArrowRight as ft, ShieldCheck as g, ShoppingBag as h, User as i, CircleCheck as it, LogOut as j, MapPin as k, Trash2 as l, Bell as lt, ShoppingCart as m, Activity as mt, X as n, ClipboardList as nt, UserPlus as o, Check as ot, Smartphone as p, ArrowLeft as pt, Gift as q, Users as r, CircleX as rt, UserLock as s, Calendar as st, Youtube as t, CloudDownload as tt, Store as u, Ban as ut, Share2 as v, Phone as w, RefreshCw as x, Send as y, Instagram as z };
