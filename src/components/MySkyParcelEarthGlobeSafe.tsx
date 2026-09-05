@@ -40,7 +40,8 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
         renderer.setClearColor(0, 0);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.domElement.style.cssText = "position:absolute;inset:0;display:block;width:100%;height:100%;max-width:100%;max-height:100%;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab";
+        renderer.domElement.style.cssText = "position:absolute;inset:0;display:block;width:100%;height:100%;max-width:100%;max-height:100%;touch-action:none;pointer-events:auto;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;cursor:grab";
+        mount.style.pointerEvents = "auto";
         mount.appendChild(renderer.domElement);
 
         const scene = new THREE.Scene();
@@ -77,7 +78,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
 
         const atmosphereGeometry = new THREE.SphereGeometry(radius * 1.09, 96, 96);
         const atmosphereMaterial = new THREE.ShaderMaterial({
-          uniforms: { glowColor: { value: new THREE.Color(0x71869b) }, glowPower: { value: 3.2 }, glowStrength: { value: 0.52 } },
+          uniforms: { glowColor: { value: new THREE.Color(0x536b80) }, glowPower: { value: 2.9 }, glowStrength: { value: 0.34 } },
           vertexShader: `varying vec3 vWorldNormal; varying vec3 vWorldPosition; void main(){vec4 worldPosition=modelMatrix*vec4(position,1.0);vWorldPosition=worldPosition.xyz;vWorldNormal=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*viewMatrix*worldPosition;}`,
           fragmentShader: `uniform vec3 glowColor; uniform float glowPower; uniform float glowStrength; varying vec3 vWorldNormal; varying vec3 vWorldPosition; void main(){vec3 viewDirection=normalize(cameraPosition-vWorldPosition);float fresnel=pow(1.0-max(dot(vWorldNormal,viewDirection),0.0),glowPower);gl_FragColor=vec4(glowColor,fresnel*glowStrength);}`,
           side: THREE.BackSide,
@@ -185,7 +186,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         const down = (event: PointerEvent) => {
           event.preventDefault();
           pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-          renderer.domElement.setPointerCapture?.(event.pointerId);
+          try { renderer.domElement.setPointerCapture(event.pointerId); } catch { /* pointer capture unavailable */ }
           if (pointers.size === 2) {
             const [a, b] = [...pointers.values()];
             pinch = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
@@ -200,6 +201,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         const move = (event: PointerEvent) => {
           if (!pointers.has(event.pointerId)) return;
           event.preventDefault();
+          const previous = pointers.get(event.pointerId)!;
           pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
           if (pointers.size === 2 && pinch) {
             const [a, b] = [...pointers.values()];
@@ -209,14 +211,14 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
             return;
           }
           if (!dragging) return;
-          const dx = event.clientX - lastX;
-          const dy = event.clientY - lastY;
+          const dx = event.clientX - previous.x;
+          const dy = event.clientY - previous.y;
           lastX = event.clientX;
           lastY = event.clientY;
-          earth.rotation.y += dx * 0.006;
-          earth.rotation.x = THREE.MathUtils.clamp(earth.rotation.x + dy * 0.0035, -1.15, 1.15);
-          clouds.rotation.y += dx * 0.002;
-          clouds.rotation.x += dy * 0.0012;
+          earth.rotation.y += dx * 0.008;
+          earth.rotation.x = THREE.MathUtils.clamp(earth.rotation.x + dy * 0.005, -1.15, 1.15);
+          clouds.rotation.y += dx * 0.003;
+          clouds.rotation.x += dy * 0.0016;
           syncStarsToEarth();
         };
         const up = (event: PointerEvent) => {
@@ -229,7 +231,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
             lastY = remaining.y;
           }
           renderer.domElement.style.cursor = dragging ? "grabbing" : "grab";
-          try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch { /* already released */ }
+          try { renderer.domElement.releasePointerCapture(event.pointerId); } catch { /* already released */ }
         };
 
         const resize = () => { const width = Math.max(1, Math.floor(mount.clientWidth)); const height = Math.max(1, Math.floor(mount.clientHeight)); camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false); };
@@ -241,6 +243,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         renderer.domElement.addEventListener("pointermove", move, { passive: false });
         renderer.domElement.addEventListener("pointerup", up);
         renderer.domElement.addEventListener("pointercancel", up);
+        renderer.domElement.addEventListener("lostpointercapture", up);
 
         const clock = new THREE.Clock();
         const animate = () => {
@@ -257,7 +260,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
 
         cleanup = () => {
           cancelled = true; cancelAnimationFrame(frame); resizeObserver?.disconnect(); window.removeEventListener("resize", resize);
-          renderer.domElement.removeEventListener("wheel", wheel); renderer.domElement.removeEventListener("pointerdown", down); renderer.domElement.removeEventListener("pointermove", move); renderer.domElement.removeEventListener("pointerup", up); renderer.domElement.removeEventListener("pointercancel", up);
+          renderer.domElement.removeEventListener("wheel", wheel); renderer.domElement.removeEventListener("pointerdown", down); renderer.domElement.removeEventListener("pointermove", move); renderer.domElement.removeEventListener("pointerup", up); renderer.domElement.removeEventListener("pointercancel", up); renderer.domElement.removeEventListener("lostpointercapture", up);
           earthTexture.dispose(); cloudTexture.dispose(); earthGeometry.dispose(); earthMaterial.dispose(); cloudGeometry.dispose(); cloudMaterial.dispose(); atmosphereGeometry.dispose(); atmosphereMaterial.dispose(); stars.geometry.dispose(); stars.material.dispose(); milkyWay.geometry.dispose(); milkyWay.material.dispose(); renderer.dispose(); renderer.domElement.remove();
         };
       } catch (error) {
@@ -272,9 +275,9 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
 
   return (
     <div className={`relative z-0 h-[560px] w-full min-w-0 max-w-full overflow-hidden rounded-3xl border border-sky-200/15 bg-background shadow-2xl shadow-black/40 ${className}`}>
-      <div ref={mountRef} className="absolute inset-0 z-0 min-h-0 min-w-0 max-w-full overflow-hidden" aria-label="MySkyParcel gerçek 3D Dünya küresi" />
+      <div ref={mountRef} className="absolute inset-0 z-0 min-h-0 min-w-0 max-w-full overflow-hidden pointer-events-auto" aria-label="MySkyParcel gerçek 3D Dünya küresi" />
       <div className="pointer-events-none absolute inset-0 z-10" />
-      <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">İki parmakla yakınlaştır · fare tekerleğiyle zoom</div>
+      <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">Sürükle: döndür · iki parmak: yakınlaştır · fare tekerleği: zoom</div>
     </div>
   );
 }
