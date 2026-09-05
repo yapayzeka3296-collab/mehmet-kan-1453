@@ -155,3 +155,4 @@ jobs:
 
 # cPanel deployment note: every source change must regenerate .output before cPanel pulls main.
 # Verification trigger: static route generation runs before cPanel artifact validation.
+# CI trigger note: keep the workflow source-tracked so every main source/config change runs verification.
