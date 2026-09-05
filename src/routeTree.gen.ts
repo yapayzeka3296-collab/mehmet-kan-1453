@@ -52,6 +52,7 @@ import { Route as YonetimRouteImport } from './routes/yonetim'
 import { Route as ApiEarthAssetsRouteImport } from './routes/api/earth-assets'
 import { Route as SehirSlugRouteImport } from './routes/sehir/$slug'
 import { Route as ApiShopierCheckoutRouteImport } from './routes/api/shopier/checkout'
+import { Route as ApiShopierParcelImageRouteImport } from './routes/api/shopier/parcel-image'
 import { Route as ApiShopierRedirectRouteImport } from './routes/api/shopier/redirect'
 import { Route as ApiShopierWebhookRouteImport } from './routes/api/shopier/webhook'
 
@@ -270,6 +271,11 @@ const ApiShopierCheckoutRoute = ApiShopierCheckoutRouteImport.update({
   path: '/api/shopier/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiShopierParcelImageRoute = ApiShopierParcelImageRouteImport.update({
+  id: '/api/shopier/parcel-image',
+  path: '/api/shopier/parcel-image',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiShopierRedirectRoute = ApiShopierRedirectRouteImport.update({
   id: '/api/shopier/redirect',
   path: '/api/shopier/redirect',
@@ -325,6 +331,7 @@ export interface FileRoutesByFullPath {
   '/api/earth-assets': typeof ApiEarthAssetsRoute
   '/sehir/$slug': typeof SehirSlugRoute
   '/api/shopier/checkout': typeof ApiShopierCheckoutRoute
+  '/api/shopier/parcel-image': typeof ApiShopierParcelImageRoute
   '/api/shopier/redirect': typeof ApiShopierRedirectRoute
   '/api/shopier/webhook': typeof ApiShopierWebhookRoute
 }
@@ -372,6 +379,7 @@ export interface FileRoutesByTo {
   '/api/earth-assets': typeof ApiEarthAssetsRoute
   '/sehir/$slug': typeof SehirSlugRoute
   '/api/shopier/checkout': typeof ApiShopierCheckoutRoute
+  '/api/shopier/parcel-image': typeof ApiShopierParcelImageRoute
   '/api/shopier/redirect': typeof ApiShopierRedirectRoute
   '/api/shopier/webhook': typeof ApiShopierWebhookRoute
 }
@@ -420,6 +428,7 @@ export interface FileRoutesById {
   '/api/earth-assets': typeof ApiEarthAssetsRoute
   '/sehir/$slug': typeof SehirSlugRoute
   '/api/shopier/checkout': typeof ApiShopierCheckoutRoute
+  '/api/shopier/parcel-image': typeof ApiShopierParcelImageRoute
   '/api/shopier/redirect': typeof ApiShopierRedirectRoute
   '/api/shopier/webhook': typeof ApiShopierWebhookRoute
 }
@@ -469,6 +478,7 @@ export interface FileRouteTypes {
     | '/api/earth-assets'
     | '/sehir/$slug'
     | '/api/shopier/checkout'
+    | '/api/shopier/parcel-image'
     | '/api/shopier/redirect'
     | '/api/shopier/webhook'
   fileRoutesByTo: FileRoutesByTo
@@ -516,6 +526,7 @@ export interface FileRouteTypes {
     | '/api/earth-assets'
     | '/sehir/$slug'
     | '/api/shopier/checkout'
+    | '/api/shopier/parcel-image'
     | '/api/shopier/redirect'
     | '/api/shopier/webhook'
   id:
@@ -563,6 +574,7 @@ export interface FileRouteTypes {
     | '/api/earth-assets'
     | '/sehir/$slug'
     | '/api/shopier/checkout'
+    | '/api/shopier/parcel-image'
     | '/api/shopier/redirect'
     | '/api/shopier/webhook'
   fileRoutesById: FileRoutesById
@@ -611,6 +623,7 @@ export interface RootRouteChildren {
   ApiEarthAssetsRoute: typeof ApiEarthAssetsRoute
   SehirSlugRoute: typeof SehirSlugRoute
   ApiShopierCheckoutRoute: typeof ApiShopierCheckoutRoute
+  ApiShopierParcelImageRoute: typeof ApiShopierParcelImageRoute
   ApiShopierRedirectRoute: typeof ApiShopierRedirectRoute
   ApiShopierWebhookRoute: typeof ApiShopierWebhookRoute
 }
@@ -918,6 +931,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiShopierCheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/shopier/parcel-image': {
+      id: '/api/shopier/parcel-image'
+      path: '/api/shopier/parcel-image'
+      fullPath: '/api/shopier/parcel-image'
+      preLoaderRoute: typeof ApiShopierParcelImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/shopier/redirect': {
       id: '/api/shopier/redirect'
       path: '/api/shopier/redirect'
@@ -979,6 +999,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiEarthAssetsRoute: ApiEarthAssetsRoute,
   SehirSlugRoute: SehirSlugRoute,
   ApiShopierCheckoutRoute: ApiShopierCheckoutRoute,
+  ApiShopierParcelImageRoute: ApiShopierParcelImageRoute,
   ApiShopierRedirectRoute: ApiShopierRedirectRoute,
   ApiShopierWebhookRoute: ApiShopierWebhookRoute,
 }
