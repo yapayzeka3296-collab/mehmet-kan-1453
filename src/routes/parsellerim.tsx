@@ -13,7 +13,7 @@ import type { Parcel } from "@/types/parcel";
 
 export const Route = createFileRoute("/parsellerim")({ head: () => ({ meta: [{ title: "Koleksiyonum — MySkyParcel" }, { name: "description", content: "Satın aldığın gökyüzü parsellerini tek koleksiyon alanında görüntüle." }] }), component: Parsellerim });
 const FOOTER_TRUST: TrustItem[] = [
-  { icon: Globe, title: "7.000 BAŞLANGIÇ PARSELİ", text: "7 pilot ilde ilk parseller açıldı." },
+  { icon: Globe, title: "81 İL 81 MİLYON PARSEL", text: "7 pilot ilde ilk parseller açıldı." },
   { icon: ShieldCheck, title: "SERTİFİKA SİSTEMİ", text: "Sertifikalar talep üzerine oluşturulur." },
   { icon: Lock, title: "GÜVENLİ ALTYAPI", text: "Sahiplik ve sertifika geçmişi korunur." },
   { icon: Headphones, title: "7/24 DESTEK", text: "Sorularınız için bize ulaşabilirsiniz." },
