@@ -48,16 +48,11 @@ jobs:
         run: |
           set -euo pipefail
           for route in \
-            "./routes/iletisim" "./routes/kvkk" "./routes/gizlilik-politikasi" \
-            "./routes/kullanim-sartlari" "./routes/cerez-politikasi" \
-            "./routes/iade-iptal-politikasi" "./routes/on-bilgilendirme-formu" \
-            "./routes/mesafeli-satis-sozlesmesi" "./routes/uyelik-sozlesmesi"; do
-            grep -Fq "$route" src/routeTree.gen.ts
-          done
-          for route in \
-            "'/iletisim'" "'/kvkk'" "'/gizlilik-politikasi'" "'/kullanim-sartlari'" \
-            "'/cerez-politikasi'" "'/iade-iptal-politikasi'" "'/on-bilgilendirme-formu'" \
-            "'/mesafeli-satis-sozlesmesi'" "'/uyelik-sozlesmesi'"; do
+            "./routes/ana-sayfa" "./routes/turkiye-haritasi" "./routes/nasil-calisir" \
+            "./routes/paketler" "./routes/hakkimizda" "./routes/iletisim" "./routes/destek" \
+            "./routes/pazar-yeri" "./routes/uyelik-sozlesmesi" "./routes/mesafeli-satis-sozlesmesi" \
+            "./routes/on-bilgilendirme-formu" "./routes/iade-iptal-politikasi" "./routes/kvkk" \
+            "./routes/gizlilik-politikasi" "./routes/kullanim-sartlari" "./routes/cerez-politikasi"; do
             grep -Fq "$route" src/routeTree.gen.ts
           done
       - name: TypeScript validation
@@ -78,14 +73,16 @@ jobs:
           done
           cat /tmp/myskyparcel-nitro.log
           exit 1
-      - name: Generate cPanel static route HTML
+      - name: Generate cPanel static public route HTML
         shell: bash
         run: |
           set -euo pipefail
           routes=(
+            ana-sayfa turkiye-haritasi nasil-calisir paketler hakkimizda
+            iletisim destek pazar-yeri
             uyelik-sozlesmesi mesafeli-satis-sozlesmesi on-bilgilendirme-formu
             iade-iptal-politikasi kvkk gizlilik-politikasi kullanim-sartlari
-            cerez-politikasi iletisim
+            cerez-politikasi
           )
           for route in "${routes[@]}"; do
             mkdir -p ".output/public/${route}"
@@ -103,9 +100,9 @@ jobs:
           test -f public/.htaccess
           test "$(find .output/public -type f | wc -l)" -gt 0
           for route in \
+            ana-sayfa turkiye-haritasi nasil-calisir paketler hakkimizda iletisim destek pazar-yeri \
             uyelik-sozlesmesi mesafeli-satis-sozlesmesi on-bilgilendirme-formu \
-            iade-iptal-politikasi kvkk gizlilik-politikasi kullanim-sartlari \
-            cerez-politikasi iletisim; do
+            iade-iptal-politikasi kvkk gizlilik-politikasi kullanim-sartlari cerez-politikasi; do
             test -s ".output/public/${route}/index.html"
           done
       - name: Smoke test application routes
