@@ -1,7 +1,7 @@
 # MySkyParcel — cPanel / CloudLinux Passenger
 # GitHub -> cPanel Git -> Nitro/Passenger -> public_html.
-# Static assets and pre-rendered public pages are served by Apache/LiteSpeed;
-# dynamic/SSR routes continue through Passenger.
+# Static assets and pre-rendered public pages are served directly by Apache/LiteSpeed.
+# Dynamic/SSR routes continue through Passenger.
 
 PassengerAppRoot "/home/myskypar/repositories/mehmet-kan-1453"
 PassengerBaseURI "/"
@@ -13,19 +13,20 @@ PassengerEnabled on
 
 Options -MultiViews
 Options -Indexes
-# Pre-rendered legal/contact routes are emitted as /route/index.html.
-# Keep DirectoryIndex enabled so direct /route URLs resolve to that file.
 DirectoryIndex index.html
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
+  # Resolve pre-rendered public/legal pages directly to their generated HTML.
+  # This avoids DirectorySlash/Passenger ambiguity on the first request to /route.
+  RewriteRule ^(uyelik-sozlesmesi|mesafeli-satis-sozlesmesi|on-bilgilendirme-formu|iade-iptal-politikasi|kvkk|gizlilik-politikasi|kullanim-sartlari|cerez-politikasi|iletisim)/?$ /$1/index.html [L]
+
   # Never send Vite/Nitro static files through the SSR application.
   RewriteRule ^assets(?:/|$) - [L]
 
-  # Existing public files/directories are served directly. DirectoryIndex
-  # resolves pre-rendered route folders such as /kvkk/ to index.html.
+  # Existing public files/directories are served directly.
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
@@ -48,7 +49,7 @@ DirectoryIndex index.html
 </IfModule>
 
 <IfModule mod_headers.c>
-  # Prevent stale bundles while the production deployment is being verified.
+  # Do not let a previous deployment's HTML/assets mask the new build.
   <FilesMatch "\.(js|css|mjs|json|wasm|svg|png|jpg|jpeg|webp|gif|woff|woff2|ttf|otf)$">
     Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
     Header set Pragma "no-cache"
