@@ -72,9 +72,6 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
           });
 
-          // Clean expired reservations/intents before every checkout attempt.
-          // This makes the five-minute window authoritative even when no other
-          // request has touched the expired parcel since the user left Shopier.
           const { error: cleanupError } = await serviceSupabase.rpc('cleanup_expired_shopier_checkout_state');
           if (cleanupError) {
             console.error('Shopier expired-state cleanup failed', { code: cleanupError.code, message: cleanupError.message });
@@ -86,9 +83,6 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             p_certificate_parcel_id: parsed.data.certificate_parcel_id ?? null,
           });
 
-          // A stale active-intent/index state can survive an abandoned payment
-          // session. Perform one authoritative cleanup and retry the intent RPC
-          // before exposing the generic checkout error to the customer.
           if (error && !/parcel_reserved_by_other_user|parcel_unavailable|parcel_not_found|empty_parcel_selection|too_many_parcels|invalid_certificate_parcel|invalid_parcel_price|unauthorized/i.test(error.message ?? '')) {
             const { error: retryCleanupError } = await serviceSupabase.rpc('cleanup_expired_shopier_checkout_state');
             if (retryCleanupError) {
@@ -147,6 +141,14 @@ export const Route = createFileRoute('/api/shopier/checkout')({
               .eq('status', 'reserved')
               .eq('reserved_by', authData.user.id);
             if (releaseError) console.error('Shopier reservation release failed', { intentId, reason, code: releaseError.code, message: releaseError.message });
+
+            const { error: orderError } = await serviceSupabase
+              .from('orders')
+              .update({ status: 'cancelled', updated_at: now })
+              .in('id', Array.isArray(intent.order_ids) ? intent.order_ids.filter((id): id is string => typeof id === 'string') : [])
+              .eq('user_id', authData.user.id)
+              .eq('status', 'pending');
+            if (orderError) console.error('Shopier pending order cancellation failed', { intentId, reason, code: orderError.code, message: orderError.message });
 
             const { error: intentError } = await serviceSupabase
               .from('shopier_checkout_intents')
