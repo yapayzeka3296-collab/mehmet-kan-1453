@@ -52,6 +52,10 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             if (/parcel_unavailable/i.test(message)) return json({ ok: false, reason: 'not_available' }, 409);
             if (/parcel_not_found/i.test(message)) return json({ ok: false, reason: 'parcel_not_found' }, 404);
             if (/empty_parcel_selection/i.test(message)) return json({ ok: false, reason: 'empty_parcel_selection' }, 400);
+            if (/too_many_parcels/i.test(message)) return json({ ok: false, reason: 'too_many_parcels' }, 400);
+            if (/invalid_certificate_parcel/i.test(message)) return json({ ok: false, reason: 'invalid_certificate_parcel' }, 400);
+            if (/invalid_parcel_price/i.test(message)) return json({ ok: false, reason: 'invalid_parcel_price' }, 409);
+            if (/unauthorized/i.test(message)) return json({ ok: false, reason: 'unauthenticated' }, 401);
             console.error('Shopier checkout intent failed', error);
             return json({ ok: false, reason: 'checkout_intent_failed' }, 500);
           }
@@ -60,54 +64,85 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           const intentId = String(intent.intent_id ?? '');
           const amount = Number(intent.amount);
           const currency = String(intent.currency ?? 'TRY').toUpperCase();
-          if (!intentId || !Number.isFinite(amount) || amount <= 0 || currency !== 'TRY') {
-            console.error('Invalid Shopier checkout intent amount/currency', { intentId, amount, currency });
+          const parcelIds = Array.isArray(intent.parcel_ids) ? intent.parcel_ids.filter((id): id is string => typeof id === 'string') : [];
+
+          if (!intentId || !Number.isFinite(amount) || amount <= 0 || currency !== 'TRY' || !parcelIds.length) {
+            console.error('Invalid Shopier checkout intent amount/currency/parcel data', { intentId, amount, currency, parcelCount: parcelIds.length });
             return json({ ok: false, reason: 'checkout_intent_invalid' }, 500);
           }
 
-          const shopierResponse = await fetch('https://api.shopier.com/v1/products', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${shopierPat}`,
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              title: `MySkyParcel Parsel Siparişi ${intentId}`,
-              description: `MySkyParcel parsel satın alma işlemi. Sipariş referansı: ${intentId}`,
-              type: 'digital',
-              shippingPayer: 'sellerPays',
-              priceData: {
-                currency: 'TRY',
-                price: amount.toFixed(2),
-              },
-              media: [{
-                type: 'image',
-                url: imageUrl,
-                placement: 1,
-              }],
-              stockQuantity: 1,
-              customListing: true,
-              customNote: `MySkyParcel intent: ${intentId}`,
-            }),
+          const serviceSupabase = createClient(supabaseUrl, serviceRoleKey, {
+            auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
           });
+
+          const releaseIntent = async (reason: string) => {
+            const now = new Date().toISOString();
+            const { error: releaseError } = await serviceSupabase
+              .from('parcels')
+              .update({ status: 'available', reserved_by: null, reserved_until: null, updated_at: now })
+              .in('id', parcelIds)
+              .eq('status', 'reserved')
+              .eq('reserved_by', authData.user.id);
+            if (releaseError) console.error('Shopier reservation release failed', { intentId, reason, error: releaseError });
+
+            const { error: intentError } = await serviceSupabase
+              .from('shopier_checkout_intents')
+              .update({ status: 'failed', updated_at: now })
+              .eq('id', intentId)
+              .eq('user_id', authData.user.id)
+              .in('status', ['pending', 'redirected']);
+            if (intentError) console.error('Shopier intent failure persistence failed', { intentId, reason, error: intentError });
+          };
+
+          let shopierResponse: Response;
+          try {
+            shopierResponse = await fetch('https://api.shopier.com/v1/products', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${shopierPat}`,
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                title: `MySkyParcel Parsel Siparişi ${intentId}`,
+                description: `MySkyParcel parsel satın alma işlemi. Sipariş referansı: ${intentId}`,
+                type: 'digital',
+                shippingPayer: 'sellerPays',
+                priceData: {
+                  currency: 'TRY',
+                  price: amount.toFixed(2),
+                },
+                media: [{ type: 'image', url: imageUrl, placement: 1 }],
+                stockQuantity: 1,
+                customListing: true,
+                customNote: `MySkyParcel intent: ${intentId}`,
+              }),
+            });
+          } catch (error) {
+            console.error('Shopier product creation request failed', { intentId, error });
+            await releaseIntent('shopier_request_failed');
+            return json({ ok: false, reason: 'shopier_unreachable' }, 502);
+          }
 
           const shopierBody = await shopierResponse.json().catch(() => ({})) as Record<string, unknown>;
           if (!shopierResponse.ok || !shopierBody.id) {
-            console.error('Shopier product creation failed', { status: shopierResponse.status, body: shopierBody });
+            console.error('Shopier product creation failed', {
+              intentId,
+              status: shopierResponse.status,
+              body: shopierBody,
+            });
+            await releaseIntent(`shopier_http_${shopierResponse.status}`);
             return json({ ok: false, reason: 'shopier_product_creation_failed' }, 502);
           }
 
           const shopierProductId = String(shopierBody.id);
           const productUrl = typeof shopierBody.url === 'string' ? shopierBody.url.trim() : '';
           if (!productUrl) {
-            console.error('Shopier product creation returned no product URL', { status: shopierResponse.status, body: shopierBody });
+            console.error('Shopier product creation returned no product URL', { intentId, status: shopierResponse.status, body: shopierBody });
+            await releaseIntent('shopier_product_url_missing');
             return json({ ok: false, reason: 'shopier_product_url_missing' }, 502);
           }
 
-          const serviceSupabase = createClient(supabaseUrl, serviceRoleKey, {
-            auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
-          });
           const { error: intentUpdateError } = await serviceSupabase
             .from('shopier_checkout_intents')
             .update({
@@ -122,6 +157,7 @@ export const Route = createFileRoute('/api/shopier/checkout')({
 
           if (intentUpdateError) {
             console.error('Shopier intent persistence failed', intentUpdateError);
+            await releaseIntent('intent_persistence_failed');
             return json({ ok: false, reason: 'checkout_persistence_failed' }, 500);
           }
 
