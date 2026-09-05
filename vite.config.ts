@@ -11,6 +11,26 @@ export default defineConfig({
   // which keeps assets working on every SSR route.
   tanstackStart: {
     server: { entry: "server" },
+    // Legal/informational pages are static content. Pre-rendering them creates
+    // /route/index.html files in .output/public so Apache/LiteSpeed can serve
+    // direct URL requests without depending on Passenger route forwarding.
+    prerender: {
+      routes: [
+        "/uyelik-sozlesmesi",
+        "/mesafeli-satis-sozlesmesi",
+        "/on-bilgilendirme-formu",
+        "/iade-iptal-politikasi",
+        "/kvkk",
+        "/gizlilik-politikasi",
+        "/kullanim-sartlari",
+        "/cerez-politikasi",
+        "/iletisim",
+      ],
+      crawlLinks: false,
+      failOnError: true,
+      retryCount: 2,
+      autoSubfolderIndex: true,
+    },
   },
   // MySkyParcel production runtime is cPanel + Passenger + Nitro node-server.
   // Keep the build deterministic and never select a platform-specific preset
