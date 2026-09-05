@@ -188,8 +188,11 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             return json({ ok: false, reason: 'shopier_product_id_missing' }, 502);
           }
 
+          // Shopier's API-generated product URL is authoritative. Only fall back to
+          // the canonical numeric URL when the API does not return one.
           const canonicalProductUrl = `https://www.shopier.com/${encodeURIComponent(shopierProductId)}`;
-          const checkoutUrl = isShopierUrl(explicitCheckoutUrl) ? explicitCheckoutUrl : canonicalProductUrl;
+          const checkoutUrl = [explicitCheckoutUrl, productUrl, canonicalProductUrl]
+            .find((candidate) => isShopierUrl(candidate)) || canonicalProductUrl;
 
           const { error: intentUpdateError } = await serviceSupabase
             .from('shopier_checkout_intents')
