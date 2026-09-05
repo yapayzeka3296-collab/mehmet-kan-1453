@@ -1,8 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
 import { Logo } from "@/components/Logo";
-
-const MySkyParcelEarthGlobe = lazy(() => import("@/components/MySkyParcelEarthGlobeSafe").then((module) => ({ default: module.MySkyParcelEarthGlobeSafe })));
+import { MySkyParcelEarthGlobeSafe as MySkyParcelEarthGlobe } from "@/components/MySkyParcelEarthGlobeSafe";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [{ title: "MySkyParcel — Gökyüzünde Kendi Parselini Seç" }, { name: "description", content: "81 il, 81 milyon parsel. Türkiye'den dünyaya açılan MySkyParcel projesini keşfet." }] }),
@@ -11,8 +9,8 @@ export const Route = createFileRoute("/")({
 
 function Landing() {
   return (
-    <main className="relative z-0 min-h-screen overflow-hidden bg-background text-foreground">
-      <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle_at_75%_20%,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(1,4,11,0.12),rgba(1,4,11,0.3))]" />
+    <main className="relative z-0 isolate min-h-screen overflow-hidden bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_75%_20%,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(1,4,11,0.12),rgba(1,4,11,0.3))]" />
       <div className="relative z-20 mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center justify-center gap-6 px-4 py-6 lg:flex-row lg:items-center lg:justify-between lg:gap-0 lg:px-6 lg:py-0 xl:px-10">
         <div className="relative z-20 flex w-full min-w-0 items-center lg:w-1/2 lg:pr-8">
           <div className="pointer-events-auto flex min-w-0 flex-col items-start">
@@ -25,10 +23,8 @@ function Landing() {
             </div>
           </div>
         </div>
-        <div className="relative z-0 flex w-full min-w-0 items-center justify-center overflow-hidden lg:w-1/2">
-          <Suspense fallback={<div className="relative h-[500px] w-full overflow-hidden bg-transparent lg:h-[600px]" aria-label="Küre yükleniyor" />}>
-            <MySkyParcelEarthGlobe className="h-[500px] w-full max-w-full overflow-hidden rounded-none border-0 bg-transparent shadow-none lg:h-[600px]" />
-          </Suspense>
+        <div className="relative z-20 isolate flex h-[500px] w-full min-w-0 max-w-full items-center justify-center overflow-hidden lg:h-[600px] lg:w-1/2">
+          <MySkyParcelEarthGlobe className="relative z-20 h-full w-full max-w-full overflow-hidden rounded-none border-0 bg-transparent shadow-none" />
         </div>
       </div>
       <div className="msp-ui-layer absolute right-4 top-4 z-30 sm:right-8 sm:top-8 lg:right-12 lg:top-10">
