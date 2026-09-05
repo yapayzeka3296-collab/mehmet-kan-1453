@@ -19,6 +19,15 @@ const escapeHtml = (value: string) => value
   .replaceAll('"', '&quot;')
   .replaceAll("'", '&#39;');
 
+const isShopierUrl = (value: string) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && (url.hostname === 'shopier.com' || url.hostname.endsWith('.shopier.com'));
+  } catch {
+    return false;
+  }
+};
+
 export const Route = createFileRoute('/api/shopier/redirect')({
   server: {
     handlers: {
@@ -42,7 +51,7 @@ export const Route = createFileRoute('/api/shopier/redirect')({
           });
           const { data: intent, error } = await supabase
             .from('shopier_checkout_intents')
-            .select('id,shopier_product_id,status,expires_at')
+            .select('id,shopier_product_id,checkout_url,status,expires_at')
             .eq('id', intentId)
             .maybeSingle();
 
@@ -57,10 +66,9 @@ export const Route = createFileRoute('/api/shopier/redirect')({
             return html('<!doctype html><html lang="tr"><body>Ödeme oturumunun süresi dolmuş.</body></html>', 410);
           }
 
-          // Shopier documents customer-facing product links as shopier.com/{id}.
-          // The previous /s/shipping/{shopSlug} POST was not a documented checkout
-          // route and could report that a custom/private product was missing.
-          const productUrl = `https://www.shopier.com/${encodeURIComponent(String(intent.shopier_product_id))}`;
+          const storedCheckoutUrl = typeof intent.checkout_url === 'string' ? intent.checkout_url.trim() : '';
+          const canonicalProductUrl = `https://www.shopier.com/${encodeURIComponent(String(intent.shopier_product_id))}`;
+          const productUrl = isShopierUrl(storedCheckoutUrl) ? storedCheckoutUrl : canonicalProductUrl;
           const safeProductUrl = escapeHtml(productUrl);
 
           return html(`<!doctype html>
