@@ -26,15 +26,13 @@ export const Route = createFileRoute('/api/shopier/redirect')({
         try {
           const intentId = new URL(request.url).searchParams.get('intent')?.trim() || '';
           const supabaseUrl = getEnv('SUPABASE_URL') || getEnv('VITE_SUPABASE_URL');
-          // Keep the same server-key aliases used by the checkout endpoint.
           const serviceRoleKey = getEnv('SUPABASE_SECRET_KEY') || getEnv('SUPABASE_SERVICE_ROLE_KEY');
-          const shopSlug = getEnv('SHOPIER_SHOP_SLUG');
-          if (!intentId || !supabaseUrl || !serviceRoleKey || !shopSlug) {
+
+          if (!intentId || !supabaseUrl || !serviceRoleKey) {
             console.error('Shopier redirect is not configured', {
               hasIntent: Boolean(intentId),
               hasSupabaseUrl: Boolean(supabaseUrl),
               hasServiceRoleKey: Boolean(serviceRoleKey),
-              hasShopSlug: Boolean(shopSlug),
             });
             return html('<!doctype html><html lang="tr"><body>Ödeme bağlantısı yapılandırılamadı.</body></html>', 503);
           }
@@ -59,22 +57,24 @@ export const Route = createFileRoute('/api/shopier/redirect')({
             return html('<!doctype html><html lang="tr"><body>Ödeme oturumunun süresi dolmuş.</body></html>', 410);
           }
 
-          const productId = escapeHtml(String(intent.shopier_product_id));
-          const encodedSlug = encodeURIComponent(shopSlug);
+          // Shopier documents customer-facing product links as shopier.com/{id}.
+          // The previous /s/shipping/{shopSlug} POST was not a documented checkout
+          // route and could report that a custom/private product was missing.
+          const productUrl = `https://www.shopier.com/${encodeURIComponent(String(intent.shopier_product_id))}`;
+          const safeProductUrl = escapeHtml(productUrl);
+
           return html(`<!doctype html>
 <html lang="tr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="0;url=${safeProductUrl}">
   <title>Shopier Ödeme</title>
 </head>
 <body>
-  <form id="shopier-hosted-checkout" method="POST" action="https://www.shopier.com/s/shipping/${encodedSlug}">
-    <input type="hidden" name="product_id" value="${productId}">
-    <input type="hidden" name="quantity" value="1">
-    <noscript><button type="submit">Shopier ile ödemeye devam et</button></noscript>
-  </form>
-  <script>document.getElementById('shopier-hosted-checkout').submit();</script>
+  <p>Shopier güvenli ödeme sayfasına yönlendiriliyorsunuz...</p>
+  <p><a href="${safeProductUrl}">Shopier ile ödemeye devam et</a></p>
+  <script>window.location.replace(${JSON.stringify(productUrl)});</script>
 </body>
 </html>`);
         } catch (error) {
