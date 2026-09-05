@@ -3,8 +3,8 @@ import { lazy, Suspense } from "react";
 import { Logo } from "@/components/Logo";
 
 const MySkyParcelEarthGlobe = lazy(() =>
-  import("@/components/MySkyParcelEarthGlobe").then((module) => ({
-    default: module.MySkyParcelEarthGlobe,
+  import("@/components/MySkyParcelEarthGlobeSafe").then((module) => ({
+    default: module.MySkyParcelEarthGlobeSafe,
   })),
 );
 
