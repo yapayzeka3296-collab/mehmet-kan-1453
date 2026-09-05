@@ -164,11 +164,12 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             return json({ ok: false, reason: 'shopier_product_id_missing' }, 502);
           }
 
-          // Prefer Shopier's own product URL when the API returns one. It is the
-          // canonical listing link for the exact product created by this PAT.
-          // Only use the server-side product-id redirect as a fallback.
-          const hostedRedirectUrl = `/api/shopier/redirect?intent=${encodeURIComponent(intentId)}`;
-          const checkoutUrl = productUrl || hostedRedirectUrl;
+          // Shopier documents the public product link as shopier.com/{productId}.
+          // Do not route through the undocumented /s/shipping/{shopSlug} endpoint:
+          // custom/private listings can be valid via their direct product link while
+          // the shop-level shipping endpoint may report that the product is missing.
+          const canonicalProductUrl = `https://www.shopier.com/${encodeURIComponent(shopierProductId)}`;
+          const checkoutUrl = canonicalProductUrl;
 
           const { error: intentUpdateError } = await serviceSupabase
             .from('shopier_checkout_intents')
@@ -183,7 +184,7 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             return json({ ok: false, reason: 'checkout_persistence_failed' }, 500);
           }
 
-          return json({ ok: true, ...intent, shopier_product_id: shopierProductId, checkout_url: checkoutUrl, shopier_product_url: productUrl || null }, 200);
+          return json({ ok: true, ...intent, shopier_product_id: shopierProductId, checkout_url: checkoutUrl, shopier_product_url: productUrl || canonicalProductUrl }, 200);
         } catch (error) {
           console.error('Unexpected Shopier checkout error', { intentId, message: error instanceof Error ? error.message : String(error) });
           if (releaseIntent) await releaseIntent('internal_error').catch(() => undefined);
