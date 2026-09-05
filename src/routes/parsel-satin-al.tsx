@@ -134,7 +134,7 @@ function SatinAl() {
         };
         const reason = String(result.reason);
         setValidationError(messages[reason] ?? "Ödeme başlatılamadı. Lütfen tekrar deneyin.");
-        if (reason === "parcel_reserved_by_other_user") setItems([]), setReservationConflict(true);
+        if (reason === "parcel_reserved_by_other_user") { setItems([]); setReservationConflict(true); }
         return;
       }
       window.location.assign(result.checkout_url);
