@@ -28,6 +28,15 @@ const readJson = async (response: Response): Promise<Record<string, unknown>> =>
 
 const getString = (value: unknown) => typeof value === 'string' ? value.trim() : '';
 
+const isShopierUrl = (value: string) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && (url.hostname === 'shopier.com' || url.hostname.endsWith('.shopier.com'));
+  } catch {
+    return false;
+  }
+};
+
 export const Route = createFileRoute('/api/shopier/checkout')({
   server: {
     handlers: {
@@ -157,7 +166,8 @@ export const Route = createFileRoute('/api/shopier/checkout')({
 
           const product = (shopierBody.data && typeof shopierBody.data === 'object' ? shopierBody.data : shopierBody) as Record<string, unknown>;
           const shopierProductId = getString(product.id) || getString(product.product_id) || getString(shopierBody.id) || getString(shopierBody.product_id);
-          const productUrl = getString(product.url) || getString(product.checkout_url) || getString(product.checkoutUrl) || getString(shopierBody.url) || getString(shopierBody.checkout_url) || getString(shopierBody.checkoutUrl);
+          const explicitCheckoutUrl = getString(product.checkout_url) || getString(product.checkoutUrl) || getString(shopierBody.checkout_url) || getString(shopierBody.checkoutUrl);
+          const productUrl = getString(product.url) || getString(shopierBody.url);
 
           if (!shopierProductId) {
             console.error('Shopier product creation returned no product id', { intentId, status: shopierResponse.status });
@@ -166,7 +176,7 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           }
 
           const canonicalProductUrl = `https://www.shopier.com/${encodeURIComponent(shopierProductId)}`;
-          const checkoutUrl = canonicalProductUrl;
+          const checkoutUrl = isShopierUrl(explicitCheckoutUrl) ? explicitCheckoutUrl : canonicalProductUrl;
 
           const { error: intentUpdateError } = await serviceSupabase
             .from('shopier_checkout_intents')
