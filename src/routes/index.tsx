@@ -47,8 +47,8 @@ function Landing() {
 
       <div className="msp-ui-layer absolute right-4 top-4 z-20 sm:right-8 sm:top-8 lg:right-12 lg:top-10">
         <Link
-          to="/turkiye-haritasi"
-          aria-label="Parsel seçim haritasına git"
+          to="/ana-sayfa"
+          aria-label="Ana sayfaya git"
           className="pointer-events-auto inline-flex items-center justify-center rounded-xl border border-cyan-200/80 bg-cyan-300 px-5 py-2.5 text-xs font-bold tracking-[0.08em] text-slate-950 shadow-lg shadow-cyan-950/30 transition hover:bg-cyan-200 sm:px-6 sm:py-3 sm:text-sm"
         >
           PARSELE GİT →
