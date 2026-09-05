@@ -56,7 +56,7 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           const publishableKey = getEnv('SUPABASE_PUBLISHABLE_KEY') || getEnv('VITE_SUPABASE_PUBLISHABLE_KEY') || getEnv('VITE_SUPABASE_ANON_KEY');
           const serviceRoleKey = getEnv('SUPABASE_SECRET_KEY') || getEnv('SUPABASE_SERVICE_ROLE_KEY');
           const shopierPat = getEnv('SHOPIER_PAT');
-          const thumbnailBaseUrl = getEnv('SHOPIER_PARCEL_THUMBNAIL_URL') || 'https://myskyparcel.com/api/shopier/parcel-image';
+          const thumbnailBaseUrl = getEnv('SHOPIER_PARCEL_THUMBNAIL_URL') || getEnv('SHOPIER_PRODUCT_IMAGE_URL') || 'https://myskyparcel.com/images/cities/turkey-3d-map.png';
 
           if (!supabaseUrl || !publishableKey || !serviceRoleKey) return json({ ok: false, reason: 'supabase_not_configured' }, 503);
           if (!shopierPat) return json({ ok: false, reason: 'shopier_not_configured' }, 503);
@@ -129,7 +129,9 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           }
 
           const parcelThumbnailUrl = new URL(thumbnailBaseUrl);
-          parcelThumbnailUrl.searchParams.set('ids', parcelIds.join(','));
+          if (thumbnailBaseUrl.includes('/api/shopier/parcel-image')) {
+            parcelThumbnailUrl.searchParams.set('ids', parcelIds.join(','));
+          }
           const imageUrl = parcelThumbnailUrl.toString();
 
           releaseIntent = async (reason: string) => {
