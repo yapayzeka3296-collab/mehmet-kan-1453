@@ -100,7 +100,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
         renderer.setClearColor(0, 0);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.domElement.style.cssText = "display:block;width:100%;height:100%;touch-action:none;user-select:none;cursor:grab";
+        renderer.domElement.style.cssText = "position:absolute;inset:0;display:block;width:100%;height:100%;max-width:100%;max-height:100%;touch-action:none;user-select:none;cursor:grab";
         mount.appendChild(renderer.domElement);
 
         const scene = new THREE.Scene();
@@ -201,22 +201,30 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
           if (pointers.size < 2) pinch = null;
           dragging = pointers.size === 1;
         };
+
+        let lastWidth = 0;
+        let lastHeight = 0;
         const resize = () => {
-          const w = mount.clientWidth;
-          const h = mount.clientHeight;
-          if (!w || !h) return;
+          const w = Math.max(1, Math.floor(mount.clientWidth));
+          const h = Math.max(1, Math.floor(mount.clientHeight));
+          if (w === lastWidth && h === lastHeight) return;
+          lastWidth = w;
+          lastHeight = h;
           camera.aspect = w / h;
           camera.updateProjectionMatrix();
           renderer.setSize(w, h, false);
         };
+
+        const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : undefined;
+        resizeObserver?.observe(mount);
+        window.addEventListener("resize", resize);
+        resize();
 
         renderer.domElement.addEventListener("wheel", wheel, { passive: false });
         renderer.domElement.addEventListener("pointerdown", down);
         renderer.domElement.addEventListener("pointermove", move);
         renderer.domElement.addEventListener("pointerup", up);
         renderer.domElement.addEventListener("pointercancel", up);
-        window.addEventListener("resize", resize);
-        resize();
 
         const clock = new THREE.Clock();
         const animate = () => {
@@ -235,6 +243,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         cleanup = () => {
           cancelled = true;
           cancelAnimationFrame(frame);
+          resizeObserver?.disconnect();
           window.removeEventListener("resize", resize);
           renderer.domElement.removeEventListener("wheel", wheel);
           renderer.domElement.removeEventListener("pointerdown", down);
@@ -268,8 +277,8 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
   }, []);
 
   return (
-    <div className={`relative z-0 h-[560px] w-full overflow-hidden rounded-3xl border border-sky-200/15 bg-background shadow-2xl shadow-black/40 ${className}`}>
-      <div ref={mountRef} className="absolute inset-0 z-0" aria-label="MySkyParcel görsel 3D Dünya küresi" />
+    <div className={`relative z-0 h-[560px] w-full min-w-0 max-w-full overflow-hidden rounded-3xl border border-sky-200/15 bg-background shadow-2xl shadow-black/40 ${className}`}>
+      <div ref={mountRef} className="absolute inset-0 z-0 min-h-0 min-w-0 max-w-full overflow-hidden" aria-label="MySkyParcel görsel 3D Dünya küresi" />
       <div className="pointer-events-none absolute inset-0 z-10" />
       <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] text-white/60 backdrop-blur-md">
         İki parmakla yakınlaştır · fare tekerleğiyle zoom
