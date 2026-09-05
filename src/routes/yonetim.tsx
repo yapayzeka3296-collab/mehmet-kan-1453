@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Award, Bell, Boxes, ClipboardList, FileText, LogOut, RefreshCw, ShieldCheck, Users } from "lucide-react";
+import { Activity, Award, Bell, Boxes, ClipboardList, FileText, LogOut, RefreshCw, ShieldCheck, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { AdminCertificateOverride } from "@/components/admin/AdminCertificateOverride";
@@ -123,16 +123,37 @@ function Admin() {
 
 function Dashboard({ stats }: { stats: Stats | null }) {
   const [notifications, setNotifications] = useState<Row[]>([]);
+  const [siteStats, setSiteStats] = useState<Stats | null>(null);
+  const [siteStatsError, setSiteStatsError] = useState("");
+
   useEffect(() => {
     void (async () => {
       const { data } = await supabaseBrowser.from("admin_notifications").select("id,title,message,is_read,created_at").order("created_at", { ascending: false }).limit(20);
       setNotifications((data ?? []) as Row[]);
     })();
   }, []);
+
+  useEffect(() => {
+    void (async () => {
+      const { data, error: rpcError } = await supabaseBrowser.rpc("admin_site_statistics");
+      if (rpcError) {
+        setSiteStatsError(rpcError.message);
+        return;
+      }
+      setSiteStats(data as Stats);
+    })();
+  }, []);
+
   const items = stats ? [["Toplam parsel", stats.parcels_inventory_total], ["Satışa açık", stats.parcels_available], ["Satılmış", stats.parcels_sold], ["Kullanıcı", stats.users_total], ["Sertifika", stats.certificates_total], ["Bekleyen sertifika", stats.certificates_pending], ["Askıdaki sipariş", stats.orders_total]] : [];
   return (
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {items.map(([label, value]) => <div key={String(label)} className="panel p-5"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 font-display text-3xl">{Number(value).toLocaleString("tr-TR")}</p></div>)}
+      <div className="panel p-5 sm:col-span-2 xl:col-span-4">
+        <div className="flex items-center gap-2"><Activity className="h-5 w-5 text-gold" /><h2 className="font-semibold">Canlı Site İstatistikleri</h2></div>
+        {siteStatsError ? <p className="mt-4 text-sm text-destructive">{siteStatsError}</p> : siteStats ? <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {[["Şu an aktif", siteStats.active_now], ["Bugün", siteStats.today], ["Bu hafta", siteStats.week], ["Bu ay", siteStats.month], ["Toplam", siteStats.total]].map(([label, value]) => <div key={String(label)} className="rounded-md border border-border p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 font-display text-2xl">{Number(value).toLocaleString("tr-TR")}</p></div>)}
+        </div> : <p className="mt-4 text-sm text-muted-foreground">Canlı istatistikler yükleniyor...</p>}
+      </div>
       <div className="panel p-5 sm:col-span-2 xl:col-span-4"><div className="flex items-center gap-2"><Bell className="h-5 w-5 text-gold" /><h2 className="font-semibold">Bildirimler</h2></div>{notifications.length === 0 ? <p className="mt-4 text-sm text-muted-foreground">Yeni bildirim yok.</p> : <div className="mt-4 space-y-2">{notifications.map((n) => <div key={n.id} className="rounded-md border border-border p-3"><p className="text-sm font-medium">{n.title}</p><p className="mt-1 whitespace-pre-line text-xs text-muted-foreground">{n.message}</p></div>)}</div>}</div>
     </section>
   );
