@@ -31,7 +31,6 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           const publishableKey = getEnv('SUPABASE_PUBLISHABLE_KEY') || getEnv('VITE_SUPABASE_PUBLISHABLE_KEY') || getEnv('VITE_SUPABASE_ANON_KEY');
           const serviceRoleKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
           const shopierPat = getEnv('SHOPIER_PAT');
-          const imageUrl = getEnv('SHOPIER_PRODUCT_IMAGE_URL') || 'https://myskyparcel.com/images/cities/turkey-3d-map.png';
 
           if (!supabaseUrl || !publishableKey || !serviceRoleKey) return json({ ok: false, reason: 'supabase_not_configured' }, 503);
           if (!shopierPat) return json({ ok: false, reason: 'shopier_not_configured' }, 503);
@@ -105,17 +104,11 @@ export const Route = createFileRoute('/api/shopier/checkout')({
               },
               body: JSON.stringify({
                 title: `MySkyParcel Parsel Siparişi ${intentId}`,
-                description: `MySkyParcel parsel satın alma işlemi. Sipariş referansı: ${intentId}`,
                 type: 'digital',
-                shippingPayer: 'sellerPays',
                 priceData: {
                   currency: 'TRY',
                   price: amount.toFixed(2),
                 },
-                media: [{ type: 'image', url: imageUrl, placement: 1 }],
-                stockQuantity: 1,
-                customListing: true,
-                customNote: `MySkyParcel intent: ${intentId}`,
               }),
             });
           } catch (error) {
