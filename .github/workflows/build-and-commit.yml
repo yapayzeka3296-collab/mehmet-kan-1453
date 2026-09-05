@@ -66,6 +66,32 @@ jobs:
         run: npm run lint
       - name: Build production application
         run: npm run build:production
+      - name: Start Nitro server
+        shell: bash
+        run: |
+          set -euo pipefail
+          node app.js > /tmp/myskyparcel-nitro.log 2>&1 &
+          echo $! > /tmp/myskyparcel-nitro.pid
+          for attempt in {1..30}; do
+            if curl -fsS --max-time 2 http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/myskyparcel-nitro.log
+          exit 1
+      - name: Generate cPanel static route HTML
+        shell: bash
+        run: |
+          set -euo pipefail
+          routes=(
+            uyelik-sozlesmesi mesafeli-satis-sozlesmesi on-bilgilendirme-formu
+            iade-iptal-politikasi kvkk gizlilik-politikasi kullanim-sartlari
+            cerez-politikasi iletisim
+          )
+          for route in "${routes[@]}"; do
+            mkdir -p ".output/public/${route}"
+            curl -fsS -L --max-time 20 "http://127.0.0.1:4173/${route}" > ".output/public/${route}/index.html"
+            test -s ".output/public/${route}/index.html"
+          done
       - name: Validate cPanel artifacts
         shell: bash
         run: |
@@ -80,20 +106,8 @@ jobs:
             uyelik-sozlesmesi mesafeli-satis-sozlesmesi on-bilgilendirme-formu \
             iade-iptal-politikasi kvkk gizlilik-politikasi kullanim-sartlari \
             cerez-politikasi iletisim; do
-            test -f ".output/public/${route}/index.html"
+            test -s ".output/public/${route}/index.html"
           done
-      - name: Start Nitro server
-        shell: bash
-        run: |
-          set -euo pipefail
-          node app.js > /tmp/myskyparcel-nitro.log 2>&1 &
-          echo $! > /tmp/myskyparcel-nitro.pid
-          for attempt in {1..30}; do
-            if curl -fsS --max-time 2 http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
-            sleep 1
-          done
-          cat /tmp/myskyparcel-nitro.log
-          exit 1
       - name: Smoke test application routes
         shell: bash
         run: |
