@@ -164,13 +164,15 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             return json({ ok: false, reason: 'shopier_product_id_missing' }, 502);
           }
 
-          // Shopier's product endpoint can return a product id without a public URL.
-          // The hosted checkout redirect only needs the product id and shop slug.
-          // Keep the optional URL for diagnostics/storage, but do not make it a
-          // prerequisite for a valid checkout session.
+          // Prefer Shopier's own product URL when the API returns one. It is the
+          // canonical listing link for the exact product created by this PAT.
+          // Only use the server-side product-id redirect as a fallback.
+          const hostedRedirectUrl = `/api/shopier/redirect?intent=${encodeURIComponent(intentId)}`;
+          const checkoutUrl = productUrl || hostedRedirectUrl;
+
           const { error: intentUpdateError } = await serviceSupabase
             .from('shopier_checkout_intents')
-            .update({ shopier_product_id: shopierProductId, checkout_url: productUrl || null, status: 'redirected', updated_at: new Date().toISOString() })
+            .update({ shopier_product_id: shopierProductId, checkout_url: checkoutUrl, status: 'redirected', updated_at: new Date().toISOString() })
             .eq('id', intentId)
             .eq('user_id', authData.user.id)
             .in('status', ['pending', 'redirected']);
@@ -181,8 +183,7 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             return json({ ok: false, reason: 'checkout_persistence_failed' }, 500);
           }
 
-          const hostedRedirectUrl = `/api/shopier/redirect?intent=${encodeURIComponent(intentId)}`;
-          return json({ ok: true, ...intent, shopier_product_id: shopierProductId, checkout_url: hostedRedirectUrl, shopier_product_url: productUrl || null }, 200);
+          return json({ ok: true, ...intent, shopier_product_id: shopierProductId, checkout_url: checkoutUrl, shopier_product_url: productUrl || null }, 200);
         } catch (error) {
           console.error('Unexpected Shopier checkout error', { intentId, message: error instanceof Error ? error.message : String(error) });
           if (releaseIntent) await releaseIntent('internal_error').catch(() => undefined);
