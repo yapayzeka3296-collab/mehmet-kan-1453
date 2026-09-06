@@ -134,6 +134,8 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           }
           const imageUrl = parcelThumbnailUrl.toString();
 
+          const orderIds = Array.isArray(intent.order_ids) ? intent.order_ids.filter((id): id is string => typeof id === 'string') : [];
+
           releaseIntent = async (reason: string) => {
             const now = new Date().toISOString();
             const { error: releaseError } = await serviceSupabase
@@ -144,13 +146,15 @@ export const Route = createFileRoute('/api/shopier/checkout')({
               .eq('reserved_by', authData.user.id);
             if (releaseError) console.error('Shopier reservation release failed', { intentId, reason, code: releaseError.code, message: releaseError.message });
 
-            const { error: orderError } = await serviceSupabase
-              .from('orders')
-              .update({ status: 'cancelled', updated_at: now })
-              .in('id', Array.isArray(intent.order_ids) ? intent.order_ids.filter((id): id is string => typeof id === 'string') : [])
-              .eq('user_id', authData.user.id)
-              .eq('status', 'pending');
-            if (orderError) console.error('Shopier pending order cancellation failed', { intentId, reason, code: orderError.code, message: orderError.message });
+            if (orderIds.length) {
+              const { error: orderError } = await serviceSupabase
+                .from('orders')
+                .update({ status: 'cancelled', updated_at: now })
+                .in('id', orderIds)
+                .eq('user_id', authData.user.id)
+                .eq('status', 'pending');
+              if (orderError) console.error('Shopier pending order cancellation failed', { intentId, reason, code: orderError.code, message: orderError.message });
+            }
 
             const { error: intentError } = await serviceSupabase
               .from('shopier_checkout_intents')
@@ -165,6 +169,21 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           const timeout = setTimeout(() => controller.abort(), SHOPIER_TIMEOUT_MS);
           let shopierResponse: Response;
           try {
+            const basePayload = {
+              title: `MySkyParcel Parsel Siparişi ${intentId}`,
+              description: `MySkyParcel parsel satın alma işlemi. Sipariş referansı: ${intentId}`,
+              type: 'digital',
+              shippingPayer: 'sellerPays',
+              priceData: { currency: 'TRY', price: amount.toFixed(2) },
+              media: [{ type: 'image', url: imageUrl, placement: 1 }],
+            };
+            const fullPayload = {
+              ...basePayload,
+              stockQuantity: 1,
+              customListing: true,
+              customNote: `MySkyParcel intent: ${intentId}`,
+            };
+
             shopierResponse = await fetch('https://api.shopier.com/v1/products', {
               method: 'POST',
               signal: controller.signal,
@@ -174,18 +193,25 @@ export const Route = createFileRoute('/api/shopier/checkout')({
                 'Content-Type': 'application/json',
                 'Idempotency-Key': intentId,
               },
-              body: JSON.stringify({
-                title: `MySkyParcel Parsel Siparişi ${intentId}`,
-                description: `MySkyParcel parsel satın alma işlemi. Sipariş referansı: ${intentId}`,
-                type: 'digital',
-                shippingPayer: 'sellerPays',
-                priceData: { currency: 'TRY', price: amount.toFixed(2) },
-                media: [{ type: 'image', url: imageUrl, placement: 1 }],
-                stockQuantity: 1,
-                customListing: true,
-                customNote: `MySkyParcel intent: ${intentId}`,
-              }),
+              body: JSON.stringify(fullPayload),
             });
+
+            if ((shopierResponse.status === 400 || shopierResponse.status === 422) && !shopierResponse.ok) {
+              const firstBody = await readJson(shopierResponse);
+              const firstMessage = getString(firstBody.message) || getString(firstBody.error) || getString(firstBody.detail);
+              console.error('Shopier full product payload rejected; retrying with core product payload', { intentId, status: shopierResponse.status, message: firstMessage.slice(0, 300) });
+              shopierResponse = await fetch('https://api.shopier.com/v1/products', {
+                method: 'POST',
+                signal: controller.signal,
+                headers: {
+                  Authorization: `Bearer ${shopierPat}`,
+                  Accept: 'application/json',
+                  'Content-Type': 'application/json',
+                  'Idempotency-Key': intentId,
+                },
+                body: JSON.stringify(basePayload),
+              });
+            }
           } catch (error) {
             clearTimeout(timeout);
             const aborted = error instanceof Error && error.name === 'AbortError';
