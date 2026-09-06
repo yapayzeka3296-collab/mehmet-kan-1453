@@ -216,12 +216,13 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             return json({ ok: false, reason: 'shopier_product_id_missing' }, 502);
           }
 
+          // Use Shopier's public product URL directly. The previous implementation generated
+          // a local redirect that POSTed to Shopier's internal /s/shipping/{slug} endpoint.
+          // That endpoint is not the documented customer-facing product link and could result
+          // in a blank/failed transition even when product creation succeeded.
           const canonicalProductUrl = `https://www.shopier.com/${encodeURIComponent(shopierProductId)}`;
-          const configuredShopSlug = getEnv('SHOPIER_SHOP_SLUG');
-          const hostedCheckoutUrl = configuredShopSlug
-            ? `/api/shopier/redirect?intent=${encodeURIComponent(intentId)}`
-            : '';
-          const checkoutUrl = [hostedCheckoutUrl, explicitCheckoutUrl, productUrl, canonicalProductUrl].find((candidate) => candidate && (candidate.startsWith('/') || isShopierUrl(candidate))) || canonicalProductUrl;
+          const checkoutUrl = [explicitCheckoutUrl, productUrl, canonicalProductUrl]
+            .find((candidate) => candidate && isShopierUrl(candidate)) || canonicalProductUrl;
 
           const { error: intentUpdateError } = await serviceSupabase.from('shopier_checkout_intents').update({
             shopier_product_id: shopierProductId,
