@@ -50,6 +50,7 @@ import { Route as TurkiyeHaritasiRouteImport } from './routes/turkiye-haritasi'
 import { Route as UyelikSozlesmesiRouteImport } from './routes/uyelik-sozlesmesi'
 import { Route as YonetimRouteImport } from './routes/yonetim'
 import { Route as ApiEarthAssetsRouteImport } from './routes/api/earth-assets'
+import { Route as ApiShopierCheckoutIntentRouteImport } from './routes/api/shopier-checkout-intent'
 import { Route as SehirSlugRouteImport } from './routes/sehir/$slug'
 import { Route as ApiShopierCheckoutRouteImport } from './routes/api/shopier/checkout'
 import { Route as ApiShopierParcelImageRouteImport } from './routes/api/shopier/parcel-image'
@@ -261,6 +262,12 @@ const ApiEarthAssetsRoute = ApiEarthAssetsRouteImport.update({
   path: '/api/earth-assets',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiShopierCheckoutIntentRoute =
+  ApiShopierCheckoutIntentRouteImport.update({
+    id: '/api/shopier-checkout-intent',
+    path: '/api/shopier-checkout-intent',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const SehirSlugRoute = SehirSlugRouteImport.update({
   id: '/sehir/$slug',
   path: '/sehir/$slug',
@@ -329,6 +336,7 @@ export interface FileRoutesByFullPath {
   '/uyelik-sozlesmesi': typeof UyelikSozlesmesiRoute
   '/yonetim': typeof YonetimRoute
   '/api/earth-assets': typeof ApiEarthAssetsRoute
+  '/api/shopier-checkout-intent': typeof ApiShopierCheckoutIntentRoute
   '/sehir/$slug': typeof SehirSlugRoute
   '/api/shopier/checkout': typeof ApiShopierCheckoutRoute
   '/api/shopier/parcel-image': typeof ApiShopierParcelImageRoute
@@ -377,6 +385,7 @@ export interface FileRoutesByTo {
   '/uyelik-sozlesmesi': typeof UyelikSozlesmesiRoute
   '/yonetim': typeof YonetimRoute
   '/api/earth-assets': typeof ApiEarthAssetsRoute
+  '/api/shopier-checkout-intent': typeof ApiShopierCheckoutIntentRoute
   '/sehir/$slug': typeof SehirSlugRoute
   '/api/shopier/checkout': typeof ApiShopierCheckoutRoute
   '/api/shopier/parcel-image': typeof ApiShopierParcelImageRoute
@@ -426,6 +435,7 @@ export interface FileRoutesById {
   '/uyelik-sozlesmesi': typeof UyelikSozlesmesiRoute
   '/yonetim': typeof YonetimRoute
   '/api/earth-assets': typeof ApiEarthAssetsRoute
+  '/api/shopier-checkout-intent': typeof ApiShopierCheckoutIntentRoute
   '/sehir/$slug': typeof SehirSlugRoute
   '/api/shopier/checkout': typeof ApiShopierCheckoutRoute
   '/api/shopier/parcel-image': typeof ApiShopierParcelImageRoute
@@ -476,6 +486,7 @@ export interface FileRouteTypes {
     | '/uyelik-sozlesmesi'
     | '/yonetim'
     | '/api/earth-assets'
+    | '/api/shopier-checkout-intent'
     | '/sehir/$slug'
     | '/api/shopier/checkout'
     | '/api/shopier/parcel-image'
@@ -524,6 +535,7 @@ export interface FileRouteTypes {
     | '/uyelik-sozlesmesi'
     | '/yonetim'
     | '/api/earth-assets'
+    | '/api/shopier-checkout-intent'
     | '/sehir/$slug'
     | '/api/shopier/checkout'
     | '/api/shopier/parcel-image'
@@ -572,6 +584,7 @@ export interface FileRouteTypes {
     | '/uyelik-sozlesmesi'
     | '/yonetim'
     | '/api/earth-assets'
+    | '/api/shopier-checkout-intent'
     | '/sehir/$slug'
     | '/api/shopier/checkout'
     | '/api/shopier/parcel-image'
@@ -621,6 +634,7 @@ export interface RootRouteChildren {
   UyelikSozlesmesiRoute: typeof UyelikSozlesmesiRoute
   YonetimRoute: typeof YonetimRoute
   ApiEarthAssetsRoute: typeof ApiEarthAssetsRoute
+  ApiShopierCheckoutIntentRoute: typeof ApiShopierCheckoutIntentRoute
   SehirSlugRoute: typeof SehirSlugRoute
   ApiShopierCheckoutRoute: typeof ApiShopierCheckoutRoute
   ApiShopierParcelImageRoute: typeof ApiShopierParcelImageRoute
@@ -917,6 +931,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiEarthAssetsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/shopier-checkout-intent': {
+      id: '/api/shopier-checkout-intent'
+      path: '/api/shopier-checkout-intent'
+      fullPath: '/api/shopier-checkout-intent'
+      preLoaderRoute: typeof ApiShopierCheckoutIntentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sehir/$slug': {
       id: '/sehir/$slug'
       path: '/sehir/$slug'
@@ -997,6 +1018,7 @@ const rootRouteChildren: RootRouteChildren = {
   UyelikSozlesmesiRoute: UyelikSozlesmesiRoute,
   YonetimRoute: YonetimRoute,
   ApiEarthAssetsRoute: ApiEarthAssetsRoute,
+  ApiShopierCheckoutIntentRoute: ApiShopierCheckoutIntentRoute,
   SehirSlugRoute: SehirSlugRoute,
   ApiShopierCheckoutRoute: ApiShopierCheckoutRoute,
   ApiShopierParcelImageRoute: ApiShopierParcelImageRoute,
