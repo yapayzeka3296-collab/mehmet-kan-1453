@@ -2,7 +2,7 @@
 # MySkyParcel — cPanel / CloudLinux Passenger deployment
 #
 # Core runtime:
-#   cPanel Git repository (/home/myskypar/repositories/mehmet-kan-1453)
+#   cPanel Git repository (/home/myskypar/repositories/pixel-perfect-clone-14793)
 #        ├─ app.js + .output/server  -> Passenger / Nitro SSR
 #        └─ .output/public           -> public_html static assets
 #
@@ -10,7 +10,7 @@
 # cPanel pulls/deploys main. This file is intentionally deployment-only.
 deployment:
   tasks:
-    - export APPROOT=/home/myskypar/repositories/mehmet-kan-1453
+    - export APPROOT=/home/myskypar/repositories/pixel-perfect-clone-14793
     - export DEPLOYPATH=/home/myskypar/public_html
 
     # Refuse partial/old deployments instead of publishing a broken build.
