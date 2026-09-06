@@ -128,6 +128,15 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             return json({ ok: false, reason: 'checkout_intent_invalid' }, 500);
           }
 
+          const { data: parcelRows, error: parcelLookupError } = await serviceSupabase
+            .from('parcels')
+            .select('id,parcel_number')
+            .in('id', parcelIds);
+          if (parcelLookupError || !parcelRows?.length) {
+            console.error('Shopier parcel thumbnail data lookup failed', { intentId, code: parcelLookupError?.code, message: parcelLookupError?.message });
+            return json({ ok: false, reason: 'checkout_intent_invalid' }, 500);
+          }
+
           const orderIds = Array.isArray(intent.order_ids) ? intent.order_ids.filter((id): id is string => typeof id === 'string') : [];
 
           releaseIntent = async (reason: string) => {
