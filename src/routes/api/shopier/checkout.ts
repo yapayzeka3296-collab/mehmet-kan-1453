@@ -147,9 +147,9 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           let shopierResponse: Response;
           let shopierResponseInfo: ShopierResponseInfo;
           try {
-            // Keep the product payload identical to the last known-good live flow.
-            // Do not add a second POST fallback: a failed client response can still
-            // mean Shopier created the product, which could create duplicate listings.
+            // Use only the core product fields supported by the Shopier product-create
+            // flow. Optional dashboard-only/custom listing fields are intentionally not
+            // sent because an API validation error here must not block checkout.
             const payload = {
               title: `MySkyParcel Parsel Siparişi ${intentId}`,
               description: `MySkyParcel parsel satın alma işlemi. Sipariş referansı: ${intentId}`,
@@ -157,13 +157,10 @@ export const Route = createFileRoute('/api/shopier/checkout')({
               shippingPayer: 'sellerPays',
               priceData: { currency: 'TRY', price: amount.toFixed(2) },
               media: [{ type: 'image', url: SHOPIER_PRODUCT_IMAGE_URL, placement: 1 }],
-              stockQuantity: 1,
-              customListing: true,
-              customNote: `MySkyParcel intent: ${intentId}`,
             };
             shopierResponse = await fetch('https://api.shopier.com/v1/products', {
               method: 'POST', signal: controller.signal,
-              headers: { Authorization: `Bearer ${shopierPat}`, Accept: 'application/json', 'Content-Type': 'application/json', 'Idempotency-Key': intentId },
+              headers: { Authorization: `Bearer ${shopierPat}`, Accept: 'application/json', 'Content-Type': 'application/json' },
               body: JSON.stringify(payload),
             });
             shopierResponseInfo = await readShopierResponse(shopierResponse);
