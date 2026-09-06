@@ -1,4 +1,4 @@
-//#region node_modules/.nitro/vite/services/ssr/assets/_tanstack-start-manifest_v-B3tqP23k.mjs
+//#region node_modules/.nitro/vite/services/ssr/assets/_tanstack-start-manifest_v-CGd8dHo8.mjs
 var tsrStartManifest = () => ({ routes: {
 	__root__: {
 		filePath: "/home/runner/work/mehmet-kan-1453/mehmet-kan-1453/src/routes/__root.tsx",
@@ -50,9 +50,9 @@ var tsrStartManifest = () => ({ routes: {
 			"/api/shopier/redirect",
 			"/api/shopier/webhook"
 		],
-		css: ["/assets/index-CHJr7C4O.css"],
+		css: ["/assets/index-DACPHVRM.css"],
 		preloads: [
-			"/assets/index-B7IZgEbK.js",
+			"/assets/index-CQPmrs47.js",
 			"/assets/rolldown-runtime-hePW80VL.js",
 			"/assets/useRouter-Bfknwdby.js",
 			"/assets/link-BGEbXR-c.js",
@@ -66,7 +66,7 @@ var tsrStartManifest = () => ({ routes: {
 		scripts: [{ attrs: {
 			type: "module",
 			async: !0,
-			src: "/assets/index-B7IZgEbK.js"
+			src: "/assets/index-CQPmrs47.js"
 		} }]
 	},
 	"/": {
