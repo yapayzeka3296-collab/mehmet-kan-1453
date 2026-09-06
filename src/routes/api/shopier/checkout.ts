@@ -14,16 +14,29 @@ const json = (body: Record<string, unknown>, status = 200) => new Response(
 
 const getEnv = (name: string) => process.env[name]?.trim() || '';
 const SHOPIER_TIMEOUT_MS = 15_000;
+const SHOPIER_DIAGNOSTIC_BODY_LIMIT = 4_000;
 
-const readJson = async (response: Response): Promise<Record<string, unknown>> => {
-  const text = await response.text().catch(() => '');
-  if (!text) return {};
+type ShopierResponseInfo = {
+  rawBody: string;
+  parsedBody: Record<string, unknown>;
+  requestId: string | null;
+};
+
+const readShopierResponse = async (response: Response): Promise<ShopierResponseInfo> => {
+  const rawBody = await response.text().catch(() => '');
+  let parsedBody: Record<string, unknown> = {};
   try {
-    const parsed: unknown = JSON.parse(text);
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+    const parsed: unknown = rawBody ? JSON.parse(rawBody) : null;
+    if (parsed && typeof parsed === 'object') parsedBody = parsed as Record<string, unknown>;
   } catch {
-    return {};
+    // Preserve the raw response for diagnostics when Shopier does not return JSON.
   }
+  const requestId = response.headers.get('x-request-id')
+    ?? response.headers.get('request-id')
+    ?? response.headers.get('trace-id')
+    ?? response.headers.get('x-correlation-id')
+    ?? null;
+  return { rawBody, parsedBody, requestId };
 };
 
 const getString = (value: unknown) => typeof value === 'string' ? value.trim() : '';
@@ -168,6 +181,7 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), SHOPIER_TIMEOUT_MS);
           let shopierResponse: Response;
+          let shopierResponseInfo: ShopierResponseInfo;
           try {
             const basePayload = {
               title: `MySkyParcel Parsel Siparişi ${intentId}`,
@@ -197,9 +211,15 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             });
 
             if ((shopierResponse.status === 400 || shopierResponse.status === 422) && !shopierResponse.ok) {
-              const firstBody = await readJson(shopierResponse);
-              const firstMessage = getString(firstBody.message) || getString(firstBody.error) || getString(firstBody.detail);
-              console.error('Shopier full product payload rejected; retrying with core product payload', { intentId, status: shopierResponse.status, message: firstMessage.slice(0, 300) });
+              shopierResponseInfo = await readShopierResponse(shopierResponse);
+              const firstMessage = getString(shopierResponseInfo.parsedBody.message) || getString(shopierResponseInfo.parsedBody.error) || getString(shopierResponseInfo.parsedBody.detail);
+              console.error('Shopier full product payload rejected; retrying with core product payload', {
+                intentId,
+                status: shopierResponse.status,
+                message: firstMessage.slice(0, 300),
+                body: shopierResponseInfo.rawBody.slice(0, SHOPIER_DIAGNOSTIC_BODY_LIMIT),
+                requestId: shopierResponseInfo.requestId,
+              });
               shopierResponse = await fetch('https://api.shopier.com/v1/products', {
                 method: 'POST',
                 signal: controller.signal,
@@ -207,11 +227,12 @@ export const Route = createFileRoute('/api/shopier/checkout')({
                   Authorization: `Bearer ${shopierPat}`,
                   Accept: 'application/json',
                   'Content-Type': 'application/json',
-                  'Idempotency-Key': intentId,
+                  'Idempotency-Key': `${intentId}-fallback`,
                 },
                 body: JSON.stringify(basePayload),
               });
             }
+            shopierResponseInfo = await readShopierResponse(shopierResponse);
           } catch (error) {
             clearTimeout(timeout);
             const aborted = error instanceof Error && error.name === 'AbortError';
@@ -221,14 +242,19 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           }
           clearTimeout(timeout);
 
-          const shopierBody = await readJson(shopierResponse);
+          const shopierBody = shopierResponseInfo.parsedBody;
           if (!shopierResponse.ok) {
             const apiMessage = getString(shopierBody.message) || getString(shopierBody.error) || getString(shopierBody.detail);
-            console.error('Shopier product creation failed', { intentId, status: shopierResponse.status, message: apiMessage.slice(0, 300) });
+            const diagnostic = {
+              status: shopierResponse.status,
+              body: shopierResponseInfo.rawBody.slice(0, SHOPIER_DIAGNOSTIC_BODY_LIMIT),
+              request_id: shopierResponseInfo.requestId,
+            };
+            console.error('Shopier product creation failed', { intentId, ...diagnostic, message: apiMessage.slice(0, 300) });
             await releaseIntent(`shopier_http_${shopierResponse.status}`);
-            if (shopierResponse.status === 401 || shopierResponse.status === 403) return json({ ok: false, reason: 'shopier_auth_failed' }, 502);
-            if (shopierResponse.status === 400 || shopierResponse.status === 422) return json({ ok: false, reason: 'shopier_validation_failed' }, 502);
-            return json({ ok: false, reason: 'shopier_product_creation_failed' }, 502);
+            if (shopierResponse.status === 401 || shopierResponse.status === 403) return json({ ok: false, reason: 'shopier_auth_failed', shopier_diagnostic: diagnostic }, 502);
+            if (shopierResponse.status === 400 || shopierResponse.status === 422) return json({ ok: false, reason: 'shopier_validation_failed', shopier_diagnostic: diagnostic }, 502);
+            return json({ ok: false, reason: 'shopier_product_creation_failed', shopier_diagnostic: diagnostic }, 502);
           }
 
           const product = (shopierBody.data && typeof shopierBody.data === 'object' ? shopierBody.data : shopierBody) as Record<string, unknown>;
@@ -237,9 +263,9 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           const productUrl = getString(product.url) || getString(shopierBody.url);
 
           if (!shopierProductId) {
-            console.error('Shopier product creation returned no product id', { intentId, status: shopierResponse.status });
+            console.error('Shopier product creation returned no product id', { intentId, status: shopierResponse.status, body: shopierResponseInfo.rawBody.slice(0, SHOPIER_DIAGNOSTIC_BODY_LIMIT), requestId: shopierResponseInfo.requestId });
             await releaseIntent('shopier_product_id_missing');
-            return json({ ok: false, reason: 'shopier_product_id_missing' }, 502);
+            return json({ ok: false, reason: 'shopier_product_id_missing', shopier_diagnostic: { status: shopierResponse.status, body: shopierResponseInfo.rawBody.slice(0, SHOPIER_DIAGNOSTIC_BODY_LIMIT), request_id: shopierResponseInfo.requestId } }, 502);
           }
 
           const canonicalProductUrl = `https://www.shopier.com/${encodeURIComponent(shopierProductId)}`;
