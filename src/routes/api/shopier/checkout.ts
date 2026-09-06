@@ -15,6 +15,7 @@ const json = (body: Record<string, unknown>, status = 200) => new Response(
 const getEnv = (name: string) => process.env[name]?.trim() || '';
 const SHOPIER_TIMEOUT_MS = 15_000;
 const SHOPIER_DIAGNOSTIC_BODY_LIMIT = 4_000;
+const SHOPIER_PRODUCT_IMAGE_URL = 'https://myskyparcel.com/images/cities/turkey-3d-map.png';
 
 type ShopierResponseInfo = {
   rawBody: string;
@@ -69,7 +70,6 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           const publishableKey = getEnv('SUPABASE_PUBLISHABLE_KEY') || getEnv('VITE_SUPABASE_PUBLISHABLE_KEY') || getEnv('VITE_SUPABASE_ANON_KEY');
           const serviceRoleKey = getEnv('SUPABASE_SECRET_KEY') || getEnv('SUPABASE_SERVICE_ROLE_KEY');
           const shopierPat = getEnv('SHOPIER_PAT');
-          const imageUrl = getEnv('SHOPIER_PRODUCT_IMAGE_URL') || 'https://myskyparcel.com/images/cities/turkey-3d-map.png';
 
           if (!supabaseUrl || !publishableKey || !serviceRoleKey) return json({ ok: false, reason: 'supabase_not_configured' }, 503);
           if (!shopierPat) return json({ ok: false, reason: 'shopier_not_configured' }, 503);
@@ -128,15 +128,6 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             return json({ ok: false, reason: 'checkout_intent_invalid' }, 500);
           }
 
-          const { data: parcelRows, error: parcelLookupError } = await serviceSupabase
-            .from('parcels')
-            .select('id,parcel_number')
-            .in('id', parcelIds);
-          if (parcelLookupError || !parcelRows?.length) {
-            console.error('Shopier parcel thumbnail data lookup failed', { intentId, code: parcelLookupError?.code, message: parcelLookupError?.message });
-            return json({ ok: false, reason: 'checkout_intent_invalid' }, 500);
-          }
-
           const orderIds = Array.isArray(intent.order_ids) ? intent.order_ids.filter((id): id is string => typeof id === 'string') : [];
 
           releaseIntent = async (reason: string) => {
@@ -162,7 +153,7 @@ export const Route = createFileRoute('/api/shopier/checkout')({
               type: 'digital',
               shippingPayer: 'sellerPays',
               priceData: { currency: 'TRY', price: amount.toFixed(2) },
-              media: [{ type: 'image', url: imageUrl, placement: 1 }],
+              media: [{ type: 'image', url: SHOPIER_PRODUCT_IMAGE_URL, placement: 1 }],
             };
             const fullPayload = { ...basePayload, stockQuantity: 1, customListing: true, customNote: `MySkyParcel intent: ${intentId}` };
             shopierResponse = await fetch('https://api.shopier.com/v1/products', {
