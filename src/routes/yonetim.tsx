@@ -6,7 +6,7 @@ import { AdminUserSearch } from "@/components/admin/AdminUserSearch";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { useAuth } from "@/hooks/useAuth";
 
-type Module = "dashboard" | "users" | "parcels" | "orders" | "certificates" | "audit";
+type Module = "dashboard" | "users" | "parcels" | "orders" | "payments" | "certificates" | "audit";
 type Row = Record<string, any>;
 type Stats = Record<string, number | string>;
 const ADMIN_EMAIL = "incememet3296@gmail.com";
@@ -15,6 +15,7 @@ const menus = [
   { id: "users", label: "Kullanıcılar", icon: Users },
   { id: "parcels", label: "Parseller", icon: Boxes },
   { id: "orders", label: "Askıdaki Siparişler", icon: ClipboardList },
+  { id: "payments", label: "Ödeme Yönetimi", icon: ShoppingCart },
   { id: "certificates", label: "Sertifikalar", icon: Award },
   { id: "audit", label: "Audit Günlüğü", icon: FileText },
 ] as const;
@@ -48,7 +49,7 @@ function Admin() {
       const { data, error: rpcError } = await supabaseBrowser.rpc("admin_dashboard_stats");
       if (rpcError) setError(rpcError.message); else setStats(data as Stats);
     } else {
-      const rpc: Record<string, string> = { users: "admin_list_users", parcels: "admin_list_parcels", orders: "admin_list_orders", certificates: "admin_list_certificates", audit: "admin_list_audit" };
+      const rpc: Record<string, string> = { users: "admin_list_users", parcels: "admin_list_parcels", orders: "admin_list_orders", payments: "admin_list_payment_management", certificates: "admin_list_certificates", audit: "admin_list_audit" };
       const { data, error: rpcError } = await supabaseBrowser.rpc(rpc[module], { p_limit: 100, p_offset: 0 });
       if (rpcError) setError(rpcError.message); else setRows((data ?? []) as Row[]);
     }
@@ -76,7 +77,8 @@ function ModuleView({ module, rows, onReload }: { module: Module; rows: Row[]; o
   if (module === "certificates") return <><AdminCertificateOverride /><DataTable rows={rows} columns={["id", "user_id", "parcel_id", "tier", "status", "certificate_number", "issued_at", "revoked_at"]} /></>;
   if (module === "users") return <AdminUserSearch initialRows={rows} />;
   if (module === "parcels") return <ParcelModule initialRows={rows} />;
-  if (module === "orders") return <DataTable rows={rows} columns={["id", "user_id", "parcel_id", "amount", "currency", "status", "created_at"]} />;
+  if (module === "orders") return <DataTable rows={rows} columns={["id", "user_id", "parcel_id", "amount", "currency", "status", "created_at"] />;
+  if (module === "payments") return <PaymentModule initialRows={rows} />;
   return <AuditModule rows={rows} onReload={onReload} />;
 }
 
@@ -86,6 +88,12 @@ function ParcelModule({ initialRows }: { initialRows: Row[] }) {
   async function buy(id: string) { if (!window.confirm("Bu parseli yönetici hesabına satın almak istediğinizden emin misiniz?")) return; setActionError(""); setActionLoading(id + ":buy"); const { error } = await supabaseBrowser.rpc("admin_purchase_parcel", { p_parcel_id: id }); if (error) setActionError(error.message); else await search(); setActionLoading(""); }
   async function release(id: string) { if (!window.confirm("Bu yöneticiye ait parseli tekrar satışa çıkarmak istediğinizden emin misiniz?")) return; setActionError(""); setActionLoading(id + ":release"); const { error } = await supabaseBrowser.rpc("admin_release_parcel", { p_parcel_id: id }); if (error) setActionError(error.message); else await search(); setActionLoading(""); }
   return <div className="space-y-4"><div className="panel p-5"><div className="flex flex-col gap-3 sm:flex-row"><div className="relative flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void search(); }} placeholder="Parsel numarası ara..." className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-gold" /></div><button disabled={searching} onClick={() => void search()} className="rounded-md border border-border px-4 py-2 text-sm hover:border-gold disabled:opacity-60">{searching ? "Aranıyor..." : "Ara"}</button></div><p className="mt-3 text-xs text-muted-foreground">81.000 parsel veritabanında sunucu tarafında aranır. Sonuçlar en fazla 100 kayıt olarak gösterilir.</p>{actionError && <p role="alert" className="mt-3 text-sm text-destructive">{actionError}</p>}</div><div className="panel overflow-auto p-5"><table className="w-full min-w-[1000px] text-left text-xs"><thead><tr className="border-b border-border">{["Parsel", "Durum", "Sınıf", "Fiyat", "Sahibi", "İşlem"].map((c) => <th key={c} className="p-2">{c}</th>)}</tr></thead><tbody>{searchRows.map((row) => <tr key={row.parcel_id ?? row.id} className="border-b border-border/50"><td className="p-2">{row.parcel_number ?? "—"}</td><td className="p-2">{row.status ?? "—"}</td><td className="p-2">{row.tier ?? "—"}</td><td className="p-2">{row.price == null ? "—" : `${Number(row.price).toLocaleString("tr-TR")} ₺`}</td><td className="p-2">{row.owner_name || "—"}</td><td className="p-2"><div className="flex gap-2">{row.status === "available" && !row.owner_id && <button disabled={!!actionLoading} onClick={() => void buy(row.parcel_id)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 hover:border-gold disabled:opacity-60"><ShoppingCart className="h-3 w-3" />{actionLoading === row.parcel_id + ":buy" ? "..." : "Satın Al"}</button>}{row.status === "sold" && row.owner_id && <button disabled={!!actionLoading} onClick={() => void release(row.parcel_id)} className="rounded-md border border-border px-2 py-1 hover:border-gold disabled:opacity-60">Satışa Çıkar</button>}</div></td></tr>)}</tbody></table>{searchRows.length === 0 && <p className="py-4 text-sm text-muted-foreground">Kayıt bulunmuyor.</p>}</div></div>;
+}
+
+function PaymentModule({ initialRows }: { initialRows: Row[] }) {
+  const rows = initialRows;
+  const total = rows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+  return <div className="space-y-4"><div className="panel p-5"><div className="flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-gold" /><div><h2 className="font-semibold">Ödeme Yönetimi</h2><p className="mt-1 text-xs text-muted-foreground">Tamamlanmış satın alma işlemleri gösterilir. Süresi dolmuş veya askıda kalan rezervasyonlar burada ödeme olarak görünmez.</p></div></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-md border border-border p-4"><p className="text-xs text-muted-foreground">Tamamlanan ödeme</p><p className="mt-2 font-display text-2xl">{rows.length.toLocaleString("tr-TR")}</p></div><div className="rounded-md border border-border p-4"><p className="text-xs text-muted-foreground">Gösterilen toplam</p><p className="mt-2 font-display text-2xl">{total.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺</p></div></div></div><div className="panel overflow-auto p-5"><table className="w-full min-w-[1200px] text-left text-xs"><thead><tr className="border-b border-border">{["Alıcı", "E-posta", "Parsel", "Sınıf", "Tutar", "Para Birimi", "Durum", "Sağlayıcı", "Referans", "Satın Alma Tarihi"].map((label) => <th key={label} className="p-2">{label}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={row.order_id} className="border-b border-border/50"><td className="p-2">{row.user_name || "—"}</td><td className="p-2">{row.user_email || "—"}</td><td className="p-2">{row.parcel_number || "—"}</td><td className="p-2">{row.tier || "—"}</td><td className="p-2">{row.amount == null ? "—" : Number(row.amount).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className="p-2">{row.currency || "—"}</td><td className="p-2">{row.payment_status || "—"}</td><td className="p-2">{row.provider || "—"}</td><td className="p-2">{row.provider_reference || "—"}</td><td className="p-2">{row.purchased_at ? new Date(row.purchased_at).toLocaleString("tr-TR") : "—"}</td></tr>)}</tbody></table>{rows.length === 0 && <p className="py-4 text-sm text-muted-foreground">Tamamlanmış ödeme bulunmuyor.</p>}</div></div>;
 }
 
 function AuditModule({ rows, onReload }: { rows: Row[]; onReload: () => Promise<void> }) {
