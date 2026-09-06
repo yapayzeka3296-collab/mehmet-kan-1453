@@ -36,6 +36,7 @@ export const Route = createFileRoute('/api/shopier/redirect')({
           const intentId = new URL(request.url).searchParams.get('intent')?.trim() || '';
           const supabaseUrl = getEnv('SUPABASE_URL') || getEnv('VITE_SUPABASE_URL');
           const serviceRoleKey = getEnv('SUPABASE_SECRET_KEY') || getEnv('SUPABASE_SERVICE_ROLE_KEY');
+          const shopSlug = getEnv('SHOPIER_SHOP_SLUG');
 
           if (!intentId || !supabaseUrl || !serviceRoleKey) {
             console.error('Shopier redirect is not configured', {
@@ -66,11 +67,34 @@ export const Route = createFileRoute('/api/shopier/redirect')({
             return html('<!doctype html><html lang="tr"><body>Ödeme oturumunun süresi dolmuş.</body></html>', 410);
           }
 
+          const productId = String(intent.shopier_product_id);
           const storedCheckoutUrl = typeof intent.checkout_url === 'string' ? intent.checkout_url.trim() : '';
-          const canonicalProductUrl = `https://www.shopier.com/${encodeURIComponent(String(intent.shopier_product_id))}`;
+          const canonicalProductUrl = `https://www.shopier.com/${encodeURIComponent(productId)}`;
+
+          if (shopSlug) {
+            const safeProductId = escapeHtml(productId);
+            const safeShopSlug = escapeHtml(encodeURIComponent(shopSlug));
+            return html(`<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shopier Güvenli Ödeme</title>
+</head>
+<body>
+  <p>Shopier güvenli ödeme sayfasına yönlendiriliyorsunuz...</p>
+  <form id="shopier-checkout" method="POST" action="https://www.shopier.com/s/shipping/${safeShopSlug}">
+    <input type="hidden" name="product_id" value="${safeProductId}">
+    <input type="hidden" name="quantity" value="1">
+  </form>
+  <noscript><button type="submit" form="shopier-checkout">Ödemeye devam et</button></noscript>
+  <script>document.getElementById('shopier-checkout').submit();</script>
+</body>
+</html>`);
+          }
+
           const productUrl = isShopierUrl(storedCheckoutUrl) ? storedCheckoutUrl : canonicalProductUrl;
           const safeProductUrl = escapeHtml(productUrl);
-
           return html(`<!doctype html>
 <html lang="tr">
 <head>
