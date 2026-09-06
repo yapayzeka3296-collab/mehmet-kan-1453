@@ -18,6 +18,9 @@ Options -Indexes
   RewriteEngine On
   RewriteBase /
 
+  # Canonicalize the Turkey map URL so both forms work during direct navigation.
+  RewriteRule ^turkiye-haritasi$ /turkiye-haritasi/ [R=308,L,NE]
+
   # Static files must stay in Apache/LiteSpeed and must never be sent to Nitro.
   RewriteRule ^(?:assets/|.*\.(?:js|mjs|css|png|jpe?g|webp|gif|svg|ico|woff2?|ttf|otf|wasm|json|txt|xml|map|webmanifest|pdf))$ - [L,NC]
 
