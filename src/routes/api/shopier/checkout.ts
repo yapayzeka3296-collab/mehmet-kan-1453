@@ -122,6 +122,9 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           const amount = Number(intent.amount);
           const currency = String(intent.currency ?? 'TRY').toUpperCase();
           const parcelIds = Array.isArray(intent.parcel_ids) ? intent.parcel_ids.filter((id): id is string => typeof id === 'string') : [];
+          const reused = intent.reused === true;
+          const existingShopierProductId = getString(intent.shopier_product_id);
+          const existingCheckoutUrl = getString(intent.checkout_url);
 
           if (!intentId || !Number.isFinite(amount) || amount <= 0 || currency !== 'TRY' || !parcelIds.length) {
             console.error('Invalid Shopier checkout intent data', { intentId, amount, currency, parcelCount: parcelIds.length });
@@ -129,6 +132,14 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           }
 
           const orderIds = Array.isArray(intent.order_ids) ? intent.order_ids.filter((id): id is string => typeof id === 'string') : [];
+
+          // An active intent may already have a valid Shopier product. Reuse it instead
+          // of creating another hosted product on every button click/retry.
+          if (reused && existingShopierProductId) {
+            const canonicalProductUrl = `https://www.shopier.com/${encodeURIComponent(existingShopierProductId)}`;
+            const checkoutUrl = isShopierUrl(existingCheckoutUrl) ? existingCheckoutUrl : canonicalProductUrl;
+            return json({ ok: true, ...intent, shopier_product_id: existingShopierProductId, checkout_url: checkoutUrl, shopier_product_url: canonicalProductUrl }, 200);
+          }
 
           releaseIntent = async (reason: string) => {
             const now = new Date().toISOString();
@@ -147,9 +158,6 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           let shopierResponse: Response;
           let shopierResponseInfo: ShopierResponseInfo;
           try {
-            // Use only the core product fields supported by the Shopier product-create
-            // flow. Optional dashboard-only/custom listing fields are intentionally not
-            // sent because an API validation error here must not block checkout.
             const payload = {
               title: `MySkyParcel Parsel Siparişi ${intentId}`,
               description: `MySkyParcel parsel satın alma işlemi. Sipariş referansı: ${intentId}`,
