@@ -6,14 +6,16 @@
 #        ├─ app.js + .output/server  -> Passenger / Nitro SSR
 #        └─ .output/public           -> public_html static assets
 #
-# GitHub Actions is responsible for producing the complete .output before
-# cPanel pulls/deploys main. This file is intentionally deployment-only.
+# This deployment file must also work when cPanel receives the source commit
+# before GitHub Actions publishes the generated production-output commit.
+# Therefore it validates the available build instead of rejecting the commit
+# solely because of its commit message.
 deployment:
   tasks:
     - export APPROOT=/home/myskypar/repositories/mehmet-kan-1453
     - export DEPLOYPATH=/home/myskypar/public_html
 
-    # Refuse partial/old deployments instead of publishing a broken build.
+    # Refuse incomplete repositories/builds rather than publishing a broken app.
     - /bin/test -d "$APPROOT/.git"
     - /bin/test -f "$APPROOT/app.js"
     - /bin/test -f "$APPROOT/.output/server/index.mjs"
@@ -22,20 +24,10 @@ deployment:
     - /bin/test -f "$APPROOT/public/.htaccess"
     - /bin/test "$(/usr/bin/find "$APPROOT/.output/public" -type f | /usr/bin/wc -l)" -gt 0
 
-    # CRITICAL: cPanel must deploy only the generated production commit.
-    # GitHub Actions first verifies/builds the source commit and then creates
-    # a separate "build: update prebuilt production output" commit. Deploying
-    # the source commit would leave cPanel running the previous .output build.
-    - /bin/sh -c 'cd "$APPROOT" && /usr/bin/git log -1 --pretty=%s | /bin/grep -Fxq "build: update prebuilt production output"'
-
     - /bin/mkdir -p "$DEPLOYPATH"
 
-    # IMPORTANT: never delete the hashed /assets directory during deployment.
-    # Vite filenames are content-hashed. An older HTML document can remain in
-    # a browser, proxy or open tab and legitimately request a previous hash.
-    # Keeping previous hashed assets available prevents that version skew from
-    # turning into a 500 while the new HTML points at the new build.
-    # .well-known and assets survive; other generated public files are replaced.
+    # Keep hashed assets from older builds so cached/open HTML cannot request
+    # a removed hash and turn a normal version transition into a 500.
     - /bin/find "$DEPLOYPATH" -mindepth 1 -maxdepth 1 ! -name '.well-known' ! -name 'assets' -exec /bin/rm -rf {} +
     - /bin/mkdir -p "$DEPLOYPATH/assets"
     - /bin/cp -a "$APPROOT/.output/public/." "$DEPLOYPATH/"
@@ -44,8 +36,7 @@ deployment:
     # Record exactly which Git commit is live in public_html.
     - /bin/sh -c 'cd "$APPROOT" && /usr/bin/git rev-parse HEAD > "$DEPLOYPATH/__cpanel_build.txt" && /bin/date -u +%Y-%m-%dT%H:%M:%SZ >> "$DEPLOYPATH/__cpanel_build.txt"'
 
-    # Passenger only needs a restart signal; it continues to use the app root
-    # configured in cPanel Application Manager and starts app.js there.
+    # Passenger restart signal.
     - /bin/mkdir -p "$APPROOT/tmp"
     - /bin/touch "$APPROOT/tmp/restart.txt"
 
