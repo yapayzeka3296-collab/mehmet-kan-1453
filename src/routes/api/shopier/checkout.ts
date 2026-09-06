@@ -219,7 +219,7 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           const canonicalProductUrl = `https://www.shopier.com/${encodeURIComponent(shopierProductId)}`;
           const configuredShopSlug = getEnv('SHOPIER_SHOP_SLUG');
           const hostedCheckoutUrl = configuredShopSlug
-            ? `/api/shopier/redirect?product_id=${encodeURIComponent(shopierProductId)}`
+            ? `/api/shopier/redirect?intent=${encodeURIComponent(intentId)}`
             : '';
           const checkoutUrl = [hostedCheckoutUrl, explicitCheckoutUrl, productUrl, canonicalProductUrl].find((candidate) => candidate && (candidate.startsWith('/') || isShopierUrl(candidate))) || canonicalProductUrl;
 
