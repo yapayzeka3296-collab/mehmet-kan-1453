@@ -77,7 +77,7 @@ function ModuleView({ module, rows, onReload }: { module: Module; rows: Row[]; o
   if (module === "certificates") return <><AdminCertificateOverride /><DataTable rows={rows} columns={["id", "user_id", "parcel_id", "tier", "status", "certificate_number", "issued_at", "revoked_at"]} /></>;
   if (module === "users") return <AdminUserSearch initialRows={rows} />;
   if (module === "parcels") return <ParcelModule initialRows={rows} />;
-  if (module === "orders") return <DataTable rows={rows} columns={["id", "user_id", "parcel_id", "amount", "currency", "status", "created_at"] />;
+  if (module === "orders") return <DataTable rows={rows} columns={["id", "user_id", "parcel_id", "amount", "currency", "status", "created_at"]} />;
   if (module === "payments") return <PaymentModule initialRows={rows} />;
   return <AuditModule rows={rows} onReload={onReload} />;
 }
@@ -98,16 +98,10 @@ function PaymentModule({ initialRows }: { initialRows: Row[] }) {
 
 function AuditModule({ rows, onReload }: { rows: Row[]; onReload: () => Promise<void> }) {
   const [clearing, setClearing] = useState(false); const [error, setError] = useState("");
-  async function clearAudit() {
-    if (!window.confirm("Tüm admin ve sertifika audit kayıtlarını temizlemek istediğinizden emin misiniz? Bu işlem geri alınamaz.")) return;
-    setError(""); setClearing(true);
-    const { data, error: rpcError } = await supabaseBrowser.rpc("admin_clear_all_audit_logs");
-    if (rpcError) setError(rpcError.message); else { void data; await onReload(); }
-    setClearing(false);
-  }
-  return <div className="space-y-4"><div className="panel p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-semibold">Audit Günlüğü</h2><p className="mt-1 text-xs text-muted-foreground">Yönetim ve sertifika audit kayıtlarını temizleyebilirsiniz.</p></div><button disabled={clearing} onClick={() => void clearAudit()} className="inline-flex items-center justify-center gap-2 rounded-md border border-destructive/50 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 disabled:opacity-60"><Trash2 className="h-4 w-4" />{clearing ? "Temizleniyor..." : "Audit Günlüğünü Temizle"}</button></div>{error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}</div><DataTable rows={rows} columns={["created_at", "entity_type", "action", "entity_id", "actor_id"]} /></div>;
+  async function clearAudit() { if (!window.confirm("Audit günlüğündeki tüm kayıtları temizlemek istediğinizden emin misiniz?")) return; setError(""); setClearing(true); const { error: rpcError } = await supabaseBrowser.rpc("admin_clear_all_audit_logs"); if (rpcError) setError(rpcError.message); else await onReload(); setClearing(false); }
+  return <div className="space-y-4"><div className="flex items-center justify-between"><div><h2 className="font-semibold">Audit Günlüğü</h2><p className="text-xs text-muted-foreground">Yönetim işlemleri kayıtları.</p></div><button disabled={clearing} onClick={() => void clearAudit()} className="rounded-md border border-destructive/40 px-3 py-2 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-60">{clearing ? "Temizleniyor..." : "Audit Günlüğünü Temizle"}</button></div>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}<DataTable rows={rows} columns={["id", "actor_id", "action", "entity_type", "entity_id", "created_at"]} /></div>;
 }
 
 function DataTable({ rows, columns }: { rows: Row[]; columns: string[] }) {
-  return <div className="panel overflow-auto p-5"><table className="w-full min-w-[800px] text-left text-xs"><thead><tr className="border-b border-border">{columns.map((c) => <th key={c} className="p-2">{c}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={String(row.id ?? row.entity_id ?? index)} className="border-b border-border/50">{columns.map((c) => <td key={c} className="p-2 align-top">{row[c] == null ? "—" : typeof row[c] === "object" ? JSON.stringify(row[c]) : String(row[c])}</td>)}</tr>)}</tbody></table>{rows.length === 0 && <p className="py-4 text-sm text-muted-foreground">Kayıt bulunmuyor.</p>}</div>;
+  return <div className="panel overflow-auto p-5"><table className="w-full min-w-[900px] text-left text-xs"><thead><tr className="border-b border-border">{columns.map((column) => <th key={column} className="p-2">{column}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={row.id ?? index} className="border-b border-border/50">{columns.map((column) => <td key={column} className="p-2">{row[column] == null ? "—" : String(row[column])}</td>)}</tr>)}</tbody></table>{rows.length === 0 && <p className="py-4 text-sm text-muted-foreground">Kayıt bulunmuyor.</p>}</div>;
 }
