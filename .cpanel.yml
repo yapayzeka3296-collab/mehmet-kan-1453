@@ -22,6 +22,12 @@ deployment:
     - /bin/test -f "$APPROOT/public/.htaccess"
     - /bin/test "$(/usr/bin/find "$APPROOT/.output/public" -type f | /usr/bin/wc -l)" -gt 0
 
+    # CRITICAL: cPanel must deploy only the generated production commit.
+    # GitHub Actions first verifies/builds the source commit and then creates
+    # a separate "build: update prebuilt production output" commit. Deploying
+    # the source commit would leave cPanel running the previous .output build.
+    - /bin/sh -c 'cd "$APPROOT" && /usr/bin/git log -1 --pretty=%s | /bin/grep -Fxq "build: update prebuilt production output"'
+
     - /bin/mkdir -p "$DEPLOYPATH"
 
     # IMPORTANT: never delete the hashed /assets directory during deployment.
@@ -36,7 +42,7 @@ deployment:
     - /bin/cp -f "$APPROOT/public/.htaccess" "$DEPLOYPATH/.htaccess"
 
     # Record exactly which Git commit is live in public_html.
-    - /bin/sh -c 'cd "$APPROOT" && /bin/git rev-parse HEAD > "$DEPLOYPATH/__cpanel_build.txt" && /bin/date -u +%Y-%m-%dT%H:%M:%SZ >> "$DEPLOYPATH/__cpanel_build.txt"'
+    - /bin/sh -c 'cd "$APPROOT" && /usr/bin/git rev-parse HEAD > "$DEPLOYPATH/__cpanel_build.txt" && /bin/date -u +%Y-%m-%dT%H:%M:%SZ >> "$DEPLOYPATH/__cpanel_build.txt"'
 
     # Passenger only needs a restart signal; it continues to use the app root
     # configured in cPanel Application Manager and starts app.js there.
