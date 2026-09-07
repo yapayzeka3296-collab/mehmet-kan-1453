@@ -52,6 +52,72 @@ const isShopierUrl = (value: string) => {
   }
 };
 
+/**
+ * Dynamic Shopier products are only payment carriers for a single checkout intent.
+ * Keeping abandoned products alive leaves them in Shopier's browser/store cart, so a
+ * later checkout can contain previous parcel products. Delete only stale local
+ * intents that have no recorded Shopier payment; never touch a paid intent here.
+ */
+const deleteShopierProduct = async (productId: string, shopierPat: string) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SHOPIER_TIMEOUT_MS);
+  try {
+    const response = await fetch(`https://api.shopier.com/v1/products/${encodeURIComponent(productId)}`, {
+      method: 'DELETE',
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${shopierPat}`,
+        Accept: 'application/json',
+        'User-Agent': 'MySkyParcel-Shopier-Integration/1.0 (+https://myskyparcel.com)',
+      },
+    });
+    if (response.ok || response.status === 404) return true;
+    const body = await response.text().catch(() => '');
+    console.error('Stale Shopier product cleanup failed', {
+      productId,
+      status: response.status,
+      body: body.slice(0, SHOPIER_DIAGNOSTIC_BODY_LIMIT),
+    });
+    return false;
+  } catch (error) {
+    console.error('Stale Shopier product cleanup request failed', {
+      productId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const cleanupStaleShopierProducts = async (serviceSupabase: ReturnType<typeof createClient>, shopierPat: string) => {
+  const { data, error } = await serviceSupabase
+    .from('shopier_checkout_intents')
+    .select('id,shopier_product_id,status,shopier_payment_id')
+    .in('status', ['expired', 'failed'])
+    .not('shopier_product_id', 'is', null)
+    .is('shopier_payment_id', null)
+    .limit(100);
+
+  if (error) {
+    console.error('Stale Shopier product lookup failed', { code: error.code, message: error.message });
+    return;
+  }
+
+  for (const row of data ?? []) {
+    const productId = getString((row as Record<string, unknown>).shopier_product_id);
+    if (!productId) continue;
+    const deleted = await deleteShopierProduct(productId, shopierPat);
+    if (deleted) {
+      console.info('Stale Shopier product removed', {
+        intentId: getString((row as Record<string, unknown>).id),
+        productId,
+        status: getString((row as Record<string, unknown>).status),
+      });
+    }
+  }
+};
+
 export const Route = createFileRoute('/api/shopier/checkout')({
   server: {
     handlers: {
@@ -86,8 +152,18 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
           });
 
-          const { error: cleanupError } = await serviceSupabase.rpc('cleanup_expired_shopier_checkout_state');
-          if (cleanupError) console.error('Shopier expired-state cleanup failed', { code: cleanupError.code, message: cleanupError.message });
+          const cleanupExpiredState = async () => {
+            const { error: cleanupError } = await serviceSupabase.rpc('cleanup_expired_shopier_checkout_state');
+            if (cleanupError) {
+              console.error('Shopier expired-state cleanup failed', { code: cleanupError.code, message: cleanupError.message });
+              return;
+            }
+            await cleanupStaleShopierProducts(serviceSupabase, shopierPat);
+          };
+
+          // First release expired Supabase reservations, then remove the corresponding
+          // dynamic Shopier products so abandoned products cannot accumulate in Shopier's cart.
+          await cleanupExpiredState();
 
           const parcelIdsRequest = [...new Set(parsed.data.parcel_ids)];
           let { data, error } = await supabase.rpc('create_shopier_checkout_intent', {
@@ -96,8 +172,7 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           });
 
           if (error && !/parcel_reserved_by_other_user|parcel_unavailable|parcel_not_found|empty_parcel_selection|too_many_parcels|invalid_certificate_parcel|invalid_parcel_price|unauthorized/i.test(error.message ?? '')) {
-            const { error: retryCleanupError } = await serviceSupabase.rpc('cleanup_expired_shopier_checkout_state');
-            if (retryCleanupError) console.error('Shopier checkout retry cleanup failed', { code: retryCleanupError.code, message: retryCleanupError.message });
+            await cleanupExpiredState();
             ({ data, error } = await supabase.rpc('create_shopier_checkout_intent', {
               p_parcel_ids: parcelIdsRequest,
               p_certificate_parcel_id: parsed.data.certificate_parcel_id ?? null,
@@ -176,17 +251,8 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             clearTimeout(timeout);
             const aborted = error instanceof Error && error.name === 'AbortError';
             const networkError = (error instanceof Error ? `${error.name}: ${error.message}` : String(error)).slice(0, SHOPIER_ERROR_LIMIT);
-            console.error('Shopier product creation request failed', {
-              intentId,
-              reason: aborted ? 'timeout' : 'network_error',
-              message: networkError,
-            });
-            await serviceSupabase.from('shopier_checkout_intents').update({
-              shopier_api_status: null,
-              shopier_api_error: networkError || (aborted ? 'Shopier API request timed out' : 'Shopier API request failed before receiving an HTTP response'),
-              shopier_api_request_id: null,
-              updated_at: new Date().toISOString(),
-            }).eq('id', intentId).eq('user_id', authData.user.id);
+            console.error('Shopier product creation request failed', { intentId, reason: aborted ? 'timeout' : 'network_error', message: networkError });
+            await serviceSupabase.from('shopier_checkout_intents').update({ shopier_api_status: null, shopier_api_error: networkError || (aborted ? 'Shopier API request timed out' : 'Shopier API request failed before receiving an HTTP response'), shopier_api_request_id: null, updated_at: new Date().toISOString() }).eq('id', intentId).eq('user_id', authData.user.id);
             await releaseIntent(aborted ? 'shopier_timeout' : 'shopier_request_failed');
             return json({ ok: false, reason: aborted ? 'shopier_timeout' : 'shopier_unreachable' }, 502);
           }
@@ -216,10 +282,8 @@ export const Route = createFileRoute('/api/shopier/checkout')({
             return json({ ok: false, reason: 'shopier_product_id_missing' }, 502);
           }
 
-          // Use Shopier's public product URL directly. The previous implementation generated
-          // a local redirect that POSTed to Shopier's internal /s/shipping/{slug} endpoint.
-          // That endpoint is not the documented customer-facing product link and could result
-          // in a blank/failed transition even when product creation succeeded.
+          // Prefer an explicit Shopier checkout URL when the API provides one. Fall back to
+          // the public product URL only for API responses that do not expose a checkout URL.
           const canonicalProductUrl = `https://www.shopier.com/${encodeURIComponent(shopierProductId)}`;
           const checkoutUrl = [explicitCheckoutUrl, productUrl, canonicalProductUrl]
             .find((candidate) => candidate && isShopierUrl(candidate)) || canonicalProductUrl;
@@ -235,6 +299,7 @@ export const Route = createFileRoute('/api/shopier/checkout')({
           }).eq('id', intentId).eq('user_id', authData.user.id).in('status', ['pending', 'redirected']);
           if (intentUpdateError) {
             console.error('Shopier intent persistence failed', { intentId, code: intentUpdateError.code, message: intentUpdateError.message });
+            await deleteShopierProduct(shopierProductId, shopierPat);
             await releaseIntent('intent_persistence_failed');
             return json({ ok: false, reason: 'checkout_persistence_failed' }, 500);
           }
