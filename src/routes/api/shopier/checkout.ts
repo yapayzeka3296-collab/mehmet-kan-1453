@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
 const BodySchema = z.object({
@@ -90,7 +90,7 @@ const deleteShopierProduct = async (productId: string, shopierPat: string) => {
   }
 };
 
-const cleanupStaleShopierProducts = async (serviceSupabase: ReturnType<typeof createClient>, shopierPat: string) => {
+const cleanupStaleShopierProducts = async (serviceSupabase: SupabaseClient, shopierPat: string) => {
   const { data, error } = await serviceSupabase
     .from('shopier_checkout_intents')
     .select('id,shopier_product_id,status,shopier_payment_id')
@@ -104,15 +104,16 @@ const cleanupStaleShopierProducts = async (serviceSupabase: ReturnType<typeof cr
     return;
   }
 
-  for (const row of data ?? []) {
-    const productId = getString((row as Record<string, unknown>).shopier_product_id);
+  const staleIntents = (data ?? []) as Array<Record<string, unknown>>;
+  for (const row of staleIntents) {
+    const productId = getString(row.shopier_product_id);
     if (!productId) continue;
     const deleted = await deleteShopierProduct(productId, shopierPat);
     if (deleted) {
       console.info('Stale Shopier product removed', {
-        intentId: getString((row as Record<string, unknown>).id),
+        intentId: getString(row.id),
         productId,
-        status: getString((row as Record<string, unknown>).status),
+        status: getString(row.status),
       });
     }
   }
