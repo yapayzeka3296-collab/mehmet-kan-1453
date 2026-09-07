@@ -7,7 +7,7 @@ import { TrustBar } from "@/components/TrustBar";
 import { CertificateTemplatePreview } from "@/components/CertificateTemplatePreview";
 import { CITY_IMAGES } from "@/lib/cityImages";
 
-export const Route = createFileRoute("/ana-sayfa")({ head: () => ({ meta: [{ title: "MySkyParcel — Gökyüzünde Sana Özel Sembolik Bir Yer" }, { name: "description", content: "81 il ve 81 milyon benzersiz gökyüzü parseli fikri." }] }), component: Index });
+export const Route = createFileRoute("/ana-sayfa")({ head: () => ({ meta: [{ title: "MySkyParcel — Gökyüzünde Sana Özel Sembolik Bir Yer" }, { name: "description", content: "81 il ve 81 milyon benzersiz gökyüzü parseli fikri." }], links: [{ rel: "canonical", href: "https://myskyparcel.com/ana-sayfa" }] }), component: Index });
 const SKY_PARCEL_MODEL = { cityCount: 81, layersPerCity: 10, sectorsPerCity: 1_000, parcelsPerCity: 1_000_000, totalParcels: 81_000_000 } as const;
 const STATS = [{ icon: Globe, big: "81 MİLYON", title: "TOPLAM GÖKYÜZÜ PARSELİ", text: "81 il × 1.000.000 parsel uzun vadeli hedef" }, { icon: Layers, big: "10", title: "KATMAN / İL", text: "Her il için 10 katman" }, { icon: ShieldCheck, big: "1.000", title: "SEKTÖR / İL", text: "Her il için 1.000 sektör" }, { icon: Boxes, big: "1.000.000", title: "PARSEL / İL", text: "Her il için 1.000.000 parsel" }, { icon: Headphones, big: "DESTEK", title: "DESTEK EKİBİ", text: "İletişim kanalları üzerinden bize ulaşabilirsiniz" }, { icon: Lock, big: "", title: "GÜVENLİ ALTYAPI", text: "Güvenlik ve ödeme altyapısı ayrıca doğrulanmalıdır" }];
 const CERTIFICATE_PACKAGES = [
