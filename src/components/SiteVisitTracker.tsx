@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
+import { useRouterState } from "@tanstack/react-router";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 const SESSION_KEY = "myskyparcel_visit_session";
@@ -23,6 +24,7 @@ function isAdminDashboard() {
 }
 
 export function SiteVisitTracker() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [stats, setStats] = useState<SiteStats | null>(null);
   const [showStats, setShowStats] = useState(false);
   const [statsHost, setStatsHost] = useState<HTMLElement | null>(null);
@@ -43,8 +45,6 @@ export function SiteVisitTracker() {
       if (error) console.warn("[MySkyParcel] site visit kayıt hatası:", error.message);
     };
 
-    // Record immediately on every route mount. The retry protects against a
-    // short-lived network/auth initialization race during first page load.
     void record();
     const retryTimer = window.setTimeout(() => void record(), 2000);
     const interval = window.setInterval(() => void record(), 60_000);
@@ -54,7 +54,7 @@ export function SiteVisitTracker() {
       window.clearTimeout(retryTimer);
       window.clearInterval(interval);
     };
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     if (!supabaseBrowser || window.location.pathname !== "/yonetim") return;
@@ -105,7 +105,7 @@ export function SiteVisitTracker() {
       host?.remove();
       setStatsHost(null);
     };
-  }, []);
+  }, [pathname]);
 
   if (!showStats || !stats || !statsHost) return null;
 
