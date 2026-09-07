@@ -29,17 +29,29 @@ export function SiteVisitTracker() {
 
   useEffect(() => {
     if (!supabaseBrowser) return;
+
     const sessionId = getSessionId();
-    const record = () => {
-      void supabaseBrowser.rpc("record_site_visit", {
+    let disposed = false;
+
+    const record = async () => {
+      if (disposed) return;
+      const path = window.location.pathname || "/";
+      const { error } = await supabaseBrowser.rpc("record_site_visit", {
         p_session_id: sessionId,
-        p_path: window.location.pathname,
+        p_path: path,
       });
+      if (error) console.warn("[MySkyParcel] site visit kayıt hatası:", error.message);
     };
-    const timer = window.setTimeout(record, 1500);
-    const interval = window.setInterval(record, 60_000);
+
+    // Record immediately on every route mount. The retry protects against a
+    // short-lived network/auth initialization race during first page load.
+    void record();
+    const retryTimer = window.setTimeout(() => void record(), 2000);
+    const interval = window.setInterval(() => void record(), 60_000);
+
     return () => {
-      window.clearTimeout(timer);
+      disposed = true;
+      window.clearTimeout(retryTimer);
       window.clearInterval(interval);
     };
   }, []);
@@ -77,11 +89,15 @@ export function SiteVisitTracker() {
       if (!userData.user || cancelled) return;
       const { data: profile } = await supabaseBrowser.from("profiles").select("role").eq("id", userData.user.id).maybeSingle();
       if (profile?.role !== "admin" || cancelled) return;
-      const { data } = await supabaseBrowser.rpc("admin_site_statistics");
+      const { data, error } = await supabaseBrowser.rpc("admin_site_statistics");
+      if (error) {
+        console.warn("[MySkyParcel] site statistics yükleme hatası:", error.message);
+        return;
+      }
       if (!cancelled && data) setStats(data as SiteStats);
     };
     void loadStats();
-    const timer = window.setInterval(() => void loadStats(), 30_000);
+    const timer = window.setInterval(() => void loadStats(), 10_000);
     return () => {
       cancelled = true;
       observer.disconnect();
