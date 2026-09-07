@@ -18,11 +18,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     { name: "description", content: "Gökyüzünde sembolik bir parsel seç, benzersiz sertifikanla bu anı ölümsüzleştir." },
     { name: "author", content: "MySkyParcel" }, { property: "og:title", content: "MySkyParcel — Gökyüzünde Sana Özel Bir Yer" },
     { property: "og:description", content: "Sembolik gökyüzü parseli ve koleksiyon sertifikası." }, { property: "og:type", content: "website" },
-    { name: "twitter:card", content: "summary_large_image" }, { name: "google", content: "notranslate" },
+    { property: "og:url", content: "https://myskyparcel.com/" }, { property: "og:image", content: "https://myskyparcel.com/hero-background.jpg" },
+    { property: "og:image:width", content: "1200" }, { property: "og:image:height", content: "630" }, { property: "og:image:alt", content: "MySkyParcel gökyüzü parselleri" },
+    { name: "twitter:card", content: "summary_large_image" }, { name: "twitter:title", content: "MySkyParcel — Gökyüzünde Sana Özel Bir Yer" },
+    { name: "twitter:description", content: "Sembolik gökyüzü parseli ve koleksiyon sertifikası." }, { name: "twitter:image", content: "https://myskyparcel.com/hero-background.jpg" },
+    { name: "google", content: "notranslate" },
   ], links: [
     { rel: "preconnect", href: "https://fonts.googleapis.com" }, { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
     { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Jost:wght@300;400;500;600&display=swap" },
-  ] }), shellComponent: RootShell, component: RootComponent, notFoundComponent: NotFoundComponent, errorComponent: ErrorComponent,
+  ], scripts: [{ type: "application/ld+json", children: JSON.stringify({ "@context": "https://schema.org", "@graph": [
+    { "@type": "WebSite", "@id": "https://myskyparcel.com/#website", "url": "https://myskyparcel.com/", "name": "MySkyParcel", "description": "Gökyüzünde sembolik parsel seçimi ve dijital sertifika platformu.", "inLanguage": "tr-TR" },
+    { "@type": "Organization", "@id": "https://myskyparcel.com/#organization", "name": "MySkyParcel", "url": "https://myskyparcel.com/" }
+  ] }) }]}), shellComponent: RootShell, component: RootComponent, notFoundComponent: NotFoundComponent, errorComponent: ErrorComponent,
 });
 function RootShell({ children }: { children: ReactNode }) { return <html lang="tr" translate="no"><head><HeadContent /><meta name="google-site-verification" content="FnBKvdIxURn7yQQY7YNxhbM-sxPfNEjJf4GgmZKh0ec" /></head><body>{children}<Scripts /></body></html>; }
 function RootComponent() { const { queryClient } = Route.useRouteContext(); return <QueryClientProvider client={queryClient}><AuthProvider><SiteVisitTracker /><Outlet /></AuthProvider></QueryClientProvider>; }
