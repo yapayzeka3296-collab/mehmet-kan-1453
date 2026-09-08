@@ -14,20 +14,20 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({ meta: [
     { charSet: "utf-8" }, { name: "viewport", content: "width=device-width, initial-scale=1" },
-    { title: "MySkyParcel — Gökyüzünde Sana Özel Bir Yer" },
-    { name: "description", content: "Gökyüzünde sembolik bir parsel seç, benzersiz sertifikanla bu anı ölümsüzleştir." },
-    { name: "author", content: "MySkyParcel" }, { property: "og:title", content: "MySkyParcel — Gökyüzünde Sana Özel Bir Yer" },
-    { property: "og:description", content: "Sembolik gökyüzü parseli ve koleksiyon sertifikası." }, { property: "og:type", content: "website" },
+    { title: "MySkyParcel — Kişiye Özel Dijital Hediye ve Gökyüzü Parseli" },
+    { name: "description", content: "Kişiye özel hediye ve dijital hediye arayanlar için MySkyParcel: gökyüzünde sembolik parsel seçimi, kişiye özel dijital sertifika ve unutulmaz bir sürpriz." },
+    { name: "author", content: "MySkyParcel" }, { property: "og:title", content: "MySkyParcel — Kişiye Özel Dijital Hediye ve Gökyüzü Parseli" },
+    { property: "og:description", content: "Sevgiliye özel, farklı ve anlamlı bir dijital hediye: kişiye özel gökyüzü parseli ve sertifika." }, { property: "og:type", content: "website" },
     { property: "og:url", content: "https://myskyparcel.com/" }, { property: "og:image", content: "https://myskyparcel.com/hero-background.jpg" },
     { property: "og:image:width", content: "1200" }, { property: "og:image:height", content: "630" }, { property: "og:image:alt", content: "MySkyParcel gökyüzü parselleri" },
-    { name: "twitter:card", content: "summary_large_image" }, { name: "twitter:title", content: "MySkyParcel — Gökyüzünde Sana Özel Bir Yer" },
-    { name: "twitter:description", content: "Sembolik gökyüzü parseli ve koleksiyon sertifikası." }, { name: "twitter:image", content: "https://myskyparcel.com/hero-background.jpg" },
+    { name: "twitter:card", content: "summary_large_image" }, { name: "twitter:title", content: "MySkyParcel — Kişiye Özel Dijital Hediye ve Gökyüzü Parseli" },
+    { name: "twitter:description", content: "Sevgiliye özel, farklı ve anlamlı bir dijital hediye: kişiye özel gökyüzü parseli ve sertifika." }, { name: "twitter:image", content: "https://myskyparcel.com/hero-background.jpg" },
     { name: "google", content: "notranslate" },
   ], links: [
     { rel: "preconnect", href: "https://fonts.googleapis.com" }, { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
     { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Jost:wght@300;400;500;600&display=swap" },
   ], scripts: [{ type: "application/ld+json", children: JSON.stringify({ "@context": "https://schema.org", "@graph": [
-    { "@type": "WebSite", "@id": "https://myskyparcel.com/#website", "url": "https://myskyparcel.com/", "name": "MySkyParcel", "description": "Gökyüzünde sembolik parsel seçimi ve dijital sertifika platformu.", "inLanguage": "tr-TR" },
+    { "@type": "WebSite", "@id": "https://myskyparcel.com/#website", "url": "https://myskyparcel.com/", "name": "MySkyParcel", "description": "Kişiye özel dijital hediye, sembolik gökyüzü parseli ve dijital sertifika platformu.", "inLanguage": "tr-TR" },
     { "@type": "Organization", "@id": "https://myskyparcel.com/#organization", "name": "MySkyParcel", "url": "https://myskyparcel.com/" }
   ] }) }]}), shellComponent: RootShell, component: RootComponent, notFoundComponent: NotFoundComponent, errorComponent: ErrorComponent,
 });
