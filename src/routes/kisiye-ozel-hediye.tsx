@@ -1,0 +1,21 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowRight, Gift, UserRound, Sparkles } from "lucide-react";
+import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
+
+export const Route = createFileRoute("/kisiye-ozel-hediye")({
+  head: () => ({
+    meta: [
+      { title: "Kişiye Özel Hediye ve Dijital Hediye Fikirleri — MySkyParcel" },
+      { name: "description", content: "Kişiye özel hediye, kişiye özel dijital hediye ve anlamlı dijital hediye arayanlar için MySkyParcel gökyüzü parseli deneyimini keşfedin." },
+      { property: "og:title", content: "Kişiye Özel Hediye — MySkyParcel" },
+      { property: "og:description", content: "Kişiselleştirilebilir, dijital ve anlamlı bir hediye fikri." },
+    ],
+    links: [{ rel: "canonical", href: "https://myskyparcel.com/kisiye-ozel-hediye" }],
+  }),
+  component: KisiyeOzelHediye,
+});
+
+function KisiyeOzelHediye() {
+  return <div className="starfield min-h-screen"><SiteHeader /><main className="mx-auto max-w-[1200px] px-4 py-12 sm:py-16 lg:px-8"><section className="panel p-6 text-center sm:p-10"><UserRound className="mx-auto h-10 w-10 text-gold" /><p className="mt-4 text-xs font-semibold tracking-[0.2em] text-gold">MYSKYPARCEL HEDİYE FİKRİ</p><h1 className="mt-3 font-display text-3xl font-bold sm:text-5xl">KİŞİYE ÖZEL HEDİYE</h1><p className="mx-auto mt-5 max-w-3xl text-sm leading-7 text-muted-foreground">Kişiye özel hediye arayanlar için MySkyParcel, seçilen sembolik gökyüzü parselini kişiselleştirilmiş dijital sertifika ile bir araya getirir. Dijital hediye, anlamlı hediye veya unutulmaz bir sürpriz arıyorsanız kendi hediye deneyiminizi oluşturabilirsiniz.</p><Link to="/gokyuzu-haritasi" search={{ city: "istanbul" }} className="btn-gold mt-7 inline-flex min-h-11 items-center gap-2 rounded-md px-5 py-3 text-sm font-semibold">Kişiye Özel Parsel Seç <ArrowRight className="h-4 w-4" /></Link></section><section className="mt-8 grid gap-6 md:grid-cols-3"><article className="panel p-6"><Gift className="h-7 w-7 text-gold" /><h2 className="mt-4 font-display text-lg">Kişiye Özel Dijital Hediye</h2><p className="mt-3 text-sm leading-7 text-muted-foreground">Dijital sertifika, seçilen sembolik parsel kaydı ve kişiselleştirme seçenekleriyle alıcısına özel bir dijital hatıra hazırlayabilirsiniz.</p></article><article className="panel p-6"><Sparkles className="h-7 w-7 text-gold" /><h2 className="mt-4 font-display text-lg">Anlamlı Hediye</h2><p className="mt-3 text-sm leading-7 text-muted-foreground">Doğum günü, yıl dönümü, kutlama veya özel bir an için standart hediyelerden farklı, kişisel anlam taşıyan bir seçenek oluşturabilirsiniz.</p></article><article className="panel p-6"><UserRound className="h-7 w-7 text-gold" /><h2 className="mt-4 font-display text-lg">Dijital ve Fiziksel Seçenekler</h2><p className="mt-3 text-sm leading-7 text-muted-foreground">Paket kapsamına göre elektronik sertifikanın yanında fiziksel baskı ve sunum seçenekleri de bulunabilir. Güncel kapsam paketler sayfasında açıklanır.</p></article></section><section className="panel mt-8 p-6 sm:p-8"><h2 className="font-display text-xl text-gold">Kişiye Özel Hediye Nasıl Oluşturulur?</h2><p className="mt-4 text-sm leading-7 text-muted-foreground">Önce Gökyüzü Haritası'ndan sembolik bir parsel seçin. Ardından sertifika paketini belirleyip kişiselleştirme bilgilerini tamamlayın. Böylece alıcının adına ilişkilendirilen dijital bir koleksiyon öğesi ve sertifika deneyimi oluşturabilirsiniz.</p><div className="mt-5 flex flex-wrap gap-4"><Link to="/gokyuzu-haritasi" search={{ city: "istanbul" }} className="inline-flex items-center gap-2 text-sm font-semibold text-gold hover:underline">Gökyüzü Haritasına Git <ArrowRight className="h-4 w-4" /></Link><Link to="/paketler" className="inline-flex items-center gap-2 text-sm font-semibold text-gold hover:underline">Sertifika Paketlerini İncele <ArrowRight className="h-4 w-4" /></Link></div><p className="mt-6 text-xs leading-6 text-muted-foreground/70">MySkyParcel üzerindeki parseller gerçek arsa, arazi, taşınmaz veya tapu değildir. Sunulan hizmet dijital ve sembolik bir parsel kaydı ile kişiselleştirilmiş sertifika deneyimidir.</p></section></main><SiteFooter /></div>;
+}
