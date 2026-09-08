@@ -52,7 +52,8 @@ jobs:
             "./routes/paketler" "./routes/hakkimizda" "./routes/iletisim" "./routes/destek" \
             "./routes/pazar-yeri" "./routes/uyelik-sozlesmesi" "./routes/mesafeli-satis-sozlesmesi" \
             "./routes/on-bilgilendirme-formu" "./routes/iade-iptal-politikasi" "./routes/kvkk" \
-            "./routes/gizlilik-politikasi" "./routes/kullanim-sartlari" "./routes/cerez-politikasi"; do
+            "./routes/gizlilik-politikasi" "./routes/kullanim-sartlari" "./routes/cerez-politikasi" \
+            "./routes/sevgiliye-hediye" "./routes/dogum-gunu-hediyesi" "./routes/kisiye-ozel-hediye"; do
             grep -Fq "$route" src/routeTree.gen.ts
           done
       - name: TypeScript validation
@@ -82,7 +83,7 @@ jobs:
             iletisim destek pazar-yeri
             uyelik-sozlesmesi mesafeli-satis-sozlesmesi on-bilgilendirme-formu
             iade-iptal-politikasi kvkk gizlilik-politikasi kullanim-sartlari
-            cerez-politikasi
+            cerez-politikasi sevgiliye-hediye dogum-gunu-hediyesi kisiye-ozel-hediye
           )
           for route in "${routes[@]}"; do
             mkdir -p ".output/public/${route}"
@@ -102,7 +103,8 @@ jobs:
           for route in \
             ana-sayfa turkiye-haritasi nasil-calisir paketler hakkimizda iletisim destek pazar-yeri \
             uyelik-sozlesmesi mesafeli-satis-sozlesmesi on-bilgilendirme-formu \
-            iade-iptal-politikasi kvkk gizlilik-politikasi kullanim-sartlari cerez-politikasi; do
+            iade-iptal-politikasi kvkk gizlilik-politikasi kullanim-sartlari cerez-politikasi \
+            sevgiliye-hediye dogum-gunu-hediyesi kisiye-ozel-hediye; do
             test -s ".output/public/${route}/index.html"
           done
       - name: Smoke test application routes
@@ -118,6 +120,7 @@ jobs:
             /parsel-hatirasi /parsel-satin-al /parsellerim /pazar-yeri /profilim
             /sertifika-dogrula /sertifika-talep /sertifikalarim /sifre-yenile
             /sifremi-unuttum /siparislerim /turkiye-haritasi /uyelik-sozlesmesi /yonetim
+            /sevgiliye-hediye /dogum-gunu-hediyesi /kisiye-ozel-hediye
           )
           for route in "${routes[@]}"; do
             code="$(curl -sS -L -o /tmp/route-response -w '%{http_code}' --max-time 20 "http://127.0.0.1:4173${route}")"
