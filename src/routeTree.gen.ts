@@ -16,6 +16,7 @@ import { Route as BildirimlerRouteImport } from './routes/bildirimler'
 import { Route as CerezPolitikasiRouteImport } from './routes/cerez-politikasi'
 import { Route as DestekRouteImport } from './routes/destek'
 import { Route as DogrulaRouteImport } from './routes/dogrula'
+import { Route as DogumGunuHediyesiRouteImport } from './routes/dogum-gunu-hediyesi'
 import { Route as GirisRouteImport } from './routes/giris'
 import { Route as GizlilikPolitikasiRouteImport } from './routes/gizlilik-politikasi'
 import { Route as GokyuzuHaritasiRouteImport } from './routes/gokyuzu-haritasi'
@@ -26,6 +27,7 @@ import { Route as HediyelerimRouteImport } from './routes/hediyelerim'
 import { Route as IadeIptalPolitikasiRouteImport } from './routes/iade-iptal-politikasi'
 import { Route as IletisimRouteImport } from './routes/iletisim'
 import { Route as KayitOlRouteImport } from './routes/kayit-ol'
+import { Route as KisiyeOzelHediyeRouteImport } from './routes/kisiye-ozel-hediye'
 import { Route as KullanimSartlariRouteImport } from './routes/kullanim-sartlari'
 import { Route as KvkkRouteImport } from './routes/kvkk'
 import { Route as MesafeliSatisSozlesmesiRouteImport } from './routes/mesafeli-satis-sozlesmesi'
@@ -43,6 +45,7 @@ import { Route as PurchaseBulkRouteImport } from './routes/purchase-bulk'
 import { Route as SertifikaDogrulaRouteImport } from './routes/sertifika-dogrula'
 import { Route as SertifikaTalepRouteImport } from './routes/sertifika-talep'
 import { Route as SertifikalarimRouteImport } from './routes/sertifikalarim'
+import { Route as SevgiliyeHediyeRouteImport } from './routes/sevgiliye-hediye'
 import { Route as SifreYenileRouteImport } from './routes/sifre-yenile'
 import { Route as SifremiUnuttumRouteImport } from './routes/sifremi-unuttum'
 import { Route as SiparislerimRouteImport } from './routes/siparislerim'
@@ -90,6 +93,11 @@ const DestekRoute = DestekRouteImport.update({
 const DogrulaRoute = DogrulaRouteImport.update({
   id: '/dogrula',
   path: '/dogrula',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DogumGunuHediyesiRoute = DogumGunuHediyesiRouteImport.update({
+  id: '/dogum-gunu-hediyesi',
+  path: '/dogum-gunu-hediyesi',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GirisRoute = GirisRouteImport.update({
@@ -140,6 +148,11 @@ const IletisimRoute = IletisimRouteImport.update({
 const KayitOlRoute = KayitOlRouteImport.update({
   id: '/kayit-ol',
   path: '/kayit-ol',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KisiyeOzelHediyeRoute = KisiyeOzelHediyeRouteImport.update({
+  id: '/kisiye-ozel-hediye',
+  path: '/kisiye-ozel-hediye',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KullanimSartlariRoute = KullanimSartlariRouteImport.update({
@@ -227,6 +240,11 @@ const SertifikalarimRoute = SertifikalarimRouteImport.update({
   path: '/sertifikalarim',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SevgiliyeHediyeRoute = SevgiliyeHediyeRouteImport.update({
+  id: '/sevgiliye-hediye',
+  path: '/sevgiliye-hediye',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SifreYenileRoute = SifreYenileRouteImport.update({
   id: '/sifre-yenile',
   path: '/sifre-yenile',
@@ -302,6 +320,7 @@ export interface FileRoutesByFullPath {
   '/cerez-politikasi': typeof CerezPolitikasiRoute
   '/destek': typeof DestekRoute
   '/dogrula': typeof DogrulaRoute
+  '/dogum-gunu-hediyesi': typeof DogumGunuHediyesiRoute
   '/giris': typeof GirisRoute
   '/gizlilik-politikasi': typeof GizlilikPolitikasiRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
@@ -312,6 +331,7 @@ export interface FileRoutesByFullPath {
   '/iade-iptal-politikasi': typeof IadeIptalPolitikasiRoute
   '/iletisim': typeof IletisimRoute
   '/kayit-ol': typeof KayitOlRoute
+  '/kisiye-ozel-hediye': typeof KisiyeOzelHediyeRoute
   '/kullanim-sartlari': typeof KullanimSartlariRoute
   '/kvkk': typeof KvkkRoute
   '/mesafeli-satis-sozlesmesi': typeof MesafeliSatisSozlesmesiRoute
@@ -329,6 +349,7 @@ export interface FileRoutesByFullPath {
   '/sertifika-dogrula': typeof SertifikaDogrulaRoute
   '/sertifika-talep': typeof SertifikaTalepRoute
   '/sertifikalarim': typeof SertifikalarimRoute
+  '/sevgiliye-hediye': typeof SevgiliyeHediyeRoute
   '/sifre-yenile': typeof SifreYenileRoute
   '/sifremi-unuttum': typeof SifremiUnuttumRoute
   '/siparislerim': typeof SiparislerimRoute
@@ -351,6 +372,7 @@ export interface FileRoutesByTo {
   '/cerez-politikasi': typeof CerezPolitikasiRoute
   '/destek': typeof DestekRoute
   '/dogrula': typeof DogrulaRoute
+  '/dogum-gunu-hediyesi': typeof DogumGunuHediyesiRoute
   '/giris': typeof GirisRoute
   '/gizlilik-politikasi': typeof GizlilikPolitikasiRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
@@ -361,6 +383,7 @@ export interface FileRoutesByTo {
   '/iade-iptal-politikasi': typeof IadeIptalPolitikasiRoute
   '/iletisim': typeof IletisimRoute
   '/kayit-ol': typeof KayitOlRoute
+  '/kisiye-ozel-hediye': typeof KisiyeOzelHediyeRoute
   '/kullanim-sartlari': typeof KullanimSartlariRoute
   '/kvkk': typeof KvkkRoute
   '/mesafeli-satis-sozlesmesi': typeof MesafeliSatisSozlesmesiRoute
@@ -378,6 +401,7 @@ export interface FileRoutesByTo {
   '/sertifika-dogrula': typeof SertifikaDogrulaRoute
   '/sertifika-talep': typeof SertifikaTalepRoute
   '/sertifikalarim': typeof SertifikalarimRoute
+  '/sevgiliye-hediye': typeof SevgiliyeHediyeRoute
   '/sifre-yenile': typeof SifreYenileRoute
   '/sifremi-unuttum': typeof SifremiUnuttumRoute
   '/siparislerim': typeof SiparislerimRoute
@@ -401,6 +425,7 @@ export interface FileRoutesById {
   '/cerez-politikasi': typeof CerezPolitikasiRoute
   '/destek': typeof DestekRoute
   '/dogrula': typeof DogrulaRoute
+  '/dogum-gunu-hediyesi': typeof DogumGunuHediyesiRoute
   '/giris': typeof GirisRoute
   '/gizlilik-politikasi': typeof GizlilikPolitikasiRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
@@ -411,6 +436,7 @@ export interface FileRoutesById {
   '/iade-iptal-politikasi': typeof IadeIptalPolitikasiRoute
   '/iletisim': typeof IletisimRoute
   '/kayit-ol': typeof KayitOlRoute
+  '/kisiye-ozel-hediye': typeof KisiyeOzelHediyeRoute
   '/kullanim-sartlari': typeof KullanimSartlariRoute
   '/kvkk': typeof KvkkRoute
   '/mesafeli-satis-sozlesmesi': typeof MesafeliSatisSozlesmesiRoute
@@ -428,6 +454,7 @@ export interface FileRoutesById {
   '/sertifika-dogrula': typeof SertifikaDogrulaRoute
   '/sertifika-talep': typeof SertifikaTalepRoute
   '/sertifikalarim': typeof SertifikalarimRoute
+  '/sevgiliye-hediye': typeof SevgiliyeHediyeRoute
   '/sifre-yenile': typeof SifreYenileRoute
   '/sifremi-unuttum': typeof SifremiUnuttumRoute
   '/siparislerim': typeof SiparislerimRoute
@@ -452,6 +479,7 @@ export interface FileRouteTypes {
     | '/cerez-politikasi'
     | '/destek'
     | '/dogrula'
+    | '/dogum-gunu-hediyesi'
     | '/giris'
     | '/gizlilik-politikasi'
     | '/gokyuzu-haritasi'
@@ -462,6 +490,7 @@ export interface FileRouteTypes {
     | '/iade-iptal-politikasi'
     | '/iletisim'
     | '/kayit-ol'
+    | '/kisiye-ozel-hediye'
     | '/kullanim-sartlari'
     | '/kvkk'
     | '/mesafeli-satis-sozlesmesi'
@@ -479,6 +508,7 @@ export interface FileRouteTypes {
     | '/sertifika-dogrula'
     | '/sertifika-talep'
     | '/sertifikalarim'
+    | '/sevgiliye-hediye'
     | '/sifre-yenile'
     | '/sifremi-unuttum'
     | '/siparislerim'
@@ -501,6 +531,7 @@ export interface FileRouteTypes {
     | '/cerez-politikasi'
     | '/destek'
     | '/dogrula'
+    | '/dogum-gunu-hediyesi'
     | '/giris'
     | '/gizlilik-politikasi'
     | '/gokyuzu-haritasi'
@@ -511,6 +542,7 @@ export interface FileRouteTypes {
     | '/iade-iptal-politikasi'
     | '/iletisim'
     | '/kayit-ol'
+    | '/kisiye-ozel-hediye'
     | '/kullanim-sartlari'
     | '/kvkk'
     | '/mesafeli-satis-sozlesmesi'
@@ -528,6 +560,7 @@ export interface FileRouteTypes {
     | '/sertifika-dogrula'
     | '/sertifika-talep'
     | '/sertifikalarim'
+    | '/sevgiliye-hediye'
     | '/sifre-yenile'
     | '/sifremi-unuttum'
     | '/siparislerim'
@@ -550,6 +583,7 @@ export interface FileRouteTypes {
     | '/cerez-politikasi'
     | '/destek'
     | '/dogrula'
+    | '/dogum-gunu-hediyesi'
     | '/giris'
     | '/gizlilik-politikasi'
     | '/gokyuzu-haritasi'
@@ -560,6 +594,7 @@ export interface FileRouteTypes {
     | '/iade-iptal-politikasi'
     | '/iletisim'
     | '/kayit-ol'
+    | '/kisiye-ozel-hediye'
     | '/kullanim-sartlari'
     | '/kvkk'
     | '/mesafeli-satis-sozlesmesi'
@@ -577,6 +612,7 @@ export interface FileRouteTypes {
     | '/sertifika-dogrula'
     | '/sertifika-talep'
     | '/sertifikalarim'
+    | '/sevgiliye-hediye'
     | '/sifre-yenile'
     | '/sifremi-unuttum'
     | '/siparislerim'
@@ -600,6 +636,7 @@ export interface RootRouteChildren {
   CerezPolitikasiRoute: typeof CerezPolitikasiRoute
   DestekRoute: typeof DestekRoute
   DogrulaRoute: typeof DogrulaRoute
+  DogumGunuHediyesiRoute: typeof DogumGunuHediyesiRoute
   GirisRoute: typeof GirisRoute
   GizlilikPolitikasiRoute: typeof GizlilikPolitikasiRoute
   GokyuzuHaritasiRoute: typeof GokyuzuHaritasiRoute
@@ -610,6 +647,7 @@ export interface RootRouteChildren {
   IadeIptalPolitikasiRoute: typeof IadeIptalPolitikasiRoute
   IletisimRoute: typeof IletisimRoute
   KayitOlRoute: typeof KayitOlRoute
+  KisiyeOzelHediyeRoute: typeof KisiyeOzelHediyeRoute
   KullanimSartlariRoute: typeof KullanimSartlariRoute
   KvkkRoute: typeof KvkkRoute
   MesafeliSatisSozlesmesiRoute: typeof MesafeliSatisSozlesmesiRoute
@@ -627,6 +665,7 @@ export interface RootRouteChildren {
   SertifikaDogrulaRoute: typeof SertifikaDogrulaRoute
   SertifikaTalepRoute: typeof SertifikaTalepRoute
   SertifikalarimRoute: typeof SertifikalarimRoute
+  SevgiliyeHediyeRoute: typeof SevgiliyeHediyeRoute
   SifreYenileRoute: typeof SifreYenileRoute
   SifremiUnuttumRoute: typeof SifremiUnuttumRoute
   SiparislerimRoute: typeof SiparislerimRoute
@@ -691,6 +730,13 @@ declare module '@tanstack/react-router' {
       path: '/dogrula'
       fullPath: '/dogrula'
       preLoaderRoute: typeof DogrulaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dogum-gunu-hediyesi': {
+      id: '/dogum-gunu-hediyesi'
+      path: '/dogum-gunu-hediyesi'
+      fullPath: '/dogum-gunu-hediyesi'
+      preLoaderRoute: typeof DogumGunuHediyesiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/giris': {
@@ -761,6 +807,13 @@ declare module '@tanstack/react-router' {
       path: '/kayit-ol'
       fullPath: '/kayit-ol'
       preLoaderRoute: typeof KayitOlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kisiye-ozel-hediye': {
+      id: '/kisiye-ozel-hediye'
+      path: '/kisiye-ozel-hediye'
+      fullPath: '/kisiye-ozel-hediye'
+      preLoaderRoute: typeof KisiyeOzelHediyeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/kullanim-sartlari': {
@@ -882,6 +935,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SertifikalarimRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sevgiliye-hediye': {
+      id: '/sevgiliye-hediye'
+      path: '/sevgiliye-hediye'
+      fullPath: '/sevgiliye-hediye'
+      preLoaderRoute: typeof SevgiliyeHediyeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sifre-yenile': {
       id: '/sifre-yenile'
       path: '/sifre-yenile'
@@ -984,6 +1044,7 @@ const rootRouteChildren: RootRouteChildren = {
   CerezPolitikasiRoute: CerezPolitikasiRoute,
   DestekRoute: DestekRoute,
   DogrulaRoute: DogrulaRoute,
+  DogumGunuHediyesiRoute: DogumGunuHediyesiRoute,
   GirisRoute: GirisRoute,
   GizlilikPolitikasiRoute: GizlilikPolitikasiRoute,
   GokyuzuHaritasiRoute: GokyuzuHaritasiRoute,
@@ -994,6 +1055,7 @@ const rootRouteChildren: RootRouteChildren = {
   IadeIptalPolitikasiRoute: IadeIptalPolitikasiRoute,
   IletisimRoute: IletisimRoute,
   KayitOlRoute: KayitOlRoute,
+  KisiyeOzelHediyeRoute: KisiyeOzelHediyeRoute,
   KullanimSartlariRoute: KullanimSartlariRoute,
   KvkkRoute: KvkkRoute,
   MesafeliSatisSozlesmesiRoute: MesafeliSatisSozlesmesiRoute,
@@ -1011,6 +1073,7 @@ const rootRouteChildren: RootRouteChildren = {
   SertifikaDogrulaRoute: SertifikaDogrulaRoute,
   SertifikaTalepRoute: SertifikaTalepRoute,
   SertifikalarimRoute: SertifikalarimRoute,
+  SevgiliyeHediyeRoute: SevgiliyeHediyeRoute,
   SifreYenileRoute: SifreYenileRoute,
   SifremiUnuttumRoute: SifremiUnuttumRoute,
   SiparislerimRoute: SiparislerimRoute,
