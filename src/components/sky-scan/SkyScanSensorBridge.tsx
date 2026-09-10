@@ -10,12 +10,15 @@ type MotionLike = DeviceMotionEvent & { __mySkyParcelHandled?: boolean };
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-function makeOrientationEvent(alpha: number, beta: number, gamma: number, absolute = false) {
+function makeOrientationEvent(alpha: number, beta: number, gamma: number, absolute = false, webkitCompassHeading?: number) {
   try {
     const Ctor = window.DeviceOrientationEvent;
     if (typeof Ctor === "function" && "prototype" in Ctor) {
       const event = new Ctor("deviceorientation", { alpha, beta, gamma, absolute }) as OrientationLike;
       event.__mySkyParcelNormalized = true;
+      if (finite(webkitCompassHeading)) {
+        Object.defineProperty(event, "webkitCompassHeading", { value: webkitCompassHeading, enumerable: true });
+      }
       return event;
     }
   } catch {
@@ -28,6 +31,7 @@ function makeOrientationEvent(alpha: number, beta: number, gamma: number, absolu
     beta: { value: beta, enumerable: true },
     gamma: { value: gamma, enumerable: true },
     absolute: { value: absolute, enumerable: true },
+    webkitCompassHeading: { value: webkitCompassHeading, enumerable: true },
     __mySkyParcelNormalized: { value: true },
   });
   return event;
@@ -64,10 +68,17 @@ export function SkyScanSensorBridge({ children }: { children: ReactNode }) {
 
       last = { alpha, beta, gamma };
 
-      // The scan engine expects a complete orientation sample. Preserve native
-      // events and only add a normalized sample when one or more axes are missing.
-      if (!finite(source.alpha) || !finite(source.beta) || !finite(source.gamma)) {
-        window.dispatchEvent(makeOrientationEvent(alpha, beta, gamma, Boolean(source.absolute)));
+      // deviceorientationabsolute is an absolute-heading source even when a browser
+      // incorrectly reports event.absolute=false. Normalize it explicitly so the
+      // geographic parcel bearing can be compared against the camera heading.
+      const isAbsoluteEvent = event.type === "deviceorientationabsolute";
+      const absolute = isAbsoluteEvent || Boolean(source.absolute);
+      const compassHeading = finite(source.webkitCompassHeading) ? source.webkitCompassHeading : undefined;
+
+      // Preserve complete native samples, but add a normalized absolute sample for
+      // deviceorientationabsolute and a normalized sample for partial events.
+      if (isAbsoluteEvent || !finite(source.alpha) || !finite(source.beta) || !finite(source.gamma)) {
+        window.dispatchEvent(makeOrientationEvent(alpha, beta, gamma, absolute, compassHeading));
       }
     };
 
