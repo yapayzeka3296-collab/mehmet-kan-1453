@@ -8,12 +8,13 @@ type Props = { parcels: Parcel3D[]; heading: number | null; pitch: number | null
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 const rad = (n: number) => n * Math.PI / 180;
 const MAX_RENDER_DISTANCE = 5000;
+const MAX_RENDERABLE_PARCELS = 100;
+const PICK_THRESHOLD = 18;
 function scaleForDistance(distance: number) { return clamp(2.05 / Math.sqrt(distance / 1000 + 0.65), 0.48, 1.9); }
 function detailForDistance(distance: number) { if (distance <= 500) return 1; if (distance <= 2000) return 2; return 3; }
 
 export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, selectedId, onSelect, onProjectSelected }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const groupRef = useRef<THREE.Group | null>(null);
@@ -36,39 +37,43 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
     const camera = new THREE.PerspectiveCamera(110, 1, 0.1, 30000);
     camera.rotation.order = "YXZ";
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.setClearAlpha(0);
     host.appendChild(renderer.domElement);
     const group = new THREE.Group();
     scene.add(group);
-    sceneRef.current = scene; cameraRef.current = camera; rendererRef.current = renderer; groupRef.current = group;
+    cameraRef.current = camera; rendererRef.current = renderer; groupRef.current = group;
     const resize = () => {
       const width = Math.max(1, host.clientWidth), height = Math.max(1, host.clientHeight);
-      camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height, false);
     };
     resize(); window.addEventListener("resize", resize);
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.params.Line.threshold = PICK_THRESHOLD;
+    const pointer = new THREE.Vector2();
     const pick = (event: PointerEvent) => {
       if (!visible || !onSelectRef.current || !camera.visible) return;
       const rect = renderer.domElement.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
-      const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
-      const raycaster = new THREE.Raycaster();
-      raycaster.params.Line.threshold = 12;
+      pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
       raycaster.setFromCamera(pointer, camera);
-      const hits = raycaster.intersectObjects(Array.from(meshesRef.current.values()), false);
-      const hit = hits.find((item) => item.object.visible);
+      const hit = raycaster.intersectObjects(Array.from(meshesRef.current.values()), false).find(item => item.object.visible);
       const id = hit?.object.userData.parcelId;
       if (typeof id === "string") onSelectRef.current(id);
     };
     renderer.domElement.addEventListener("pointerup", pick, { passive: true });
+
+    const world = new THREE.Vector3();
     const animate = (time: number) => {
-      meshesRef.current.forEach((mesh) => {
+      meshesRef.current.forEach(mesh => {
         const phase = mesh.userData.phase as number;
         const baseY = mesh.userData.baseY as number;
         mesh.rotation.y = time * 0.00018 + phase;
         mesh.position.y = baseY + Math.sin(time * 0.001 + phase) * Math.min(8, Math.max(1.5, mesh.userData.floatAmplitude as number));
-        const active = mesh.userData.parcelId === selectedRef.current;
-        (mesh.material as THREE.LineBasicMaterial).opacity = active ? 1 : 0.72;
+        (mesh.material as THREE.LineBasicMaterial).opacity = mesh.userData.parcelId === selectedRef.current ? 1 : 0.72;
       });
       const selected = selectedRef.current;
       const now = performance.now();
@@ -78,7 +83,6 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
         if (!mesh || !mesh.visible || !camera.visible) {
           if (lastProjectedRef.current !== null) { lastProjectedRef.current = null; onProjectSelectedRef.current(null); }
         } else {
-          const world = new THREE.Vector3();
           mesh.getWorldPosition(world);
           const ndc = world.project(camera);
           const rect = renderer.domElement.getBoundingClientRect();
@@ -86,7 +90,7 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
           const y = rect.top + (1 - ndc.y) * 0.5 * rect.height;
           const hit = { id: selected, x, y, visible: ndc.z >= -1 && ndc.z <= 1 && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom };
           const prev = lastProjectedRef.current;
-          if (!prev || prev.id !== hit.id || Math.abs(prev.x - hit.x) > 1 || Math.abs(prev.y - hit.y) > 1 || prev.visible !== hit.visible) {
+          if (!prev || prev.id !== hit.id || Math.abs(prev.x - hit.x) > 2 || Math.abs(prev.y - hit.y) > 2 || prev.visible !== hit.visible) {
             lastProjectedRef.current = hit;
             onProjectSelectedRef.current(hit);
           }
@@ -101,21 +105,24 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
       renderer.domElement.removeEventListener("pointerup", pick);
       window.removeEventListener("resize", resize);
       onProjectSelectedRef.current?.(null);
-      meshesRef.current.forEach((mesh) => { mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); });
-      meshesRef.current.clear(); renderer.dispose(); renderer.domElement.remove();
-      sceneRef.current = null; cameraRef.current = null; rendererRef.current = null; groupRef.current = null;
+      meshesRef.current.forEach(mesh => { mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); });
+      meshesRef.current.clear();
+      renderer.dispose(); renderer.domElement.remove();
+      cameraRef.current = null; rendererRef.current = null; groupRef.current = null;
     };
   }, []);
 
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
-    const renderable = parcels.filter((parcel) => parcel.distance <= MAX_RENDER_DISTANCE);
-    const incoming = new Map(renderable.map((parcel) => [parcel.id, parcel]));
+    const renderable = parcels.filter(parcel => parcel.distance <= MAX_RENDER_DISTANCE).slice(0, MAX_RENDERABLE_PARCELS);
+    const incoming = new Map(renderable.map(parcel => [parcel.id, parcel]));
     meshesRef.current.forEach((mesh, id) => {
-      if (!incoming.has(id)) { group.remove(mesh); mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); meshesRef.current.delete(id); }
+      if (!incoming.has(id)) {
+        group.remove(mesh); mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); meshesRef.current.delete(id);
+      }
     });
-    renderable.forEach((parcel) => {
+    renderable.forEach(parcel => {
       let mesh = meshesRef.current.get(parcel.id);
       const detail = detailForDistance(parcel.distance);
       if (!mesh || mesh.userData.detail !== detail) {
