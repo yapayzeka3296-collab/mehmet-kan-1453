@@ -2,12 +2,13 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
 type Parcel3D = { id: string; east: number; north: number; altitude: number; distance: number };
-type Props = { parcels: Parcel3D[]; heading: number | null; pitch: number | null; visible: boolean; selectedId?: string | null };
+type Props = { parcels: Parcel3D[]; heading: number | null; pitch: number | null; fov?: number; visible: boolean; selectedId?: string | null };
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+const rad = (n: number) => n * Math.PI / 180;
 function scaleForDistance(distance: number) { return clamp(2.05 / Math.sqrt(distance / 1000 + 0.65), 0.48, 1.9); }
 
-export function SkyScan3DLayer({ parcels, heading, pitch, visible, selectedId }: Props) {
+export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, selectedId }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -23,7 +24,8 @@ export function SkyScan3DLayer({ parcels, heading, pitch, visible, selectedId }:
     const host = hostRef.current;
     if (!host) return;
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 30000);
+    const camera = new THREE.PerspectiveCamera(110, 1, 0.1, 30000);
+    camera.rotation.order = "YXZ";
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setClearAlpha(0);
@@ -31,13 +33,11 @@ export function SkyScan3DLayer({ parcels, heading, pitch, visible, selectedId }:
     const group = new THREE.Group();
     scene.add(group);
     sceneRef.current = scene; cameraRef.current = camera; rendererRef.current = renderer; groupRef.current = group;
-
     const resize = () => {
       const width = Math.max(1, host.clientWidth), height = Math.max(1, host.clientHeight);
       camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false);
     };
     resize(); window.addEventListener("resize", resize);
-
     const animate = (time: number) => {
       meshesRef.current.forEach((mesh) => {
         const phase = mesh.userData.phase as number;
@@ -51,7 +51,6 @@ export function SkyScan3DLayer({ parcels, heading, pitch, visible, selectedId }:
       frameRef.current = requestAnimationFrame(animate);
     };
     frameRef.current = requestAnimationFrame(animate);
-
     return () => {
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
       window.removeEventListener("resize", resize);
@@ -79,20 +78,24 @@ export function SkyScan3DLayer({ parcels, heading, pitch, visible, selectedId }:
         mesh.userData.floatAmplitude = clamp(parcel.distance * 0.01, 1.5, 8);
         group.add(mesh); meshesRef.current.set(parcel.id, mesh);
       }
-      const scale = scaleForDistance(parcel.distance);
       mesh.position.set(parcel.east, parcel.altitude, -parcel.north);
       mesh.userData.baseY = parcel.altitude;
-      mesh.scale.setScalar(scale);
+      mesh.scale.setScalar(scaleForDistance(parcel.distance));
     });
   }, [parcels]);
 
   useEffect(() => {
     const camera = cameraRef.current;
     if (!camera) return;
-    camera.fov = 70;
+    camera.fov = clamp(fov, 60, 120);
+    if (heading !== null && pitch !== null) {
+      camera.rotation.order = "YXZ";
+      camera.rotation.y = -rad(heading);
+      camera.rotation.x = -rad(pitch);
+    }
     camera.visible = visible && heading !== null && pitch !== null;
     camera.updateProjectionMatrix();
-  }, [heading, pitch, visible]);
+  }, [fov, heading, pitch, visible]);
 
   return <div ref={hostRef} className="pointer-events-none absolute inset-0 z-20" aria-hidden="true" />;
 }
