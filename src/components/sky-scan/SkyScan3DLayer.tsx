@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
 type Parcel3D = { id: string; east: number; north: number; altitude: number; distance: number };
-type Props = { parcels: Parcel3D[]; heading: number | null; pitch: number | null; fov?: number; visible: boolean; selectedId?: string | null };
+type Props = { parcels: Parcel3D[]; heading: number | null; pitch: number | null; fov?: number; visible: boolean; selectedId?: string | null; onSelect?: (id: string) => void };
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 const rad = (n: number) => n * Math.PI / 180;
@@ -10,7 +10,7 @@ const MAX_RENDER_DISTANCE = 5000;
 function scaleForDistance(distance: number) { return clamp(2.05 / Math.sqrt(distance / 1000 + 0.65), 0.48, 1.9); }
 function detailForDistance(distance: number) { if (distance <= 500) return 1; if (distance <= 2000) return 2; return 3; }
 
-export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, selectedId }: Props) {
+export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, selectedId, onSelect }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -19,8 +19,10 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
   const meshesRef = useRef(new Map<string, THREE.LineSegments>());
   const frameRef = useRef<number | null>(null);
   const selectedRef = useRef<string | null | undefined>(selectedId);
+  const onSelectRef = useRef<Props["onSelect"]>(onSelect);
 
   useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
+  useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -40,6 +42,19 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
       camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false);
     };
     resize(); window.addEventListener("resize", resize);
+    const pick = (event: PointerEvent) => {
+      if (!visible || !onSelectRef.current || !camera.visible) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(Array.from(meshesRef.current.values()), false);
+      const hit = hits.find((item) => item.object.visible);
+      const id = hit?.object.userData.parcelId;
+      if (typeof id === "string") onSelectRef.current(id);
+    };
+    renderer.domElement.addEventListener("pointerup", pick, { passive: true });
     const animate = (time: number) => {
       meshesRef.current.forEach((mesh) => {
         const phase = mesh.userData.phase as number;
@@ -55,6 +70,7 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
     frameRef.current = requestAnimationFrame(animate);
     return () => {
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+      renderer.domElement.removeEventListener("pointerup", pick);
       window.removeEventListener("resize", resize);
       meshesRef.current.forEach((mesh) => { mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); });
       meshesRef.current.clear(); renderer.dispose(); renderer.domElement.remove();
@@ -105,5 +121,5 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
     camera.updateProjectionMatrix();
   }, [fov, heading, pitch, visible]);
 
-  return <div ref={hostRef} className="pointer-events-none absolute inset-0 z-20" aria-hidden="true" />;
+  return <div ref={hostRef} className="pointer-events-auto absolute inset-0 z-20" aria-label="3D gökyüzü parselleri" />;
 }
