@@ -49,7 +49,9 @@ function gravityToOrientation(event: MotionLike, last: { alpha: number; beta: nu
   return {
     alpha: last.alpha,
     beta: clamp((Math.atan2(-gx, horizontal) * 180) / Math.PI, -180, 180),
-    gamma: clamp((Math.atan2(gy, gz) * 180) / Math.PI, -90, 90),
+    // gamma can legitimately pass +/-90 when the phone is rotated toward the sky.
+    // Clamping it to +/-90 collapses the sky-facing orientation to a horizontal pose.
+    gamma: clamp((Math.atan2(gy, gz) * 180) / Math.PI, -180, 180),
   };
 }
 
@@ -69,9 +71,6 @@ export function SkyScanSensorBridge({ children }: { children: ReactNode }) {
 
       last = { alpha, beta, gamma };
 
-      // deviceorientationabsolute is the geographic-heading source. Some Android
-      // browsers expose a useful compass heading in alpha but do not populate
-      // webkitCompassHeading, so preserve alpha explicitly for the scan engine.
       const isAbsoluteEvent = event.type === "deviceorientationabsolute";
       const absolute = isAbsoluteEvent || Boolean(source.absolute);
       const compassHeading = finite(source.webkitCompassHeading)
@@ -80,8 +79,6 @@ export function SkyScanSensorBridge({ children }: { children: ReactNode }) {
           ? normalizeHeading(source.alpha)
           : undefined;
 
-      // Preserve complete native samples, but add a normalized absolute sample for
-      // deviceorientationabsolute and a normalized sample for partial events.
       if (isAbsoluteEvent || !finite(source.alpha) || !finite(source.beta) || !finite(source.gamma)) {
         window.dispatchEvent(makeOrientationEvent(alpha, beta, gamma, absolute, compassHeading));
       }
