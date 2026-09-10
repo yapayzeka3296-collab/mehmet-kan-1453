@@ -5,11 +5,11 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 type LocationState = GeoPoint & { accuracy: number; altitude: number | null };
 type Parcel = { id:string; parcel_number:string; status:string; price:number|string|null; tier:string; tier_price:number|string|null; city_name:string; city_slug:string; latitude:number; longitude:number };
-type Nearby = Parcel & { distance:number; bearing:number };
+type Nearby = Parcel & { distance:number; bearing:number; altitude:number; east:number; north:number };
 type OrientationLike = DeviceOrientationEvent & { webkitCompassHeading?: number };
-type Projected = Nearby & { left:number; top:number; scale:number; opacity:number; depth:number; angle:number };
-type MotionLike = DeviceMotionEvent;
+type Projected = Nearby & { left:number; top:number; scale:number; opacity:number; depth:number; angle:number; targetPitch:number };
 
+type MotionLike = DeviceMotionEvent;
 const MAX_RANGE = 8000;
 const MIN_REFRESH_METERS = 25;
 const REFRESH_MS = 2500;
@@ -22,73 +22,68 @@ const SKY_EXIT = 4;
 const clamp=(n:number,a:number,b:number)=>Math.max(a,Math.min(b,n));
 const rad=(n:number)=>n*Math.PI/180;
 const deg=(n:number)=>n*180/Math.PI;
-
 function haversine(a:GeoPoint,b:GeoPoint){return distanceMeters(a,b)}
-function local(a:GeoPoint,b:GeoPoint){const lat=rad((a.latitude+b.latitude)/2);return {east:rad(b.longitude-a.longitude)*EARTH_RADIUS*Math.cos(lat),north:rad(b.latitude-a.latitude)*EARTH_RADIUS}}
-function parcelHeight(d:number){return clamp(28+d*.012,32,105)}
+function enu(a:GeoPoint,b:GeoPoint){const lat=rad((a.latitude+b.latitude)/2);return {east:rad(b.longitude-a.longitude)*EARTH_RADIUS*Math.cos(lat),north:rad(b.latitude-a.latitude)*EARTH_RADIUS}}
+function stableAltitude(id:string){let h=2166136261;for(let i=0;i<id.length;i++)h=Math.imul(h^id.charCodeAt(i),16777619);return 150+(Math.abs(h)%351)}
 function parcelScale(d:number){return clamp(2.05/Math.sqrt(d/1000+.65),.48,1.9)}
 function pose(event:DeviceOrientationEvent){
-  const alpha=rad(event.alpha??0), beta=rad(event.beta??0), gamma=rad(event.gamma??0);
+  const alpha=rad(event.alpha??0),beta=rad(event.beta??0),gamma=rad(event.gamma??0);
   const screenAngle=typeof screen!=="undefined"&&screen.orientation?Number(screen.orientation.angle)||0:0;
   const ca=Math.cos(alpha),sa=Math.sin(alpha),sb=Math.sin(beta),cg=Math.cos(gamma),sg=Math.sin(gamma);
-  const x=ca*sg-sa*sb*cg, y=sb, z=ca*cg+sa*sb*sg;
-  let heading=normalizeAngle(deg(Math.atan2(x,-z))-screenAngle);
-  if(!Number.isFinite(heading))heading=0;
+  const x=ca*sg-sa*sb*cg,y=sb,z=ca*cg+sa*sb*sg;
+  let heading=normalizeAngle(deg(Math.atan2(x,-z))-screenAngle);if(!Number.isFinite(heading))heading=0;
   return {heading,pitch:clamp(deg(Math.asin(clamp(y,-1,1))),-89,89)};
 }
 function project(p:Nearby,l:LocationState,heading:number,pitch:number,fov:number,w:number,h:number):Projected|null{
   const rel=normalizeAngle(p.bearing-heading);
   const verticalFov=clamp(fov*(h/Math.max(1,w)),72,105);
-  const targetPitch=deg(Math.atan2(parcelHeight(p.distance),Math.max(30,p.distance)));
+  const targetPitch=deg(Math.atan2(p.altitude-(l.altitude??0),Math.max(30,p.distance)));
   const relPitch=targetPitch-pitch;
-  if(Math.abs(rel)>fov*.50||Math.abs(relPitch)>verticalFov*.50)return null;
+  if(Math.abs(rel)>fov*.5||Math.abs(relPitch)>verticalFov*.5)return null;
   const uncertainty=clamp(l.accuracy/Math.max(50,p.distance),0,.75);
-  const e=local(l,p);
-  return {...p,left:50+(rel/fov)*100,top:50-(relPitch/verticalFov)*100,scale:parcelScale(p.distance),opacity:clamp(.98-uncertainty*.35-p.distance/MAX_RANGE*.16,.42,.98),depth:Math.hypot(e.east,e.north,parcelHeight(p.distance)),angle:rel};
+  return {...p,left:50+(rel/fov)*100,top:50-(relPitch/verticalFov)*100,scale:parcelScale(p.distance),opacity:clamp(.98-uncertainty*.35-p.distance/MAX_RANGE*.16,.42,.98),depth:Math.hypot(p.east,p.north,p.altitude-(l.altitude??0)),angle:rel,targetPitch};
 }
 
 export function SkyScanExperienceV4(){
-  const rootRef=useRef<HTMLDivElement|null>(null); const videoRef=useRef<HTMLVideoElement|null>(null); const streamRef=useRef<MediaStream|null>(null);
-  const lastFetchRef=useRef<GeoPoint|null>(null); const lastFetchAt=useRef(0); const requestSeq=useRef(0);
-  const sensorMode=useRef<"absolute"|"relative"|null>(null); const relativeBase=useRef<number|null>(null); const absoluteGraceUntil=useRef(0);
-  const [location,setLocation]=useState<LocationState|null>(null); const [locationError,setLocationError]=useState<string|null>(null);
-  const [nearby,setNearby]=useState<Nearby[]>([]); const [parcelLoading,setParcelLoading]=useState(false); const [parcelError,setParcelError]=useState<string|null>(null);
-  const [heading,setHeading]=useState<number|null>(null); const [pitch,setPitch]=useState<number|null>(null); const [roll,setRoll]=useState(0);
-  const [cameraStarted,setCameraStarted]=useState(false); const [cameraReady,setCameraReady]=useState(false); const [cameraError,setCameraError]=useState<string|null>(null);
-  const [orientationStarted,setOrientationStarted]=useState(false); const [orientationError,setOrientationError]=useState<string|null>(null); const [sensorTick,setSensorTick]=useState(0);
-  const [selected,setSelected]=useState<Nearby|null>(null); const [skyMode,setSkyMode]=useState(false); const [fov,setFov]=useState(DEFAULT_FOV);
+  const rootRef=useRef<HTMLDivElement|null>(null),videoRef=useRef<HTMLVideoElement|null>(null),streamRef=useRef<MediaStream|null>(null);
+  const lastFetchRef=useRef<GeoPoint|null>(null),lastFetchAt=useRef(0),requestSeq=useRef(0);
+  const sensorMode=useRef<"absolute"|"relative"|null>(null),relativeBase=useRef<number|null>(null),absoluteGraceUntil=useRef(0);
+  const [location,setLocation]=useState<LocationState|null>(null),[locationError,setLocationError]=useState<string|null>(null);
+  const [nearby,setNearby]=useState<Nearby[]>([]),[parcelLoading,setParcelLoading]=useState(false),[parcelError,setParcelError]=useState<string|null>(null);
+  const [heading,setHeading]=useState<number|null>(null),[pitch,setPitch]=useState<number|null>(null),[roll,setRoll]=useState(0);
+  const [cameraStarted,setCameraStarted]=useState(false),[cameraReady,setCameraReady]=useState(false),[cameraError,setCameraError]=useState<string|null>(null);
+  const [orientationStarted,setOrientationStarted]=useState(false),[orientationError,setOrientationError]=useState<string|null>(null),[sensorTick,setSensorTick]=useState(0);
+  const [selected,setSelected]=useState<Nearby|null>(null),[skyMode,setSkyMode]=useState(false),[fov,setFov]=useState(DEFAULT_FOV);
 
   useEffect(()=>{if(!navigator.geolocation){setLocationError("Bu cihaz konum bilgisini desteklemiyor.");return}const id=navigator.geolocation.watchPosition(p=>setLocation({latitude:p.coords.latitude,longitude:p.coords.longitude,accuracy:Math.max(1,p.coords.accuracy||999),altitude:typeof p.coords.altitude==="number"?p.coords.altitude:null}),e=>setLocationError(e.message||"Konum alınamadı."),{enableHighAccuracy:true,maximumAge:1000,timeout:15000});return()=>navigator.geolocation.clearWatch(id)},[]);
 
   const fetchParcels=useCallback(async(l:LocationState,force=false)=>{
     if(!supabaseBrowser)return;const now=Date.now();const moved=lastFetchRef.current?haversine(lastFetchRef.current,l):Infinity;if(!force&&moved<MIN_REFRESH_METERS&&now-lastFetchAt.current<REFRESH_MS)return;
     const seq=++requestSeq.current;lastFetchRef.current={latitude:l.latitude,longitude:l.longitude};lastFetchAt.current=now;setParcelLoading(true);setParcelError(null);
-    const radii=[1800,3500,5500,MAX_RANGE];let rows:Parcel[]=[];let lastError:string|null=null;
+    const radii=[1800,3500,5500,MAX_RANGE];let rows:Nearby[]=[];let lastError:string|null=null;
     for(const radiusMeters of radii){
-      const latDelta=radiusMeters/111320;const lngDelta=radiusMeters/(111320*Math.max(.2,Math.cos(rad(l.latitude))));
+      const latDelta=radiusMeters/111320,lngDelta=radiusMeters/(111320*Math.max(.2,Math.cos(rad(l.latitude))));
       const {data,error}=await supabaseBrowser.rpc("sky_scan_parcels",{p_min_lat:l.latitude-latDelta,p_min_lng:l.longitude-lngDelta,p_max_lat:l.latitude+latDelta,p_max_lng:l.longitude+lngDelta,p_limit:FETCH_LIMIT});
       if(seq!==requestSeq.current)return;
       if(error){lastError=error.message||"Yakındaki parseller alınamadı.";continue}
-      rows=((data??[]) as Parcel[]).map(p=>({...p,distance:distanceMeters(l,p),bearing:bearingDegrees(l,p)})).filter(p=>p.distance<=radiusMeters).sort((a,b)=>a.distance-b.distance) as unknown as Parcel[];
+      rows=(data??[] as Parcel[]).map(p=>{const xy=enu(l,p);return {...p,distance:distanceMeters(l,p),bearing:bearingDegrees(l,p),altitude:(l.altitude??0)+stableAltitude(p.id),east:xy.east,north:xy.north}}).filter(p=>p.distance<=radiusMeters).sort((a,b)=>a.distance-b.distance);
       if(rows.length>=MIN_VISIBLE||radiusMeters===MAX_RANGE)break;
     }
     if(seq!==requestSeq.current)return;
     if(!rows.length&&lastError){setParcelError(lastError);setNearby([]);setParcelLoading(false);return}
-    const sorted=(rows as unknown as Nearby[]).sort((a,b)=>a.distance-b.distance);
-    setNearby(sorted.slice(0,FETCH_LIMIT));setParcelLoading(false);
+    setNearby(rows.slice(0,FETCH_LIMIT));setParcelLoading(false);
   },[]);
   useEffect(()=>{if(location)void fetchParcels(location,true)},[location?.latitude,location?.longitude,location?.accuracy,fetchParcels]);
   useEffect(()=>{if(!location)return;const timer=window.setInterval(()=>void fetchParcels(location),REFRESH_MS);return()=>window.clearInterval(timer)},[location,fetchParcels]);
 
-  useEffect(()=>{if(!orientationStarted)return;let absoluteSeen=false;let got=false;absoluteGraceUntil.current=Date.now()+700;
+  useEffect(()=>{if(!orientationStarted)return;let absoluteSeen=false,got=false;absoluteGraceUntil.current=Date.now()+700;
     const markSensor=()=>{got=true;setSensorTick(Date.now());setOrientationError(null)};
-    const accept=(e:DeviceOrientationEvent,absolute:boolean)=>{const x=e as OrientationLike;const hasAlpha=typeof e.alpha==="number";const hasTilt=typeof e.beta==="number"&&typeof e.gamma==="number";if(!hasTilt)return;
+    const accept=(e:DeviceOrientationEvent,absolute:boolean)=>{const x=e as OrientationLike;const hasAlpha=typeof e.alpha==="number",hasTilt=typeof e.beta==="number"&&typeof e.gamma==="number";if(!hasTilt)return;
       if(absolute){absoluteSeen=true;sensorMode.current="absolute";const raw=typeof x.webkitCompassHeading==="number"&&Number.isFinite(x.webkitCompassHeading)?x.webkitCompassHeading:pose(e).heading;setHeading(normalizeAngle(raw))}
       else if(!absoluteSeen&&sensorMode.current!=="absolute"&&Date.now()>=absoluteGraceUntil.current&&hasAlpha){sensorMode.current="relative";const raw=pose(e).heading;if(relativeBase.current===null)relativeBase.current=raw;setHeading(normalizeAngle(raw-relativeBase.current))}
       const q=pose(e);setPitch(v=>v===null?q.pitch:v*.8+q.pitch*.2);setRoll(clamp((e.gamma??0)*.25,-20,20));markSensor();
     };
-    const onAbs=(e:Event)=>accept(e as DeviceOrientationEvent,true),onRel=(e:Event)=>accept(e as DeviceOrientationEvent,false);
-    const onMotion=(e:Event)=>{const m=e as MotionLike;const a=m.accelerationIncludingGravity;const active=[a?.x,a?.y,a?.z].some(v=>typeof v==="number"&&Math.abs(v)>0.05);if(active)markSensor();};
+    const onAbs=(e:Event)=>accept(e as DeviceOrientationEvent,true),onRel=(e:Event)=>accept(e as DeviceOrientationEvent,false),onMotion=(e:Event)=>{const a=(e as MotionLike).accelerationIncludingGravity;const active=[a?.x,a?.y,a?.z].some(v=>typeof v==="number"&&Math.abs(v)>.05);if(active)markSensor()};
     window.addEventListener("deviceorientationabsolute",onAbs,true);window.addEventListener("deviceorientation",onRel,true);window.addEventListener("devicemotion",onMotion,true);
     const timer=window.setTimeout(()=>{if(!got)setOrientationError("Sensör verisi alınamadı. Kamera açık kalacak; veri geldiğinde tarama otomatik başlayacak.")},3500);
     return()=>{window.removeEventListener("deviceorientationabsolute",onAbs,true);window.removeEventListener("deviceorientation",onRel,true);window.removeEventListener("devicemotion",onMotion,true);window.clearTimeout(timer)};
@@ -109,9 +104,9 @@ export function SkyScanExperienceV4(){
     {cameraStarted&&<><div className="absolute left-3 right-3 top-3 z-50 flex items-center justify-between"><div className="flex items-center gap-2 rounded-full border border-white/20 bg-slate-950/60 px-3 py-2 backdrop-blur"><Crosshair className="h-4 w-4 text-cyan-200"/><span className="text-xs font-semibold">Gökyüzünü Tara</span></div><button onClick={stopScan} className="rounded-full border border-white/20 bg-slate-950/60 p-2"><X className="h-5 w-5"/></button></div>
       {orientationError&&<div className="absolute left-3 right-3 top-16 z-50 rounded-xl border border-amber-300/25 bg-black/70 px-3 py-2 text-center text-[11px] text-amber-100">{orientationError}</div>}
       {cameraReady&&!skyMode&&<div className="pointer-events-none absolute inset-x-4 top-[42%] z-30 flex justify-center"><div className="rounded-2xl border border-white/20 bg-slate-950/55 px-5 py-3 text-center"><div className="text-sm font-semibold">☁️ Gökyüzüne yöneltin</div><div className="mt-1 text-xs text-white/65">Telefonu yukarı kaldırın</div></div></div>}
-      {cameraReady&&skyMode&&projected.map(p=><button key={p.id} onClick={()=>setSelected(p)} className="absolute z-30 -translate-x-1/2 -translate-y-1/2" style={{left:`${clamp(p.left,4,96)}%`,top:`${clamp(p.top,12,82)}%`,opacity:p.opacity,transform:`translateZ(${Math.min(160,p.depth*.06)}px) scale(${p.scale}) rotateZ(${roll*.12}deg)`,perspective:"900px"}}><span className="relative block h-14 w-14" style={{transformStyle:"preserve-3d",transform:"rotateX(8deg) rotateY(-18deg)"}}><span className="absolute inset-0 rounded-[7px] border border-cyan-100/90 bg-cyan-300/25 shadow-[0_0_28px_rgba(34,211,238,.35)]"/><span className="absolute left-1/2 top-0 h-full w-1/2 origin-left rounded-r-[7px] border border-cyan-100/40 bg-sky-700/45" style={{transform:"rotateY(90deg)"}}/><span className="absolute bottom-0 left-0 h-1/2 w-full origin-bottom rounded-b-[7px] border border-cyan-100/30 bg-slate-900/65" style={{transform:"rotateX(90deg)"}}/><span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,.8)]">P-{p.parcel_number}</span><span className="absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-slate-950/75 px-2 py-1 text-[8px] font-semibold backdrop-blur">{formatDistance(p.distance)}</span></span></button>)}
-      {selected&&<div className="absolute bottom-28 left-3 right-3 z-50 mx-auto max-w-md rounded-3xl border border-white/15 bg-slate-950/90 p-4 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-cyan-300">{selected.tier}</p><h2 className="mt-1 text-lg font-bold">P-{selected.parcel_number}</h2><p className="text-xs text-white/65">{selected.city_name} · {formatDistance(selected.distance)} · {Math.round(selected.bearing)}°</p></div><button onClick={()=>setSelected(null)} className="rounded-full bg-white/10 p-2"><X className="h-4 w-4"/></button></div><button disabled={selected.status!=="available"} onClick={buy} className="mt-3 w-full rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 disabled:opacity-40"><ShoppingCart className="mr-1 inline h-4 w-4"/>Satın Al</button></div>}
-      <div className="absolute bottom-0 left-0 right-0 z-40 px-3 pb-3"><div className="mx-auto flex max-w-2xl items-center justify-between rounded-[28px] border border-white/15 bg-slate-950/75 px-4 py-3 shadow-2xl backdrop-blur-xl"><div className="text-center"><MapPin className="mx-auto h-5 w-5 text-cyan-200"/><p className="text-[10px] text-white/60">Görüşte</p><p className="text-sm font-bold">{projected.length}</p></div><div className="relative flex h-20 w-20 items-center justify-center rounded-full border border-cyan-300/40"><Navigation className="h-7 w-7 text-cyan-100" style={{transform:`rotate(${heading??0}deg)`}}/><span className="absolute bottom-2 text-[9px]">{heading===null?"—":`${Math.round(heading)}°`}</span></div><div className="text-center"><Compass className="mx-auto h-5 w-5 text-cyan-200"/><p className="text-[10px] text-white/60">En yakın</p><p className="text-sm font-bold">{nearest?formatDistance(nearest.distance):"—"}</p><p className="text-[9px] text-white/55">{nearest?`${Math.round(nearest.bearing)}° yön`:parcelLoading?"taranıyor":"bekleniyor"}</p></div></div><div className="mx-auto mt-2 text-center text-[9px] text-white/55">{status} · ±{location?Math.round(location.accuracy):"—"} m GPS · FOV {Math.round(fov)}° · yakın büyük / uzak küçük</div></div>
+      {cameraReady&&skyMode&&projected.map(p=><button key={p.id} onClick={()=>setSelected(p)} className="absolute z-30 -translate-x-1/2 -translate-y-1/2" style={{left:`${clamp(p.left,4,96)}%`,top:`${clamp(p.top,12,82)}%`,opacity:p.opacity,transform:`translateZ(${Math.min(180,p.depth*.055)}px) scale(${p.scale}) rotateZ(${roll*.12}deg)`,perspective:"900px",transformStyle:"preserve-3d"}}><span className="relative block h-14 w-14" style={{transformStyle:"preserve-3d",transform:"rotateX(8deg) rotateY(-18deg)"}}><span className="absolute inset-0 rounded-[7px] border border-cyan-100/90 bg-cyan-300/25 shadow-[0_0_28px_rgba(34,211,238,.35)]"/><span className="absolute left-1/2 top-0 h-full w-1/2 origin-left rounded-r-[7px] border border-cyan-100/40 bg-sky-700/45" style={{transform:"rotateY(90deg)"}}/><span className="absolute bottom-0 left-0 h-1/2 w-full origin-bottom rounded-b-[7px] border border-cyan-100/30 bg-slate-900/65" style={{transform:"rotateX(90deg)"}}/><span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,.8)]">P-{p.parcel_number}</span><span className="absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-slate-950/75 px-2 py-1 text-[8px] font-semibold backdrop-blur">{formatDistance(p.distance)} · {Math.round(p.altitude)}m</span></span></button>)}
+      {selected&&<div className="absolute bottom-28 left-3 right-3 z-50 mx-auto max-w-md rounded-3xl border border-white/15 bg-slate-950/90 p-4 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-cyan-300">{selected.tier}</p><h2 className="mt-1 text-lg font-bold">P-{selected.parcel_number}</h2><p className="text-xs text-white/65">{selected.city_name} · {formatDistance(selected.distance)} · {Math.round(selected.bearing)}° · +{Math.round(selected.altitude-(location?.altitude??0))}m</p></div><button onClick={()=>setSelected(null)} className="rounded-full bg-white/10 p-2"><X className="h-4 w-4"/></button></div><button disabled={selected.status!=="available"} onClick={buy} className="mt-3 w-full rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 disabled:opacity-40"><ShoppingCart className="mr-1 inline h-4 w-4"/>Satın Al</button></div>}
+      <div className="absolute bottom-0 left-0 right-0 z-40 px-3 pb-3"><div className="mx-auto flex max-w-2xl items-center justify-between rounded-[28px] border border-white/15 bg-slate-950/75 px-4 py-3 shadow-2xl backdrop-blur-xl"><div className="text-center"><MapPin className="mx-auto h-5 w-5 text-cyan-200"/><p className="text-[10px] text-white/60">Görüşte</p><p className="text-sm font-bold">{projected.length}</p></div><div className="relative flex h-20 w-20 items-center justify-center rounded-full border border-cyan-300/40"><Navigation className="h-7 w-7 text-cyan-100" style={{transform:`rotate(${heading??0}deg)`}}/><span className="absolute bottom-2 text-[9px]">{heading===null?"—":`${Math.round(heading)}°`}</span></div><div className="text-center"><Compass className="mx-auto h-5 w-5 text-cyan-200"/><p className="text-[10px] text-white/60">En yakın</p><p className="text-sm font-bold">{nearest?formatDistance(nearest.distance):"—"}</p><p className="text-[9px] text-white/55">{nearest?`${Math.round(nearest.bearing)}° yön`:parcelLoading?"taranıyor":"bekleniyor"}</p></div></div><div className="mx-auto mt-2 text-center text-[9px] text-white/55">{status} · ±{location?Math.round(location.accuracy):"—"} m GPS · FOV {Math.round(fov)}° · 150–500m 3D yükseklik</div></div>
     </>}
   </main>;
 }
