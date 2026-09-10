@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
 type Parcel3D = { id: string; east: number; north: number; altitude: number; distance: number };
-type Props = { parcels: Parcel3D[]; heading: number | null; pitch: number | null; fov?: number; visible: boolean; selectedId?: string | null; onSelect?: (id: string) => void };
+type ProjectedHit = { id: string; x: number; y: number; visible: boolean };
+type Props = { parcels: Parcel3D[]; heading: number | null; pitch: number | null; fov?: number; visible: boolean; selectedId?: string | null; onSelect?: (id: string) => void; onProjectSelected?: (hit: ProjectedHit | null) => void };
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 const rad = (n: number) => n * Math.PI / 180;
@@ -10,7 +11,7 @@ const MAX_RENDER_DISTANCE = 5000;
 function scaleForDistance(distance: number) { return clamp(2.05 / Math.sqrt(distance / 1000 + 0.65), 0.48, 1.9); }
 function detailForDistance(distance: number) { if (distance <= 500) return 1; if (distance <= 2000) return 2; return 3; }
 
-export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, selectedId, onSelect }: Props) {
+export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, selectedId, onSelect, onProjectSelected }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -20,9 +21,13 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
   const frameRef = useRef<number | null>(null);
   const selectedRef = useRef<string | null | undefined>(selectedId);
   const onSelectRef = useRef<Props["onSelect"]>(onSelect);
+  const onProjectSelectedRef = useRef<Props["onProjectSelected"]>(onProjectSelected);
+  const lastProjectedRef = useRef<ProjectedHit | null>(null);
+  const lastProjectAtRef = useRef(0);
 
   useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
+  useEffect(() => { onProjectSelectedRef.current = onProjectSelected; }, [onProjectSelected]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -48,6 +53,7 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
       if (!rect.width || !rect.height) return;
       const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
       const raycaster = new THREE.Raycaster();
+      raycaster.params.Line.threshold = 12;
       raycaster.setFromCamera(pointer, camera);
       const hits = raycaster.intersectObjects(Array.from(meshesRef.current.values()), false);
       const hit = hits.find((item) => item.object.visible);
@@ -64,6 +70,28 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
         const active = mesh.userData.parcelId === selectedRef.current;
         (mesh.material as THREE.LineBasicMaterial).opacity = active ? 1 : 0.72;
       });
+      const selected = selectedRef.current;
+      const now = performance.now();
+      if (onProjectSelectedRef.current && now - lastProjectAtRef.current >= 66) {
+        lastProjectAtRef.current = now;
+        const mesh = selected ? meshesRef.current.get(selected) : undefined;
+        if (!mesh || !mesh.visible || !camera.visible) {
+          if (lastProjectedRef.current !== null) { lastProjectedRef.current = null; onProjectSelectedRef.current(null); }
+        } else {
+          const world = new THREE.Vector3();
+          mesh.getWorldPosition(world);
+          const ndc = world.project(camera);
+          const rect = renderer.domElement.getBoundingClientRect();
+          const x = rect.left + (ndc.x + 1) * 0.5 * rect.width;
+          const y = rect.top + (1 - ndc.y) * 0.5 * rect.height;
+          const hit = { id: selected, x, y, visible: ndc.z >= -1 && ndc.z <= 1 && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom };
+          const prev = lastProjectedRef.current;
+          if (!prev || prev.id !== hit.id || Math.abs(prev.x - hit.x) > 1 || Math.abs(prev.y - hit.y) > 1 || prev.visible !== hit.visible) {
+            lastProjectedRef.current = hit;
+            onProjectSelectedRef.current(hit);
+          }
+        }
+      }
       renderer.render(scene, camera);
       frameRef.current = requestAnimationFrame(animate);
     };
@@ -72,6 +100,7 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
       renderer.domElement.removeEventListener("pointerup", pick);
       window.removeEventListener("resize", resize);
+      onProjectSelectedRef.current?.(null);
       meshesRef.current.forEach((mesh) => { mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); });
       meshesRef.current.clear(); renderer.dispose(); renderer.domElement.remove();
       sceneRef.current = null; cameraRef.current = null; rendererRef.current = null; groupRef.current = null;
