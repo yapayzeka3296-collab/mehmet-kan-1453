@@ -8,6 +8,7 @@ type Parcel = { id:string; parcel_number:string; status:string; price:number|str
 type Nearby = Parcel & { distance:number; bearing:number };
 type OrientationLike = DeviceOrientationEvent & { webkitCompassHeading?: number };
 type Projected = Nearby & { left:number; top:number; scale:number; opacity:number; depth:number; angle:number };
+type MotionLike = DeviceMotionEvent;
 
 const MAX_RANGE = 8000;
 const MIN_REFRESH_METERS = 25;
@@ -21,7 +22,6 @@ const SKY_EXIT = 4;
 const clamp=(n:number,a:number,b:number)=>Math.max(a,Math.min(b,n));
 const rad=(n:number)=>n*Math.PI/180;
 const deg=(n:number)=>n*180/Math.PI;
-const tierPrice=(t:string)=>t==="premium"?699:t==="elite"?349:149;
 
 function haversine(a:GeoPoint,b:GeoPoint){return distanceMeters(a,b)}
 function local(a:GeoPoint,b:GeoPoint){const lat=rad((a.latitude+b.latitude)/2);return {east:rad(b.longitude-a.longitude)*EARTH_RADIUS*Math.cos(lat),north:rad(b.latitude-a.latitude)*EARTH_RADIUS}}
@@ -30,7 +30,7 @@ function parcelScale(d:number){return clamp(2.05/Math.sqrt(d/1000+.65),.48,1.9)}
 function pose(event:DeviceOrientationEvent){
   const alpha=rad(event.alpha??0), beta=rad(event.beta??0), gamma=rad(event.gamma??0);
   const screenAngle=typeof screen!=="undefined"&&screen.orientation?Number(screen.orientation.angle)||0:0;
-  const ca=Math.cos(alpha),sa=Math.sin(alpha),cb=Math.cos(beta),sb=Math.sin(beta),cg=Math.cos(gamma),sg=Math.sin(gamma);
+  const ca=Math.cos(alpha),sa=Math.sin(alpha),sb=Math.sin(beta),cg=Math.cos(gamma),sg=Math.sin(gamma);
   const x=ca*sg-sa*sb*cg, y=sb, z=ca*cg+sa*sb*sg;
   let heading=normalizeAngle(deg(Math.atan2(x,-z))-screenAngle);
   if(!Number.isFinite(heading))heading=0;
@@ -63,34 +63,44 @@ export function SkyScanExperienceV4(){
   const fetchParcels=useCallback(async(l:LocationState,force=false)=>{
     if(!supabaseBrowser)return;const now=Date.now();const moved=lastFetchRef.current?haversine(lastFetchRef.current,l):Infinity;if(!force&&moved<MIN_REFRESH_METERS&&now-lastFetchAt.current<REFRESH_MS)return;
     const seq=++requestSeq.current;lastFetchRef.current={latitude:l.latitude,longitude:l.longitude};lastFetchAt.current=now;setParcelLoading(true);setParcelError(null);
-    const radiusMeters=clamp(Math.max(1800,l.accuracy*10),1800,MAX_RANGE);const latDelta=radiusMeters/111320;const lngDelta=radiusMeters/(111320*Math.max(.2,Math.cos(rad(l.latitude))));
-    const {data,error}=await supabaseBrowser.rpc("sky_scan_parcels",{p_min_lat:l.latitude-latDelta,p_min_lng:l.longitude-lngDelta,p_max_lat:l.latitude+latDelta,p_max_lng:l.longitude+lngDelta,p_limit:FETCH_LIMIT});
-    if(seq!==requestSeq.current)return;if(error){setParcelError(error.message||"Yakındaki parseller alınamadı.");setNearby([]);setParcelLoading(false);return}
-    const rows=(data??[]) as Parcel[];const sorted=rows.map(p=>({...p,distance:distanceMeters(l,p),bearing:bearingDegrees(l,p)})).filter(p=>p.distance<=MAX_RANGE).sort((a,b)=>a.distance-b.distance);
+    const radii=[1800,3500,5500,MAX_RANGE];let rows:Parcel[]=[];let lastError:string|null=null;
+    for(const radiusMeters of radii){
+      const latDelta=radiusMeters/111320;const lngDelta=radiusMeters/(111320*Math.max(.2,Math.cos(rad(l.latitude))));
+      const {data,error}=await supabaseBrowser.rpc("sky_scan_parcels",{p_min_lat:l.latitude-latDelta,p_min_lng:l.longitude-lngDelta,p_max_lat:l.latitude+latDelta,p_max_lng:l.longitude+lngDelta,p_limit:FETCH_LIMIT});
+      if(seq!==requestSeq.current)return;
+      if(error){lastError=error.message||"Yakındaki parseller alınamadı.";continue}
+      rows=((data??[]) as Parcel[]).map(p=>({...p,distance:distanceMeters(l,p),bearing:bearingDegrees(l,p)})).filter(p=>p.distance<=radiusMeters).sort((a,b)=>a.distance-b.distance) as unknown as Parcel[];
+      if(rows.length>=MIN_VISIBLE||radiusMeters===MAX_RANGE)break;
+    }
+    if(seq!==requestSeq.current)return;
+    if(!rows.length&&lastError){setParcelError(lastError);setNearby([]);setParcelLoading(false);return}
+    const sorted=(rows as unknown as Nearby[]).sort((a,b)=>a.distance-b.distance);
     setNearby(sorted.slice(0,FETCH_LIMIT));setParcelLoading(false);
   },[]);
   useEffect(()=>{if(location)void fetchParcels(location,true)},[location?.latitude,location?.longitude,location?.accuracy,fetchParcels]);
   useEffect(()=>{if(!location)return;const timer=window.setInterval(()=>void fetchParcels(location),REFRESH_MS);return()=>window.clearInterval(timer)},[location,fetchParcels]);
 
   useEffect(()=>{if(!orientationStarted)return;let absoluteSeen=false;let got=false;absoluteGraceUntil.current=Date.now()+700;
+    const markSensor=()=>{got=true;setSensorTick(Date.now());setOrientationError(null)};
     const accept=(e:DeviceOrientationEvent,absolute:boolean)=>{const x=e as OrientationLike;const hasAlpha=typeof e.alpha==="number";const hasTilt=typeof e.beta==="number"&&typeof e.gamma==="number";if(!hasTilt)return;
       if(absolute){absoluteSeen=true;sensorMode.current="absolute";const raw=typeof x.webkitCompassHeading==="number"&&Number.isFinite(x.webkitCompassHeading)?x.webkitCompassHeading:pose(e).heading;setHeading(normalizeAngle(raw))}
-      else{if(absoluteSeen||sensorMode.current==="absolute"||Date.now()<absoluteGraceUntil.current)return;if(!hasAlpha)return;sensorMode.current="relative";const raw=pose(e).heading;if(relativeBase.current===null)relativeBase.current=raw;setHeading(normalizeAngle(raw-relativeBase.current))}
-      const q=pose(e);setPitch(v=>v===null?q.pitch:v*.8+q.pitch*.2);setRoll(clamp((e.gamma??0)*.25,-20,20));got=true;setSensorTick(Date.now());setOrientationError(null);
+      else if(!absoluteSeen&&sensorMode.current!=="absolute"&&Date.now()>=absoluteGraceUntil.current&&hasAlpha){sensorMode.current="relative";const raw=pose(e).heading;if(relativeBase.current===null)relativeBase.current=raw;setHeading(normalizeAngle(raw-relativeBase.current))}
+      const q=pose(e);setPitch(v=>v===null?q.pitch:v*.8+q.pitch*.2);setRoll(clamp((e.gamma??0)*.25,-20,20));markSensor();
     };
     const onAbs=(e:Event)=>accept(e as DeviceOrientationEvent,true),onRel=(e:Event)=>accept(e as DeviceOrientationEvent,false);
-    window.addEventListener("deviceorientationabsolute",onAbs,true);window.addEventListener("deviceorientation",onRel,true);
+    const onMotion=(e:Event)=>{const m=e as MotionLike;const a=m.accelerationIncludingGravity;const active=[a?.x,a?.y,a?.z].some(v=>typeof v==="number"&&Math.abs(v)>0.05);if(active)markSensor();};
+    window.addEventListener("deviceorientationabsolute",onAbs,true);window.addEventListener("deviceorientation",onRel,true);window.addEventListener("devicemotion",onMotion,true);
     const timer=window.setTimeout(()=>{if(!got)setOrientationError("Sensör verisi alınamadı. Kamera açık kalacak; veri geldiğinde tarama otomatik başlayacak.")},3500);
-    return()=>{window.removeEventListener("deviceorientationabsolute",onAbs,true);window.removeEventListener("deviceorientation",onRel,true);window.clearTimeout(timer)};
+    return()=>{window.removeEventListener("deviceorientationabsolute",onAbs,true);window.removeEventListener("deviceorientation",onRel,true);window.removeEventListener("devicemotion",onMotion,true);window.clearTimeout(timer)};
   },[orientationStarted]);
   useEffect(()=>{const p=pitch??-90;setSkyMode(v=>v?p>=SKY_EXIT:p>=SKY_ENTER)},[pitch]);
 
   const startCamera=useCallback(async()=>{if(!window.isSecureContext)throw new Error("Kamera yalnızca HTTPS bağlantısında çalışır.");const video=videoRef.current;if(!navigator.mediaDevices?.getUserMedia||!video)throw new Error("Bu tarayıcı kamera erişimini desteklemiyor.");const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920,min:1280},height:{ideal:1080,min:720},frameRate:{ideal:30,max:60}},audio:false});streamRef.current=stream;video.srcObject=stream;video.muted=true;video.playsInline=true;await video.play();setFov(DEFAULT_FOV);setCameraReady(true)},[]);
-  const startScan=useCallback(async()=>{setCameraError(null);setOrientationError(null);setCameraReady(false);setSelected(null);sensorMode.current=null;relativeBase.current=null;absoluteGraceUntil.current=Date.now()+700;setHeading(null);setPitch(null);setOrientationStarted(false);const req=(DeviceOrientationEvent as typeof DeviceOrientationEvent&{requestPermission?:()=>Promise<PermissionState>}).requestPermission;if(req){try{if((await req())!=="granted")setOrientationError("Yön sensörü izni verilmedi. Kamera çalışır; izin verilince parseller yerleşir.")}catch{setOrientationError("Yön sensörü izni alınamadı. Kamera çalışır; sensör verisi geldiğinde tarama devam eder.")}}setOrientationStarted(true);try{await startCamera();setCameraStarted(true);if(location)void fetchParcels(location,true)}catch(e){streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;setCameraError(e instanceof Error?e.message:"Kamera başlatılamadı.");setCameraStarted(false);setCameraReady(false)}},[fetchParcels,location,startCamera]);
+  const startScan=useCallback(async()=>{setCameraError(null);setOrientationError(null);setCameraReady(false);setSelected(null);sensorMode.current=null;relativeBase.current=null;absoluteGraceUntil.current=Date.now()+700;setHeading(null);setPitch(null);setOrientationStarted(false);try{await startCamera();setCameraStarted(true)}catch(e){streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;setCameraError(e instanceof Error?e.message:"Kamera başlatılamadı.");setCameraStarted(false);setCameraReady(false);return}const req=(DeviceOrientationEvent as typeof DeviceOrientationEvent&{requestPermission?:()=>Promise<PermissionState>}).requestPermission;if(req){try{if((await req())!=="granted")setOrientationError("Yön sensörü izni verilmedi. Kamera çalışır; izin verilince parseller yerleşir.")}catch{setOrientationError("Yön sensörü izni alınamadı. Kamera çalışır; sensör verisi geldiğinde tarama devam eder.")}}setOrientationStarted(true);if(location)void fetchParcels(location,true)},[fetchParcels,location,startCamera]);
   const stopScan=useCallback(()=>{streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;if(videoRef.current){videoRef.current.pause();videoRef.current.srcObject=null}setCameraStarted(false);setCameraReady(false);setOrientationStarted(false);setHeading(null);setPitch(null);setSkyMode(false);setSelected(null)},[]);
   useEffect(()=>()=>{streamRef.current?.getTracks().forEach(t=>t.stop())},[]);
 
-  const projected=useMemo(()=>{if(!location||!cameraReady||!skyMode||heading===null||pitch===null)return[];const r=rootRef.current?.getBoundingClientRect();const all=nearby.map(p=>project(p,location,heading,pitch,fov,r?.width??window.innerWidth,r?.height??window.innerHeight)).filter(Boolean) as Projected[];if(all.length>=MIN_VISIBLE)return all;return nearby.slice(0,Math.min(MIN_VISIBLE,nearby.length)).map((p,i)=>{const spread=(i-(Math.min(MIN_VISIBLE,nearby.length)-1)/2)*Math.min(5.2,fov/Math.max(8,nearby.length));const rel=clamp(spread,-fov*.45,fov*.45);const verticalFov=clamp(fov*((r?.height??window.innerHeight)/Math.max(1,r?.width??window.innerWidth)),72,105);const targetPitch=deg(Math.atan2(parcelHeight(p.distance),Math.max(30,p.distance)));const relPitch=targetPitch-pitch;return {...p,left:50+(rel/fov)*100,top:50-(clamp(relPitch,-verticalFov*.45,verticalFov*.45)/verticalFov)*100,scale:parcelScale(p.distance),opacity:.9,depth:Math.max(40,p.distance),angle:rel}})},[cameraReady,fov,heading,location,nearby,pitch,roll,sensorTick,skyMode]);
+  const projected=useMemo(()=>{if(!location||!cameraReady||!skyMode||heading===null||pitch===null)return[];const r=rootRef.current?.getBoundingClientRect();return nearby.map(p=>project(p,location,heading,pitch,fov,r?.width??window.innerWidth,r?.height??window.innerHeight)).filter(Boolean) as Projected[]},[cameraReady,fov,heading,location,nearby,pitch,roll,sensorTick,skyMode]);
   const nearest=nearby[0]??null;const status=parcelLoading?"Parseller yenileniyor…":parcelError?"Parsel verisi alınamadı":skyMode?`${projected.length} parsel gösteriliyor`:"Gökyüzüne yöneltin";const buy=()=>{if(selected?.status==="available")window.location.href=`/parsel-satin-al?parcels=${encodeURIComponent(selected.id)}`};
 
   return <main ref={rootRef} className="fixed inset-0 overflow-hidden bg-slate-950 text-white">
