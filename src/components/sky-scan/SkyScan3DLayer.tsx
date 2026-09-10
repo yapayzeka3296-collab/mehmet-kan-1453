@@ -6,7 +6,9 @@ type Props = { parcels: Parcel3D[]; heading: number | null; pitch: number | null
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 const rad = (n: number) => n * Math.PI / 180;
+const MAX_RENDER_DISTANCE = 5000;
 function scaleForDistance(distance: number) { return clamp(2.05 / Math.sqrt(distance / 1000 + 0.65), 0.48, 1.9); }
+function detailForDistance(distance: number) { if (distance <= 500) return 1; if (distance <= 2000) return 2; return 3; }
 
 export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, selectedId }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -63,17 +65,22 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
-    const incoming = new Map(parcels.map((parcel) => [parcel.id, parcel]));
+    const renderable = parcels.filter((parcel) => parcel.distance <= MAX_RENDER_DISTANCE);
+    const incoming = new Map(renderable.map((parcel) => [parcel.id, parcel]));
     meshesRef.current.forEach((mesh, id) => {
       if (!incoming.has(id)) { group.remove(mesh); mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); meshesRef.current.delete(id); }
     });
-    parcels.forEach((parcel) => {
+    renderable.forEach((parcel) => {
       let mesh = meshesRef.current.get(parcel.id);
-      if (!mesh) {
-        const geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
+      const detail = detailForDistance(parcel.distance);
+      if (!mesh || mesh.userData.detail !== detail) {
+        if (mesh) { group.remove(mesh); mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); meshesRef.current.delete(parcel.id); }
+        const size = detail === 1 ? 1 : detail === 2 ? 0.9 : 0.78;
+        const geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(size, size, size), detail === 1 ? 1 : 2);
         const material = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.72 });
         mesh = new THREE.LineSegments(geometry, material);
         mesh.userData.parcelId = parcel.id;
+        mesh.userData.detail = detail;
         mesh.userData.phase = (parcel.id.length * 0.37) % (Math.PI * 2);
         mesh.userData.floatAmplitude = clamp(parcel.distance * 0.01, 1.5, 8);
         group.add(mesh); meshesRef.current.set(parcel.id, mesh);
@@ -81,6 +88,7 @@ export function SkyScan3DLayer({ parcels, heading, pitch, fov = 110, visible, se
       mesh.position.set(parcel.east, parcel.altitude, -parcel.north);
       mesh.userData.baseY = parcel.altitude;
       mesh.scale.setScalar(scaleForDistance(parcel.distance));
+      mesh.visible = true;
     });
   }, [parcels]);
 
