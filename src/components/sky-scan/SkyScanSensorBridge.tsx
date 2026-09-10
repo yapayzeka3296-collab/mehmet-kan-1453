@@ -9,6 +9,7 @@ type MotionLike = DeviceMotionEvent & { __mySkyParcelHandled?: boolean };
 
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+const normalizeHeading = (value: number) => ((value % 360) + 360) % 360;
 
 function makeOrientationEvent(alpha: number, beta: number, gamma: number, absolute = false, webkitCompassHeading?: number) {
   try {
@@ -68,12 +69,16 @@ export function SkyScanSensorBridge({ children }: { children: ReactNode }) {
 
       last = { alpha, beta, gamma };
 
-      // deviceorientationabsolute is an absolute-heading source even when a browser
-      // incorrectly reports event.absolute=false. Normalize it explicitly so the
-      // geographic parcel bearing can be compared against the camera heading.
+      // deviceorientationabsolute is the geographic-heading source. Some Android
+      // browsers expose a useful compass heading in alpha but do not populate
+      // webkitCompassHeading, so preserve alpha explicitly for the scan engine.
       const isAbsoluteEvent = event.type === "deviceorientationabsolute";
       const absolute = isAbsoluteEvent || Boolean(source.absolute);
-      const compassHeading = finite(source.webkitCompassHeading) ? source.webkitCompassHeading : undefined;
+      const compassHeading = finite(source.webkitCompassHeading)
+        ? normalizeHeading(source.webkitCompassHeading)
+        : isAbsoluteEvent && finite(source.alpha)
+          ? normalizeHeading(source.alpha)
+          : undefined;
 
       // Preserve complete native samples, but add a normalized absolute sample for
       // deviceorientationabsolute and a normalized sample for partial events.
