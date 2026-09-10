@@ -1,21 +1,37 @@
 import { Camera, Compass, MapPin, ShoppingCart, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { bearingDegrees, distanceMeters, formatDistance, normalizeAngle, type GeoPoint } from "@/components/sky-scan/geo";
 
 type LocationState = GeoPoint & { accuracy: number };
-type SkyParcel = { id: string; parcel_number: string; status: string; price: number | string | null; tier: string; tier_price: number | string | null; city_name: string; city_slug: string; latitude: number; longitude: number };
+type SkyParcel = {
+  id: string;
+  parcel_number: string;
+  status: string;
+  price: number | string | null;
+  tier: string;
+  tier_price: number | string | null;
+  city_name: string;
+  city_slug: string;
+  latitude: number;
+  longitude: number;
+};
 type NearbyParcel = SkyParcel & { distance: number; bearing: number };
 type OrientationEventWithCompass = DeviceOrientationEvent & { webkitCompassHeading?: number };
+type ProjectedParcel = { parcel: NearbyParcel; angle: number; elevation: number; scale: number; opacity: number; top: number; left: number; z: number };
 
 const CAMERA_FOV_DEGREES = 70;
+const CAMERA_VERTICAL_FOV_DEGREES = 55;
 const MAX_DISTANCE_METERS = 10_000;
 const FETCH_LAT = 0.045;
 const FETCH_LNG = 0.06;
+const SKY_ENTER_ELEVATION = 10;
+const SKY_EXIT_ELEVATION = 6;
 
 const tierLabel = (tier: string) => tier === "premium" ? "Premium" : tier === "elite" ? "Elit" : "Dijital";
 const tierFallbackPrice = (tier: string) => tier === "premium" ? 699 : tier === "elite" ? 349 : 149;
 const screenAngle = () => typeof screen !== "undefined" && screen.orientation ? Number(screen.orientation.angle) || 0 : 0;
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 function absoluteHeading(event: OrientationEventWithCompass) {
   if (typeof event.webkitCompassHeading === "number" && Number.isFinite(event.webkitCompassHeading)) return event.webkitCompassHeading;
@@ -27,16 +43,33 @@ function relativeAlpha(event: DeviceOrientationEvent) {
   return typeof event.alpha === "number" && Number.isFinite(event.alpha) ? event.alpha : null;
 }
 
+function parcelSeed(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  return Math.abs(hash);
+}
+
+function virtualElevation(id: string) {
+  return 18 + (parcelSeed(id) % 27);
+}
+
+function virtualTilt(id: string) {
+  return -14 + (parcelSeed(id) % 29);
+}
+
 export function SkyScanExperience() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const lastParcelFetch = useRef<GeoPoint | null>(null);
   const relativeBaseAlpha = useRef<number | null>(null);
   const relativeBaseHeading = useRef(0);
+  const skyModeRef = useRef(false);
   const [location, setLocation] = useState<LocationState | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
   const [headingMode, setHeadingMode] = useState<"compass" | "motion" | null>(null);
+  const [pitch, setPitch] = useState<number | null>(null);
+  const [skyMode, setSkyMode] = useState(false);
   const [orientationStarted, setOrientationStarted] = useState(false);
   const [orientationError, setOrientationError] = useState<string | null>(null);
   const [cameraStarted, setCameraStarted] = useState(false);
@@ -68,31 +101,46 @@ export function SkyScanExperience() {
         setHeading(compass);
         setHeadingMode("compass");
         setOrientationError(null);
-        return;
-      }
-      const alpha = relativeAlpha(event);
-      if (alpha === null) return;
-      gotSensor = true;
-      if (relativeBaseAlpha.current === null) {
-        relativeBaseAlpha.current = alpha;
-        relativeBaseHeading.current = 0;
-        setHeading(0);
       } else {
-        const delta = normalizeAngle(alpha - relativeBaseAlpha.current);
-        setHeading(normalizeAngle(relativeBaseHeading.current - delta));
+        const alpha = relativeAlpha(event);
+        if (alpha !== null) {
+          gotSensor = true;
+          if (relativeBaseAlpha.current === null) {
+            relativeBaseAlpha.current = alpha;
+            relativeBaseHeading.current = 0;
+            setHeading(0);
+          } else {
+            const delta = normalizeAngle(alpha - relativeBaseAlpha.current);
+            setHeading(normalizeAngle(relativeBaseHeading.current - delta));
+          }
+          setHeadingMode("motion");
+          setOrientationError(null);
+        }
       }
-      setHeadingMode("motion");
-      setOrientationError(null);
+
+      if (typeof event.beta === "number" && Number.isFinite(event.beta)) {
+        // Portrait: beta≈90° is the horizon. Tilting the camera upward moves beta toward 0°.
+        const rawElevation = clamp(90 - event.beta, -90, 90);
+        setPitch((previous) => previous === null ? rawElevation : previous * 0.82 + rawElevation * 0.18);
+      }
     };
     window.addEventListener("deviceorientationabsolute", onOrientation as EventListener, true);
     window.addEventListener("deviceorientation", onOrientation as EventListener, true);
-    const timer = window.setTimeout(() => { if (!gotSensor) setOrientationError("Telefon yön sensörü veri göndermiyor — tarayıcı sensör iznini kontrol edin."); }, 3500);
+    const timer = window.setTimeout(() => { if (!gotSensor) setOrientationError("Telefon yön sensörü veri göndermiyor. Kamera açık kalır; parseller sensör verisi geldiğinde gökyüzüne yerleşir."); }, 3500);
     return () => {
       window.removeEventListener("deviceorientationabsolute", onOrientation as EventListener, true);
       window.removeEventListener("deviceorientation", onOrientation as EventListener, true);
       window.clearTimeout(timer);
     };
   }, [orientationStarted]);
+
+  useEffect(() => {
+    const elevation = pitch ?? -90;
+    const nextSkyMode = skyModeRef.current ? elevation >= SKY_EXIT_ELEVATION : elevation >= SKY_ENTER_ELEVATION;
+    skyModeRef.current = nextSkyMode;
+    setSkyMode(nextSkyMode);
+    if (!nextSkyMode) setSelectedParcel(null);
+  }, [pitch]);
 
   useEffect(() => {
     if (!location || !supabaseBrowser) return;
@@ -128,15 +176,15 @@ export function SkyScanExperience() {
   useEffect(() => () => { streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
 
   const requestOrientationPermission = async () => {
-    const request = (DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: () => Promise<PermissionState> }).requestPermission;
+    const request = (DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: (absolute?: boolean) => Promise<PermissionState> }).requestPermission;
     if (!request) return true;
-    try { return (await request()) === "granted"; } catch { return false; }
+    try { return (await request(true)) === "granted"; } catch { return false; }
   };
 
   const startScan = async () => {
-    setCameraError(null); setCameraReady(false); setOrientationError(null); relativeBaseAlpha.current = null;
+    setCameraError(null); setCameraReady(false); setOrientationError(null); relativeBaseAlpha.current = null; setPitch(null); setSkyMode(false); skyModeRef.current = false;
     const orientationGranted = await requestOrientationPermission();
-    if (!orientationGranted) setOrientationError("Yön sensörü izni verilmedi. Kamera çalışacak; izin verildiğinde parseller gerçek yöne göre hareket eder.");
+    if (!orientationGranted) setOrientationError("Yön sensörü izni verilmedi. Kamera çalışacak; sensör izni verildiğinde gökyüzü taraması aktifleşir.");
     try {
       if (!window.isSecureContext) throw new Error("Kamera yalnızca HTTPS bağlantısında çalışır.");
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("Bu tarayıcı kamera erişimini desteklemiyor.");
@@ -172,21 +220,37 @@ export function SkyScanExperience() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (videoRef.current) { videoRef.current.pause(); videoRef.current.srcObject = null; }
-    setCameraStarted(false); setCameraReady(false); setOrientationStarted(false); setHeading(null); setHeadingMode(null); setSelectedParcel(null); relativeBaseAlpha.current = null;
+    setCameraStarted(false); setCameraReady(false); setOrientationStarted(false); setHeading(null); setHeadingMode(null); setPitch(null); setSkyMode(false); skyModeRef.current = false; setSelectedParcel(null); relativeBaseAlpha.current = null;
   };
 
-  const skyParcels = useMemo(() => {
-    if (!nearbyParcels.length) return [] as Array<{ parcel: NearbyParcel; angle: number }>;
-    if (heading === null) return nearbyParcels.slice(0, 12).map((parcel, index) => ({ parcel, angle: (index - 5.5) * 10 }));
-    const projected = nearbyParcels
-      .map((parcel) => ({ parcel, angle: normalizeAngle(parcel.bearing - heading) }))
-      .filter(({ angle }) => Math.abs(angle) <= CAMERA_FOV_DEGREES / 2)
-      .sort((a, b) => a.parcel.distance - b.parcel.distance);
-    return projected.length ? projected.slice(0, 12) : nearbyParcels.slice(0, 8).map((parcel, index) => ({ parcel, angle: (index - 3.5) * 12 }));
-  }, [heading, nearbyParcels]);
+  const skyParcels = useMemo<ProjectedParcel[]>(() => {
+    if (!cameraReady || !skyMode || heading === null || pitch === null || !nearbyParcels.length) return [];
+    return nearbyParcels
+      .map((parcel) => {
+        const angle = normalizeAngle(parcel.bearing - heading);
+        const elevation = virtualElevation(parcel.id);
+        const relativeElevation = elevation - pitch;
+        const distanceKm = parcel.distance / 1000;
+        const distanceScale = clamp(1.65 / Math.sqrt(distanceKm + 0.25), 0.48, 1.5);
+        const depthRatio = clamp(parcel.distance / MAX_DISTANCE_METERS, 0, 1);
+        return {
+          parcel,
+          angle,
+          elevation,
+          scale: distanceScale,
+          opacity: 0.96 - depthRatio * 0.46,
+          left: 50 + (angle / CAMERA_FOV_DEGREES) * 100,
+          top: 50 - (relativeElevation / CAMERA_VERTICAL_FOV_DEGREES) * 100,
+          z: Math.round((1 - depthRatio) * 620),
+        };
+      })
+      .filter((item) => Math.abs(item.angle) <= CAMERA_FOV_DEGREES / 2 && Math.abs(item.elevation - pitch) <= CAMERA_VERTICAL_FOV_DEGREES / 2)
+      .sort((a, b) => a.parcel.distance - b.parcel.distance)
+      .slice(0, 12);
+  }, [cameraReady, heading, nearbyParcels, pitch, skyMode]);
 
   const nearestParcel = nearbyParcels[0] ?? null;
-  const statusText = parcelLoading ? "Parseller taranıyor…" : parcelError ? "Parsel verisi alınamadı" : `${skyParcels.length} parsel gökyüzünde`;
+  const statusText = parcelLoading ? "Parseller taranıyor…" : parcelError ? "Parsel verisi alınamadı" : skyMode ? `${skyParcels.length} parsel gökyüzünde` : "Gökyüzüne yöneltin";
   const buySelected = () => {
     if (!selectedParcel || selectedParcel.status !== "available") return;
     window.location.href = `/parsel-satin-al?parcels=${encodeURIComponent(selectedParcel.id)}`;
@@ -202,79 +266,70 @@ export function SkyScanExperience() {
       <div className="relative mt-5 min-h-[72vh] flex-1 overflow-hidden rounded-3xl border border-cyan-300/15 bg-slate-950 shadow-2xl">
         <video ref={videoRef} className={`absolute inset-0 z-0 h-full w-full bg-black object-cover ${cameraStarted ? "block" : "hidden"}`} playsInline muted autoPlay />
 
-        {!cameraStarted && <div className="absolute inset-0 z-20 flex items-center justify-center"><div className="max-w-sm px-6 text-center"><Camera className="mx-auto h-12 w-12 text-cyan-300" /><h2 className="mt-4 text-xl font-semibold">Gerçek gökyüzü parsel taraması</h2><p className="mt-2 text-sm text-white/60">Kamera, konum ve telefon hareket sensörü ile gerçek parselleri gökyüzünde 3D olarak gösterir.</p><button type="button" onClick={startScan} className="mt-6 rounded-2xl bg-cyan-300 px-5 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-cyan-300/20">Kamerayı ve taramayı başlat</button>{locationError && <p className="mt-3 text-xs text-amber-200">{locationError}</p>}</div></div>}
+        {!cameraStarted && <div className="absolute inset-0 z-20 flex items-center justify-center"><div className="max-w-sm px-6 text-center"><Camera className="mx-auto h-12 w-12 text-cyan-300" /><h2 className="mt-4 text-xl font-semibold">Gerçek gökyüzü parsel taraması</h2><p className="mt-2 text-sm text-white/60">Kamera açıldığında parseller görünmez. Telefonu gerçek gökyüzüne kaldırdığınızda GPS + pusula + eğim verisiyle parseller görüş alanına yerleşir.</p><button type="button" onClick={startScan} className="mt-6 rounded-2xl bg-cyan-300 px-5 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-cyan-300/20">Kamerayı ve taramayı başlat</button>{locationError && <p className="mt-3 text-xs text-amber-200">{locationError}</p>}</div></div>}
 
         {cameraStarted && <>
-          <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(ellipse_at_center,transparent_20%,rgba(2,6,23,0.08)_55%,rgba(2,6,23,0.58)_100%)]" />
+          <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(ellipse_at_center,transparent_18%,rgba(2,6,23,0.03)_58%,rgba(2,6,23,0.45)_100%)]" />
           {!cameraReady && <div className="absolute inset-0 z-50 flex items-center justify-center bg-black"><div className="rounded-2xl border border-cyan-300/20 bg-slate-950/90 px-6 py-5 text-center"><Camera className="mx-auto h-8 w-8 animate-pulse text-cyan-300" /><p className="mt-3 text-sm font-semibold">Kamera görüntüsü hazırlanıyor…</p></div></div>}
 
-          <div className="absolute left-3 right-3 top-3 z-30 flex flex-wrap justify-center gap-2 sm:justify-between">
-            <div className="rounded-full border border-white/20 bg-black/65 px-4 py-2 text-xs font-semibold backdrop-blur-md">🧭 {heading === null ? "Sensör bekleniyor…" : headingMode === "compass" ? `${heading.toFixed(0)}° · Pusula aktif` : `Hareket sensörü · ${heading.toFixed(0)}°`}</div>
-            <div className="rounded-full border border-white/20 bg-black/65 px-4 py-2 text-xs font-semibold backdrop-blur-md">{statusText}</div>
+          <div className="absolute left-3 right-3 top-3 z-40 flex items-center justify-between gap-2">
+            <div className="rounded-full border border-white/20 bg-slate-950/55 px-4 py-2 text-xs font-semibold shadow-lg backdrop-blur-md">✦ Gökyüzünü Tara</div>
+            <button type="button" onClick={stopScan} className="rounded-full border border-white/20 bg-slate-950/55 p-2.5 backdrop-blur-md" aria-label="Kamerayı kapat"><X className="h-5 w-5" /></button>
           </div>
 
-          <div className="absolute left-3 right-3 top-16 z-30 grid grid-cols-2 gap-2 sm:grid-cols-5">
-            <InfoCard icon={<MapPin className="h-3.5 w-3.5" />} title="Konum" value={location ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}` : "Bekleniyor"} sub={location ? `±${Math.round(location.accuracy)} m` : "GPS"} />
-            <InfoCard icon={<Compass className="h-3.5 w-3.5" />} title="Yön" value={heading === null ? "—" : `${Math.round(heading)}°`} sub={headingMode === "compass" ? "Pusula" : headingMode === "motion" ? "Hareket" : "Sensör"} />
-            <InfoCard icon={<MapPin className="h-3.5 w-3.5" />} title="Yakındaki parseller" value={`${nearbyParcels.length}`} sub="10 km tarama alanı" />
-            <InfoCard icon={<NavigationIcon />} title="En yakın" value={nearestParcel?.parcel_number ?? "—"} sub={nearestParcel ? formatDistance(nearestParcel.distance) : "Bekleniyor"} />
-            <InfoCard icon={<Compass className="h-3.5 w-3.5" />} title="Yön testi" value={nearestParcel ? `${Math.round(nearestParcel.bearing)}°` : "—"} sub="En yakın parsel" />
-          </div>
+          {orientationError && <div className="absolute left-3 right-3 top-16 z-40 mx-auto max-w-xl rounded-xl border border-amber-300/25 bg-black/65 px-3 py-2 text-center text-[11px] text-amber-100 backdrop-blur-md">{orientationError}</div>}
 
-          {orientationError && <div className="absolute left-3 right-3 top-[166px] z-30 mx-auto max-w-xl rounded-xl border border-amber-300/25 bg-black/65 px-3 py-2 text-center text-[11px] text-amber-100 backdrop-blur-md sm:top-[132px]">{orientationError}</div>}
+          {cameraReady && !skyMode && <div className="pointer-events-none absolute inset-x-4 top-[43%] z-30 flex justify-center"><div className="rounded-2xl border border-white/20 bg-slate-950/50 px-5 py-3 text-center shadow-xl backdrop-blur-md"><div className="text-sm font-semibold text-white">☁️ Gökyüzüne yöneltin</div><div className="mt-1 text-xs text-white/70">Telefonu yukarı kaldırın · parseller gökyüzüne yerleşecek</div></div></div>}
 
-          <div className="absolute inset-0 z-20 overflow-hidden [perspective:1400px]">
-            {skyParcels.map(({ parcel, angle }, index) => {
-              const distanceRatio = Math.min(1, parcel.distance / MAX_DISTANCE_METERS);
-              const scale = 1.38 - distanceRatio * 0.92;
-              const opacity = 1 - distanceRatio * 0.45;
-              const left = 50 + (angle / CAMERA_FOV_DEGREES) * 100;
-              const top = 42 + ((index * 23) % 28) - distanceRatio * 8;
-              const z = Math.round((1 - distanceRatio) * 520);
-              const tilt = -18 + (index % 5) * 9;
-              const selected = selectedParcel?.id === parcel.id;
-              return <button key={parcel.id} type="button" onClick={() => setSelectedParcel(parcel)} className="absolute -translate-x-1/2 -translate-y-1/2 text-left [transform-style:preserve-3d] transition-[left,top] duration-300 ease-out" style={{ left: `${Math.max(4, Math.min(96, left))}%`, top: `${Math.max(25, Math.min(75, top))}%`, opacity }}>
-                <div className="[transform-style:preserve-3d] animate-[skyFloat_4.5s_ease-in-out_infinite]" style={{ animationDelay: `${(index % 6) * -0.65}s`, transform: `translateZ(${z}px) scale(${scale})` }}>
-                  <div className="relative [transform-style:preserve-3d]" style={{ transform: `rotateX(${10 + distanceRatio * 18}deg) rotateY(${tilt}deg) rotateZ(${index % 2 ? 3 : -3}deg)` }}>
-                    <div className={`relative h-20 w-28 rounded-xl border-2 bg-slate-950/35 backdrop-blur-[1px] ${selected ? "border-amber-300 shadow-[0_0_42px_rgba(251,191,36,0.95)]" : "border-cyan-300/80 shadow-[0_0_32px_rgba(34,211,238,0.7)]"}`}>
-                      <div className="absolute -inset-3 rounded-2xl border border-cyan-200/20" />
-                      <div className="absolute inset-1 rounded-lg border border-white/10" />
-                      <div className="relative px-2 pt-2 text-[10px] font-bold text-cyan-100">✦ SKY</div>
-                      <div className="relative px-2 text-[11px] font-bold text-white">{parcel.parcel_number}</div>
-                      <div className="relative px-2 pt-1 text-[10px] text-white/85">{formatDistance(parcel.distance)} · {Math.round(parcel.bearing)}°</div>
-                      <div className="absolute -bottom-2 left-1/2 h-1 w-1/2 -translate-x-1/2 rounded-full bg-cyan-300/70 blur-[3px]" />
-                    </div>
-                    <div className="absolute left-1/2 top-full h-16 w-px -translate-x-1/2 bg-gradient-to-b from-cyan-300/45 to-transparent" />
-                    <div className="absolute left-1/2 top-[calc(100%+4rem)] h-1.5 w-14 -translate-x-1/2 rounded-full bg-cyan-300/20 blur-md" />
-                  </div>
+          {cameraReady && skyMode && skyParcels.map((item) => {
+            const { parcel } = item;
+            const selected = selectedParcel?.id === parcel.id;
+            const tilt = virtualTilt(parcel.id);
+            return <button key={parcel.id} type="button" onClick={() => setSelectedParcel(parcel)} className="absolute z-30 -translate-x-1/2 -translate-y-1/2 text-left [perspective:1200px] transition-[left,top,opacity,transform] duration-300 ease-out" style={{ left: `${clamp(item.left, 4, 96)}%`, top: `${clamp(item.top, 12, 88)}%`, opacity: item.opacity, transform: `translateZ(${item.z}px) scale(${item.scale})` }}>
+              <div className="relative [transform-style:preserve-3d] animate-[skyFloat_4.8s_ease-in-out_infinite]" style={{ animationDelay: `${-(parcelSeed(parcel.id) % 900) / 100}s` }}>
+                <div className="absolute bottom-[calc(100%+4px)] left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/25 bg-slate-950/80 px-2.5 py-1.5 text-left shadow-xl backdrop-blur-md [transform:translateZ(18px)]">
+                  <div className="text-[10px] font-bold text-white">{parcel.parcel_number}</div>
+                  <div className="text-[9px] text-white/80">{parcel.city_name}</div>
+                  <div className="text-[9px] text-cyan-100">{formatDistance(parcel.distance)} · {Math.round(parcel.bearing)}°</div>
+                  <div className="text-[10px] font-bold text-amber-300">₺{parcel.price ?? parcel.tier_price ?? tierFallbackPrice(parcel.tier)}</div>
                 </div>
-              </button>;
-            })}
-          </div>
 
-          <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-30 rounded-2xl border border-white/10 bg-black/60 p-3 text-center backdrop-blur-md">
-            <div className="text-sm font-semibold text-cyan-100">Canlı gökyüzü taraması</div>
-            <div className="mt-1 text-xs text-white/70">Telefonu yavaşça sağa-sola çevirin · yakın parseller daha büyük, uzak parseller daha küçük görünür</div>
-            <div className="mt-1 text-xs text-white/80">En yakın: {nearestParcel ? `${nearestParcel.parcel_number} · ${formatDistance(nearestParcel.distance)}` : "—"}</div>
+                <div className={`relative h-16 w-16 [transform-style:preserve-3d] ${selected ? "drop-shadow-[0_0_24px_rgba(251,191,36,0.95)]" : "drop-shadow-[0_0_20px_rgba(34,211,238,0.8)]"}`} style={{ transform: `rotateX(${12 + (parcelSeed(parcel.id) % 14)}deg) rotateY(${tilt}deg) rotateZ(${(parcelSeed(parcel.id) % 7) - 3}deg)` }}>
+                  <div className={`absolute inset-1 rotate-45 border-2 ${selected ? "border-amber-300" : "border-cyan-200"} rounded-[10px]`} />
+                  <div className={`absolute inset-4 rotate-45 border ${selected ? "border-amber-200/80" : "border-cyan-100/75"} rounded-[6px]`} />
+                  <div className={`absolute left-1/2 top-0 h-full w-px -translate-x-1/2 ${selected ? "bg-amber-200/80" : "bg-cyan-100/70"}`} />
+                  <div className={`absolute left-0 top-1/2 h-px w-full -translate-y-1/2 ${selected ? "bg-amber-200/70" : "bg-cyan-100/60"}`} />
+                  <div className={`absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[2px] ${selected ? "bg-amber-200" : "bg-cyan-100"}`} />
+                </div>
+                <div className={`absolute left-1/2 top-full h-20 w-px -translate-x-1/2 bg-gradient-to-b ${selected ? "from-amber-300/60" : "from-cyan-200/55"} to-transparent`} />
+                <div className={`absolute left-1/2 top-[calc(100%+5rem)] h-1.5 w-12 -translate-x-1/2 rounded-full blur-md ${selected ? "bg-amber-300/35" : "bg-cyan-200/25"}`} />
+              </div>
+            </button>;
+          })}
+
+          <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-40 rounded-3xl border border-white/10 bg-slate-950/70 p-3 shadow-2xl backdrop-blur-xl">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <div className="text-center"><div className="text-lg">◉</div><div className="text-xs font-semibold">{skyMode ? `${skyParcels.length} parsel` : "Tarama hazır"}</div><div className="text-[10px] text-white/60">görüş alanında</div></div>
+              <div className="flex h-20 w-20 flex-col items-center justify-center rounded-full border border-cyan-300/70 bg-slate-950/75 shadow-[0_0_24px_rgba(34,211,238,0.3)]"><Compass className="h-6 w-6 text-cyan-200" /><div className="mt-0.5 text-sm font-bold">{heading === null ? "—" : `${Math.round(heading)}°`}</div><div className="text-[9px] text-cyan-100/70">{headingMode === "compass" ? "PUSULA" : headingMode === "motion" ? "HAREKET" : "SENSÖR"}</div></div>
+              <div className="text-center"><div className="text-lg">⌖</div><div className="text-xs font-semibold">En yakın parsel</div><div className="text-[10px] text-white/70">{nearestParcel ? formatDistance(nearestParcel.distance) : "—"}</div></div>
+            </div>
+            <div className="mt-2 text-center text-[10px] text-white/55">{skyMode ? "Telefonu yavaşça sağa-sola çevirin · parseller gerçek yöne göre hareket eder" : "Kamera açık · parseller yalnızca gökyüzü görüş alanına girdiğinde görünür"}</div>
           </div>
         </>}
       </div>
 
       {cameraError && <div className="mt-3 rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200">{cameraError}</div>}
 
-      {selectedParcel && <div className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-md rounded-2xl border border-cyan-300/30 bg-slate-950/95 p-4 shadow-2xl backdrop-blur-xl">
+      {selectedParcel && skyMode && <div className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-md rounded-2xl border border-cyan-300/30 bg-slate-950/95 p-4 shadow-2xl backdrop-blur-xl">
         <div className="flex items-start justify-between gap-3"><div><div className="text-lg font-bold">{selectedParcel.parcel_number}</div><div className="text-xs text-slate-400">{selectedParcel.city_name} · {formatDistance(selectedParcel.distance)} · {Math.round(selectedParcel.bearing)}°</div></div><button type="button" onClick={() => setSelectedParcel(null)} className="rounded-lg p-1 text-slate-400"><X className="h-5 w-5" /></button></div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-white/5 p-2">Paket<br /><b>{tierLabel(selectedParcel.tier)}</b></div><div className="rounded-lg bg-white/5 p-2">Fiyat<br /><b>{selectedParcel.price ?? selectedParcel.tier_price ?? tierFallbackPrice(selectedParcel.tier)} ₺</b></div></div>
         {selectedParcel.status === "available" ? <button type="button" onClick={buySelected} className="mt-3 w-full rounded-xl bg-cyan-300 px-4 py-3 text-sm font-bold text-slate-950"><ShoppingCart className="mr-2 inline h-4 w-4" />Satın Al</button> : <div className="mt-3 rounded-xl bg-white/5 p-3 text-center text-sm text-slate-400">Bu parsel şu anda satın alınabilir değil.</div>}
       </div>}
     </section>
-    <style>{`@keyframes skyFloat{0%,100%{transform:translate3d(0,0,0) rotateX(0deg)}50%{transform:translate3d(0,-13px,28px) rotateX(2deg)}}`}</style>
+    <style>{`@keyframes skyFloat{0%,100%{transform:translate3d(0,0,0) rotateX(0deg)}50%{transform:translate3d(0,-10px,18px) rotateX(2deg)}}`}</style>
   </main>;
 }
 
-function NavigationIcon() { return <NavigationDot />; }
-function NavigationDot() { return <span className="inline-block h-3.5 w-3.5 rounded-full border border-cyan-300/60" />; }
-
-function InfoCard({ icon, title, value, sub }: { icon: React.ReactNode; title: string; value: string; sub: string }) {
+function InfoCard({ icon, title, value, sub }: { icon: ReactNode; title: string; value: string; sub: string }) {
   return <div className="min-h-[62px] rounded-xl border border-white/10 bg-black/50 p-2 backdrop-blur-md"><div className="flex items-center gap-1 text-[9px] uppercase tracking-wide text-slate-400">{icon}{title}</div><div className="mt-0.5 truncate text-xs font-semibold text-white">{value}</div><div className="truncate text-[9px] text-slate-500">{sub}</div></div>;
 }
