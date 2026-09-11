@@ -6,7 +6,7 @@ import { angularDifference, geoToEus, normalizeDegrees } from "./geoWorld";
 
 type LocationState = { latitude: number; longitude: number; accuracy: number; altitude: number | null };
 type SkyParcel = { id: string; parcel_id: string; parcel_number: string; latitude: number; longitude: number; price: number; tier: string | null; status: string | null; virtualAltitude: number };
-type OrientationLike = DeviceOrientationEvent & { webkitCompassHeading?: number };
+type OrientationLike = DeviceOrientationEvent & { webkitCompassHeading?: number; absolute?: boolean };
 type RenderedParcel = SkyParcel & { distance: number; bearing: number; position: THREE.Vector3 };
 
 const GAZIANTEP_CITY_ID = "4030a03a-b0ff-4d49-8176-e5a7111732df";
@@ -32,18 +32,18 @@ function makeCrystal(scene: THREE.Scene, parcel: RenderedParcel) {
   return group;
 }
 
-function headingFromQuaternion(quaternion: THREE.Quaternion) {
-  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion);
-  return normalizeDegrees((Math.atan2(forward.x, -forward.z) * 180) / Math.PI);
-}
-
 function deviceQuaternion(event: OrientationLike, screenAngle: number) {
   if (![event.alpha, event.beta, event.gamma].every((value) => typeof value === "number" && Number.isFinite(value))) return null;
-  const euler = new THREE.Euler(THREE.MathUtils.degToRad(event.beta), THREE.MathUtils.degToRad(event.alpha), -THREE.MathUtils.degToRad(event.gamma), "YXZ");
+  const euler = new THREE.Euler(THREE.MathUtils.degToRad(event.beta!), THREE.MathUtils.degToRad(event.alpha!), -THREE.MathUtils.degToRad(event.gamma!), "YXZ");
   const q = new THREE.Quaternion().setFromEuler(euler);
   const q1 = new THREE.Quaternion(-Math.SQRT1_2, 0, 0, Math.SQRT1_2);
   const q0 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -THREE.MathUtils.degToRad(screenAngle));
   return q.multiply(q1).multiply(q0);
+}
+
+function headingFromQuaternion(quaternion: THREE.Quaternion) {
+  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion);
+  return normalizeDegrees((Math.atan2(forward.x, -forward.z) * 180) / Math.PI);
 }
 
 export function SkyScanExperienceV5() {
@@ -56,8 +56,10 @@ export function SkyScanExperienceV5() {
   const parcelGroupsRef = useRef(new Map<string, THREE.Group>());
   const parcelsRef = useRef<SkyParcel[]>([]);
   const orientationRef = useRef<THREE.Quaternion | null>(null);
+  const absoluteOrientationRef = useRef<THREE.Quaternion | null>(null);
   const rawHeadingRef = useRef<number | null>(null);
   const headingOffsetRef = useRef(0);
+  const sensorModeRef = useRef<"absolute" | "relative" | null>(null);
   const rafRef = useRef<number | null>(null);
   const [location, setLocation] = useState<LocationState | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -86,12 +88,12 @@ export function SkyScanExperienceV5() {
     const { data: skyData, error: skyError } = await supabaseBrowser.from("sky_scan_parcels").select("id, parcel_id, parcel_number, latitude, longitude, scan_order").eq("city_id", GAZIANTEP_CITY_ID).order("scan_order", { ascending: true }).limit(1000);
     if (skyError) { setSensorError(`Parseller alınamadı: ${skyError.message}`); setLoadingParcels(false); return; }
     const ids = (skyData ?? []).map((row) => row.parcel_id).filter(Boolean);
-    const { data: parcelData } = await supabaseBrowser.from("parcels").select("id, parcel_number, price, tier, status").in("id", ids);
+    const { data: parcelData } = ids.length ? await supabaseBrowser.from("parcels").select("id, parcel_number, price, tier, status").in("id", ids) : { data: [] as any[] };
     const prices = new Map((parcelData ?? []).map((row) => [row.id, row]));
     const next = (skyData ?? []).map((row) => {
       const parcel = prices.get(row.parcel_id);
       return { id: row.id, parcel_id: row.parcel_id, parcel_number: row.parcel_number || parcel?.parcel_number || `P-${row.scan_order}`, latitude: Number(row.latitude), longitude: Number(row.longitude), price: Number(parcel?.price ?? 999), tier: parcel?.tier ?? null, status: parcel?.status ?? null, virtualAltitude: VIRTUAL_ALTITUDE_M } satisfies SkyParcel;
-    });
+    }).filter((row) => Number.isFinite(row.latitude) && Number.isFinite(row.longitude));
     parcelsRef.current = next;
     setLoadedCount(next.length);
     setLoadingParcels(false);
@@ -123,18 +125,10 @@ export function SkyScanExperienceV5() {
     const camera = new THREE.PerspectiveCamera(FOV_DEGREES, window.innerWidth / window.innerHeight, 0.1, 100000);
     scene.add(new THREE.HemisphereLight(0xdff6ff, 0x18202b, 1.7));
     scene.add(new THREE.DirectionalLight(0xffffff, 1.8));
-    rendererRef.current = renderer;
-    sceneRef.current = scene;
-    cameraRef.current = camera;
+    rendererRef.current = renderer; sceneRef.current = scene; cameraRef.current = camera;
     const resize = () => { renderer.setSize(window.innerWidth, window.innerHeight, false); camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); };
-    resize();
-    window.addEventListener("resize", resize);
-    const animate = () => {
-      rafRef.current = requestAnimationFrame(animate);
-      if (orientationRef.current) camera.quaternion.copy(orientationRef.current);
-      for (const group of parcelGroupsRef.current.values()) { group.rotation.y += 0.0025; group.rotation.x = Math.sin(performance.now() / 1200 + group.id.length) * 0.08; }
-      renderer.render(scene, camera);
-    };
+    resize(); window.addEventListener("resize", resize);
+    const animate = () => { rafRef.current = requestAnimationFrame(animate); if (orientationRef.current) camera.quaternion.copy(orientationRef.current); renderer.render(scene, camera); };
     animate();
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); window.removeEventListener("resize", resize); renderer.dispose(); scene.clear(); parcelGroupsRef.current.clear(); };
   }, [cameraStarted]);
@@ -144,14 +138,18 @@ export function SkyScanExperienceV5() {
     let active = false;
     const onOrientation = (event: Event) => {
       const source = event as OrientationLike;
+      const isAbsolute = event.type === "deviceorientationabsolute" || source.absolute === true;
+      if (sensorModeRef.current === null) sensorModeRef.current = isAbsolute ? "absolute" : "relative";
+      if (sensorModeRef.current !== (isAbsolute ? "absolute" : "relative")) return;
       const q = deviceQuaternion(source, Number(window.screen?.orientation?.angle ?? 0));
       if (!q) return;
+      if (isAbsolute) absoluteOrientationRef.current = q;
       orientationRef.current = q;
-      const rawHeading = headingFromQuaternion(q);
-      rawHeadingRef.current = rawHeading;
-      const compass = typeof source.webkitCompassHeading === "number" && Number.isFinite(source.webkitCompassHeading) ? normalizeDegrees(source.webkitCompassHeading) : rawHeading;
-      if (typeof source.webkitCompassHeading === "number" && Number.isFinite(source.webkitCompassHeading)) headingOffsetRef.current = normalizeDegrees(compass - rawHeading);
-      setHeading(normalizeDegrees(rawHeading + headingOffsetRef.current));
+      const raw = headingFromQuaternion(q);
+      rawHeadingRef.current = raw;
+      const compass = typeof source.webkitCompassHeading === "number" && Number.isFinite(source.webkitCompassHeading) ? normalizeDegrees(source.webkitCompassHeading) : raw;
+      if (typeof source.webkitCompassHeading === "number" && Number.isFinite(source.webkitCompassHeading)) headingOffsetRef.current = normalizeDegrees(compass - raw);
+      setHeading(normalizeDegrees(raw + headingOffsetRef.current));
       active = true; setSensorActive(true); setSensorError(null);
     };
     const onMotion = (event: Event) => {
@@ -171,13 +169,17 @@ export function SkyScanExperienceV5() {
     for (const parcel of parcelsRef.current) {
       const world = geoToEus(location, { latitude: parcel.latitude, longitude: parcel.longitude, altitude: (location.altitude ?? 0) + parcel.virtualAltitude });
       const distance = Math.hypot(world.x, world.z);
-      if (distance > SCAN_RADIUS_M) continue;
+      if (!Number.isFinite(distance) || distance > SCAN_RADIUS_M) continue;
       const bearing = normalizeDegrees((Math.atan2(world.x, -world.z) * 180) / Math.PI);
       candidates.push({ ...parcel, distance, bearing, position: new THREE.Vector3(world.x, world.y, world.z) });
     }
     candidates.sort((a, b) => a.distance - b.distance);
-    const currentHeading = heading ?? 0;
-    const inDirection = candidates.filter((parcel) => angularDifference(parcel.bearing, currentHeading) <= FOV_DEGREES * 0.68).slice(0, MAX_VISIBLE);
+    const currentHeading = heading;
+    // Heading is a presentation filter, never a data-loading gate. If heading is unavailable,
+    // keep the nearest parcels alive so the user can see something and the sensor can recover.
+    const inDirection = currentHeading === null
+      ? candidates.slice(0, MAX_VISIBLE)
+      : candidates.filter((parcel) => angularDifference(parcel.bearing, currentHeading) <= FOV_DEGREES * 0.75).slice(0, MAX_VISIBLE);
     const scene = sceneRef.current;
     const nextIds = new Set(inDirection.map((parcel) => parcel.id));
     for (const [id, group] of parcelGroupsRef.current) {
@@ -185,28 +187,28 @@ export function SkyScanExperienceV5() {
     }
     for (const parcel of inDirection) {
       let group = parcelGroupsRef.current.get(parcel.id);
-      if (!group) { group = makeCrystal(scene, parcel); parcelGroupsRef.current.set(parcel.id, group); } else group.position.copy(parcel.position);
+      if (!group) { group = makeCrystal(scene, parcel); parcelGroupsRef.current.set(parcel.id, group); }
+      else group.position.copy(parcel.position);
     }
     setVisibleParcels(inDirection);
   }, [location, heading, sensorActive]);
 
   const startScan = useCallback(async () => {
-    setSensorError(null); setSensorActive(false); setHeading(null);
+    setSensorError(null); setSensorActive(false); setHeading(null); sensorModeRef.current = null;
     try { await startCamera(); } catch (error) { streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; setCameraError(error instanceof Error ? error.message : "Kamera başlatılamadı."); return; }
     const Orientation = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: () => Promise<PermissionState> };
     if (typeof Orientation.requestPermission === "function") { try { const permission = await Orientation.requestPermission(); if (permission !== "granted") setSensorError("Yön sensörü izni verilmedi. Kamera çalışmaya devam eder."); } catch { setSensorError("Yön sensörü izni alınamadı. Kamera çalışmaya devam eder."); } }
   }, [startCamera]);
 
-  const stopScan = useCallback(() => { streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; if (videoRef.current) { videoRef.current.pause(); videoRef.current.srcObject = null; } setCameraStarted(false); setSensorActive(false); setHeading(null); setSelected(null); }, []);
+  const stopScan = useCallback(() => { streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; if (videoRef.current) { videoRef.current.pause(); videoRef.current.srcObject = null; } setCameraStarted(false); setSensorActive(false); setHeading(null); setSelected(null); sensorModeRef.current = null; }, []);
   const calibrate = useCallback(() => { if (rawHeadingRef.current !== null && heading !== null) headingOffsetRef.current = normalizeDegrees(heading - rawHeadingRef.current); setSensorError(null); }, [heading]);
   const selectedLabel = useMemo(() => selected ? `${selected.parcel_number} • ${Math.round(selected.distance)} m • ₺${selected.price.toLocaleString("tr-TR")}` : null, [selected]);
-
   useEffect(() => () => { streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
 
   return <main className="fixed inset-0 overflow-hidden bg-slate-950 text-white">
     <video ref={videoRef} className={`absolute inset-0 z-0 h-full w-full object-cover ${cameraStarted ? "block" : "hidden"}`} playsInline muted autoPlay />
     <canvas ref={canvasRef} className={`absolute inset-0 z-10 h-full w-full pointer-events-none ${cameraStarted ? "block" : "hidden"}`} />
-    {!cameraStarted && <div className="absolute inset-0 z-30 flex items-center justify-center px-6"><div className="w-full max-w-md rounded-3xl border border-white/15 bg-slate-950/92 p-7 text-center shadow-2xl backdrop-blur-xl"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-300/10"><Radio className="h-8 w-8 text-cyan-200" /></div><p className="mt-5 text-[10px] font-bold uppercase tracking-[.28em] text-cyan-300">MySkyParcel • World AR</p><h1 className="mt-2 text-2xl font-bold">Gökyüzünü Tara</h1><p className="mt-3 text-sm leading-6 text-white/65">Gerçek şehir görüntüsünün üzerine ekrana yapışmayan, GPS koordinatına bağlı 3B kristal parseller yerleştirilir.</p><div className="mt-5 grid grid-cols-3 gap-2 text-[10px] text-white/55"><div className="rounded-xl bg-white/5 p-3">1.000<br />parsel</div><div className="rounded-xl bg-white/5 p-3">15 km<br />alan</div><div className="rounded-xl bg-white/5 p-3">650 m<br />sanal irtifa</div></div><button onClick={startScan} className="mt-6 w-full rounded-2xl bg-cyan-300 px-5 py-3.5 text-sm font-bold text-slate-950">Gerçek gökyüzünü tara</button>{locationError && <p className="mt-3 text-xs text-amber-200">{locationError}</p>}{cameraError && <p className="mt-3 text-xs text-red-200">{cameraError}</p>}</div></div>}
-    {cameraStarted && <><div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 p-4 pt-[max(1rem,env(safe-area-inset-top))]"><div className="rounded-2xl border border-white/15 bg-black/45 px-3 py-2 backdrop-blur-md"><div className="flex items-center gap-2 text-xs font-semibold"><LocateFixed className="h-4 w-4" /> Dünya kilidi {sensorActive ? "aktif" : "bekleniyor"}</div><div className="mt-1 text-[10px] text-white/60">{loadedCount.toLocaleString("tr-TR")} Gaziantep parseli hazır</div></div><button onClick={stopScan} className="pointer-events-auto rounded-full border border-white/20 bg-black/45 p-2.5 backdrop-blur-md" aria-label="Kamerayı kapat"><X className="h-5 w-5" /></button></div><div className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2"><Crosshair className="h-10 w-10 text-white/60" strokeWidth={1.2} /></div>{selected && <button onClick={() => setSelected(null)} className="absolute left-1/2 top-[22%] z-30 -translate-x-1/2 rounded-2xl border border-white/20 bg-black/65 px-4 py-3 text-left shadow-2xl backdrop-blur-xl"><div className="text-[10px] uppercase tracking-[.2em] text-cyan-200">Dünya koordinatlı parsel</div><div className="mt-1 text-sm font-bold">{selectedLabel}</div><div className="mt-1 text-[10px] text-white/55">Seçili 3B kristal dünya konumunda kalır</div></button>}<div className="absolute inset-x-0 bottom-0 z-20 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"><div className="mx-auto max-w-xl rounded-3xl border border-white/15 bg-black/55 p-4 backdrop-blur-xl"><div className="grid grid-cols-4 gap-2 text-center text-[10px] font-semibold uppercase tracking-wider text-white/70"><div><MapPin className="mx-auto mb-1 h-4 w-4" />{location ? `${Math.round(location.accuracy)} m GPS` : "GPS"}</div><div><Compass className="mx-auto mb-1 h-4 w-4" />{heading !== null ? `${Math.round(heading)}°` : "Pusula"}</div><div>{loadingParcels ? "Yükleniyor" : `${visibleParcels.length} parsel`}</div><button onClick={calibrate} className="pointer-events-auto rounded-xl bg-white/10 px-2 py-1 text-[9px]">Yön kalibre</button></div>{sensorError && <p className="mt-3 text-center text-xs text-amber-200">{sensorError}</p>}<p className="mt-3 text-center text-[10px] text-white/45">Parseller dünya koordinatına bağlı 3B kristallerdir; kamera ekranına sabitlenmez.</p></div></div></>}
+    {!cameraStarted && <div className="absolute inset-0 z-30 flex items-center justify-center px-6"><div className="w-full max-w-md rounded-3xl border border-white/15 bg-slate-950/92 p-7 text-center shadow-2xl backdrop-blur-xl"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-300/10"><Radio className="h-8 w-8 text-cyan-200" /></div><p className="mt-5 text-[10px] font-bold uppercase tracking-[.28em] text-cyan-300">MySkyParcel • World AR</p><h1 className="mt-2 text-2xl font-bold">Gökyüzünü Tara</h1><p className="mt-3 text-sm leading-6 text-white/65">Gerçek şehir görüntüsünün üzerine GPS koordinatına bağlı 3B kristal parseller yerleştirilir.</p><div className="mt-5 grid grid-cols-3 gap-2 text-[10px] text-white/55"><div className="rounded-xl bg-white/5 p-3">1.000<br />parsel</div><div className="rounded-xl bg-white/5 p-3">15 km<br />alan</div><div className="rounded-xl bg-white/5 p-3">650 m<br />sanal irtifa</div></div><button onClick={startScan} className="mt-6 w-full rounded-2xl bg-cyan-300 px-5 py-3.5 text-sm font-bold text-slate-950">Gerçek gökyüzünü tara</button>{locationError && <p className="mt-3 text-xs text-amber-200">{locationError}</p>}{cameraError && <p className="mt-3 text-xs text-red-200">{cameraError}</p>}</div></div>}
+    {cameraStarted && <><div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 p-4 pt-[max(1rem,env(safe-area-inset-top))]"><div className="rounded-2xl border border-white/15 bg-black/45 px-3 py-2 backdrop-blur-md"><div className="flex items-center gap-2 text-xs font-semibold"><LocateFixed className="h-4 w-4" /> Dünya kilidi {sensorActive ? "aktif" : "bekleniyor"}</div><div className="mt-1 text-[10px] text-white/60">{loadedCount.toLocaleString("tr-TR")} Gaziantep parseli hazır</div></div><button onClick={stopScan} className="pointer-events-auto rounded-full border border-white/20 bg-black/45 p-2.5 backdrop-blur-md" aria-label="Kamerayı kapat"><X className="h-5 w-5" /></button></div><div className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2"><Crosshair className="h-10 w-10 text-white/60" strokeWidth={1.2} /></div>{selected && <button onClick={() => setSelected(null)} className="absolute left-1/2 top-[22%] z-30 -translate-x-1/2 rounded-2xl border border-white/20 bg-black/65 px-4 py-3 text-left shadow-2xl backdrop-blur-xl"><div className="text-[10px] uppercase tracking-[.2em] text-cyan-200">Dünya koordinatlı parsel</div><div className="mt-1 text-sm font-bold">{selectedLabel}</div><div className="mt-1 text-[10px] text-white/55">Seçili 3B kristal dünya konumunda kalır</div></button>}<div className="absolute inset-x-0 bottom-0 z-20 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"><div className="mx-auto max-w-xl rounded-3xl border border-white/15 bg-black/55 p-4 backdrop-blur-xl"><div className="grid grid-cols-4 gap-2 text-center text-[10px] font-semibold uppercase tracking-wider text-white/70"><div><MapPin className="mx-auto mb-1 h-4 w-4" />{location ? `${Math.round(location.accuracy)} m GPS` : "GPS"}</div><div><Compass className="mx-auto mb-1 h-4 w-4" />{heading !== null ? `${Math.round(heading)}°` : "Pusula"}</div><div>{loadingParcels ? "Yükleniyor" : `${visibleParcels.length} parsel`}</div><button onClick={calibrate} className="pointer-events-auto rounded-xl bg-white/10 px-2 py-1 text-[9px]">Yön kalibre</button></div>{sensorError && <p className="mt-3 text-center text-xs text-amber-200">{sensorError}</p>}<p className="mt-3 text-center text-[10px] text-white/45">Parseller GPS dünya koordinatına bağlı 3B kristallerdir.</p></div></div></>}
   </main>;
 }
