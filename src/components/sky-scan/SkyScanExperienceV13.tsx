@@ -6,8 +6,8 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 type Gps = { latitude: number; longitude: number; accuracy: number | null; speed: number | null };
 type Point = [number, number];
 type Parcel = { id: string; parcel_number: string; polygon: Point[]; latitude: number; longitude: number; distance: number; bearing: number };
-
 type XRSessionLike = XRSession & { requestReferenceSpace(type: string): Promise<XRReferenceSpace> };
+type Calibration = { gps: Gps; xrPosition: THREE.Vector3; xrBearing: number; earthBearing: number };
 
 const R = 6371000;
 const SEARCH = 5000;
@@ -41,6 +41,21 @@ function localENU(origin: Gps, target: { latitude: number; longitude: number }) 
   const north = rad(target.latitude - origin.latitude) * R;
   return { east, north };
 }
+function xrForwardBearing(quaternion: THREE.Quaternion) {
+  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion);
+  return norm(deg(Math.atan2(forward.x, -forward.z)));
+}
+function earthToXR(origin: Gps, target: { latitude: number; longitude: number }, calibration: Calibration) {
+  const { east, north } = localENU(origin, target);
+  const earthBearing = norm(deg(Math.atan2(east, north)));
+  const distance = Math.hypot(east, north);
+  const xrBearing = rad(calibration.xrBearing + norm(earthBearing - calibration.earthBearing));
+  return {
+    x: calibration.xrPosition.x + Math.sin(xrBearing) * distance,
+    y: calibration.xrPosition.y + 1.2,
+    z: calibration.xrPosition.z - Math.cos(xrBearing) * distance,
+  };
+}
 
 export function SkyScanExperienceV13() {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -49,9 +64,10 @@ export function SkyScanExperienceV13() {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const originRef = useRef<Gps | null>(null);
-  const headingRef = useRef<number | null>(null);
   const lastGpsRef = useRef<Gps | null>(null);
   const watchRef = useRef<number | null>(null);
+  const calibrationRef = useRef<Calibration | null>(null);
+  const calibrationPendingRef = useRef(false);
   const [gps, setGps] = useState<Gps | null>(null);
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [started, setStarted] = useState(false);
@@ -81,14 +97,9 @@ export function SkyScanExperienceV13() {
     setGps(n);
     const previous = lastGpsRef.current;
     if (!originRef.current) { originRef.current = n; void loadParcels(n); }
-    if (previous) {
-      const moved = hav(previous, n);
-      if (moved >= 4) {
-        const movementHeading = bearing(previous, n);
-        headingRef.current = movementHeading;
-        setAligning(false);
-        setMessage(`AR hizalandı · GPS hareket yönü ${Math.round(movementHeading)}°`);
-      }
+    if (previous && hav(previous, n) >= 4 && !calibrationRef.current) {
+      calibrationPendingRef.current = true;
+      setMessage("Hareket algılandı · WebXR kamera yönüyle AR hizalanıyor…");
     }
     lastGpsRef.current = n;
   }, [loadParcels]);
@@ -118,34 +129,62 @@ export function SkyScanExperienceV13() {
       await renderer.xr.setSession(session);
       refSpace.current = await session.requestReferenceSpace("local-floor");
       setStarted(true);
-      setMessage(headingRef.current === null ? "Gerçek AR açık · 4-10 m yürüyerek yön hizalayın" : "Gerçek AR açık");
+      setMessage("Gerçek AR açık · Pusula yok · 4 m+ yürüyün");
 
       const group = new THREE.Group();
       sceneRef.current!.add(group);
-      const render = (time: number, frame: XRFrame) => {
-        if (!sessionRef.current || !refSpace.current) return;
-        const origin = originRef.current;
-        const heading = headingRef.current;
+      const markerMaterial = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
+      const labelSprites = new Map<string, THREE.Sprite>();
+      const markerMeshes = new Map<string, THREE.Mesh>();
+      const labelTextures = new Map<string, THREE.CanvasTexture>();
+
+      const rebuildObjects = () => {
         group.clear();
-        if (origin && heading !== null) {
-          const yaw = -rad(heading);
-          const cos = Math.cos(yaw), sin = Math.sin(yaw);
-          for (const p of parcels) {
-            const enu = localENU(origin, p);
-            const x = enu.east * cos - enu.north * sin;
-            const z = -(enu.east * sin + enu.north * cos);
-            const marker = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.15, Math.min(1.2, 18 / Math.max(p.distance, 30))), 12, 12), new THREE.MeshBasicMaterial({ color: 0x22d3ee }));
-            marker.position.set(x, 1.2, z);
-            group.add(marker);
-            const labelCanvas = document.createElement("canvas"); labelCanvas.width = 512; labelCanvas.height = 96;
-            const ctx = labelCanvas.getContext("2d")!; ctx.fillStyle = "rgba(0,0,0,.75)"; ctx.fillRect(0, 0, 512, 96); ctx.fillStyle = "white"; ctx.font = "bold 28px sans-serif"; ctx.fillText(`${p.parcel_number} · ${Math.round(p.distance)} m`, 16, 58);
-            const texture = new THREE.CanvasTexture(labelCanvas); const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.position.set(x, 2.4, z); sprite.scale.set(4, 0.75, 1); group.add(sprite);
+        labelSprites.clear(); markerMeshes.clear(); labelTextures.clear();
+        for (const p of parcels) {
+          const marker = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.18, Math.min(1.2, 18 / Math.max(p.distance, 30))), 12, 12), markerMaterial);
+          markerMeshes.set(p.id, marker); group.add(marker);
+          const c = document.createElement("canvas"); c.width = 512; c.height = 96;
+          const ctx = c.getContext("2d")!; ctx.fillStyle = "rgba(0,0,0,.78)"; ctx.fillRect(0, 0, 512, 96); ctx.fillStyle = "white"; ctx.font = "bold 28px sans-serif"; ctx.fillText(`${p.parcel_number} · ${Math.round(p.distance)} m`, 16, 58);
+          const texture = new THREE.CanvasTexture(c); labelTextures.set(p.id, texture);
+          const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(4, 0.75, 1); labelSprites.set(p.id, sprite); group.add(sprite);
+        }
+      };
+      rebuildObjects();
+
+      const render = (_time: number, frame: XRFrame) => {
+        if (!sessionRef.current || !refSpace.current || !sceneRef.current) return;
+        const pose = frame.getViewerPose(refSpace.current);
+        if (!pose) return;
+        const view = pose.views[0];
+        if (!view) return;
+
+        if (calibrationPendingRef.current && !calibrationRef.current && lastGpsRef.current) {
+          const movement = lastGpsRef.current;
+          const previous = originRef.current;
+          if (previous && hav(previous, movement) >= 4) {
+            const xrBearing = xrForwardBearing(new THREE.Quaternion(view.transform.orientation.x, view.transform.orientation.y, view.transform.orientation.z, view.transform.orientation.w));
+            const earthBearing = bearing(previous, movement);
+            calibrationRef.current = { gps: movement, xrPosition: new THREE.Vector3(view.transform.position.x, view.transform.position.y, view.transform.position.z), xrBearing, earthBearing };
+            calibrationPendingRef.current = false;
+            setAligning(false);
+            setMessage(`AR hizalandı · GPS hareketi ${Math.round(earthBearing)}° · WebXR 6DoF aktif`);
           }
         }
-        renderer.render(sceneRef.current!, renderer.xr.getCamera(new THREE.Camera()));
+
+        const calibration = calibrationRef.current;
+        if (calibration) {
+          for (const p of parcels) {
+            const pos = earthToXR(calibration.gps, p, calibration);
+            const marker = markerMeshes.get(p.id); const label = labelSprites.get(p.id);
+            if (marker) marker.position.set(pos.x, pos.y, pos.z);
+            if (label) label.position.set(pos.x, pos.y + 1.1, pos.z);
+          }
+        }
+        renderer.render(sceneRef.current, renderer.xr.getCamera(new THREE.Camera()));
       };
       renderer.setAnimationLoop(render);
-      session.addEventListener("end", () => { renderer.setAnimationLoop(null); sessionRef.current = null; setStarted(false); });
+      session.addEventListener("end", () => { renderer.setAnimationLoop(null); sessionRef.current = null; calibrationRef.current = null; setStarted(false); });
     } catch (e) { setError(e instanceof Error ? e.message : "AR başlatılamadı"); setStarted(false); }
   }, [createScene, parcels]);
 
@@ -155,6 +194,7 @@ export function SkyScanExperienceV13() {
     if (sessionRef.current) await sessionRef.current.end().catch(() => undefined);
     rendererRef.current?.setAnimationLoop(null);
     rendererRef.current?.dispose(); rendererRef.current = null; sceneRef.current = null;
+    calibrationRef.current = null;
     setStarted(false);
   }, []);
 
@@ -173,7 +213,7 @@ export function SkyScanExperienceV13() {
       <div className="mt-2 text-xs">{message}</div>
       {error && <div className="mt-2 text-xs text-red-300">{error}</div>}
       {!started && <button onClick={() => void startXR()} disabled={xrSupported === false} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-black disabled:opacity-40"><LocateFixed className="h-4 w-4" />Gerçek AR'yi başlat</button>}
-      {started && aligning && <div className="mt-3 rounded-xl bg-amber-500/20 p-2 text-xs">Pusula kullanılmıyor. Telefonla 4–10 metre yürüyün; GPS hareketinden AR yönü otomatik hizalanacak.</div>}
+      {started && aligning && <div className="mt-3 rounded-xl bg-amber-500/20 p-2 text-xs">Pusula kullanılmıyor. Telefonla en az 4 metre yürüyün; WebXR kameranın 6DoF yönü GPS hareketiyle bir kez hizalanacak.</div>}
     </div></div>
   </div>;
 }
