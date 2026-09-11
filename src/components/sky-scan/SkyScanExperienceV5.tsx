@@ -1,6 +1,5 @@
 import { Camera, Compass, LocateFixed, RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as THREE from "three";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 type Tier = "digital" | "elite" | "premium";
@@ -10,9 +9,9 @@ type Orientation = { heading: number | null; pitch: number | null; alpha: number
 
 const EARTH = 6371000;
 const SEARCH_RADIUS = 5000;
-const MAX_RENDER = 120;
-const H_FOV = 62;
-const V_FOV = 48;
+const MAX_RENDER = 300;
+const H_FOV = 78;
+const V_FOV = 64;
 
 const rad = (n: number) => n * Math.PI / 180;
 const deg = (n: number) => n * 180 / Math.PI;
@@ -31,6 +30,7 @@ const bearing = (a: Gps, b: Pick<Parcel, "latitude" | "longitude">) => {
 };
 const cardinal = (h: number) => ["K", "KD", "D", "GD", "G", "GB", "B", "KB"][Math.round(norm(h) / 45) % 8];
 const distanceText = (m: number) => m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
+const tierClass = (tier: Tier) => tier === "premium" ? "border-amber-300/70 bg-amber-300/20" : tier === "elite" ? "border-violet-300/70 bg-violet-300/20" : "border-cyan-200/60 bg-cyan-300/15";
 
 function parseOrientation(event: DeviceOrientationEvent): Orientation {
   const alpha = typeof event.alpha === "number" ? event.alpha : null;
@@ -45,39 +45,21 @@ async function requestSensorPermission() {
   const D = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: () => Promise<PermissionState> };
   const M = window.DeviceMotionEvent as typeof DeviceMotionEvent & { requestPermission?: () => Promise<PermissionState> };
   if (typeof D.requestPermission === "function") {
-    const result = await D.requestPermission();
-    if (result !== "granted") return false;
+    if (await D.requestPermission() !== "granted") return false;
   }
   if (typeof M.requestPermission === "function") {
-    const result = await M.requestPermission();
-    if (result !== "granted") return false;
+    if (await M.requestPermission() !== "granted") return false;
   }
   return true;
 }
 
-function crystal(tier: Tier) {
-  const color = tier === "premium" ? 0xffd45a : tier === "elite" ? 0xb56cff : 0x2ee6ff;
-  const group = new THREE.Group();
-  const geometry = new THREE.IcosahedronGeometry(1, 1);
-  group.add(new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.7, transparent: true, opacity: 0.92, roughness: 0.2, metalness: 0.3 })));
-  group.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.42 })));
-  return group;
-}
-
 export function SkyScanExperienceV5() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const hostRef = useRef<HTMLDivElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const watchRef = useRef<number | null>(null);
   const sensorCleanupRef = useRef<(() => void) | null>(null);
   const orientationRef = useRef<Orientation>({ heading: null, pitch: null, alpha: null, beta: null, gamma: null, source: "bekleniyor" });
   const gpsRef = useRef<Gps>(null);
-  const parcelsRef = useRef<Parcel[]>([]);
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const objectsRef = useRef(new Map<string, THREE.Group>());
-  const rafRef = useRef<number | null>(null);
   const lastQueryRef = useRef<{ at: number; lat: number; lon: number; accuracy: number | null }>({ at: 0, lat: 0, lon: 0, accuracy: null });
 
   const [started, setStarted] = useState(false);
@@ -90,42 +72,15 @@ export function SkyScanExperienceV5() {
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [parcelLoading, setParcelLoading] = useState(false);
   const [parcelError, setParcelError] = useState<string | null>(null);
-  const [visibleCount, setVisibleCount] = useState(0);
   const [showStatus, setShowStatus] = useState(true);
 
-  const renderParcels = useCallback((items: Parcel[]) => {
-    const scene = sceneRef.current;
-    if (!scene) return;
-    const keep = new Set(items.map((p) => p.id));
-    for (const [id, object] of objectsRef.current) {
-      if (!keep.has(id)) {
-        scene.remove(object);
-        object.traverse((child) => {
-          const mesh = child as THREE.Mesh;
-          mesh.geometry?.dispose();
-          const material = mesh.material;
-          if (Array.isArray(material)) material.forEach((m) => m.dispose());
-          else material?.dispose();
-        });
-        objectsRef.current.delete(id);
-      }
-    }
-    for (const item of items) {
-      if (!objectsRef.current.has(item.id)) {
-        const object = crystal(item.tier);
-        scene.add(object);
-        objectsRef.current.set(item.id, object);
-      }
-    }
-  }, []);
-
-  const fetchParcels = useCallback(async (p: NonNullable<Gps>) => {
+  const fetchParcels = useCallback(async (p: NonNullable<Gps>, force = false) => {
     const now = Date.now();
     const q = lastQueryRef.current;
     const moved = q.at ? distance(q as Gps, { latitude: p.latitude, longitude: p.longitude }) : Infinity;
     const improved = q.accuracy != null && p.accuracy != null && q.accuracy - p.accuracy >= 15;
-    if (q.at && now - q.at < 2500) return;
-    if (q.at && moved < 40 && now - q.at < 15000 && !improved) return;
+    if (!force && q.at && now - q.at < 2500) return;
+    if (!force && q.at && moved < 40 && now - q.at < 12000 && !improved) return;
     lastQueryRef.current = { at: now, lat: p.latitude, lon: p.longitude, accuracy: p.accuracy };
     setParcelLoading(true);
     setParcelError(null);
@@ -147,16 +102,14 @@ export function SkyScanExperienceV5() {
         return { id: String(row.parcel_id ?? row.id), parcel_number: String(row.parcel_number ?? "—"), latitude: lat, longitude: lon, tier: "digital" as Tier, distanceMeters: distance(p, { latitude: lat, longitude: lon }), bearing: bearing(p, { latitude: lat, longitude: lon }) };
       }).filter((row) => Number.isFinite(row.latitude) && Number.isFinite(row.longitude) && row.distanceMeters <= SEARCH_RADIUS)
         .sort((a, b) => a.distanceMeters - b.distanceMeters).slice(0, MAX_RENDER);
-      parcelsRef.current = result;
       setParcels(result);
-      renderParcels(result);
       if (!result.length) setParcelError("Bu konumun 5 km çevresinde Sky Scan parseli bulunamadı.");
     } catch (error) {
       setParcelError(error instanceof Error ? error.message : "Parseller alınamadı.");
     } finally {
       setParcelLoading(false);
     }
-  }, [renderParcels]);
+  }, []);
 
   const startGps = useCallback(() => {
     if (!navigator.geolocation) { setGpsError("Tarayıcı GPS desteği vermiyor."); return; }
@@ -175,8 +128,7 @@ export function SkyScanExperienceV5() {
     sensorCleanupRef.current = null;
     setSensorStatus("İzin kontrol ediliyor…");
     try {
-      const granted = await requestSensorPermission();
-      if (!granted) { setSensorStatus("İzin verilmedi"); return; }
+      if (!await requestSensorPermission()) { setSensorStatus("İzin verilmedi"); return; }
       let absoluteActive = false;
       let firstData = false;
       const apply = (event: DeviceOrientationEvent) => {
@@ -216,94 +168,81 @@ export function SkyScanExperienceV5() {
       streamRef.current?.getTracks().forEach((track) => track.stop());
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
       streamRef.current = stream;
-      const video = videoRef.current;
-      if (!video) throw new Error("Kamera görüntüsü hazırlanamadı.");
-      video.srcObject = stream;
-      await video.play();
+      if (!videoRef.current) throw new Error("Kamera görüntüsü hazırlanamadı.");
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
       setCameraReady(true);
     } catch (error) {
       setCameraError(error instanceof Error ? error.message : "Kamera açılamadı.");
     }
   }, []);
 
-  const startThree = useCallback(() => {
-    if (!hostRef.current || rendererRef.current) return;
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(V_FOV, innerWidth / Math.max(innerHeight, 1), 0.1, SEARCH_RADIUS + 100);
-    camera.rotation.order = "YXZ";
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
-    renderer.setSize(innerWidth, innerHeight, false);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.domElement.className = "pointer-events-none absolute inset-0 h-full w-full";
-    hostRef.current.appendChild(renderer.domElement);
-    scene.add(new THREE.AmbientLight(0xffffff, 1.5));
-    const light = new THREE.DirectionalLight(0xffffff, 2); light.position.set(5, 10, 5); scene.add(light);
-    sceneRef.current = scene; cameraRef.current = camera; rendererRef.current = renderer;
-    const resize = () => { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / Math.max(innerHeight, 1); camera.updateProjectionMatrix(); };
-    addEventListener("resize", resize);
-    const loop = () => {
-      rafRef.current = requestAnimationFrame(loop);
-      const o = orientationRef.current;
-      if (o.heading !== null) {
-        camera.rotation.y = -rad(o.heading);
-        camera.rotation.x = -rad(Math.max(-75, Math.min(75, o.pitch ?? 0)));
-      }
-      const p = gpsRef.current;
-      let visible = 0;
-      for (const [id, object] of objectsRef.current) {
-        const item = parcelsRef.current.find((x) => x.id === id);
-        if (!item || !p) { object.visible = false; continue; }
-        const relative = delta(item.bearing, o.heading ?? 0);
-        const inHorizontalFov = Math.abs(relative) <= H_FOV / 2;
-        const pitch = o.pitch ?? 0;
-        const inVerticalFov = Math.abs(20 - (-pitch)) <= V_FOV / 2 + 16;
-        object.visible = inHorizontalFov && inVerticalFov;
-        if (object.visible) visible++;
-        const a = rad(item.bearing);
-        const radius = 14 + Math.sqrt(Math.max(item.distanceMeters, 1)) * 0.85;
-        object.position.set(Math.sin(a) * radius, 6 + Math.min(14, item.distanceMeters / 450), -Math.cos(a) * radius);
-        const scale = Math.max(0.75, Math.min(3, 3 - item.distanceMeters / 2600));
-        object.scale.setScalar(scale);
-        object.rotation.y += 0.006;
-      }
-      setVisibleCount((current) => current === visible ? current : visible);
-      renderer.render(scene, camera);
-    };
-    loop();
-    return () => { removeEventListener("resize", resize); };
-  }, []);
-
   const startAll = useCallback(() => {
     setStarted(true);
     setShowStatus(true);
-    startThree();
     startGps();
     void startSensors();
     void startCamera();
-  }, [startCamera, startGps, startSensors, startThree]);
+  }, [startCamera, startGps, startSensors]);
 
   const stopAll = useCallback(() => {
     if (watchRef.current !== null) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null; }
     sensorCleanupRef.current?.(); sensorCleanupRef.current = null;
-    streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
-    setStarted(false); setCameraReady(false);
+    setStarted(false);
+    setCameraReady(false);
   }, []);
 
-  useEffect(() => () => { stopAll(); if (rafRef.current) cancelAnimationFrame(rafRef.current); rendererRef.current?.dispose(); }, [stopAll]);
+  useEffect(() => () => stopAll(), [stopAll]);
 
-  const nearest = useMemo(() => {
-    if (!gps || !parcels.length) return null;
-    return parcels.map((p) => ({ ...p, distanceMeters: distance(gps, p), bearing: bearing(gps, p) })).sort((a, b) => a.distanceMeters - b.distanceMeters)[0];
-  }, [gps, parcels]);
+  const projected = useMemo(() => {
+    const heading = orientation.heading;
+    const pitch = orientation.pitch ?? 0;
+    if (heading === null) return { visible: [] as Array<Parcel & { left: number; top: number }>, offscreen: [] as Parcel[] };
+    const visible: Array<Parcel & { left: number; top: number }> = [];
+    const offscreen: Parcel[] = [];
+    const groups = new Map<number, number>();
+    for (const parcel of parcels) {
+      const horizontal = delta(parcel.bearing, heading);
+      const targetElevation = 18;
+      const vertical = targetElevation - (-pitch);
+      const inHorizontal = Math.abs(horizontal) <= H_FOV / 2;
+      const inVertical = Math.abs(vertical) <= V_FOV / 2;
+      if (!inHorizontal || !inVertical) { offscreen.push(parcel); continue; }
+      const bucket = Math.round(horizontal / 4);
+      const index = groups.get(bucket) ?? 0;
+      groups.set(bucket, index + 1);
+      const separation = Math.min(8, index * 2.8);
+      const left = 50 + (horizontal / (H_FOV / 2)) * 47 + (index % 2 ? separation : -separation);
+      const top = 50 - (vertical / (V_FOV / 2)) * 36 + Math.min(index, 3) * 5;
+      visible.push({ ...parcel, left: Math.max(3, Math.min(97, left)), top: Math.max(10, Math.min(82, top)) });
+    }
+    return { visible, offscreen };
+  }, [orientation, parcels]);
+
+  const nearest = useMemo(() => parcels[0] ?? null, [parcels]);
   const nearestDelta = nearest && orientation.heading !== null ? delta(nearest.bearing, orientation.heading) : null;
   const direction = nearestDelta === null ? "Yön bekleniyor" : Math.abs(nearestDelta) <= 10 ? "Tam önünde" : Math.abs(nearestDelta) >= 160 ? "Arkanda" : nearestDelta > 0 ? `Sağında → ${Math.round(Math.abs(nearestDelta))}°` : `Solunda ← ${Math.round(Math.abs(nearestDelta))}°`;
 
   return (
     <main className="fixed inset-0 z-[70] overflow-hidden bg-black text-white">
       <video ref={videoRef} muted playsInline autoPlay className="absolute inset-0 h-full w-full object-cover" />
-      <div ref={hostRef} className="pointer-events-none absolute inset-0" />
+
+      <div className="pointer-events-none absolute inset-0 z-20">
+        {projected.visible.map((parcel) => (
+          <div key={parcel.id} className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-xl border px-2 py-1.5 shadow-xl backdrop-blur-md ${tierClass(parcel.tier)}`} style={{ left: `${parcel.left}%`, top: `${parcel.top}%` }}>
+            <div className="text-[10px] font-black tracking-tight">{parcel.parcel_number}</div>
+            <div className="text-[9px] text-white/75">{distanceText(parcel.distanceMeters)} · {cardinal(parcel.bearing)}</div>
+          </div>
+        ))}
+        {projected.offscreen.slice(0, 16).map((parcel) => {
+          const d = orientation.heading === null ? 0 : delta(parcel.bearing, orientation.heading);
+          const left = d < 0 ? 3 : 97;
+          return <div key={`edge-${parcel.id}`} className="absolute -translate-y-1/2 rounded-full border border-white/30 bg-slate-950/80 px-2 py-1 text-[9px] font-bold shadow-lg" style={{ left: `${left}%`, top: `${35 + (Math.abs(d) % 40)}%` }}>{d < 0 ? "←" : "→"} {distanceText(parcel.distanceMeters)}</div>;
+        })}
+      </div>
 
       <header className="absolute left-0 right-0 top-0 z-30 flex items-start justify-between gap-2 p-3 sm:p-5">
         <div className="rounded-2xl border border-white/15 bg-slate-950/75 px-3 py-2 backdrop-blur-md">
@@ -319,16 +258,16 @@ export function SkyScanExperienceV5() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div><p className="text-[10px] uppercase text-white/45">Kamera</p><p className="text-sm font-semibold">{cameraReady ? "Hazır" : cameraError ? "Hata" : "Başlatılıyor…"}</p></div>
             <div><p className="text-[10px] uppercase text-white/45">Konum</p><p className="text-sm font-semibold">{gps ? `±${Math.round(gps.accuracy ?? 0)} m` : gpsError ?? "Bekleniyor…"}</p></div>
-            <div><p className="text-[10px] uppercase text-white/45">Yakındaki parsel</p><p className="text-sm font-semibold">{parcelLoading ? "Aranıyor…" : parcels.length}</p></div>
-            <div><p className="text-[10px] uppercase text-white/45">Görüş alanında</p><p className="text-sm font-semibold">{visibleCount}</p></div>
+            <div><p className="text-[10px] uppercase text-white/45">5 km içindeki parsel</p><p className="text-sm font-semibold">{parcelLoading ? "Aranıyor…" : parcels.length}</p></div>
+            <div><p className="text-[10px] uppercase text-white/45">Ekranda / dışarıda</p><p className="text-sm font-semibold">{projected.visible.length} / {projected.offscreen.length}</p></div>
           </div>
           <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/10 pt-3">
             <div className="min-w-0"><p className="text-xs text-cyan-100">{nearest ? `${nearest.parcel_number} · ${distanceText(nearest.distanceMeters)}` : parcelError ?? sensorStatus}</p><p className="mt-0.5 text-sm font-semibold">{direction}</p></div>
             <div className="flex shrink-0 items-center gap-2"><Compass className="h-5 w-5 text-cyan-200" /><span className="text-xs text-white/60">{orientation.source}</span></div>
           </div>
-          {cameraError && <p className="mt-2 text-xs text-red-300">Kamera: {cameraError}</p>}
-          {gpsError && <p className="mt-2 text-xs text-amber-200">GPS: {gpsError}</p>}
           {parcelError && <p className="mt-2 text-xs text-amber-200">Parsel: {parcelError}</p>}
+          {gpsError && <p className="mt-2 text-xs text-amber-200">GPS: {gpsError}</p>}
+          {cameraError && <p className="mt-2 text-xs text-red-300">Kamera: {cameraError}</p>}
         </section>
       )}
 
@@ -344,7 +283,7 @@ export function SkyScanExperienceV5() {
       )}
 
       {started && <button type="button" onClick={stopAll} className="pointer-events-auto absolute right-3 top-20 z-30 rounded-xl border border-white/15 bg-slate-950/75 p-2 backdrop-blur-md sm:right-5"><X className="h-5 w-5" /></button>}
-      {started && <button type="button" onClick={() => { const p = gpsRef.current; if (p) void fetchParcels(p); }} className="pointer-events-auto absolute right-14 top-20 z-30 rounded-xl border border-white/15 bg-slate-950/75 p-2 backdrop-blur-md sm:right-16" aria-label="Parselleri yenile"><RefreshCw className="h-5 w-5" /></button>}
+      {started && <button type="button" onClick={() => { const p = gpsRef.current; if (p) void fetchParcels(p, true); }} className="pointer-events-auto absolute right-14 top-20 z-30 rounded-xl border border-white/15 bg-slate-950/75 p-2 backdrop-blur-md sm:right-16" aria-label="Parselleri yenile"><RefreshCw className="h-5 w-5" /></button>}
     </main>
   );
 }
