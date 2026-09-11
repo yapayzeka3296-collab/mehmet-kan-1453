@@ -39,8 +39,12 @@ function makeCrystal(scene: THREE.Scene, parcel: RenderedParcel) {
 }
 
 function deviceQuaternion(event: OrientationLike, screenAngle: number) {
-  if (![event.alpha, event.beta, event.gamma].every((value) => typeof value === "number" && Number.isFinite(value))) return null;
-  const euler = new THREE.Euler(THREE.MathUtils.degToRad(event.beta!), THREE.MathUtils.degToRad(event.alpha!), -THREE.MathUtils.degToRad(event.gamma!), "YXZ");
+  const alpha = typeof event.alpha === "number" && Number.isFinite(event.alpha) ? event.alpha : 0;
+  const beta = typeof event.beta === "number" && Number.isFinite(event.beta) ? event.beta : 0;
+  const gamma = typeof event.gamma === "number" && Number.isFinite(event.gamma) ? event.gamma : 0;
+  const hasOrientation = [event.alpha, event.beta, event.gamma].some((value) => typeof value === "number" && Number.isFinite(value));
+  if (!hasOrientation) return null;
+  const euler = new THREE.Euler(THREE.MathUtils.degToRad(beta), THREE.MathUtils.degToRad(alpha), -THREE.MathUtils.degToRad(gamma), "YXZ");
   const q = new THREE.Quaternion().setFromEuler(euler);
   const q1 = new THREE.Quaternion(-Math.SQRT1_2, 0, 0, Math.SQRT1_2);
   const q0 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -THREE.MathUtils.degToRad(screenAngle));
@@ -60,17 +64,7 @@ function pitchFromQuaternion(quaternion: THREE.Quaternion) {
 }
 
 function directionFromBearing(bearing: number, currentHeading: number | null): DirectionKey {
-  if (currentHeading === null) {
-    const cardinal = Math.round(bearing / 45) * 45;
-    if (cardinal === 0 || cardinal === 360) return "front";
-    if (cardinal === 45) return "frontRight";
-    if (cardinal === 90) return "right";
-    if (cardinal === 135) return "backRight";
-    if (cardinal === 180) return "back";
-    if (cardinal === 225) return "backLeft";
-    if (cardinal === 270) return "left";
-    return "frontLeft";
-  }
+  if (currentHeading === null) return "front";
   const delta = ((bearing - currentHeading + 540) % 360) - 180;
   if (Math.abs(delta) <= 22.5) return "front";
   if (delta > 22.5 && delta <= 67.5) return "frontRight";
@@ -96,7 +90,8 @@ export function SkyScanExperienceV5() {
   const pitchRef = useRef(0);
   const rawHeadingRef = useRef<number | null>(null);
   const headingOffsetRef = useRef(0);
-  const sensorModeRef = useRef<"absolute" | "relative" | null>(null);
+  const absoluteSensorSeenRef = useRef(false);
+  const relativeReferenceSetRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const visibleTickRef = useRef(0);
   const [location, setLocation] = useState<LocationState | null>(null);
@@ -106,6 +101,7 @@ export function SkyScanExperienceV5() {
   const [sensorActive, setSensorActive] = useState(false);
   const [sensorError, setSensorError] = useState<string | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
+  const [pitch, setPitch] = useState(0);
   const [nearbyParcels, setNearbyParcels] = useState<RenderedParcel[]>([]);
   const [visibleParcels, setVisibleParcels] = useState<RenderedParcel[]>([]);
   const [selected, setSelected] = useState<RenderedParcel | null>(null);
@@ -192,15 +188,14 @@ export function SkyScanExperienceV5() {
     const onOrientation = (event: Event) => {
       const source = event as OrientationLike;
       const isAbsolute = event.type === "deviceorientationabsolute" || source.absolute === true;
-      if (sensorModeRef.current === null) sensorModeRef.current = isAbsolute ? "absolute" : "relative";
-      if (sensorModeRef.current !== (isAbsolute ? "absolute" : "relative")) return;
+      if (!isAbsolute && absoluteSensorSeenRef.current) return;
+      if (isAbsolute) absoluteSensorSeenRef.current = true;
       const q = deviceQuaternion(source, Number(window.screen?.orientation?.angle ?? 0));
-      if (!q) {
-        if ([source.beta, source.gamma].every((value) => typeof value === "number" && Number.isFinite(value))) { active = true; setSensorActive(true); setSensorError(null); }
-        return;
-      }
+      if (!q) return;
       orientationRef.current = q;
-      pitchRef.current = pitchFromQuaternion(q);
+      const nextPitch = pitchFromQuaternion(q);
+      pitchRef.current = nextPitch;
+      setPitch(nextPitch);
       const raw = headingFromQuaternion(q);
       if (raw !== null) rawHeadingRef.current = raw;
       const hasWebkitCompass = typeof source.webkitCompassHeading === "number" && Number.isFinite(source.webkitCompassHeading);
@@ -208,10 +203,18 @@ export function SkyScanExperienceV5() {
         const compass = normalizeDegrees(source.webkitCompassHeading!);
         headingOffsetRef.current = raw === null ? headingOffsetRef.current : normalizeDegrees(compass - raw);
         setHeading(compass);
+      } else if (isAbsolute && raw !== null) {
+        setHeading(normalizeDegrees(raw + headingOffsetRef.current));
+      } else if (!relativeReferenceSetRef.current && raw !== null) {
+        headingOffsetRef.current = normalizeDegrees(-raw);
+        relativeReferenceSetRef.current = true;
+        setHeading(0);
       } else if (raw !== null) {
         setHeading(normalizeDegrees(raw + headingOffsetRef.current));
       }
-      active = true; setSensorActive(true); setSensorError(null);
+      active = true;
+      setSensorActive(true);
+      setSensorError(null);
     };
     const onMotion = (event: Event) => {
       const acceleration = (event as DeviceMotionEvent).accelerationIncludingGravity;
@@ -225,7 +228,8 @@ export function SkyScanExperienceV5() {
   }, [cameraStarted]);
 
   useEffect(() => {
-    if (!location || !sensorActive || !sceneRef.current || heading === null) return;
+    if (!location || !sensorActive || !sceneRef.current) return;
+    const projectionHeading = heading ?? 0;
     const candidates: RenderedParcel[] = [];
     for (const parcel of parcelsRef.current) {
       const world = geoToEus(location, { latitude: parcel.latitude, longitude: parcel.longitude, altitude: (location.altitude ?? 0) + parcel.virtualAltitude });
@@ -233,8 +237,8 @@ export function SkyScanExperienceV5() {
       if (!Number.isFinite(distance) || distance > SCAN_RADIUS_M) continue;
       const bearing = normalizeDegrees((Math.atan2(world.x, -world.z) * 180) / Math.PI);
       const elevation = (Math.atan2(world.y, Math.max(1, distance)) * 180) / Math.PI;
-      const horizontalDelta = ((bearing - heading + 540) % 360) - 180;
-      const relativeElevation = elevation - pitchRef.current;
+      const horizontalDelta = ((bearing - projectionHeading + 540) % 360) - 180;
+      const relativeElevation = elevation - pitch;
       const horizontalRad = THREE.MathUtils.degToRad(horizontalDelta);
       const verticalRad = THREE.MathUtils.degToRad(relativeElevation);
       const horizontalDistance = distance * Math.cos(verticalRad);
@@ -275,10 +279,10 @@ export function SkyScanExperienceV5() {
       if (!group) { group = makeCrystal(scene, parcel); parcelGroupsRef.current.set(parcel.id, group); }
       else group.position.copy(parcel.position);
     }
-  }, [location, heading, sensorActive]);
+  }, [location, heading, pitch, sensorActive]);
 
   const startScan = useCallback(async () => {
-    setSensorError(null); setSensorActive(false); setHeading(null); sensorModeRef.current = null; headingOffsetRef.current = 0; rawHeadingRef.current = null; pitchRef.current = 0;
+    setSensorError(null); setSensorActive(false); setHeading(null); setPitch(0); sensorActiveRefReset();
     try { await startCamera(); } catch (error) { streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; setCameraError(error instanceof Error ? error.message : "Kamera başlatılamadı."); return; }
     const Orientation = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: (absolute?: boolean) => Promise<PermissionState> };
     if (typeof Orientation.requestPermission === "function") {
@@ -291,8 +295,16 @@ export function SkyScanExperienceV5() {
     }
   }, [startCamera]);
 
-  const stopScan = useCallback(() => { streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; if (videoRef.current) { videoRef.current.pause(); videoRef.current.srcObject = null; } setCameraStarted(false); setSensorActive(false); setHeading(null); setSelected(null); setNearbyParcels([]); setVisibleParcels([]); nearbyParcelsRef.current = []; sensorModeRef.current = null; pitchRef.current = 0; }, []);
-  const calibrate = useCallback(() => { if (rawHeadingRef.current !== null && heading !== null) headingOffsetRef.current = normalizeDegrees(heading - rawHeadingRef.current); setSensorError(null); }, [heading]);
+  function sensorActiveRefReset() {
+    absoluteSensorSeenRef.current = false;
+    relativeReferenceSetRef.current = false;
+    pitchRef.current = 0;
+    rawHeadingRef.current = null;
+    headingOffsetRef.current = 0;
+  }
+
+  const stopScan = useCallback(() => { streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; if (videoRef.current) { videoRef.current.pause(); videoRef.current.srcObject = null; } setCameraStarted(false); setSensorActive(false); setHeading(null); setPitch(0); setSelected(null); setNearbyParcels([]); setVisibleParcels([]); nearbyParcelsRef.current = []; sensorActiveRefReset(); }, []);
+  const calibrate = useCallback(() => { if (rawHeadingRef.current !== null) { headingOffsetRef.current = normalizeDegrees(-rawHeadingRef.current); relativeReferenceSetRef.current = true; setHeading(0); } setSensorError(null); }, []);
 
   const directionSummary = useMemo(() => {
     const counts: Record<DirectionKey, number> = { front: 0, frontRight: 0, right: 0, backRight: 0, back: 0, backLeft: 0, left: 0, frontLeft: 0 };
