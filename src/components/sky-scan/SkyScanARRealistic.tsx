@@ -1,4 +1,4 @@
-import { Camera, Compass, Crosshair, MapPin, X } from "lucide-react";
+import { Camera, Compass, Crosshair, MapPin, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 
@@ -9,9 +9,7 @@ type LocationState = {
   accuracy: number;
 };
 
-type OrientationLike = DeviceOrientationEvent & {
-  webkitCompassHeading?: number;
-};
+type OrientationLike = DeviceOrientationEvent & { webkitCompassHeading?: number };
 
 type SkyParcel = {
   id: string;
@@ -29,6 +27,7 @@ const CAMERA_FOV = 62;
 const MAX_VISIBLE = 20;
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 const normalize = (v: number) => ((v % 360) + 360) % 360;
+const signedAngle = (v: number) => normalize(v + 540) - 180;
 const toRad = (v: number) => (v * Math.PI) / 180;
 const toDeg = (v: number) => (v * 180) / Math.PI;
 
@@ -54,7 +53,7 @@ function makeParcels(lat: number, lng: number): SkyParcel[] {
   });
 }
 
-function crystalTexture(selected: boolean) {
+function createGlowTexture(selected: boolean) {
   const canvas = document.createElement("canvas");
   canvas.width = 128;
   canvas.height = 128;
@@ -71,7 +70,7 @@ function crystalTexture(selected: boolean) {
 
 function createCrystal() {
   const group = new THREE.Group();
-  const glow = crystalTexture(false);
+  const glow = createGlowTexture(false);
   if (glow) {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, transparent: true, depthWrite: false }));
     sprite.scale.setScalar(7);
@@ -101,27 +100,21 @@ function setCrystalSelected(group: THREE.Group, selected: boolean) {
     mesh.material.emissive.setHex(selected ? 0x9a5f00 : 0x075b78);
     mesh.material.emissiveIntensity = selected ? 2.2 : 1.5;
   }
-  if (sprite) {
-    const texture = crystalTexture(selected);
-    if (texture && sprite.material instanceof THREE.SpriteMaterial) {
-      sprite.material.map = texture;
-      sprite.material.needsUpdate = true;
-    }
-    sprite.scale.setScalar(selected ? 10 : 7);
-  }
+  if (sprite) sprite.scale.setScalar(selected ? 10 : 7);
 }
 
 export function SkyScanARRealistic() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const groupRef = useRef<THREE.Group | null>(null);
   const parcelsRef = useRef<SkyParcel[]>([]);
   const centerRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const headingRef = useRef(0);
   const pitchRef = useRef(0);
-  const latestVisibleRef = useRef<SkyParcel[]>([]);
+  const rawHeadingRef = useRef<number | null>(null);
+  const headingOffsetRef = useRef(0);
+  const sensorSourceRef = useRef<"webkit" | "absolute" | "relative" | null>(null);
+  const lastOrientationRef = useRef<number>(0);
 
   const [location, setLocation] = useState<LocationState | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -130,6 +123,7 @@ export function SkyScanARRealistic() {
   const [sensorActive, setSensorActive] = useState(false);
   const [sensorError, setSensorError] = useState<string | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
+  const [calibration, setCalibration] = useState("Kamera ekseni kalibre ediliyor…");
   const [visibleCount, setVisibleCount] = useState(0);
   const [selected, setSelected] = useState<SkyParcel | null>(null);
   const [nearest, setNearest] = useState<SkyParcel | null>(null);
@@ -163,23 +157,54 @@ export function SkyScanARRealistic() {
   useEffect(() => {
     if (!started) return;
     let active = false;
+    const handleHeading = (raw: number, source: "webkit" | "absolute" | "relative") => {
+      if (!Number.isFinite(raw)) return;
+      if (sensorSourceRef.current && sensorSourceRef.current !== source) return;
+      if (!sensorSourceRef.current) sensorSourceRef.current = source;
+
+      const nextRaw = normalize(raw);
+      rawHeadingRef.current = nextRaw;
+      const previous = headingRef.current;
+      const delta = signedAngle(nextRaw + headingOffsetRef.current - previous);
+      const smoothed = normalize(previous + clamp(delta, -12, 12) * 0.28);
+      headingRef.current = smoothed;
+      setHeading(smoothed);
+      setCalibration(sensorSourceRef.current === "webkit" ? "Kamera pusulası kalibre • sabit" : "Cihaz yönü kalibre • sabit");
+    };
+
     const onOrientation = (event: Event) => {
       const e = event as OrientationLike;
       const hasTilt = typeof e.beta === "number" || typeof e.gamma === "number";
       if (!hasTilt) return;
-      const compass = typeof e.webkitCompassHeading === "number"
-        ? e.webkitCompassHeading
-        : typeof e.alpha === "number" ? e.alpha : null;
-      if (compass !== null && Number.isFinite(compass)) {
-        const next = normalize(compass);
-        headingRef.current = next;
-        setHeading(next);
+
+      const screenAngle = typeof window.screen?.orientation?.angle === "number" ? window.screen.orientation.angle : 0;
+      const webkit = typeof e.webkitCompassHeading === "number" && Number.isFinite(e.webkitCompassHeading) ? e.webkitCompassHeading : null;
+      const alpha = typeof e.alpha === "number" && Number.isFinite(e.alpha) ? e.alpha : null;
+
+      // iOS exposes a camera-relative compass heading. For Android absolute orientation,
+      // alpha is converted to a compass heading and corrected for screen rotation.
+      if (webkit !== null) {
+        handleHeading(webkit, "webkit");
+      } else if (alpha !== null && e.absolute) {
+        handleHeading(normalize(360 - alpha + screenAngle), "absolute");
+      } else if (alpha !== null) {
+        handleHeading(normalize(360 - alpha + screenAngle), "relative");
       }
-      if (typeof e.beta === "number" && Number.isFinite(e.beta)) pitchRef.current = clamp(e.beta, -90, 90);
+
+      if (typeof e.beta === "number" && Number.isFinite(e.beta)) {
+        // beta is the device tilt; compensate portrait/landscape so the camera pitch stays aligned.
+        const gamma = typeof e.gamma === "number" && Number.isFinite(e.gamma) ? e.gamma : 0;
+        const portraitPitch = clamp(e.beta, -90, 90);
+        const landscapePitch = clamp(-gamma, -90, 90);
+        pitchRef.current = Math.abs(screenAngle % 180) === 90 ? landscapePitch : portraitPitch;
+      }
+
       active = true;
       setSensorActive(true);
       setSensorError(null);
+      lastOrientationRef.current = performance.now();
     };
+
     const onMotion = (event: Event) => {
       const a = (event as DeviceMotionEvent).accelerationIncludingGravity;
       if ([a?.x, a?.y, a?.z].some((v) => typeof v === "number" && Math.abs(v) > 0.05)) {
@@ -188,6 +213,7 @@ export function SkyScanARRealistic() {
         setSensorError(null);
       }
     };
+
     window.addEventListener("deviceorientationabsolute", onOrientation, true);
     window.addEventListener("deviceorientation", onOrientation, true);
     window.addEventListener("devicemotion", onMotion, true);
@@ -202,23 +228,29 @@ export function SkyScanARRealistic() {
     };
   }, [started]);
 
+  const recalibrate = useCallback(() => {
+    const raw = rawHeadingRef.current;
+    if (raw === null) return;
+    // Keep the current world direction under the camera center. Future movement is measured
+    // from this exact camera axis, so a 90° physical turn produces a 90° screen/world shift.
+    headingOffsetRef.current = signedAngle(headingRef.current - raw);
+    setCalibration("Kamera ekseni yeniden kalibre edildi");
+  }, []);
+
   useEffect(() => {
     if (!started || !canvasRef.current) return;
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(CAMERA_FOV, window.innerWidth / window.innerHeight, 0.1, 25_000);
-    camera.rotation.order = "YXZ";
     const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current, alpha: true, antialias: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    rendererRef.current = renderer;
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0x172033, 1.5));
     const sun = new THREE.DirectionalLight(0xffffff, 2.4);
     sun.position.set(20, 40, 20);
     scene.add(sun);
     const group = new THREE.Group();
-    groupRef.current = group;
     scene.add(group);
 
     const raycaster = new THREE.Raycaster();
@@ -227,8 +259,7 @@ export function SkyScanARRealistic() {
       pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
       pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
-      const hits = raycaster.intersectObjects(group.children, true);
-      const hit = hits[0]?.object;
+      const hit = raycaster.intersectObjects(group.children, true)[0]?.object;
       const parcel = hit?.parent?.userData.parcel as SkyParcel | undefined;
       if (parcel) setSelected(parcel);
     };
@@ -245,30 +276,30 @@ export function SkyScanARRealistic() {
     let lastUiUpdate = 0;
     const animate = (time: number) => {
       frame = requestAnimationFrame(animate);
-      const center = centerRef.current;
+      const observer = location;
       const parcels = parcelsRef.current;
-      if (!center || parcels.length === 0) {
+      if (!observer || parcels.length === 0) {
         renderer.render(scene, camera);
         return;
       }
 
-      const cosLat = Math.cos(toRad(center.latitude));
-      const userAltitude = location?.altitude ?? 0;
-      const candidates: Array<{ parcel: SkyParcel; east: number; north: number; distance: number; bearing: number; delta: number; elevation: number }> = [];
+      const cosLat = Math.cos(toRad(observer.latitude));
+      const userAltitude = observer.altitude ?? 0;
+      const candidates: Array<{ parcel: SkyParcel; east: number; north: number; distance: number; elevation: number }> = [];
       for (const parcel of parcels) {
-        const north = toRad(parcel.latitude - center.latitude) * EARTH_RADIUS;
-        const east = toRad(parcel.longitude - center.longitude) * EARTH_RADIUS * cosLat;
+        // World coordinates are always relative to the CURRENT observer, not the initial GPS fix.
+        const north = toRad(parcel.latitude - observer.latitude) * EARTH_RADIUS;
+        const east = toRad(parcel.longitude - observer.longitude) * EARTH_RADIUS * cosLat;
         const distance = Math.hypot(east, north);
         const bearing = normalize(toDeg(Math.atan2(east, north)));
-        const delta = normalize(bearing - headingRef.current + 540) - 180;
+        const delta = signedAngle(bearing - headingRef.current);
         const elevation = toDeg(Math.atan2(parcel.altitude - userAltitude, Math.max(distance, 1)));
         if (Math.abs(delta) <= CAMERA_FOV / 2 + 12 && elevation > -80 && elevation < 80) {
-          candidates.push({ parcel, east, north, distance, bearing, delta, elevation });
+          candidates.push({ parcel, east, north, distance, elevation });
         }
       }
       candidates.sort((a, b) => a.distance - b.distance);
       const active = candidates.slice(0, MAX_VISIBLE);
-      latestVisibleRef.current = active.map((item) => item.parcel);
 
       while (group.children.length < MAX_VISIBLE) group.add(createCrystal());
       group.children.forEach((child, index) => {
@@ -278,8 +309,7 @@ export function SkyScanARRealistic() {
         const headingRad = toRad(headingRef.current);
         const forward = item.east * Math.sin(headingRad) + item.north * Math.cos(headingRad);
         const right = item.east * Math.cos(headingRad) - item.north * Math.sin(headingRad);
-        const relativeHeight = item.parcel.altitude - userAltitude;
-        child.position.set(right, relativeHeight, -forward);
+        child.position.set(right, item.parcel.altitude - userAltitude, -forward);
         const scale = clamp(30 / Math.max(item.distance / 1000, 0.35), 1.3, 5.5);
         child.scale.setScalar(scale);
         child.rotation.y += 0.008;
@@ -287,7 +317,7 @@ export function SkyScanARRealistic() {
         setCrystalSelected(child as THREE.Group, selected?.id === item.parcel.id);
       });
 
-      camera.rotation.y = 0;
+      camera.rotation.set(0, 0, 0);
       camera.rotation.x = toRad(-pitchRef.current);
       renderer.render(scene, camera);
 
@@ -297,8 +327,8 @@ export function SkyScanARRealistic() {
         let closest: SkyParcel | null = null;
         let closestDistance = Number.POSITIVE_INFINITY;
         for (const parcel of parcels) {
-          const north = toRad(parcel.latitude - center.latitude) * EARTH_RADIUS;
-          const east = toRad(parcel.longitude - center.longitude) * EARTH_RADIUS * cosLat;
+          const north = toRad(parcel.latitude - observer.latitude) * EARTH_RADIUS;
+          const east = toRad(parcel.longitude - observer.longitude) * EARTH_RADIUS * cosLat;
           const distance = Math.hypot(east, north);
           if (distance < closestDistance) {
             closestDistance = distance;
@@ -322,14 +352,15 @@ export function SkyScanARRealistic() {
         if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
         else material?.dispose();
       });
-      rendererRef.current = null;
-      groupRef.current = null;
     };
-  }, [started, location?.altitude, selected?.id]);
+  }, [started, location, selected?.id]);
 
   const start = useCallback(async () => {
     setCameraError(null);
     setSensorError(null);
+    sensorSourceRef.current = null;
+    rawHeadingRef.current = null;
+    headingOffsetRef.current = 0;
     if (!window.isSecureContext) {
       setCameraError("Kamera yalnızca HTTPS bağlantısında çalışır.");
       return;
@@ -339,6 +370,11 @@ export function SkyScanARRealistic() {
       return;
     }
     try {
+      const Orientation = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: () => Promise<PermissionState> };
+      if (typeof Orientation.requestPermission === "function") {
+        const permission = await Orientation.requestPermission();
+        if (permission !== "granted") setSensorError("Yön sensörü izni verilmedi. Kamera çalışmaya devam eder.");
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" }, width: { ideal: 1920, min: 1280 }, height: { ideal: 1080, min: 720 }, frameRate: { ideal: 30, max: 60 } },
         audio: false,
@@ -348,15 +384,6 @@ export function SkyScanARRealistic() {
       videoRef.current.muted = true;
       videoRef.current.playsInline = true;
       await videoRef.current.play();
-      const Orientation = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: () => Promise<PermissionState> };
-      if (typeof Orientation.requestPermission === "function") {
-        try {
-          const permission = await Orientation.requestPermission();
-          if (permission !== "granted") setSensorError("Yön sensörü izni verilmedi. Kamera çalışmaya devam eder.");
-        } catch {
-          setSensorError("Yön sensörü izni alınamadı. Kamera çalışmaya devam eder.");
-        }
-      }
       setStarted(true);
     } catch (error) {
       streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -387,7 +414,12 @@ export function SkyScanARRealistic() {
           <div className="text-lg font-semibold tracking-wide">MySkyParcel</div>
           <div className="text-xs text-white/70">Gerçek şehir üzerinde AR parseller</div>
         </div>
-        {started && <button onClick={stop} className="rounded-full bg-black/50 p-2 backdrop-blur"><X className="h-5 w-5" /></button>}
+        {started && (
+          <div className="flex gap-2">
+            <button onClick={recalibrate} aria-label="Kamera eksenini kalibre et" className="rounded-full bg-black/50 p-2 backdrop-blur"><RotateCcw className="h-5 w-5" /></button>
+            <button onClick={stop} aria-label="Kamerayı kapat" className="rounded-full bg-black/50 p-2 backdrop-blur"><X className="h-5 w-5" /></button>
+          </div>
+        )}
       </div>
 
       {!started && (
@@ -408,6 +440,7 @@ export function SkyScanARRealistic() {
           <div className="absolute left-1/2 top-20 z-10 -translate-x-1/2 rounded-full border border-white/15 bg-black/45 px-4 py-2 text-xs backdrop-blur">
             <Compass className="mr-2 inline h-4 w-4" />{heading === null ? "Yön bekleniyor" : `${Math.round(heading)}°`}
           </div>
+          <div className="absolute left-1/2 top-32 z-10 -translate-x-1/2 rounded-full bg-black/35 px-3 py-1 text-[10px] text-white/70 backdrop-blur">{calibration}</div>
 
           <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/85 via-black/45 to-transparent p-4 pt-20">
             <div className="flex items-center justify-between text-xs text-white/75">
@@ -415,7 +448,7 @@ export function SkyScanARRealistic() {
               <span><MapPin className="mr-1 inline h-4 w-4" />{location ? `${Math.round(location.accuracy)} m GPS` : "GPS bekleniyor"}</span>
             </div>
             {sensorError && <div className="mt-2 text-xs text-amber-300">{sensorError}</div>}
-            {sensorActive && <div className="mt-1 text-xs text-emerald-300">Sensör aktif • telefon yönü takip ediliyor</div>}
+            {sensorActive && <div className="mt-1 text-xs text-emerald-300">Sensör aktif • kamera ekseni takip ediliyor</div>}
             {selected && (
               <div className="mt-3 rounded-2xl border border-amber-300/40 bg-black/70 p-4 backdrop-blur-xl">
                 <div className="flex items-start justify-between gap-3">
