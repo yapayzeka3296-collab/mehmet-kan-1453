@@ -1,4 +1,4 @@
-import { Camera, LocateFixed, X } from "lucide-react";
+import { Camera, LocateFixed, Navigation, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
@@ -37,24 +37,17 @@ function parseGeometry(raw: unknown): Point[] {
   return [];
 }
 function localENU(origin: Gps, target: { latitude: number; longitude: number }) {
-  const east = rad(target.longitude - origin.longitude) * R * Math.cos(rad(origin.latitude));
-  const north = rad(target.latitude - origin.latitude) * R;
-  return { east, north };
+  return { east: rad(target.longitude - origin.longitude) * R * Math.cos(rad(origin.latitude)), north: rad(target.latitude - origin.latitude) * R };
 }
-function xrForwardBearing(quaternion: THREE.Quaternion) {
-  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion);
-  return norm(deg(Math.atan2(forward.x, -forward.z)));
+function xrForwardBearing(q: THREE.Quaternion) {
+  const f = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
+  return norm(deg(Math.atan2(f.x, -f.z)));
 }
-function earthToXR(origin: Gps, target: { latitude: number; longitude: number }, calibration: Calibration) {
-  const { east, north } = localENU(origin, target);
-  const earthBearing = norm(deg(Math.atan2(east, north)));
-  const distance = Math.hypot(east, north);
-  const xrBearing = rad(calibration.xrBearing + norm(earthBearing - calibration.earthBearing));
-  return {
-    x: calibration.xrPosition.x + Math.sin(xrBearing) * distance,
-    y: calibration.xrPosition.y + 1.2,
-    z: calibration.xrPosition.z - Math.cos(xrBearing) * distance,
-  };
+function directionLabel(relative: number) {
+  const a = ((relative + 540) % 360) - 180;
+  if (Math.abs(a) < 20) return "Karşında";
+  if (Math.abs(a) > 160) return "Arkanda";
+  return a > 0 ? "Sağında" : "Solunda";
 }
 
 export function SkyScanExperienceV13() {
@@ -65,16 +58,21 @@ export function SkyScanExperienceV13() {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const originRef = useRef<Gps | null>(null);
   const lastGpsRef = useRef<Gps | null>(null);
-  const watchRef = useRef<number | null>(null);
-  const calibrationRef = useRef<Calibration | null>(null);
+  const calibrationGpsRef = useRef<Gps | null>(null);
+  const calibrationRef = useRef<{ xrPosition: THREE.Vector3; xrBearing: number; earthBearing: number } | null>(null);
   const calibrationPendingRef = useRef(false);
+  const parcelsRef = useRef<Parcel[]>([]);
+  const watchRef = useRef<number | null>(null);
   const [gps, setGps] = useState<Gps | null>(null);
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [started, setStarted] = useState(false);
   const [xrSupported, setXrSupported] = useState<boolean | null>(null);
-  const [aligning, setAligning] = useState(true);
+  const [aligned, setAligned] = useState(false);
   const [message, setMessage] = useState("GPS alınıyor…");
   const [error, setError] = useState<string | null>(null);
+  const [nearestDirection, setNearestDirection] = useState("—");
+
+  useEffect(() => { parcelsRef.current = parcels; }, [parcels]);
 
   const loadParcels = useCallback(async (pos: Gps) => {
     try {
@@ -85,10 +83,10 @@ export function SkyScanExperienceV13() {
         const poly = parseGeometry(r.parcels?.geometry);
         const c = poly.length >= 3 ? centroid(poly) : [Number(r.longitude), Number(r.latitude)] as Point;
         const target = { latitude: c[1], longitude: c[0] };
-        return { id: String(r.parcel_id ?? r.id), parcel_number: String(r.parcel_number ?? "—"), polygon: poly, latitude: target.latitude, longitude: target.longitude, distance: hav(pos, target), bearing: bearing(pos, target) };
+        return { id: String(r.parcel_id ?? r.id), parcel_number: String(r.parcel_number ?? "—"), polygon: poly, latitude: target.latitude, longitude: target.longitude, distance: hav(pos, target), bearing: bearing(pos, target) } as Parcel;
       }).filter((p: Parcel) => Number.isFinite(p.distance) && p.distance <= SEARCH).sort((a: Parcel, b: Parcel) => a.distance - b.distance).slice(0, 150);
       setParcels(rows);
-      if (!rows.length) setMessage("5 km çevresinde parsel bulunamadı");
+      if (!rows.length) setMessage("5 km içinde parsel bulunamadı");
     } catch (e) { setError(e instanceof Error ? e.message : "Parseller alınamadı"); }
   }, []);
 
@@ -99,19 +97,19 @@ export function SkyScanExperienceV13() {
     if (!originRef.current) { originRef.current = n; void loadParcels(n); }
     if (previous && hav(previous, n) >= 4 && !calibrationRef.current) {
       calibrationPendingRef.current = true;
-      setMessage("Hareket algılandı · WebXR kamera yönüyle AR hizalanıyor…");
+      setMessage("Hareket algılandı · AR yönü hizalanıyor…");
     }
     lastGpsRef.current = n;
   }, [loadParcels]);
 
   const createScene = useCallback(() => {
-    if (!canvas.current) return;
+    if (!canvas.current || rendererRef.current) return;
     const renderer = new THREE.WebGLRenderer({ canvas: canvas.current, alpha: true, antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.xr.enabled = true;
-    const scene = new THREE.Scene();
-    sceneRef.current = scene;
+    renderer.setClearAlpha(0);
+    sceneRef.current = new THREE.Scene();
     rendererRef.current = renderer;
   }, []);
 
@@ -129,72 +127,69 @@ export function SkyScanExperienceV13() {
       await renderer.xr.setSession(session);
       refSpace.current = await session.requestReferenceSpace("local-floor");
       setStarted(true);
-      setMessage("Gerçek AR açık · Pusula yok · 4 m+ yürüyün");
+      setMessage("Gerçek AR açık · 4 m yürüyün");
 
-      const group = new THREE.Group();
-      sceneRef.current!.add(group);
       const markerMaterial = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
-      const labelSprites = new Map<string, THREE.Sprite>();
       const markerMeshes = new Map<string, THREE.Mesh>();
-      const labelTextures = new Map<string, THREE.CanvasTexture>();
-
+      const labelSprites = new Map<string, THREE.Sprite>();
       const rebuildObjects = () => {
-        group.clear();
-        labelSprites.clear(); markerMeshes.clear(); labelTextures.clear();
-        for (const p of parcels) {
-          const marker = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.18, Math.min(1.2, 18 / Math.max(p.distance, 30))), 12, 12), markerMaterial);
-          markerMeshes.set(p.id, marker); group.add(marker);
-          const c = document.createElement("canvas"); c.width = 512; c.height = 96;
-          const ctx = c.getContext("2d")!; ctx.fillStyle = "rgba(0,0,0,.78)"; ctx.fillRect(0, 0, 512, 96); ctx.fillStyle = "white"; ctx.font = "bold 28px sans-serif"; ctx.fillText(`${p.parcel_number} · ${Math.round(p.distance)} m`, 16, 58);
-          const texture = new THREE.CanvasTexture(c); labelTextures.set(p.id, texture);
-          const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(4, 0.75, 1); labelSprites.set(p.id, sprite); group.add(sprite);
+        markerMeshes.forEach(m => { m.geometry.dispose(); }); markerMeshes.clear();
+        labelSprites.forEach(s => { const m = s.material as THREE.SpriteMaterial; m.map?.dispose(); m.dispose(); }); labelSprites.clear();
+        const scene = sceneRef.current!;
+        for (const p of parcelsRef.current) {
+          const marker = new THREE.Mesh(new THREE.SphereGeometry(Math.max(.18, Math.min(1.2, 18 / Math.max(p.distance, 30))), 12, 12), markerMaterial);
+          markerMeshes.set(p.id, marker); scene.add(marker);
+          const c = document.createElement("canvas"); c.width = 512; c.height = 88;
+          const ctx = c.getContext("2d")!; ctx.fillStyle = "rgba(0,0,0,.75)"; ctx.fillRect(0, 0, 512, 88); ctx.fillStyle = "white"; ctx.font = "bold 26px sans-serif"; ctx.fillText(`${p.parcel_number} · ${Math.round(p.distance)} m`, 14, 54);
+          const texture = new THREE.CanvasTexture(c); const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })); sprite.scale.set(3.4, .58, 1); labelSprites.set(p.id, sprite); scene.add(sprite);
         }
       };
       rebuildObjects();
-
+      let objectCount = parcelsRef.current.length;
       const render = (_time: number, frame: XRFrame) => {
         if (!sessionRef.current || !refSpace.current || !sceneRef.current) return;
-        const pose = frame.getViewerPose(refSpace.current);
-        if (!pose) return;
+        const pose = frame.getViewerPose(refSpace.current); if (!pose?.views[0]) return;
         const view = pose.views[0];
-        if (!view) return;
-
-        if (calibrationPendingRef.current && !calibrationRef.current && lastGpsRef.current) {
-          const movement = lastGpsRef.current;
-          const previous = originRef.current;
-          if (previous && hav(previous, movement) >= 4) {
-            const xrBearing = xrForwardBearing(new THREE.Quaternion(view.transform.orientation.x, view.transform.orientation.y, view.transform.orientation.z, view.transform.orientation.w));
-            const earthBearing = bearing(previous, movement);
-            calibrationRef.current = { gps: movement, xrPosition: new THREE.Vector3(view.transform.position.x, view.transform.position.y, view.transform.position.z), xrBearing, earthBearing };
-            calibrationPendingRef.current = false;
-            setAligning(false);
-            setMessage(`AR hizalandı · GPS hareketi ${Math.round(earthBearing)}° · WebXR 6DoF aktif`);
+        if (parcelsRef.current.length !== objectCount) { objectCount = parcelsRef.current.length; rebuildObjects(); }
+        if (calibrationPendingRef.current && !calibrationRef.current && lastGpsRef.current && originRef.current) {
+          const q = new THREE.Quaternion(view.transform.orientation.x, view.transform.orientation.y, view.transform.orientation.z, view.transform.orientation.w);
+          calibrationRef.current = { xrPosition: new THREE.Vector3(view.transform.position.x, view.transform.position.y, view.transform.position.z), xrBearing: xrForwardBearing(q), earthBearing: bearing(originRef.current, lastGpsRef.current) };
+          calibrationGpsRef.current = lastGpsRef.current;
+          calibrationPendingRef.current = false; setAligned(true); setMessage("AR hizalandı · WebXR 6DoF aktif");
+        }
+        const cal = calibrationRef.current; const origin = calibrationGpsRef.current ?? originRef.current;
+        if (cal && origin) {
+          const cos = Math.cos(rad(cal.xrBearing)); const sin = Math.sin(rad(cal.xrBearing));
+          for (const p of parcelsRef.current) {
+            const enu = localENU(origin, p);
+            const earthBearing = norm(deg(Math.atan2(enu.east, enu.north)));
+            const d = Math.hypot(enu.east, enu.north);
+            const rel = rad(norm(earthBearing - cal.earthBearing));
+            const x = cal.xrPosition.x + Math.sin(rad(cal.xrBearing) + rel) * d;
+            const z = cal.xrPosition.z - Math.cos(rad(cal.xrBearing) + rel) * d;
+            const marker = markerMeshes.get(p.id), label = labelSprites.get(p.id);
+            if (marker) marker.position.set(x, cal.xrPosition.y + 1.2, z);
+            if (label) label.position.set(x, cal.xrPosition.y + 2.0, z);
+          }
+          const nearest = parcelsRef.current[0];
+          if (nearest) {
+            const e = localENU(origin, nearest); const eb = norm(deg(Math.atan2(e.east, e.north))); const relative = norm(eb - cal.earthBearing);
+            setNearestDirection(directionLabel(relative));
           }
         }
-
-        const calibration = calibrationRef.current;
-        if (calibration) {
-          for (const p of parcels) {
-            const pos = earthToXR(calibration.gps, p, calibration);
-            const marker = markerMeshes.get(p.id); const label = labelSprites.get(p.id);
-            if (marker) marker.position.set(pos.x, pos.y, pos.z);
-            if (label) label.position.set(pos.x, pos.y + 1.1, pos.z);
-          }
-        }
-        renderer.render(sceneRef.current, renderer.xr.getCamera(new THREE.Camera()));
+        renderer.render(sceneRef.current, renderer.xr.getCamera());
       };
       renderer.setAnimationLoop(render);
-      session.addEventListener("end", () => { renderer.setAnimationLoop(null); sessionRef.current = null; calibrationRef.current = null; setStarted(false); });
+      session.addEventListener("end", () => { renderer.setAnimationLoop(null); sessionRef.current = null; setStarted(false); setAligned(false); calibrationRef.current = null; });
     } catch (e) { setError(e instanceof Error ? e.message : "AR başlatılamadı"); setStarted(false); }
-  }, [createScene, parcels]);
+  }, [createScene]);
 
   const stop = useCallback(async () => {
     if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
     watchRef.current = null;
     if (sessionRef.current) await sessionRef.current.end().catch(() => undefined);
-    rendererRef.current?.setAnimationLoop(null);
-    rendererRef.current?.dispose(); rendererRef.current = null; sceneRef.current = null;
-    calibrationRef.current = null;
+    rendererRef.current?.setAnimationLoop(null); rendererRef.current?.dispose(); rendererRef.current = null; sceneRef.current = null;
+    calibrationRef.current = null; calibrationPendingRef.current = false;
     setStarted(false);
   }, []);
 
@@ -205,15 +200,20 @@ export function SkyScanExperienceV13() {
     return () => { if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current); void stop(); };
   }, [stop, updateGps]);
 
+  const nearest = parcels[0];
   return <div className="relative h-[100dvh] w-full overflow-hidden bg-black text-white">
     <canvas ref={canvas} className="absolute inset-0 h-full w-full" />
-    <div className="absolute inset-x-0 top-0 z-20 p-3"><div className="mx-auto max-w-xl rounded-2xl bg-black/70 p-3 backdrop-blur">
-      <div className="flex items-center justify-between"><b className="flex items-center gap-2"><Camera className="h-5 w-5" />Gerçek AR Sky Scan</b>{started && <button onClick={() => void stop()} aria-label="AR kapat"><X className="h-5 w-5" /></button>}</div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-xs"><span>GPS: {gps ? `${Math.round(gps.accuracy ?? 0)} m` : "—"}</span><span>Parsel: {parcels.length}</span><span>XR: {xrSupported ? "hazır" : "yok"}</span></div>
-      <div className="mt-2 text-xs">{message}</div>
-      {error && <div className="mt-2 text-xs text-red-300">{error}</div>}
-      {!started && <button onClick={() => void startXR()} disabled={xrSupported === false} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-black disabled:opacity-40"><LocateFixed className="h-4 w-4" />Gerçek AR'yi başlat</button>}
-      {started && aligning && <div className="mt-3 rounded-xl bg-amber-500/20 p-2 text-xs">Pusula kullanılmıyor. Telefonla en az 4 metre yürüyün; WebXR kameranın 6DoF yönü GPS hareketiyle bir kez hizalanacak.</div>}
-    </div></div>
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between p-2">
+      <div className="rounded-full bg-black/50 px-2.5 py-1 text-[10px] backdrop-blur"><Camera className="mr-1 inline h-3 w-3" />{started ? "GERÇEK AR" : "SKY SCAN"} · {gps ? `±${Math.round(gps.accuracy ?? 0)}m` : "GPS…"} · {parcels.length} parsel</div>
+      {started && <button className="pointer-events-auto rounded-full bg-black/50 p-1.5 backdrop-blur" onClick={() => void stop()} aria-label="AR kapat"><X className="h-3.5 w-3.5" /></button>}
+    </div>
+    {started && nearest && <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 w-[calc(100%-20px)] max-w-xs -translate-x-1/2 rounded-xl bg-black/55 px-3 py-2 backdrop-blur">
+      <div className="flex items-center justify-between text-xs font-semibold"><span>Parsel {nearest.parcel_number}</span><span>{Math.round(nearest.distance)} m</span></div>
+      <div className="mt-0.5 flex items-center justify-between text-[10px] text-white/75"><span>{parcels.length} yakın parsel</span><span><Navigation className="mr-0.5 inline h-3 w-3" />{aligned ? nearestDirection : "4 m yürü"}</span></div>
+    </div>}
+    {!started && <div className="absolute bottom-3 left-1/2 z-20 w-[calc(100%-20px)] max-w-xs -translate-x-1/2 rounded-xl bg-black/60 p-2.5 backdrop-blur">
+      <div className="mb-1 text-[10px] text-white/75">{message}</div>{error && <div className="mb-1 text-[10px] text-red-300">{error}</div>}
+      <button onClick={() => void startXR()} disabled={xrSupported === false} className="flex w-full items-center justify-center gap-2 rounded-lg bg-white px-3 py-2.5 text-xs font-bold text-black disabled:opacity-40"><LocateFixed className="h-3.5 w-3.5" />Gerçek AR'yi başlat</button>
+    </div>}
   </div>;
 }
