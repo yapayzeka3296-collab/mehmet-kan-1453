@@ -15,15 +15,9 @@ const SCAN_RADIUS_M = 15000;
 const VIRTUAL_ALTITUDE_M = 650;
 const MAX_VISIBLE = 8;
 const CRYSTAL_SIZE_M = 34;
-// 650 m virtual altitude can put a nearby parcel ~40° above the horizon.
-// The previous 68° vertical FOV only covered ±34°, so the parcel could be mathematically
-// in front of the phone and still be completely outside the Three.js frustum.
 const FOV_DEGREES = 100;
 
-const directionText: Record<DirectionKey, string> = {
-  front: "Önünde", frontRight: "Sağ önünde", right: "Sağında", backRight: "Sağ arkasında",
-  back: "Arkanda", backLeft: "Sol arkasında", left: "Solunda", frontLeft: "Sol önünde",
-};
+const directionText: Record<DirectionKey, string> = { front: "Önünde", frontRight: "Sağ önünde", right: "Sağında", backRight: "Sağ arkasında", back: "Arkanda", backLeft: "Sol arkasında", left: "Solunda", frontLeft: "Sol önünde" };
 const directionArrow: Record<DirectionKey, string> = { front: "↑", frontRight: "↗", right: "→", backRight: "↘", back: "↓", backLeft: "↙", left: "←", frontLeft: "↖" };
 const directionKeys: DirectionKey[] = ["front", "frontRight", "right", "backRight", "back", "backLeft", "left", "frontLeft"];
 
@@ -34,19 +28,7 @@ function makeCrystal(scene: THREE.Scene, parcel: RenderedParcel) {
   group.frustumCulled = false;
   const geometry = new THREE.OctahedronGeometry(CRYSTAL_SIZE_M, 1);
   const premium = parcel.tier === "premium";
-  const material = new THREE.MeshPhysicalMaterial({
-    color: premium ? 0xffd76a : 0x5fdcff,
-    emissive: premium ? 0x5b3d00 : 0x063a56,
-    emissiveIntensity: 0.7,
-    metalness: 0.35,
-    roughness: 0.16,
-    transparent: true,
-    opacity: 0.88,
-    transmission: 0.12,
-    clearcoat: 0.8,
-    clearcoatRoughness: 0.18,
-    side: THREE.DoubleSide,
-  });
+  const material = new THREE.MeshPhysicalMaterial({ color: premium ? 0xffd76a : 0x5fdcff, emissive: premium ? 0x5b3d00 : 0x063a56, emissiveIntensity: 0.7, metalness: 0.35, roughness: 0.16, transparent: true, opacity: 0.88, transmission: 0.12, clearcoat: 0.8, clearcoatRoughness: 0.18, side: THREE.DoubleSide });
   group.add(new THREE.Mesh(geometry, material));
   group.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 18), new THREE.LineBasicMaterial({ color: premium ? 0xfff0b0 : 0xc6f7ff, transparent: true, opacity: 0.95 })));
   const ring = new THREE.Mesh(new THREE.RingGeometry(CRYSTAL_SIZE_M * 0.72, CRYSTAL_SIZE_M * 0.78, 48), new THREE.MeshBasicMaterial({ color: premium ? 0xffd76a : 0x5fdcff, transparent: true, opacity: 0.45, side: THREE.DoubleSide }));
@@ -70,6 +52,11 @@ function headingFromQuaternion(quaternion: THREE.Quaternion) {
   const horizontal = Math.hypot(forward.x, forward.z);
   if (horizontal < 0.08) return null;
   return normalizeDegrees((Math.atan2(forward.x, -forward.z) * 180) / Math.PI);
+}
+
+function pitchFromQuaternion(quaternion: THREE.Quaternion) {
+  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion);
+  return THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(forward.y, -1, 1)));
 }
 
 function directionFromBearing(bearing: number, currentHeading: number | null): DirectionKey {
@@ -106,6 +93,7 @@ export function SkyScanExperienceV5() {
   const parcelsRef = useRef<SkyParcel[]>([]);
   const nearbyParcelsRef = useRef<RenderedParcel[]>([]);
   const orientationRef = useRef<THREE.Quaternion | null>(null);
+  const pitchRef = useRef(0);
   const rawHeadingRef = useRef<number | null>(null);
   const headingOffsetRef = useRef(0);
   const sensorModeRef = useRef<"absolute" | "relative" | null>(null);
@@ -181,7 +169,7 @@ export function SkyScanExperienceV5() {
     resize(); window.addEventListener("resize", resize);
     const animate = () => {
       rafRef.current = requestAnimationFrame(animate);
-      if (orientationRef.current) camera.quaternion.copy(orientationRef.current);
+      camera.quaternion.identity();
       if (visibleTickRef.current++ % 5 === 0) {
         const projected = nearbyParcelsRef.current;
         const visible = projected.filter((parcel) => {
@@ -212,6 +200,7 @@ export function SkyScanExperienceV5() {
         return;
       }
       orientationRef.current = q;
+      pitchRef.current = pitchFromQuaternion(q);
       const raw = headingFromQuaternion(q);
       if (raw !== null) rawHeadingRef.current = raw;
       const hasWebkitCompass = typeof source.webkitCompassHeading === "number" && Number.isFinite(source.webkitCompassHeading);
@@ -236,7 +225,7 @@ export function SkyScanExperienceV5() {
   }, [cameraStarted]);
 
   useEffect(() => {
-    if (!location || !sensorActive || !sceneRef.current) return;
+    if (!location || !sensorActive || !sceneRef.current || heading === null) return;
     const candidates: RenderedParcel[] = [];
     for (const parcel of parcelsRef.current) {
       const world = geoToEus(location, { latitude: parcel.latitude, longitude: parcel.longitude, altitude: (location.altitude ?? 0) + parcel.virtualAltitude });
@@ -244,7 +233,15 @@ export function SkyScanExperienceV5() {
       if (!Number.isFinite(distance) || distance > SCAN_RADIUS_M) continue;
       const bearing = normalizeDegrees((Math.atan2(world.x, -world.z) * 180) / Math.PI);
       const elevation = (Math.atan2(world.y, Math.max(1, distance)) * 180) / Math.PI;
-      candidates.push({ ...parcel, distance, bearing, elevation, position: new THREE.Vector3(world.x, world.y, world.z) });
+      const horizontalDelta = ((bearing - heading + 540) % 360) - 180;
+      const relativeElevation = elevation - pitchRef.current;
+      const horizontalRad = THREE.MathUtils.degToRad(horizontalDelta);
+      const verticalRad = THREE.MathUtils.degToRad(relativeElevation);
+      const horizontalDistance = distance * Math.cos(verticalRad);
+      const cameraX = Math.sin(horizontalRad) * horizontalDistance;
+      const cameraY = Math.sin(verticalRad) * distance;
+      const cameraZ = -Math.cos(horizontalRad) * horizontalDistance;
+      candidates.push({ ...parcel, distance, bearing, elevation, position: new THREE.Vector3(cameraX, cameraY, cameraZ) });
     }
     candidates.sort((a, b) => a.distance - b.distance);
     setNearbyParcels(candidates);
@@ -281,7 +278,7 @@ export function SkyScanExperienceV5() {
   }, [location, heading, sensorActive]);
 
   const startScan = useCallback(async () => {
-    setSensorError(null); setSensorActive(false); setHeading(null); sensorModeRef.current = null; headingOffsetRef.current = 0; rawHeadingRef.current = null;
+    setSensorError(null); setSensorActive(false); setHeading(null); sensorModeRef.current = null; headingOffsetRef.current = 0; rawHeadingRef.current = null; pitchRef.current = 0;
     try { await startCamera(); } catch (error) { streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; setCameraError(error instanceof Error ? error.message : "Kamera başlatılamadı."); return; }
     const Orientation = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: (absolute?: boolean) => Promise<PermissionState> };
     if (typeof Orientation.requestPermission === "function") {
@@ -294,7 +291,7 @@ export function SkyScanExperienceV5() {
     }
   }, [startCamera]);
 
-  const stopScan = useCallback(() => { streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; if (videoRef.current) { videoRef.current.pause(); videoRef.current.srcObject = null; } setCameraStarted(false); setSensorActive(false); setHeading(null); setSelected(null); setNearbyParcels([]); setVisibleParcels([]); nearbyParcelsRef.current = []; sensorModeRef.current = null; }, []);
+  const stopScan = useCallback(() => { streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; if (videoRef.current) { videoRef.current.pause(); videoRef.current.srcObject = null; } setCameraStarted(false); setSensorActive(false); setHeading(null); setSelected(null); setNearbyParcels([]); setVisibleParcels([]); nearbyParcelsRef.current = []; sensorModeRef.current = null; pitchRef.current = 0; }, []);
   const calibrate = useCallback(() => { if (rawHeadingRef.current !== null && heading !== null) headingOffsetRef.current = normalizeDegrees(heading - rawHeadingRef.current); setSensorError(null); }, [heading]);
 
   const directionSummary = useMemo(() => {
