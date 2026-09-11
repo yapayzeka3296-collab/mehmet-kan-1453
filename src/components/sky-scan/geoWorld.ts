@@ -11,26 +11,18 @@ export type WorldPoint = {
 };
 
 const EARTH_RADIUS_M = 6371008.8;
-
 const toRad = (degrees: number) => (degrees * Math.PI) / 180;
 
 /** Convert a WGS84-like lat/lng point to a local East-Up-South frame. */
 export function geoToEus(origin: GeoPoint, target: GeoPoint, fallbackAltitude = 0): WorldPoint {
-  const lat0 = toRad(origin.latitude);
   const dLat = toRad(target.latitude - origin.latitude);
   const dLon = toRad(target.longitude - origin.longitude);
   const meanLat = toRad((origin.latitude + target.latitude) / 2);
-
   const north = dLat * EARTH_RADIUS_M;
   const east = dLon * EARTH_RADIUS_M * Math.cos(meanLat);
   const altitude0 = origin.altitude ?? fallbackAltitude;
   const altitude1 = target.altitude ?? fallbackAltitude;
-
-  return {
-    x: east,
-    y: altitude1 - altitude0,
-    z: -north,
-  };
+  return { x: east, y: altitude1 - altitude0, z: -north };
 }
 
 export function distance2D(a: GeoPoint, b: GeoPoint): number {
@@ -44,7 +36,7 @@ export function bearingDegrees(a: GeoPoint, b: GeoPoint): number {
   const dLon = toRad(b.longitude - a.longitude);
   const y = Math.sin(dLon) * Math.cos(lat2);
   const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-  return (Math.atan2(y, x) * 180) / Math.PI + 360 % 360;
+  return normalizeDegrees((Math.atan2(y, x) * 180) / Math.PI);
 }
 
 export function normalizeDegrees(value: number): number {
