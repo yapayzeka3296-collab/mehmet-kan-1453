@@ -120,11 +120,14 @@ export function SkyScanExperienceV14() {
       setXrSupported(supported);
       if (!supported) { setError("Bu cihazda WebXR immersive AR desteklenmiyor."); return; }
       createScene();
-      const session = await navigator.xr.requestSession("immersive-ar", { requiredFeatures: ["local-floor"], optionalFeatures: ["dom-overlay"], domOverlay: { root: document.body } } as any) as XRSessionLike;
+      const session = await navigator.xr.requestSession("immersive-ar", { requiredFeatures: [], optionalFeatures: ["local-floor", "dom-overlay"], domOverlay: { root: document.body } } as any) as XRSessionLike;
       sessionRef.current = session;
       const renderer = rendererRef.current!;
       await renderer.xr.setSession(session);
-      refSpace.current = await session.requestReferenceSpace("local-floor");
+      let space: XRReferenceSpace;
+      try { space = await session.requestReferenceSpace("local-floor"); }
+      catch { try { space = await session.requestReferenceSpace("local"); } catch { space = await session.requestReferenceSpace("viewer"); } }
+      refSpace.current = space;
       setStarted(true);
       setMessage("Gerçek AR açık · 4 m yürüyün");
 
@@ -148,7 +151,6 @@ export function SkyScanExperienceV14() {
           head.position.y = beaconHeight + radius * 0.75;
           group.add(ring, stem, head);
           markerMeshes.set(p.id, group); scene.add(group);
-
           const c = document.createElement("canvas"); c.width = 768; c.height = 112;
           const ctx = c.getContext("2d")!; ctx.fillStyle = "rgba(0,0,0,.82)"; ctx.roundRect(4, 4, 760, 104, 20); ctx.fill(); ctx.fillStyle = "white"; ctx.font = "bold 32px sans-serif"; ctx.fillText(`PARSEL ${p.parcel_number}`, 24, 48); ctx.font = "26px sans-serif"; ctx.fillText(`${Math.round(p.distance)} m`, 24, 84);
           const texture = new THREE.CanvasTexture(c); const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false }));
@@ -164,7 +166,6 @@ export function SkyScanExperienceV14() {
         const view = pose.views[0];
         const signature = parcelsRef.current.map(p => p.id + ":" + Math.round(p.distance)).join("|");
         if (signature !== objectSignature) { objectSignature = signature; rebuildObjects(); }
-
         const viewerQ = new THREE.Quaternion(view.transform.orientation.x, view.transform.orientation.y, view.transform.orientation.z, view.transform.orientation.w);
         const viewerBearing = xrForwardBearing(viewerQ);
         if (calibrationPendingRef.current && !calibrationRef.current && lastGpsRef.current && originRef.current) {
@@ -172,7 +173,6 @@ export function SkyScanExperienceV14() {
           calibrationGpsRef.current = lastGpsRef.current;
           calibrationPendingRef.current = false; setAligned(true); setMessage("AR hizalandı · parseller görüş alanına yerleştirildi");
         }
-
         const cal = calibrationRef.current; const origin = calibrationGpsRef.current ?? originRef.current;
         if (cal && origin) {
           const nearest = parcelsRef.current[0];
@@ -186,17 +186,18 @@ export function SkyScanExperienceV14() {
             const marker = markerMeshes.get(p.id), label = labelSprites.get(p.id);
             if (marker) marker.position.set(x, cal.xrPosition.y + 0.15, z);
             if (label) label.position.set(x, cal.xrPosition.y + Math.max(2.5, Math.min(14, d * 0.012)) + 1.5, z);
-            if (p === nearest) {
-              const relative = norm(earthBearing - viewerBearing);
-              setNearestDirection(directionLabel(relative));
-            }
+            if (p === nearest) setNearestDirection(directionLabel(norm(earthBearing - viewerBearing)));
           }
         }
         renderer.render(sceneRef.current, renderer.xr.getCamera());
       };
       renderer.setAnimationLoop(render);
       session.addEventListener("end", () => { renderer.setAnimationLoop(null); sessionRef.current = null; setStarted(false); setAligned(false); calibrationRef.current = null; });
-    } catch (e) { setError(e instanceof Error ? e.message : "AR başlatılamadı"); setStarted(false); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "AR başlatılamadı");
+      setStarted(false); sessionRef.current = null; refSpace.current = null;
+      rendererRef.current?.setAnimationLoop(null); rendererRef.current?.dispose(); rendererRef.current = null; sceneRef.current = null;
+    }
   }, [createScene]);
 
   const stop = useCallback(async () => {
@@ -222,13 +223,7 @@ export function SkyScanExperienceV14() {
       <div className="rounded-full bg-black/50 px-2.5 py-1 text-[10px] backdrop-blur"><Camera className="mr-1 inline h-3 w-3" />{started ? "GERÇEK AR" : "SKY SCAN"} · {gps ? `±${Math.round(gps.accuracy ?? 0)}m` : "GPS…"} · {parcels.length} parsel</div>
       {started && <button className="pointer-events-auto rounded-full bg-black/50 p-1.5 backdrop-blur" onClick={() => void stop()} aria-label="AR kapat"><X className="h-3.5 w-3.5" /></button>}
     </div>
-    {started && nearest && <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 w-[calc(100%-20px)] max-w-xs -translate-x-1/2 rounded-xl bg-black/55 px-3 py-2 backdrop-blur">
-      <div className="flex items-center justify-between text-xs font-semibold"><span>Parsel {nearest.parcel_number}</span><span>{Math.round(nearest.distance)} m</span></div>
-      <div className="mt-0.5 flex items-center justify-between text-[10px] text-white/75"><span>{parcels.length} yakın parsel</span><span><Navigation className="mr-0.5 inline h-3 w-3" />{aligned ? nearestDirection : "4 m yürü"}</span></div>
-    </div>}
-    {!started && <div className="absolute bottom-3 left-1/2 z-20 w-[calc(100%-20px)] max-w-xs -translate-x-1/2 rounded-xl bg-black/60 p-2.5 backdrop-blur">
-      <div className="mb-1 text-[10px] text-white/75">{message}</div>{error && <div className="mb-1 text-[10px] text-red-300">{error}</div>}
-      <button onClick={() => void startXR()} disabled={xrSupported === false} className="flex w-full items-center justify-center gap-2 rounded-lg bg-white px-3 py-2.5 text-xs font-bold text-black disabled:opacity-40"><LocateFixed className="h-3.5 w-3.5" />Gerçek AR'yi başlat</button>
-    </div>}
+    {started && nearest && <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 w-[calc(100%-20px)] max-w-xs -translate-x-1/2 rounded-xl bg-black/55 px-3 py-2 backdrop-blur"><div className="flex items-center justify-between text-xs font-semibold"><span>Parsel {nearest.parcel_number}</span><span>{Math.round(nearest.distance)} m</span></div><div className="mt-0.5 flex items-center justify-between text-[10px] text-white/75"><span>{parcels.length} yakın parsel</span><span><Navigation className="mr-0.5 inline h-3 w-3" />{aligned ? nearestDirection : "4 m yürü"}</span></div></div>}
+    {!started && <div className="absolute bottom-3 left-1/2 z-20 w-[calc(100%-20px)] max-w-xs -translate-x-1/2 rounded-xl bg-black/60 p-2.5 backdrop-blur"><div className="mb-1 text-[10px] text-white/75">{message}</div>{error && <div className="mb-1 text-[10px] text-red-300">{error}</div>}<button onClick={() => void startXR()} disabled={xrSupported === false} className="flex w-full items-center justify-center gap-2 rounded-lg bg-white px-3 py-2.5 text-xs font-bold text-black disabled:opacity-40"><LocateFixed className="h-3.5 w-3.5" />Gerçek AR'yi başlat</button></div>}
   </div>;
 }
