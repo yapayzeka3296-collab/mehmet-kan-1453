@@ -96,12 +96,45 @@ function readOrientation(e: DeviceOrientationEvent): Orientation | null {
   const alpha = typeof e.alpha === "number" ? e.alpha : null;
   const beta = typeof e.beta === "number" ? e.beta : null;
   const gamma = typeof e.gamma === "number" ? e.gamma : null;
-  let heading: number | null = typeof v.webkitCompassHeading === "number" ? norm(v.webkitCompassHeading) : null;
-  if (heading === null && e.absolute && alpha !== null) heading = norm(360 - alpha);
+
+  // iOS Safari exposes a geographic compass heading directly.
+  let heading: number | null = typeof v.webkitCompassHeading === "number" && Number.isFinite(v.webkitCompassHeading)
+    ? norm(v.webkitCompassHeading)
+    : null;
+
+  // Android/standard API: only an absolute event may be treated as geographic north.
+  // A relative deviceorientation alpha is deliberately NOT promoted to compass heading.
+  if (heading === null && (e.absolute === true || e.type === "deviceorientationabsolute") && alpha !== null) {
+    heading = norm(360 - alpha);
+  }
+
   const screenAngle = window.screen.orientation?.angle ?? 0;
-  if (heading !== null && typeof v.webkitCompassHeading !== "number") heading = norm(heading + (screenAngle === 90 ? 90 : screenAngle === 270 ? -90 : screenAngle === 180 ? 180 : 0));
+  if (heading !== null && typeof v.webkitCompassHeading !== "number") {
+    heading = norm(heading + (screenAngle === 90 ? 90 : screenAngle === 270 ? -90 : screenAngle === 180 ? 180 : 0));
+  }
+
+  // beta/gamma are still valid sensor activity even when alpha is temporarily null.
   if (heading === null && beta === null && gamma === null) return null;
-  return { heading, pitch: beta === null ? 0 : beta - 90, roll: gamma ?? 0, absolute: e.absolute === true || e.type === "deviceorientationabsolute", source: v.webkitCompassHeading !== undefined ? "iOS pusula" : e.absolute ? "Mutlak pusula" : heading !== null ? "Pusula" : "Eğim sensörü", alpha, beta, gamma };
+
+  const absolute = e.absolute === true || e.type === "deviceorientationabsolute";
+  const source = typeof v.webkitCompassHeading === "number"
+    ? "iOS pusula"
+    : absolute && heading !== null
+      ? "Mutlak pusula"
+      : heading === null
+        ? "Eğim sensörü · göreceli yön"
+        : "Pusula";
+
+  return {
+    heading,
+    pitch: beta === null ? 0 : beta - 90,
+    roll: gamma ?? 0,
+    absolute,
+    source,
+    alpha,
+    beta,
+    gamma,
+  };
 }
 
 async function permissions() {
@@ -217,6 +250,7 @@ export function SkyScanExperienceV10() {
       const r = readOrientation(e as DeviceOrientationEvent); if (!r) return;
       seenOrientation = true;
       if (r.absolute) absoluteLocked = true;
+      // Once a geographic/absolute heading is available, relative events can no longer overwrite it.
       if (!absoluteLocked || r.absolute || r.source === "iOS pusula") { oRef.current = r; setO(r); }
       setSensor(r.heading === null ? "Hareket sensörü aktif · pusula aranıyor" : r.absolute ? "Mutlak pusula aktif" : "Pusula aktif");
     };
