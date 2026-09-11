@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SkyScanExperienceV4 } from "@/components/sky-scan/SkyScanExperienceV4";
+import { SkyScanExperienceV5 } from "@/components/sky-scan/SkyScanExperienceV5";
 import { SkyScanSensorBridge } from "@/components/sky-scan/SkyScanSensorBridge";
 
 function SkyScanRoute() {
   return (
     <SkyScanSensorBridge>
-      <SkyScanExperienceV4 />
+      <SkyScanExperienceV5 />
     </SkyScanSensorBridge>
   );
 }
