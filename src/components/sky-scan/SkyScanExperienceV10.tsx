@@ -96,52 +96,26 @@ function readOrientation(e: DeviceOrientationEvent): Orientation | null {
   const alpha = typeof e.alpha === "number" ? e.alpha : null;
   const beta = typeof e.beta === "number" ? e.beta : null;
   const gamma = typeof e.gamma === "number" ? e.gamma : null;
-
-  // iOS Safari exposes a geographic compass heading directly.
-  let heading: number | null = typeof v.webkitCompassHeading === "number" && Number.isFinite(v.webkitCompassHeading)
-    ? norm(v.webkitCompassHeading)
-    : null;
-
-  // Android/standard API: only an absolute event may be treated as geographic north.
-  // A relative deviceorientation alpha is deliberately NOT promoted to compass heading.
-  if (heading === null && (e.absolute === true || e.type === "deviceorientationabsolute") && alpha !== null) {
-    heading = norm(360 - alpha);
-  }
-
+  let heading: number | null = typeof v.webkitCompassHeading === "number" && Number.isFinite(v.webkitCompassHeading) ? norm(v.webkitCompassHeading) : null;
+  const absolute = e.absolute === true || e.type === "deviceorientationabsolute";
+  if (heading === null && absolute && alpha !== null) heading = norm(360 - alpha);
+  // Some Android browsers expose useful Earth-frame alpha but do not set absolute=true.
+  // Use it only as a browser compass fallback; a later absolute/iOS reading can replace it.
+  const browserFallback = heading === null && alpha !== null;
+  if (heading === null && beta === null && gamma === null) return null;
   const screenAngle = window.screen.orientation?.angle ?? 0;
   if (heading !== null && typeof v.webkitCompassHeading !== "number") {
     heading = norm(heading + (screenAngle === 90 ? 90 : screenAngle === 270 ? -90 : screenAngle === 180 ? 180 : 0));
   }
-
-  // beta/gamma are still valid sensor activity even when alpha is temporarily null.
-  if (heading === null && beta === null && gamma === null) return null;
-
-  const absolute = e.absolute === true || e.type === "deviceorientationabsolute";
-  const source = typeof v.webkitCompassHeading === "number"
-    ? "iOS pusula"
-    : absolute && heading !== null
-      ? "Mutlak pusula"
-      : heading === null
-        ? "Eğim sensörü · göreceli yön"
-        : "Pusula";
-
-  return {
-    heading,
-    pitch: beta === null ? 0 : beta - 90,
-    roll: gamma ?? 0,
-    absolute,
-    source,
-    alpha,
-    beta,
-    gamma,
-  };
+  const source = typeof v.webkitCompassHeading === "number" ? "iOS pusula" : absolute && heading !== null ? "Mutlak pusula" : browserFallback ? "Tarayıcı pusulası" : "Eğim sensörü";
+  return { heading, pitch: beta === null ? 0 : beta - 90, roll: gamma ?? 0, absolute, source, alpha, beta, gamma };
 }
 
 async function permissions() {
   try {
-    const D = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: () => Promise<PermissionState> };
+    const D = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: (absolute?: boolean) => Promise<PermissionState> };
     const M = window.DeviceMotionEvent as typeof DeviceMotionEvent & { requestPermission?: () => Promise<PermissionState> };
-    if (typeof D.requestPermission === "function" && await D.requestPermission() !== "granted") return false;
+    if (typeof D.requestPermission === "function" && await D.requestPermission(true) !== "granted") return false;
     if (typeof M.requestPermission === "function" && await M.requestPermission() !== "granted") return false;
     return true;
   } catch { return false; }
@@ -152,23 +126,18 @@ function enu(o: Gps, p: Point) {
   const north = rad(p[1] - o.latitude) * R;
   return new THREE.Vector3(east, 0, -north);
 }
-
-function compressedDistance(d: number) {
-  return d <= 1000 ? d : 1000 + (d - 1000) * 0.65;
-}
+function compressedDistance(d: number) { return d <= 1000 ? d : 1000 + (d - 1000) * 0.65; }
 
 export function SkyScanExperienceV10() {
-  const video = useRef<HTMLVideoElement>(null), mount = useRef<HTMLDivElement>(null), watch = useRef<number | null>(null), stream = useRef<MediaStream | null>(null), gpsRef = useRef<Gps | null>(null), lastLoad = useRef<Gps | null>(null), busy = useRef(false), sceneRef = useRef<{ renderer: THREE.WebGLRenderer; raf: number } | null>(null), oRef = useRef<Orientation>({ heading: null, pitch: 0, roll: 0, absolute: false, source: "Sensör aranıyor", alpha: null, beta: null, gamma: null });
+  const video = useRef<HTMLVideoElement>(null), mount = useRef<HTMLDivElement>(null), watch = useRef<number | null>(null), stream = useRef<MediaStream | null>(null), gpsRef = useRef<Gps | null>(null), lastLoad = useRef<Gps | null>(null), busy = useRef(false), sceneRef = useRef<{ renderer: THREE.WebGLRenderer; raf: number } | null>(null), sensorCleanup = useRef<(() => void) | null>(null), oRef = useRef<Orientation>({ heading: null, pitch: 0, roll: 0, absolute: false, source: "Sensör aranıyor", alpha: null, beta: null, gamma: null });
   const [o, setO] = useState(oRef.current), [gps, setGps] = useState<Gps | null>(null), [parcels, setParcels] = useState<Parcel[]>([]), [started, setStarted] = useState(false), [loading, setLoading] = useState(false), [error, setError] = useState<string | null>(null), [sensor, setSensor] = useState("Pusula sensörü aranıyor…"), [debugOpen, setDebugOpen] = useState(false), [debug, setDebug] = useState<DebugState>({ target: new THREE.Vector3(), inFrustum: false, relativeBearing: null });
 
   const load = useCallback(async (pos: Gps) => {
     if (busy.current) return;
     busy.current = true; setLoading(true); setError(null);
     try {
-      const city = await supabaseBrowser.from("cities").select("id").eq("slug", "gaziantep").eq("is_active", true).maybeSingle();
-      if (city.error || !city.data) throw city.error ?? new Error("Gaziantep bulunamadı");
       const dLat = SEARCH / 111320, dLon = SEARCH / Math.max(111320 * Math.cos(rad(pos.latitude)), 1);
-      const q = await supabaseBrowser.from("sky_scan_parcels").select("id,parcel_id,parcel_number,latitude,longitude,parcels!sky_scan_parcels_parcel_id_fkey(geometry)").eq("city_id", city.data.id).gte("latitude", pos.latitude - dLat).lte("latitude", pos.latitude + dLat).gte("longitude", pos.longitude - dLon).lte("longitude", pos.longitude + dLon).limit(2000);
+      const q = await supabaseBrowser.from("sky_scan_parcels").select("id,parcel_id,parcel_number,latitude,longitude,parcels!sky_scan_parcels_parcel_id_fkey(geometry)").gte("latitude", pos.latitude - dLat).lte("latitude", pos.latitude + dLat).gte("longitude", pos.longitude - dLon).lte("longitude", pos.longitude + dLon).limit(2000);
       if (q.error) throw q.error;
       const rows = (q.data ?? []).map((r: any) => {
         const poly = parseGeometry(r.parcels?.geometry);
@@ -195,10 +164,8 @@ export function SkyScanExperienceV10() {
         shape.closePath();
         const geo = new THREE.ExtrudeGeometry(shape, { depth: 8, bevelEnabled: false });
         geo.rotateX(-Math.PI / 2); geo.translate(0, target.y, 0);
-        const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false }));
-        root.add(mesh);
-        const edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 }));
-        root.add(edge);
+        root.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false })));
+        root.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 })));
       }
       const marker = new THREE.Mesh(new THREE.SphereGeometry(Math.max(2.5, Math.min(7, 120 / Math.max(p.distance, 30))), 16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }));
       marker.position.copy(target); root.add(marker);
@@ -220,7 +187,8 @@ export function SkyScanExperienceV10() {
     const tick = (now: number) => {
       const current = oRef.current;
       if (current.heading !== null) {
-        const euler = new THREE.Euler(rad(current.beta ?? 0), rad(current.alpha ?? (360 - current.heading)), rad(-(current.gamma ?? 0)), "YXZ");
+        const alpha = current.alpha ?? (360 - current.heading);
+        const euler = new THREE.Euler(rad(current.beta ?? 0), rad(alpha), rad(-(current.gamma ?? 0)), "YXZ");
         const q = new THREE.Quaternion().setFromEuler(euler);
         q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -rad(window.screen.orientation?.angle ?? 0)));
         q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2));
@@ -242,21 +210,22 @@ export function SkyScanExperienceV10() {
   useEffect(() => { if (gps && parcels.length) draw(gps, parcels); }, [gps, parcels, draw]);
 
   const start = useCallback(async () => {
+    sensorCleanup.current?.();
     setStarted(true); setError(null); setSensor("Sensör başlatılıyor…");
     const granted = await permissions();
-    if (!granted) { setSensor("Sensör izni verilmedi"); }
+    if (!granted) setSensor("Sensör izni verilmedi");
     let seenOrientation = false, absoluteLocked = false;
     const onOrientation = (e: Event) => {
       const r = readOrientation(e as DeviceOrientationEvent); if (!r) return;
       seenOrientation = true;
       if (r.absolute) absoluteLocked = true;
-      // Once a geographic/absolute heading is available, relative events can no longer overwrite it.
       if (!absoluteLocked || r.absolute || r.source === "iOS pusula") { oRef.current = r; setO(r); }
       setSensor(r.heading === null ? "Hareket sensörü aktif · pusula aranıyor" : r.absolute ? "Mutlak pusula aktif" : "Pusula aktif");
     };
     const onMotion = () => { if (!seenOrientation) setSensor("Hareket sensörü aktif · pusula aranıyor"); };
     window.addEventListener("deviceorientationabsolute", onOrientation, true); window.addEventListener("deviceorientation", onOrientation, true); window.addEventListener("devicemotion", onMotion, true);
-    if (!seenOrientation) window.setTimeout(() => { if (!seenOrientation) setSensor("Sensör verisi alınamadı · kamera açık"); }, 4000);
+    sensorCleanup.current = () => { window.removeEventListener("deviceorientationabsolute", onOrientation, true); window.removeEventListener("deviceorientation", onOrientation, true); window.removeEventListener("devicemotion", onMotion, true); };
+    window.setTimeout(() => { if (!seenOrientation) setSensor("Sensör verisi alınamadı · kamera açık"); }, 4000);
     if (navigator.geolocation) watch.current = navigator.geolocation.watchPosition((p) => {
       const n: Gps = { latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: Number.isFinite(p.coords.accuracy) ? p.coords.accuracy : null, heading: Number.isFinite(p.coords.heading) && p.coords.heading >= 0 ? p.coords.heading : null };
       gpsRef.current = n; setGps(n);
@@ -268,8 +237,9 @@ export function SkyScanExperienceV10() {
   }, [load, parcels.length]);
 
   const stop = useCallback(() => {
-    if (watch.current !== null) navigator.geolocation.clearWatch(watch.current);
-    stream.current?.getTracks().forEach((t) => t.stop());
+    sensorCleanup.current?.(); sensorCleanup.current = null;
+    if (watch.current !== null) { navigator.geolocation.clearWatch(watch.current); watch.current = null; }
+    stream.current?.getTracks().forEach((t) => t.stop()); stream.current = null;
     if (sceneRef.current) { cancelAnimationFrame(sceneRef.current.raf); sceneRef.current.renderer.dispose(); sceneRef.current = null; }
     setStarted(false);
   }, []);
@@ -288,7 +258,7 @@ export function SkyScanExperienceV10() {
     <div className="absolute inset-x-0 top-0 z-20 p-3"><div className="mx-auto max-w-xl rounded-2xl bg-black/65 p-3">
       <div className="flex items-center justify-between"><b className="flex items-center gap-2"><Camera className="h-5 w-5" />3B Sky Scan AR</b><button onClick={stop}><X className="h-5 w-5" /></button></div>
       <div className="mt-2 grid grid-cols-3 gap-2 text-xs"><span>GPS: {gps ? `${Math.round(gps.accuracy ?? 0)} m` : "—"}</span><span>Heading: {o.heading === null ? "—" : `${Math.round(o.heading)}°`}</span><span>Parsel: {parcels.length}</span></div>
-      <div className="mt-2 text-xs">GPS + sensör AR aktif · {parcels.length} parsel hazır · {label}</div>
+      <div className="mt-2 text-xs">GPS + sensör AR aktif · {loading ? "Parseller aranıyor…" : `${parcels.length} parsel hazır`} · {label}</div>
       {nearest && <div className="mt-2 rounded-xl bg-black/70 p-2 text-sm">En yakın <b>{nearest.parcel_number}</b> · {Math.round(nearest.distance)} m · {dirText}</div>}
       {nearest && <div className="mt-2 rounded-xl bg-black/60 p-2 text-center text-lg font-bold">{arrowText}</div>}
       {error && <div className="mt-2 text-xs text-red-300">{error}</div>}
@@ -298,7 +268,7 @@ export function SkyScanExperienceV10() {
       </div>}
     </div></div>
     {!started && <div className="absolute inset-x-4 bottom-8 z-30"><button onClick={start} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 font-bold text-black"><LocateFixed className="h-5 w-5" />GPS + sensör AR taramasını başlat</button></div>}
-    {started && <div className="absolute bottom-4 left-3 right-3 z-20 flex items-center justify-between gap-2"><div className="rounded-full bg-black/65 px-4 py-2 text-sm">{loading ? "Parseller yükleniyor…" : `${parcels.length} parsel hazır · ${label}`}</div><button onClick={() => gps && load(gps)} className="rounded-full bg-black/65 p-3"><RefreshCw className="h-5 w-5" /></button></div>}
+    {started && <div className="absolute bottom-4 left-3 right-3 z-20 flex items-center justify-between gap-2"><div className="rounded-full bg-black/65 px-4 py-2 text-sm">{loading ? "Parseller aranıyor…" : `${parcels.length} parsel hazır · ${label}`}</div><button onClick={() => gps && load(gps)} className="rounded-full bg-black/65 p-3"><RefreshCw className="h-5 w-5" /></button></div>}
     <div className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 opacity-60"><Compass className="h-8 w-8" /></div>
   </div>;
 }
