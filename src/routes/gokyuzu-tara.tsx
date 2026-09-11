@@ -1,13 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SkyScanExperienceV5 } from "@/components/sky-scan/SkyScanExperienceV5";
-import { SkyScanSensorBridge } from "@/components/sky-scan/SkyScanSensorBridge";
+import { SkyScanARRealistic } from "@/components/sky-scan/SkyScanARRealistic";
 
 function SkyScanRoute() {
-  return (
-    <SkyScanSensorBridge>
-      <SkyScanExperienceV5 />
-    </SkyScanSensorBridge>
-  );
+  return <SkyScanARRealistic />;
 }
 
 export const Route = createFileRoute("/gokyuzu-tara")({ component: SkyScanRoute });
