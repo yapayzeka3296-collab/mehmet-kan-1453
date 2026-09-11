@@ -33,7 +33,7 @@ function makeCrystal(scene: THREE.Scene, parcel: RenderedParcel) {
   const premium = parcel.tier === "premium";
   const material = new THREE.MeshPhysicalMaterial({ color: premium ? 0xffd76a : 0x5fdcff, emissive: premium ? 0x5b3d00 : 0x063a56, emissiveIntensity: 0.7, metalness: 0.35, roughness: 0.16, transparent: true, opacity: 0.88, transmission: 0.12, clearcoat: 0.8, clearcoatRoughness: 0.18, side: THREE.DoubleSide });
   group.add(new THREE.Mesh(geometry, material));
-  group.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 18), new THREE.LineBasicMaterial({ color: premium ? 0xfff0b0 : 0xc6f7ff, transparent: true, opacity: 0.95 }))); 
+  group.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 18), new THREE.LineBasicMaterial({ color: premium ? 0xfff0b0 : 0xc6f7ff, transparent: true, opacity: 0.95 })));
   const ring = new THREE.Mesh(new THREE.RingGeometry(CRYSTAL_SIZE_M * 0.72, CRYSTAL_SIZE_M * 0.78, 48), new THREE.MeshBasicMaterial({ color: premium ? 0xffd76a : 0x5fdcff, transparent: true, opacity: 0.45, side: THREE.DoubleSide }));
   ring.rotation.x = Math.PI / 2;
   group.add(ring);
@@ -89,6 +89,7 @@ export function SkyScanExperienceV5() {
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const parcelGroupsRef = useRef(new Map<string, THREE.Group>());
   const parcelsRef = useRef<SkyParcel[]>([]);
+  const nearbyParcelsRef = useRef<RenderedParcel[]>([]);
   const orientationRef = useRef<THREE.Quaternion | null>(null);
   const rawHeadingRef = useRef<number | null>(null);
   const headingOffsetRef = useRef(0);
@@ -168,13 +169,11 @@ export function SkyScanExperienceV5() {
       if (orientationRef.current) camera.quaternion.copy(orientationRef.current);
       if (visibleTickRef.current++ % 10 === 0) {
         const projected = nearbyParcelsRef.current;
-        if (projected.length) {
-          const visible = projected.filter((parcel) => {
-            const point = parcel.position.clone().project(camera);
-            return point.z >= -1 && point.z <= 1 && point.x >= -1.08 && point.x <= 1.08 && point.y >= -1.08 && point.y <= 1.08;
-          });
-          setVisibleParcels(visible);
-        } else setVisibleParcels([]);
+        const visible = projected.filter((parcel) => {
+          const point = parcel.position.clone().project(camera);
+          return point.z >= -1 && point.z <= 1 && point.x >= -1.08 && point.x <= 1.08 && point.y >= -1.08 && point.y <= 1.08;
+        });
+        setVisibleParcels(visible);
       }
       renderer.render(scene, camera);
     };
@@ -182,7 +181,6 @@ export function SkyScanExperienceV5() {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); window.removeEventListener("resize", resize); renderer.dispose(); scene.clear(); parcelGroupsRef.current.clear(); };
   }, [cameraStarted]);
 
-  const nearbyParcelsRef = useRef<RenderedParcel[]>([]);
   useEffect(() => { nearbyParcelsRef.current = nearbyParcels; }, [nearbyParcels]);
 
   useEffect(() => {
@@ -198,9 +196,14 @@ export function SkyScanExperienceV5() {
       orientationRef.current = q;
       const raw = headingFromQuaternion(q);
       if (raw !== null) rawHeadingRef.current = raw;
-      const compass = typeof source.webkitCompassHeading === "number" && Number.isFinite(source.webkitCompassHeading) ? normalizeDegrees(source.webkitCompassHeading) : raw;
-      if (compass !== null && typeof source.webkitCompassHeading === "number" && Number.isFinite(source.webkitCompassHeading)) headingOffsetRef.current = normalizeDegrees(compass - (raw ?? compass));
-      if (compass !== null) setHeading(normalizeDegrees(compass + headingOffsetRef.current));
+      const hasWebkitCompass = typeof source.webkitCompassHeading === "number" && Number.isFinite(source.webkitCompassHeading);
+      if (hasWebkitCompass) {
+        const compass = normalizeDegrees(source.webkitCompassHeading!);
+        headingOffsetRef.current = raw === null ? 0 : normalizeDegrees(compass - raw);
+        setHeading(compass);
+      } else if (raw !== null) {
+        setHeading(normalizeDegrees(raw + headingOffsetRef.current));
+      }
       active = true; setSensorActive(true); setSensorError(null);
     };
     const onMotion = (event: Event) => {
@@ -246,8 +249,6 @@ export function SkyScanExperienceV5() {
       if (!group) { group = makeCrystal(scene, parcel); parcelGroupsRef.current.set(parcel.id, group); }
       else group.position.copy(parcel.position);
     }
-    nearbyParcelsRef.current = selectedForRender;
-    setVisibleParcels([]);
   }, [location, heading, sensorActive]);
 
   const startScan = useCallback(async () => {
