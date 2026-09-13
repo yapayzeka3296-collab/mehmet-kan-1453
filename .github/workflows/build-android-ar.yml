@@ -38,6 +38,7 @@ jobs:
           ARCORE_API_KEY: ${{ secrets.ARCORE_API_KEY }}
         run: gradle assembleDebug -PARCORE_API_KEY="$ARCORE_API_KEY" --no-daemon
 
+      # Build the complete Android scanner after every change on the AR branch.
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
