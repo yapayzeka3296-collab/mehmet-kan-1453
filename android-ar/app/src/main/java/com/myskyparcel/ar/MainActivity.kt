@@ -37,7 +37,6 @@ import io.github.sceneview.math.Direction
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
 import io.github.sceneview.math.Size
-import io.github.sceneview.node.BillboardNode
 import io.github.sceneview.node.PlaneNode
 import io.github.sceneview.node.TextNode
 import io.github.sceneview.rememberEngine
@@ -180,17 +179,16 @@ private fun MySkyParcelArScreen(
                         rotation = Rotation(y = 180f),
                         apply = { name = parcel.id },
                     )
-                    BillboardNode(position = Position(y = 0.72f)) {
-                        TextNode(
-                            text = "${parcel.title}  ${parcel.price} TL",
-                            fontSize = 48f,
-                            textColor = android.graphics.Color.WHITE,
-                            backgroundColor = 0xCC06111F.toInt(),
-                            widthMeters = 1.4f,
-                            heightMeters = 0.22f,
-                            apply = { name = parcel.id },
-                        )
-                    }
+                    TextNode(
+                        text = "${parcel.title}  ${parcel.price} TL",
+                        fontSize = 48f,
+                        textColor = android.graphics.Color.WHITE,
+                        backgroundColor = 0xCC06111F.toInt(),
+                        widthMeters = 1.4f,
+                        heightMeters = 0.22f,
+                        position = Position(y = 0.72f),
+                        apply = { name = parcel.id },
+                    )
                 }
             }
         }
