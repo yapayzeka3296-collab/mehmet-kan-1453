@@ -1,35 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <uses-feature
-        android:name="android.hardware.camera.ar"
-        android:required="true" />
-
-    <application
-        android:allowBackup="false"
-        android:label="MySkyParcel AR"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.MySkyParcelAR">
-
-        <meta-data
-            android:name="com.google.ar.core"
-            android:value="required"
-            tools:replace="android:value" />
-
-        <meta-data
-            android:name="com.google.android.ar.API_KEY"
-            android:value="${ARCORE_API_KEY}" />
-
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:screenOrientation="portrait">
+    <application android:allowBackup="false" android:label="MySkyParcel AR" android:supportsRtl="true" android:theme="@style/Theme.MySkyParcelAR">
+        <meta-data android:name="com.google.ar.core" android:value="optional" tools:replace="android:value" />
+        <meta-data android:name="com.google.android.ar.API_KEY" android:value="${ARCORE_API_KEY}" />
+        <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
