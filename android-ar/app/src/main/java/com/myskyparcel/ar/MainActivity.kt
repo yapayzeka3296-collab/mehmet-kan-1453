@@ -1,10 +1,14 @@
 package com.myskyparcel.ar
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +44,8 @@ import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMaterialLoader
 import io.github.sceneview.rememberOnGestureListener
 
+private const val PERMISSION_REQUEST_CODE = 1001
+
 private data class TestParcel(
     val id: String,
     val title: String,
@@ -50,6 +56,7 @@ private data class TestParcel(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestRequiredPermissions()
         setContent {
             MySkyParcelArScreen(
                 onParcelSelected = { parcelId ->
@@ -57,6 +64,18 @@ class MainActivity : ComponentActivity() {
                     startActivity(Intent(Intent.ACTION_VIEW, uri))
                 },
             )
+        }
+    }
+
+    private fun requestRequiredPermissions() {
+        val missing = arrayOf(
+            Manifest.permission.CAMERA,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+        ).filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
+
+        if (missing.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, missing.toTypedArray(), PERMISSION_REQUEST_CODE)
         }
     }
 }
@@ -86,8 +105,10 @@ private fun MySkyParcelArScreen(
         materialLoader = materialLoader,
         planeRenderer = false,
         depthMode = Config.DepthMode.AUTOMATIC,
-        geospatialMode = Config.GeospatialMode.ENABLED,
-        sessionConfiguration = { _, config ->
+        sessionConfiguration = { session, config ->
+            if (session.isGeospatialModeSupported(Config.GeospatialMode.ENABLED)) {
+                config.geospatialMode = Config.GeospatialMode.ENABLED
+            }
             config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
         },
         onSessionUpdated = { session, _ ->
