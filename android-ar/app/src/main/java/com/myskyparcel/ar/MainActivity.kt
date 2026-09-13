@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,8 +31,8 @@ import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.ar.node.AnchorNode
 import io.github.sceneview.math.Direction
 import io.github.sceneview.math.Position
-import io.github.sceneview.math.Size
 import io.github.sceneview.math.Rotation
+import io.github.sceneview.math.Size
 import io.github.sceneview.node.BillboardNode
 import io.github.sceneview.node.PlaneNode
 import io.github.sceneview.node.TextNode
@@ -65,7 +66,7 @@ private fun MySkyParcelArScreen(
     onParcelSelected: (String) -> Unit,
 ) {
     val engine = rememberEngine()
-    val materialLoader = io.github.sceneview.rememberMaterialLoader(engine)
+    val materialLoader = rememberMaterialLoader(engine)
     val parcels = remember { mutableStateListOf<TestParcel>() }
     var latestEarthTracking by remember { mutableStateOf(false) }
     var latestLocation by remember { mutableStateOf("Konum bekleniyor") }
@@ -77,6 +78,9 @@ private fun MySkyParcelArScreen(
             metallic = 0.15f,
             roughness = 0.35f,
         )
+    }
+    val labelMaterial = remember(materialLoader) {
+        materialLoader.createUnlitColorInstance(Color.White)
     }
 
     ARSceneView(
@@ -162,10 +166,7 @@ private fun MySkyParcelArScreen(
                         TextNode(
                             text = "${parcel.title}\n${parcel.price} TL",
                             size = 0.12f,
-                            materialInstance = materialLoader.createColorInstance(
-                                color = Color.White,
-                                unlit = true,
-                            ),
+                            materialInstance = labelMaterial,
                             apply = { name = parcel.id },
                         )
                     }
