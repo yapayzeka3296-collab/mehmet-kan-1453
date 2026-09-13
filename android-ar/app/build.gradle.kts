@@ -39,7 +39,7 @@ android {
 }
 
 dependencies {
-    implementation("io.github.sceneview:arsceneview:4.35.0")
+    implementation("io.github.sceneview:arsceneview:4.25.0")
 
     implementation(platform("androidx.compose:compose-bom:2026.06.01"))
     implementation("androidx.activity:activity-compose:1.11.0")
