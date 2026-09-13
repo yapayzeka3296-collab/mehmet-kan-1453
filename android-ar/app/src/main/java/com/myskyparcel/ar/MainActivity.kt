@@ -79,9 +79,6 @@ private fun MySkyParcelArScreen(
             roughness = 0.35f,
         )
     }
-    val labelMaterial = remember(materialLoader) {
-        materialLoader.createUnlitColorInstance(Color.White)
-    }
 
     ARSceneView(
         modifier = Modifier.fillMaxSize(),
@@ -164,9 +161,12 @@ private fun MySkyParcelArScreen(
                     )
                     BillboardNode(position = Position(y = 0.72f)) {
                         TextNode(
-                            text = "${parcel.title}\n${parcel.price} TL",
-                            size = 0.12f,
-                            materialInstance = labelMaterial,
+                            text = "${parcel.title}  ${parcel.price} TL",
+                            fontSize = 48f,
+                            textColor = android.graphics.Color.WHITE,
+                            backgroundColor = 0xCC06111F.toInt(),
+                            widthMeters = 1.4f,
+                            heightMeters = 0.22f,
                             apply = { name = parcel.id },
                         )
                     }
