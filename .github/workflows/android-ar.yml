@@ -2,7 +2,7 @@ name: MySkyParcel AR Android Build
 
 on:
   push:
-    branches: ["ar-complete"]
+    branches: ["main", "ar-complete"]
   pull_request:
     paths:
       - "android-ar/**"
