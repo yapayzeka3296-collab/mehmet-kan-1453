@@ -9,6 +9,7 @@ data class ArParcel(
     val longitude: Double,
     val tier: String,
     val isTest: Boolean = false,
+    val altitude: Double = 150.0,
 )
 
 data class PlacedParcel(
