@@ -39,8 +39,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import kotlin.math.abs
+import kotlin.math.atan
+import kotlin.math.tan
 
 private const val SKY_PERMISSION_REQUEST = 2001
 
@@ -54,6 +60,18 @@ class SkyScannerActivity : ComponentActivity(), SensorEventListener {
     private var hasGravity = false
     private var hasMagnetic = false
     private var rotationVectorAvailable = false
+    private val locationClient by lazy { LocationServices.getFusedLocationProviderClient(this) }
+
+    private val locationRequest = LocationRequest.Builder(
+        Priority.PRIORITY_HIGH_ACCURACY,
+        2000L
+    ).setMinUpdateIntervalMillis(1000L).setMinUpdateDistanceMeters(1f).build()
+
+    private val locationCallback = object : LocationCallback() {
+        override fun onLocationResult(result: LocationResult) {
+            result.lastLocation?.let { location = it }
+        }
+    }
 
     var azimuth by mutableFloatStateOf(0f)
         private set
@@ -88,14 +106,12 @@ class SkyScannerActivity : ComponentActivity(), SensorEventListener {
                 sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
             }
         }
-        if (hasLocationPermission()) {
-            LocationServices.getFusedLocationProviderClient(this).lastLocation
-                .addOnSuccessListener { it?.let { l -> location = l } }
-        }
+        startLocationUpdates()
     }
 
     override fun onPause() {
         sensorManager.unregisterListener(this)
+        locationClient.removeLocationUpdates(locationCallback)
         super.onPause()
     }
 
@@ -127,11 +143,14 @@ class SkyScannerActivity : ComponentActivity(), SensorEventListener {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == SKY_PERMISSION_REQUEST) {
             cameraPermissionGranted = hasCameraPermission()
-            if (hasLocationPermission()) {
-                LocationServices.getFusedLocationProviderClient(this).lastLocation
-                    .addOnSuccessListener { it?.let { l -> location = l } }
-            }
+            startLocationUpdates()
         }
+    }
+
+    private fun startLocationUpdates() {
+        if (!hasLocationPermission()) return
+        locationClient.lastLocation.addOnSuccessListener { it?.let { location = it } }
+        locationClient.requestLocationUpdates(locationRequest, locationCallback, mainLooper)
     }
 
     private fun hasCameraPermission() = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -195,7 +214,11 @@ private fun SkyParcelProjection(
     onClick: (String) -> Unit,
 ) {
     val horizontalFov = 65f
-    val verticalFov = horizontalFov * 16f / 9f
+    // 65° yatay görüş alanını 9:16 portre ekran oranına geometrik olarak dönüştür.
+    val aspectRatio = 16f / 9f
+    val verticalFov = Math.toDegrees(
+        2.0 * atan(tan(Math.toRadians(horizontalFov / 2f)) * aspectRatio)
+    ).toFloat()
     val dx = shortestAngle(parcel.azimuthDeg, azimuth)
     val dy = parcel.elevationDeg - elevation
     val visible = abs(dx) <= horizontalFov / 2f && abs(dy) <= verticalFov / 2f
@@ -210,8 +233,8 @@ private fun SkyParcelProjection(
 
     if (visible) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val xDp = (maxWidth.value * (.5f + dx / horizontalFov) - 75f).coerceIn(4f, maxWidth.value - 154f).dp
-            val yDp = (maxHeight.value * (.5f - dy / verticalFov) - 32f).coerceIn(70f, maxHeight.value - 70f).dp
+            val xDp = (maxWidth.value * (.5f + dx / horizontalFov) - 75f).coerceIn(4f, (maxWidth.value - 154f).coerceAtLeast(4f)).dp
+            val yDp = (maxHeight.value * (.5f - dy / verticalFov) - 32f).coerceIn(70f, (maxHeight.value - 70f).coerceAtLeast(70f)).dp
             Column(
                 Modifier.offset(x = xDp, y = yDp)
                     .background(Color(0xDD06111F), MaterialTheme.shapes.large)
