@@ -1,14 +1,20 @@
 package com.myskyparcel.ar
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Geocoder
 import android.location.Location
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,10 +27,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.gms.location.*
 import com.google.ar.core.ArCoreApk
 import com.google.ar.core.Config
@@ -36,6 +51,7 @@ import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberOnGestureListener
 import io.github.sceneview.rememberViewNodeManager
 import java.util.Locale
+import java.util.concurrent.Executors
 import kotlin.math.*
 
 private const val REQUEST_PERMISSIONS = 2001
@@ -58,8 +74,8 @@ class GeospatialScannerActivity : ComponentActivity() {
 @Composable private fun ScannerRoot(a:GeospatialScannerActivity,location:Location?,cameraGranted:Boolean,request:()->Unit,select:(String)->Unit){
     var mode by remember{mutableStateOf("checking")}; var cityCode by remember{mutableStateOf<String?>(null)}; var cityName by remember{mutableStateOf("TÜRKİYE")}
     LaunchedEffect(location){location?.let{loc->val n=runCatching{Geocoder(a,Locale("tr","TR")).getFromLocation(loc.latitude,loc.longitude,1)?.firstOrNull()?.adminArea}.getOrNull();cityName=n?:"TÜRKİYE";cityCode=CityCodes.fromName(n)}}
-    DisposableEffect(cameraGranted){if(cameraGranted)ArCoreApk.getInstance().checkAvailabilityAsync(a){av->if(!av.isSupported)mode="unsupported" else mode=try{when(ArCoreApk.getInstance().requestInstall(a,false)){ArCoreApk.InstallStatus.INSTALLED->"ar";ArCoreApk.InstallStatus.INSTALL_REQUESTED->"installing"}}catch(_:Exception){"unsupported"}};onDispose{}}
-    when(mode){"ar"->ParcelScene(cityCode,cityName,select);"installing"->Status("Google Play Services for AR hazırlanıyor…");"unsupported"->Status("Bu cihaz ARCore Geospatial desteği vermiyor.");else->Permission(cameraGranted,request)}
+    DisposableEffect(cameraGranted){if(cameraGranted)ArCoreApk.getInstance().checkAvailabilityAsync(a){av->if(!av.isSupported)mode="fallback" else mode=try{when(ArCoreApk.getInstance().requestInstall(a,false)){ArCoreApk.InstallStatus.INSTALLED->"ar";ArCoreApk.InstallStatus.INSTALL_REQUESTED->"installing"}}catch(_:Exception){"fallback"}};onDispose{}}
+    when(mode){"ar"->ParcelScene(cityCode,cityName,select);"installing"->Status("Google Play Services for AR hazırlanıyor…");"fallback"->FallbackSkyScene(a,location,cityCode,cityName,select);else->Permission(cameraGranted,request)}
 }
 
 @Composable private fun ParcelScene(cityCode:String?,cityName:String,select:(String)->Unit){
@@ -67,35 +83,52 @@ class GeospatialScannerActivity : ComponentActivity() {
     var parcels by remember{mutableStateOf<List<ArParcel>>(emptyList())};var loaded by remember{mutableStateOf(false)};var created by remember{mutableStateOf(false)};var tracking by remember{mutableStateOf(false)};var status by remember{mutableStateOf("VPS konumu bekleniyor…")}
     LaunchedEffect(cityCode){loaded=false;created=false;placed.forEach{it.anchor.detach()};placed.clear();parcels=cityCode?.let{repo.loadParcels(it)}?:emptyList();loaded=true}
     Box(Modifier.fillMaxSize()){
-        ARSceneView(
-            modifier=Modifier.fillMaxSize(),engine=engine,planeRenderer=false,viewNodeWindowManager=viewManager,
+        ARSceneView(modifier=Modifier.fillMaxSize(),engine=engine,planeRenderer=false,viewNodeWindowManager=viewManager,
             sessionConfiguration={s,c->if(s.isGeospatialModeSupported(Config.GeospatialMode.ENABLED))c.geospatialMode=Config.GeospatialMode.ENABLED;c.lightEstimationMode=Config.LightEstimationMode.ENVIRONMENTAL_HDR;c.depthMode=if(s.isDepthModeSupported(Config.DepthMode.AUTOMATIC))Config.DepthMode.AUTOMATIC else Config.DepthMode.DISABLED},
-            onSessionUpdated={session,_->
-                val earth=session.earth;tracking=earth?.trackingState==TrackingState.TRACKING
-                if(!tracking||earth==null)status="VPS konumu bekleniyor…" else {val p=earth.cameraGeospatialPose;status="GPS ±%.1fm · Yön ±%.1f°".format(p.horizontalAccuracy,p.orientationYawAccuracy);val avail=parcels.filter{it.status=="available"};if(loaded&&avail.size>=3&&!created&&p.horizontalAccuracy<=30&&p.verticalAccuracy<=30&&p.orientationYawAccuracy<=30){
-                    listOf(1000.0,1500.0,2000.0).forEachIndexed{i,d->{val q=GeoMath.destination(p.latitude,p.longitude,p.altitude,i*120.0,20.0,d);runCatching{earth.createAnchor(q.latitude,q.longitude,q.altitude,0f,0f,0f,1f)}.getOrNull()?.let{placed+=PlacedParcel(avail[i].copy(isTest=true,latitude=q.latitude,longitude=q.longitude),it)}}}
-                    avail.drop(3).sortedBy{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)}.filter{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)<=10000}.take(6).forEach{parcel->runCatching{earth.createAnchor(parcel.latitude,parcel.longitude,p.altitude+150,0f,0f,0f,1f)}.getOrNull()?.let{placed+=PlacedParcel(parcel,it)}}
-                    parcels.filter{it.status=="sold"}.sortedBy{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)}.filter{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)<=10000}.take(3).forEach{parcel->runCatching{earth.createAnchor(parcel.latitude,parcel.longitude,p.altitude+150,0f,0f,0f,1f)}.getOrNull()?.let{placed+=PlacedParcel(parcel,it)}}
-                    created=true
-                }}
-            },
+            onSessionUpdated={session,_->val earth=session.earth;tracking=earth?.trackingState==TrackingState.TRACKING;if(!tracking||earth==null)status="VPS konumu bekleniyor…" else {val p=earth.cameraGeospatialPose;status="GPS ±%.1fm · Yön ±%.1f°".format(p.horizontalAccuracy,p.orientationYawAccuracy);val avail=parcels.filter{it.status=="available"};if(loaded&&avail.size>=3&&!created&&p.horizontalAccuracy<=30&&p.verticalAccuracy<=30&&p.orientationYawAccuracy<=30){listOf(1000.0,1500.0,2000.0).forEachIndexed{i,d->{val q=GeoMath.destination(p.latitude,p.longitude,p.altitude,i*120.0,20.0,d);runCatching{earth.createAnchor(q.latitude,q.longitude,q.altitude,0f,0f,0f,1f)}.getOrNull()?.let{placed+=PlacedParcel(avail[i].copy(isTest=true,latitude=q.latitude,longitude=q.longitude),it)}}};avail.drop(3).sortedBy{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)}.filter{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)<=10000}.take(6).forEach{parcel->runCatching{earth.createAnchor(parcel.latitude,parcel.longitude,p.altitude+150,0f,0f,0f,1f)}.getOrNull()?.let{placed+=PlacedParcel(parcel,it)}};parcels.filter{it.status=="sold"}.sortedBy{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)}.filter{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)<=10000}.take(3).forEach{parcel->runCatching{earth.createAnchor(parcel.latitude,parcel.longitude,p.altitude+150,0f,0f,0f,1f)}.getOrNull()?.let{placed+=PlacedParcel(parcel,it)}};created=true}}},
             onGestureListener=rememberOnGestureListener(onSingleTapConfirmed={_,node->node?.name?.takeIf{it.isNotBlank()}?.let(select)})
-        ) {
-            placed.forEach{item->key(item.parcel.id){AnchorNode(anchor=item.anchor){
-                val sold=item.parcel.status=="sold"
-                ViewNode(windowManager=viewManager,unlit=true,apply={name=if(sold)null else item.parcel.id;isTouchable=!sold}){
-                    Column(Modifier.background(if(item.parcel.isTest)Color(0xDDFF8A00)else if(sold)Color(0xDD6B1F2B)else Color(0xDD06111F),MaterialTheme.shapes.large).padding(horizontal=12.dp,vertical=8.dp),horizontalAlignment=Alignment.CenterHorizontally){
-                        Text(if(item.parcel.isTest)"TEST · ${item.parcel.parcelNumber}"else if(sold)"SATILDI · ${item.parcel.parcelNumber}"else item.parcel.parcelNumber,color=Color.White,style=MaterialTheme.typography.labelLarge)
-                        if(!sold)Text("Satın almak için dokun",color=Color(0xFFFFD166),style=MaterialTheme.typography.labelSmall)
-                    }
-                }
-            }}}
-        }
+        ){placed.forEach{item->key(item.parcel.id){AnchorNode(anchor=item.anchor){val sold=item.parcel.status=="sold";ViewNode(windowManager=viewManager,unlit=true,apply={name=if(sold)null else item.parcel.id;isTouchable=!sold}){Column(Modifier.background(if(item.parcel.isTest)Color(0xDDFF8A00)else if(sold)Color(0xDD6B1F2B)else Color(0xDD06111F),MaterialTheme.shapes.large).padding(horizontal=12.dp,vertical=8.dp),horizontalAlignment=Alignment.CenterHorizontally){Text(if(item.parcel.isTest)"TEST · ${item.parcel.parcelNumber}"else if(sold)"SATILDI · ${item.parcel.parcelNumber}"else item.parcel.parcelNumber,color=Color.White,style=MaterialTheme.typography.labelLarge);if(!sold)Text("Satın almak için dokun",color=Color(0xFFFFD166),style=MaterialTheme.typography.labelSmall)}}}}}}
         Column(Modifier.align(Alignment.TopCenter).padding(14.dp).background(Color(0xDD06111F),MaterialTheme.shapes.large).padding(12.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(3.dp)){Text("GÖKYÜZÜNÜ TARA",color=Color.White,style=MaterialTheme.typography.titleMedium);Text("$cityName · GERÇEK PARSELLER",color=Color(0xFF7FF7D0),style=MaterialTheme.typography.labelMedium);Text(if(tracking)status else "GPS + VPS konumu hazırlanıyor…",color=Color.White.copy(alpha=.82f),style=MaterialTheme.typography.labelSmall);Text("${parcels.count{it.status=="available"}} boş · ${parcels.count{it.status=="sold"}} satıldı · ${placed.size} AR noktası",color=Color.White.copy(alpha=.7f),style=MaterialTheme.typography.labelSmall)}
     }
 }
 
-private object GeoMath{private const val R=6378137.0;data class Destination(val latitude:Double,val longitude:Double,val altitude:Double);fun destination(lat:Double,lon:Double,alt:Double,bearingDeg:Double,elevationDeg:Double,slant:Double):Destination{val b=Math.toRadians(bearingDeg);val e=Math.toRadians(elevationDeg);val h=slant*cos(e);return Destination(lat+Math.toDegrees(h*cos(b)/R),lon+Math.toDegrees(h*sin(b)/(R*cos(Math.toRadians(lat)))),alt+slant*sin(e))};fun distance(a:Double,b:Double,c:Double,d:Double):Double{val p1=Math.toRadians(a);val p2=Math.toRadians(c);val dp=Math.toRadians(c-a);val dl=Math.toRadians(d-b);val x=sin(dp/2).pow(2)+cos(p1)*cos(p2)*sin(dl/2).pow(2);return 2*R*atan2(sqrt(x),sqrt(1-x))}}
+@Composable private fun FallbackSkyScene(a:GeospatialScannerActivity,location:Location?,cityCode:String?,cityName:String,select:(String)->Unit){
+    val context=LocalContext.current
+    val lifecycleOwner=LocalLifecycleOwner.current
+    var heading by remember{mutableFloatStateOf(0f)}
+    var pitch by remember{mutableFloatStateOf(0f)}
+    var parcels by remember{mutableStateOf<List<ArParcel>>(emptyList())}
+    var status by remember{mutableStateOf("GPS konumu bekleniyor…")}
+    LaunchedEffect(cityCode){parcels=cityCode?.let{SupabaseParcelRepository().loadParcels(it)}?:emptyList()}
+    DisposableEffect(Unit){
+        val sm=context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val listener=object:SensorEventListener{
+            private val rotation=FloatArray(9);private val orientation=FloatArray(3)
+            override fun onSensorChanged(e:SensorEvent){if(e.sensor.type!=Sensor.TYPE_ROTATION_VECTOR)return;SensorManager.getRotationMatrixFromVector(rotation,e.values);SensorManager.getOrientation(rotation,orientation);heading=((Math.toDegrees(orientation[0].toDouble())+360.0)%360.0).toFloat();pitch=Math.toDegrees(orientation[1].toDouble()).toFloat()}
+            override fun onAccuracyChanged(s:Sensor?,accuracy:Int){}
+        }
+        sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)?.let{sm.registerListener(listener,it,SensorManager.SENSOR_DELAY_GAME)}
+        onDispose{sm.unregisterListener(listener)}
+    }
+    Box(Modifier.fillMaxSize()){
+        CameraPreview(context,lifecycleOwner)
+        SkyParcelOverlay(location,heading,pitch,parcels,select)
+        Column(Modifier.align(Alignment.TopCenter).padding(14.dp).background(Color(0xDD06111F),MaterialTheme.shapes.large).padding(12.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(3.dp)){Text("GÖKYÜZÜNÜ TARA",color=Color.White,style=MaterialTheme.typography.titleMedium);Text("$cityName · 3B SKY MODE",color=Color(0xFFFFD166),style=MaterialTheme.typography.labelMedium);Text(status,color=Color.White.copy(alpha=.82f),style=MaterialTheme.typography.labelSmall);Text("ARCore yok · GPS + sensör tabanlı 3B görünüm",color=Color.White.copy(alpha=.7f),style=MaterialTheme.typography.labelSmall)}
+        if(location==null) Text("Konum bekleniyor…",color=Color.White,modifier=Modifier.align(Alignment.Center).background(Color(0xCC000000)).padding(16.dp))
+    }
+}
+
+@Composable private fun CameraPreview(context:Context,lifecycleOwner:androidx.lifecycle.LifecycleOwner){AndroidView(factory={ctx->PreviewView(ctx).apply{scaleType=PreviewView.ScaleType.FILL_CENTER;post{val providerFuture=ProcessCameraProvider.getInstance(ctx);providerFuture.addListener({val provider=providerFuture.get();val preview=Preview.Builder().build().also{it.surfaceProvider=surfaceProvider};runCatching{provider.unbindAll();provider.bindToLifecycle(lifecycleOwner,CameraSelector.DEFAULT_BACK_CAMERA,preview)}},ContextCompat.getMainExecutor(ctx))}}},modifier=Modifier.fillMaxSize())}
+
+@Composable private fun SkyParcelOverlay(location:Location?,heading:Float,pitch:Float,parcels:List<ArParcel>,select:(String)->Unit){
+    val available=parcels.filter{it.status=="available"}.take(24);val sold=parcels.filter{it.status=="sold"}.take(8);val targets=available+sold
+    Canvas(Modifier.fillMaxSize()){targets.forEach{parcel->val dx=GeoMath.signedBearingDelta(GeoMath.bearing(location?.latitude?:0.0,location?.longitude?:0.0,parcel.latitude,parcel.longitude),heading);val distance=GeoMath.distance(location?.latitude?:0.0,location?.longitude?:0.0,parcel.latitude,parcel.longitude);val elevation=GeoMath.elevationAngle(location,parcel);if(abs(dx)<=55&&elevation in -45.0..55.0){drawSkyParcel(parcel,dx.toFloat(),elevation.toFloat(),distance)}}}
+    Column(Modifier.align(Alignment.BottomCenter).padding(bottom=24.dp).background(Color(0xCC06111F),MaterialTheme.shapes.large).padding(10.dp)){Text("Telefonu sağa/sola çevir · parseli nişanla · dokun",color=Color.White,style=MaterialTheme.typography.labelMedium)}
+}
+
+private fun DrawScope.drawSkyParcel(parcel:ArParcel,delta:Float,elevation:Float,distance:Double){val w=size.width;val h=size.height;val x=w/2f+(delta/55f)*(w*.44f);val y=h*.48f-(elevation/55f)*(h*.38f);val scale=(420.0/(distance.coerceAtLeast(250.0))).coerceIn(.32,2.4).toFloat();val pw=120f*scale;val ph=72f*scale;val z=14f*scale;val path=Path().apply{moveTo(x-pw/2,y-ph/2);lineTo(x+pw/2,y-ph/2-z);lineTo(x+pw/2,y+ph/2-z);lineTo(x-pw/2,y+ph/2);close()};drawPath(path,color=if(parcel.status=="sold")Color(0xCC8B2635)else Color(0xCC063B66));drawLine(x-pw/2,y+ph/2,x+pw/2,y+ph/2-z,Color(0xFFFFD166),2f);val label=if(parcel.status=="sold")"SATILDI"else parcel.parcelNumber;drawContext.canvas.nativeCanvas.drawText(label,x-pw*.42f,y+4f,android.graphics.Paint().apply{color=android.graphics.Color.WHITE;textSize=(18f*scale).coerceAtLeast(12f);isFakeBoldText=true})}
+
+private object GeoMath{private const val R=6378137.0;data class Destination(val latitude:Double,val longitude:Double,val altitude:Double);fun destination(lat:Double,lon:Double,alt:Double,bearingDeg:Double,elevationDeg:Double,slant:Double):Destination{val b=Math.toRadians(bearingDeg);val e=Math.toRadians(elevationDeg);val h=slant*cos(e);return Destination(lat+Math.toDegrees(h*cos(b)/R),lon+Math.toDegrees(h*sin(b)/(R*cos(Math.toRadians(lat)))),alt+slant*sin(e))};fun distance(a:Double,b:Double,c:Double,d:Double):Double{val p1=Math.toRadians(a);val p2=Math.toRadians(c);val dp=Math.toRadians(c-a);val dl=Math.toRadians(d-b);val x=sin(dp/2).pow(2)+cos(p1)*cos(p2)*sin(dl/2).pow(2);return 2*R*atan2(sqrt(x),sqrt(1-x))};fun bearing(a:Double,b:Double,c:Double,d:Double):Double{val p1=Math.toRadians(a);val p2=Math.toRadians(c);val dl=Math.toRadians(d-b);return (Math.toDegrees(atan2(sin(dl)*cos(p2),cos(p1)*sin(p2)-sin(p1)*cos(p2)*cos(dl)))+360)%360};fun signedBearingDelta(target:Double,heading:Float):Double{var d=target-heading;while(d>180)d-=360;while(d< -180)d+=360;return d};fun elevationAngle(loc:Location?,parcel:ArParcel):Double{if(loc==null)return 0.0;val ground=distance(loc.latitude,loc.longitude,parcel.latitude,parcel.longitude);val dh=parcel.altitude-loc.altitude;return Math.toDegrees(atan2(dh.coerceIn(-5000.0,5000.0),ground.coerceAtLeast(1.0)))} }
 
 @Composable private fun Permission(camera:Boolean,request:()->Unit){Box(Modifier.fillMaxSize().background(Color.Black),contentAlignment=Alignment.Center){Column(Modifier.padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)){Text("GÖKYÜZÜNÜ TARA",color=Color.White,style=MaterialTheme.typography.headlineSmall);Text(if(camera)"Konum izni gerekli."else"Kamera ve konum izinleri gerekli.",color=Color.White.copy(alpha=.8f));Button(onClick=request){Text("İzinleri ver")}}}}
 @Composable private fun Status(text:String){Box(Modifier.fillMaxSize().background(Color.Black),contentAlignment=Alignment.Center){Text(text,color=Color.White,modifier=Modifier.padding(24.dp))}}
