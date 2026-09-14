@@ -9,7 +9,7 @@ import okhttp3.Request
 import org.json.JSONArray
 
 private const val SUPABASE_URL = "https://agfxwddvobkhwbbrdzpt.supabase.co"
-private const val SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXAiLCJpYXQiOjE3ODYyMTgxNDAsImV4cCI6MjEwMTc5NDE0MH0.T_CEm6eUddkxL2mqDpSfHl5WJqw4uufLi5fRqueGm5s"
+private const val SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnZnh3ZGR2b2JraHdiYnJkenB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTgxNDAsImV4cCI6MjEwMTc5NDE0MH0.T_CEm6eUddkxL2mqDpSfHl5WJqw4uufLi5fRqueGm5s"
 
 class SupabaseParcelRepository(private val client: OkHttpClient = OkHttpClient()) {
     suspend fun loadAvailableParcels(cityCode: String): List<ArParcel> = withContext(Dispatchers.IO) {
