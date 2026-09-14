@@ -62,8 +62,12 @@ import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMaterialLoader
 import io.github.sceneview.rememberOnGestureListener
 import java.util.Locale
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.tan
 
 private const val PERMISSION_REQUEST_CODE = 1001
+private const val TEST_SKY_DISTANCE_METERS = 1000.0
 private data class TestParcel(val id: String, val title: String, val price: Int, val anchor: Anchor)
 
 class MainActivity : ComponentActivity(), SensorEventListener {
@@ -172,7 +176,6 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 private data class SkyParcelSelection(val id: String, val index: Int, val azimuth: Float, val elevation: Float)
 
 private fun calculateSkyParcel(city: String, azimuth: Float, elevation: Float): SkyParcelSelection {
-    // 1000 x 1000 angular cells = 1,000,000 deterministic sky parcels per city.
     val azCell = ((azimuth / 360f) * 1000f).toInt().coerceIn(0, 999)
     val elCell = (((elevation + 90f) / 180f) * 1000f).toInt().coerceIn(0, 999)
     val index = elCell * 1000 + azCell + 1
@@ -258,6 +261,26 @@ private fun CameraPreview(activity: MainActivity) {
     AndroidView(Modifier.fillMaxSize(), factory = { context -> PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER; this.controller = controller } })
 }
 
+private fun skyAnchorWgs84(
+    latitudeDeg: Double,
+    longitudeDeg: Double,
+    altitudeMeters: Double,
+    azimuthDeg: Double,
+    elevationDeg: Double,
+    distanceMeters: Double,
+): Triple<Double, Double, Double> {
+    val az = Math.toRadians(azimuthDeg)
+    val el = Math.toRadians(elevationDeg)
+    val horizontal = distanceMeters * cos(el)
+    val northMeters = horizontal * cos(az)
+    val eastMeters = horizontal * sin(az)
+    val upMeters = distanceMeters * sin(el)
+    val earthRadius = 6_378_137.0
+    val newLat = latitudeDeg + Math.toDegrees(northMeters / earthRadius)
+    val newLon = longitudeDeg + Math.toDegrees(eastMeters / (earthRadius * cos(Math.toRadians(latitudeDeg))))
+    return Triple(newLat, newLon, altitudeMeters + upMeters)
+}
+
 @Composable
 private fun MySkyParcelArScreen(onParcelSelected: (String) -> Unit) {
     val engine = rememberEngine()
@@ -275,11 +298,21 @@ private fun MySkyParcelArScreen(onParcelSelected: (String) -> Unit) {
             latestEarthTracking = earth?.trackingState == TrackingState.TRACKING
             if (latestEarthTracking && earth != null) {
                 val pose = earth.cameraGeospatialPose
-                latestLocation = "%.6f, %.6f · ±%.1fm".format(pose.latitude, pose.longitude, pose.horizontalAccuracy)
-                if (!placed) {
-                    placed = true
-                    listOf(Triple("MSP-AR-001", 0.00000 to 0.00010, 199), Triple("MSP-AR-002", 0.00008 to 0.00004, 499), Triple("MSP-AR-003", -0.00007 to -0.00006, 999)).forEachIndexed { index, (id, offset, price) ->
-                        runCatching { earth.createAnchor(pose.latitude + offset.first, pose.longitude + offset.second, pose.altitude + 18.0 + index * 3.0, 0f, 0f, 0f, 1f) }.getOrNull()?.let { parcels += TestParcel(id, "MySkyParcel ${id.removePrefix("MSP-AR-")}", price, it) }
+                latestLocation = "GPS %.6f, %.6f · ±%.1fm".format(pose.latitude, pose.longitude, pose.horizontalAccuracy)
+                if (!placed && pose.horizontalAccuracy <= 30.0 && pose.verticalAccuracy <= 30.0) {
+                    val (lat, lon, alt) = skyAnchorWgs84(
+                        pose.latitude,
+                        pose.longitude,
+                        pose.altitude,
+                        azimuthDeg = 180.0,
+                        elevationDeg = 30.0,
+                        distanceMeters = TEST_SKY_DISTANCE_METERS,
+                    )
+                    runCatching {
+                        earth.createAnchor(lat, lon, alt, 0f, 0f, 0f, 1f)
+                    }.getOrNull()?.let { anchor ->
+                        placed = true
+                        parcels += TestParcel("GAZIANTEP-GOKYUZU-0000001", "PARSEL #0000001", 199, anchor)
                     }
                 }
             }
@@ -288,15 +321,16 @@ private fun MySkyParcelArScreen(onParcelSelected: (String) -> Unit) {
         onGestureListener = rememberOnGestureListener(onSingleTapConfirmed = { _, node -> node?.name?.let(onParcelSelected) }),
     ) {
         parcels.forEach { parcel -> androidx.compose.runtime.key(parcel.id) { AnchorNode(anchor = parcel.anchor) {
-            PlaneNode(size = Size(x = 1.4f, y = 1.0f), normal = Direction(z = 1f), materialInstance = parcelMaterial, rotation = Rotation(y = 180f), apply = { name = parcel.id })
-            TextNode(text = "${parcel.title}  ${parcel.price} TL", fontSize = 48f, textColor = android.graphics.Color.WHITE, backgroundColor = 0xCC06111F.toInt(), widthMeters = 1.4f, heightMeters = 0.22f, position = Position(y = 0.72f), apply = { name = parcel.id })
+            PlaneNode(size = Size(x = 20f, y = 14f), normal = Direction(z = 1f), materialInstance = parcelMaterial, rotation = Rotation(y = 180f), apply = { name = parcel.id })
+            TextNode(text = "${parcel.title}  ${parcel.price} TL", fontSize = 48f, textColor = android.graphics.Color.WHITE, backgroundColor = 0xCC06111F.toInt(), widthMeters = 20f, heightMeters = 2.4f, position = Position(y = 8f), apply = { name = parcel.id })
         } } }
     }
     Box(Modifier.fillMaxSize().padding(16.dp)) {
         Column(Modifier.align(Alignment.TopCenter).background(Color(0xCC06111F), MaterialTheme.shapes.large).padding(horizontal = 16.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("GÖKYÜZÜNÜ TARA · AR", color = Color.White, style = MaterialTheme.typography.titleMedium)
-            Text(if (latestEarthTracking) "AR konumu hazır · Parsellere dokun" else "AR konumu hazırlanıyor…", color = if (latestEarthTracking) Color(0xFF7FF7D0) else Color(0xFFFFD166), style = MaterialTheme.typography.bodySmall)
+            Text("GÖKYÜZÜNÜ TARA · 3B GEOSPATIAL", color = Color.White, style = MaterialTheme.typography.titleMedium)
+            Text(if (latestEarthTracking) "Dünya koordinatı takip ediliyor" else "Geospatial konum hazırlanıyor…", color = if (latestEarthTracking) Color(0xFF7FF7D0) else Color(0xFFFFD166), style = MaterialTheme.typography.bodySmall)
             Text(latestLocation, color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
+            Text("Test parseli: 1 km · Azimut 180° · Yükseklik 30°", color = Color.White.copy(alpha = 0.65f), style = MaterialTheme.typography.labelSmall)
         }
     }
 }
