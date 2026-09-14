@@ -67,17 +67,30 @@ class GeospatialScannerActivity : ComponentActivity() {
     var parcels by remember{mutableStateOf<List<ArParcel>>(emptyList())};var loaded by remember{mutableStateOf(false)};var created by remember{mutableStateOf(false)};var tracking by remember{mutableStateOf(false)};var status by remember{mutableStateOf("VPS konumu bekleniyor…")}
     LaunchedEffect(cityCode){loaded=false;created=false;placed.forEach{it.anchor.detach()};placed.clear();parcels=cityCode?.let{repo.loadParcels(it)}?:emptyList();loaded=true}
     Box(Modifier.fillMaxSize()){
-        ARSceneView(modifier=Modifier.fillMaxSize(),engine=engine,planeRenderer=false,viewNodeWindowManager=viewManager,sessionConfiguration={s,c->if(s.isGeospatialModeSupported(Config.GeospatialMode.ENABLED))c.geospatialMode=Config.GeospatialMode.ENABLED;c.lightEstimationMode=Config.LightEstimationMode.ENVIRONMENTAL_HDR;c.depthMode=if(s.isDepthModeSupported(Config.DepthMode.AUTOMATIC))Config.DepthMode.AUTOMATIC else Config.DepthMode.DISABLED},onSessionUpdated={session,_->
-            val earth=session.earth;tracking=earth?.trackingState==TrackingState.TRACKING
-            if(!tracking||earth==null)status="VPS konumu bekleniyor…" else {val p=earth.cameraGeospatialPose;status="GPS ±%.1fm · Yön ±%.1f°".format(p.horizontalAccuracy,p.orientationYawAccuracy);val avail=parcels.filter{it.status=="available"};if(loaded&&avail.size>=3&&!created&&p.horizontalAccuracy<=30&&p.verticalAccuracy<=30&&p.orientationYawAccuracy<=30){
-                listOf(1000.0,1500.0,2000.0).forEachIndexed{i,d->{val q=GeoMath.destination(p.latitude,p.longitude,p.altitude,i*120.0,20.0,d);runCatching{earth.createAnchor(q.latitude,q.longitude,q.altitude,0f,0f,0f,1f)}.getOrNull()?.let{placed+=PlacedParcel(avail[i].copy(isTest=true,latitude=q.latitude,longitude=q.longitude),it)}}}
-                avail.drop(3).sortedBy{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)}.filter{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)<=10000}.take(6).forEach{parcel->runCatching{earth.createAnchor(parcel.latitude,parcel.longitude,p.altitude+150,0f,0f,0f,1f)}.getOrNull()?.let{placed+=PlacedParcel(parcel,it)}}
-                parcels.filter{it.status=="sold"}.sortedBy{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)}.filter{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)<=10000}.take(3).forEach{parcel->runCatching{earth.createAnchor(parcel.latitude,parcel.longitude,p.altitude+150,0f,0f,0f,1f)}.getOrNull()?.let{placed+=PlacedParcel(parcel,it)}}
-                created=true
-            }}
-        },onGestureListener=rememberOnGestureListener(onSingleTapConfirmed={_,node->node?.name?.takeIf{it.isNotBlank()}?.let(select)}){
-            placed.forEach{item->key(item.parcel.id){AnchorNode(anchor=item.anchor){val sold=item.parcel.status=="sold";ViewNode(windowManager=viewManager,unlit=true,apply={name=if(sold)null else item.parcel.id;isTouchable=!sold}){Column(Modifier.background(if(item.parcel.isTest)Color(0xDDFF8A00)else if(sold)Color(0xDD6B1F2B)else Color(0xDD06111F),MaterialTheme.shapes.large).padding(horizontal=12.dp,vertical=8.dp),horizontalAlignment=Alignment.CenterHorizontally){Text(if(item.parcel.isTest)"TEST · ${item.parcel.parcelNumber}"else if(sold)"SATILDI · ${item.parcel.parcelNumber}"else item.parcel.parcelNumber,color=Color.White,style=MaterialTheme.typography.labelLarge);if(!sold)Text("Satın almak için dokun",color=Color(0xFFFFD166),style=MaterialTheme.typography.labelSmall)}}}}}}
-        }){}
+        ARSceneView(
+            modifier=Modifier.fillMaxSize(),engine=engine,planeRenderer=false,viewNodeWindowManager=viewManager,
+            sessionConfiguration={s,c->if(s.isGeospatialModeSupported(Config.GeospatialMode.ENABLED))c.geospatialMode=Config.GeospatialMode.ENABLED;c.lightEstimationMode=Config.LightEstimationMode.ENVIRONMENTAL_HDR;c.depthMode=if(s.isDepthModeSupported(Config.DepthMode.AUTOMATIC))Config.DepthMode.AUTOMATIC else Config.DepthMode.DISABLED},
+            onSessionUpdated={session,_->
+                val earth=session.earth;tracking=earth?.trackingState==TrackingState.TRACKING
+                if(!tracking||earth==null)status="VPS konumu bekleniyor…" else {val p=earth.cameraGeospatialPose;status="GPS ±%.1fm · Yön ±%.1f°".format(p.horizontalAccuracy,p.orientationYawAccuracy);val avail=parcels.filter{it.status=="available"};if(loaded&&avail.size>=3&&!created&&p.horizontalAccuracy<=30&&p.verticalAccuracy<=30&&p.orientationYawAccuracy<=30){
+                    listOf(1000.0,1500.0,2000.0).forEachIndexed{i,d->{val q=GeoMath.destination(p.latitude,p.longitude,p.altitude,i*120.0,20.0,d);runCatching{earth.createAnchor(q.latitude,q.longitude,q.altitude,0f,0f,0f,1f)}.getOrNull()?.let{placed+=PlacedParcel(avail[i].copy(isTest=true,latitude=q.latitude,longitude=q.longitude),it)}}}
+                    avail.drop(3).sortedBy{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)}.filter{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)<=10000}.take(6).forEach{parcel->runCatching{earth.createAnchor(parcel.latitude,parcel.longitude,p.altitude+150,0f,0f,0f,1f)}.getOrNull()?.let{placed+=PlacedParcel(parcel,it)}}
+                    parcels.filter{it.status=="sold"}.sortedBy{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)}.filter{GeoMath.distance(p.latitude,p.longitude,it.latitude,it.longitude)<=10000}.take(3).forEach{parcel->runCatching{earth.createAnchor(parcel.latitude,parcel.longitude,p.altitude+150,0f,0f,0f,1f)}.getOrNull()?.let{placed+=PlacedParcel(parcel,it)}}
+                    created=true
+                }}
+            },
+            onGestureListener=rememberOnGestureListener(onSingleTapConfirmed={_,node->node?.name?.takeIf{it.isNotBlank()}?.let(select)})
+        ) {
+            placed.forEach{item->key(item.parcel.id){AnchorNode(anchor=item.anchor){
+                val sold=item.parcel.status=="sold"
+                ViewNode(windowManager=viewManager,unlit=true,apply={name=if(sold)null else item.parcel.id;isTouchable=!sold}){
+                    Column(Modifier.background(if(item.parcel.isTest)Color(0xDDFF8A00)else if(sold)Color(0xDD6B1F2B)else Color(0xDD06111F),MaterialTheme.shapes.large).padding(horizontal=12.dp,vertical=8.dp),horizontalAlignment=Alignment.CenterHorizontally){
+                        Text(if(item.parcel.isTest)"TEST · ${item.parcel.parcelNumber}"else if(sold)"SATILDI · ${item.parcel.parcelNumber}"else item.parcel.parcelNumber,color=Color.White,style=MaterialTheme.typography.labelLarge)
+                        if(!sold)Text("Satın almak için dokun",color=Color(0xFFFFD166),style=MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }}}
+        }
         Column(Modifier.align(Alignment.TopCenter).padding(14.dp).background(Color(0xDD06111F),MaterialTheme.shapes.large).padding(12.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(3.dp)){Text("GÖKYÜZÜNÜ TARA",color=Color.White,style=MaterialTheme.typography.titleMedium);Text("$cityName · GERÇEK PARSELLER",color=Color(0xFF7FF7D0),style=MaterialTheme.typography.labelMedium);Text(if(tracking)status else "GPS + VPS konumu hazırlanıyor…",color=Color.White.copy(alpha=.82f),style=MaterialTheme.typography.labelSmall);Text("${parcels.count{it.status=="available"}} boş · ${parcels.count{it.status=="sold"}} satıldı · ${placed.size} AR noktası",color=Color.White.copy(alpha=.7f),style=MaterialTheme.typography.labelSmall)}
     }
 }
