@@ -14,9 +14,13 @@ android {
         applicationId = "com.myskyparcel.ar"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
         manifestPlaceholders["ARCORE_API_KEY"] = providers.gradleProperty("ARCORE_API_KEY").orElse("").get()
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
@@ -39,6 +43,7 @@ kotlin {
 dependencies {
     implementation("io.github.sceneview:arsceneview:4.25.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.camera:camera-camera2:1.6.2")
     implementation("androidx.camera:camera-lifecycle:1.6.2")
     implementation("androidx.camera:camera-view:1.6.2")
