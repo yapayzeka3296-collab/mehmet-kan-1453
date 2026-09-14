@@ -12,11 +12,11 @@ private const val SUPABASE_URL = "https://agfxwddvobkhwbbrdzpt.supabase.co"
 private const val SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnZnh3ZGR2b2JraHdiYnJkenB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTgxNDAsImV4cCI6MjEwMTc5NDE0MH0.T_CEm6eUddkxL2mqDpSfHl5WJqw4uufLi5fRqueGm5s"
 
 class SupabaseParcelRepository(private val client: OkHttpClient = OkHttpClient()) {
-    suspend fun loadAvailableParcels(cityCode: String): List<ArParcel> = withContext(Dispatchers.IO) {
+    suspend fun loadParcels(cityCode: String): List<ArParcel> = withContext(Dispatchers.IO) {
         val url = "$SUPABASE_URL/rest/v1/parcel_map_public".toHttpUrl().newBuilder()
             .addQueryParameter("select", "id,parcel_number,status,price,tier,tier_price,latitude,longitude")
             .addQueryParameter("city_code", "eq.$cityCode")
-            .addQueryParameter("status", "eq.available")
+            .addQueryParameter("status", "in.(available,sold)")
             .addQueryParameter("order", "parcel_number.asc")
             .addQueryParameter("limit", "1000")
             .build()
