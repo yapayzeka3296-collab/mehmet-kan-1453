@@ -13,12 +13,34 @@ private const val SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJp
 
 class SupabaseParcelRepository(private val client: OkHttpClient = OkHttpClient()) {
     suspend fun loadParcels(cityCode: String): List<ArParcel> = withContext(Dispatchers.IO) {
-        val url = "$SUPABASE_URL/rest/v1/parcel_map_public".toHttpUrl().newBuilder()
-            .addQueryParameter("select", "id,parcel_number,status,price,tier,tier_price,latitude,longitude")
-            .addQueryParameter("city_code", "eq.$cityCode")
-            .addQueryParameter("status", "in.(available,sold)")
-            .addQueryParameter("order", "parcel_number.asc")
-            .addQueryParameter("limit", "1000")
+        runCatching {
+            val cityName = resolveCityName(cityCode) ?: error("Unknown city code: $cityCode")
+            val url = "$SUPABASE_URL/rest/v1/parcel_map_public".toHttpUrl().newBuilder()
+                .addQueryParameter("select", "id,parcel_number,status,price,tier,tier_price,latitude,longitude")
+                .addQueryParameter("city_name", "eq.$cityName")
+                .addQueryParameter("status", "in.(available,sold)")
+                .addQueryParameter("order", "parcel_number.asc")
+                .addQueryParameter("limit", "1000")
+                .build()
+            val request = Request.Builder()
+                .url(url)
+                .header("apikey", SUPABASE_ANON_KEY)
+                .header("Authorization", "Bearer $SUPABASE_ANON_KEY")
+                .header("Accept", "application/json")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) error("Supabase HTTP ${response.code}")
+                parse(response.body?.string().orEmpty())
+            }
+        }.onFailure { Log.e("MySkyParcelAR", "Parcel fetch failed", it) }.getOrDefault(emptyList())
+    }
+
+    private fun resolveCityName(cityCode: String): String? {
+        val url = "$SUPABASE_URL/rest/v1/cities".toHttpUrl().newBuilder()
+            .addQueryParameter("select", "name")
+            .addQueryParameter("code", "eq.$cityCode")
+            .addQueryParameter("is_active", "eq.true")
+            .addQueryParameter("limit", "1")
             .build()
         val request = Request.Builder()
             .url(url)
@@ -26,12 +48,12 @@ class SupabaseParcelRepository(private val client: OkHttpClient = OkHttpClient()
             .header("Authorization", "Bearer $SUPABASE_ANON_KEY")
             .header("Accept", "application/json")
             .build()
-        runCatching {
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) error("Supabase HTTP ${response.code}")
-                parse(response.body?.string().orEmpty())
-            }
-        }.onFailure { Log.e("MySkyParcelAR", "Parcel fetch failed", it) }.getOrDefault(emptyList())
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error("Supabase city HTTP ${response.code}")
+            val body = response.body?.string().orEmpty()
+            val json = JSONArray(body)
+            return if (json.length() == 0) null else json.getJSONObject(0).optString("name").takeIf { it.isNotBlank() }
+        }
     }
 
     private fun parse(body: String): List<ArParcel> {
