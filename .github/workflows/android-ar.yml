@@ -2,7 +2,7 @@ name: MySkyParcel AR Android Build
 
 on:
   push:
-    branches: ["ar-complete", "ar-unified", "sky3d-stage1-cleanup"]
+    branches: ["ar-complete", "ar-unified", "sky3d-stage1-cleanup", "sky3d-stage2-coordinate-engine"]
   pull_request:
     paths:
       - "android-ar/**"
