@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { SiteHeader } from "@/components/SiteHeader";
-import { geoToSkyWorld, type GeoPoint } from "@/lib/skyCoordinateEngine";
+import { destinationPoint, geoToSkyWorld, type GeoPoint } from "@/lib/skyCoordinateEngine";
 
 export const Route = createFileRoute("/gokyuzu-tara")({ component: SkyScanPage });
 
@@ -15,12 +15,18 @@ type TestParcel = {
 };
 
 const FALLBACK_ORIGIN: GeoPoint = { latitude: 37.0662, longitude: 37.3833, altitude: 0 };
+const TEST_RANGES = [
+  { distance: 1000, bearing: 0, altitude: 180, id: "sky-test-1000", parcelNumber: "TEST-001000" },
+  { distance: 1500, bearing: 35, altitude: 260, id: "sky-test-1500", parcelNumber: "TEST-001500" },
+  { distance: 2000, bearing: 70, altitude: 340, id: "sky-test-2000", parcelNumber: "TEST-002000" },
+] as const;
 
-const TEST_PARCELS: TestParcel[] = [
-  { id: "sky-test-1000", parcelNumber: "TEST-001000", latitude: 37.0752, longitude: 37.3833, altitude: 180 },
-  { id: "sky-test-1500", parcelNumber: "TEST-001500", latitude: 37.0797, longitude: 37.3833, altitude: 260 },
-  { id: "sky-test-2000", parcelNumber: "TEST-002000", latitude: 37.0842, longitude: 37.3833, altitude: 340 },
-];
+function makeTestParcels(origin: GeoPoint): TestParcel[] {
+  return TEST_RANGES.map((test) => {
+    const point = destinationPoint(origin, test.distance, test.bearing, test.altitude);
+    return { ...test, latitude: point.latitude, longitude: point.longitude };
+  });
+}
 
 function SkyScanPage() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -34,15 +40,17 @@ function SkyScanPage() {
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020817);
-    scene.fog = new THREE.FogExp2(0x020817, 0.00055);
+    scene.fog = new THREE.FogExp2(0x020817, 0.00035);
 
-    const camera = new THREE.PerspectiveCamera(65, mount.clientWidth / mount.clientHeight, 0.1, 10000);
-    camera.position.set(0, 4, 0);
+    const camera = new THREE.PerspectiveCamera(65, mount.clientWidth / mount.clientHeight, 0.1, 12000);
+    camera.position.set(0, 6, 0);
+    camera.lookAt(0, 100, -1000);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.domElement.style.touchAction = "none";
     mount.appendChild(renderer.domElement);
 
     scene.add(new THREE.HemisphereLight(0x9fc5ff, 0x07111f, 1.5));
@@ -62,17 +70,24 @@ function SkyScanPage() {
     grid.position.y = -7.9;
     scene.add(grid);
 
-    const origin = FALLBACK_ORIGIN;
     const parcelMeshes = new Map<THREE.Object3D, TestParcel>();
+    const parcelGroups = new Map<string, THREE.Group>();
+    let origin = FALLBACK_ORIGIN;
 
-    for (const parcel of TEST_PARCELS) {
+    const createParcelMesh = (parcel: TestParcel) => {
       const world = geoToSkyWorld(origin, parcel);
       const group = new THREE.Group();
       group.position.set(world.x, world.y, -world.z);
 
-      const size = 32;
-      const geometry = new THREE.BoxGeometry(size, 2.2, size);
-      const material = new THREE.MeshStandardMaterial({ color: 0xd6a84f, emissive: 0x5b4217, emissiveIntensity: 0.45, metalness: 0.55, roughness: 0.3 });
+      const size = 44;
+      const geometry = new THREE.BoxGeometry(size, 3, size);
+      const material = new THREE.MeshStandardMaterial({
+        color: 0xd6a84f,
+        emissive: 0x5b4217,
+        emissiveIntensity: 0.45,
+        metalness: 0.55,
+        roughness: 0.3,
+      });
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData.parcel = parcel;
       group.add(mesh);
@@ -84,7 +99,19 @@ function SkyScanPage() {
       );
       group.add(edge);
       scene.add(group);
-    }
+      parcelGroups.set(parcel.id, group);
+    };
+
+    const setParcelsForOrigin = (nextOrigin: GeoPoint) => {
+      origin = nextOrigin;
+      for (const group of parcelGroups.values()) scene.remove(group);
+      parcelGroups.clear();
+      parcelMeshes.clear();
+      for (const parcel of makeTestParcels(origin)) createParcelMesh(parcel);
+      setSelected(null);
+    };
+
+    setParcelsForOrigin(origin);
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
@@ -98,14 +125,40 @@ function SkyScanPage() {
     };
     renderer.domElement.addEventListener("pointerdown", onPointer);
 
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    let yaw = 0;
+    let pitch = -0.02;
+    const onPointerMove = (event: PointerEvent) => {
+      if (!dragging) return;
+      yaw -= (event.clientX - lastX) * 0.004;
+      pitch -= (event.clientY - lastY) * 0.003;
+      pitch = THREE.MathUtils.clamp(pitch, -1.2, 1.2);
+      lastX = event.clientX;
+      lastY = event.clientY;
+      camera.rotation.order = "YXZ";
+      camera.rotation.y = yaw;
+      camera.rotation.x = pitch;
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      dragging = true;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      renderer.domElement.setPointerCapture?.(event.pointerId);
+    };
+    const onPointerUp = (event: PointerEvent) => {
+      dragging = false;
+      renderer.domElement.releasePointerCapture?.(event.pointerId);
+    };
+    renderer.domElement.addEventListener("pointerdown", onPointerDown);
+    renderer.domElement.addEventListener("pointermove", onPointerMove);
+    renderer.domElement.addEventListener("pointerup", onPointerUp);
+    renderer.domElement.addEventListener("pointercancel", onPointerUp);
+
     let animationFrame = 0;
     const animate = () => {
       animationFrame = requestAnimationFrame(animate);
-      scene.traverse((object) => {
-        if (object instanceof THREE.Mesh && object.userData.parcel) {
-          object.rotation.y += 0.0008;
-        }
-      });
       renderer.render(scene, camera);
     };
     animate();
@@ -121,7 +174,13 @@ function SkyScanPage() {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setLocationText(`${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`);
+          const nextOrigin = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            altitude: position.coords.altitude ?? 0,
+          };
+          setLocationText(`${nextOrigin.latitude.toFixed(5)}, ${nextOrigin.longitude.toFixed(5)}`);
+          setParcelsForOrigin(nextOrigin);
         },
         () => setLocationText("GPS izni verilmedi · test koordinatı kullanılıyor"),
         { enableHighAccuracy: true, timeout: 7000, maximumAge: 30000 },
@@ -132,15 +191,20 @@ function SkyScanPage() {
       cancelAnimationFrame(animationFrame);
       window.removeEventListener("resize", resize);
       renderer.domElement.removeEventListener("pointerdown", onPointer);
-      scene.traverse((object) => {
-        if (object instanceof THREE.Mesh) {
-          object.geometry.dispose();
-          if (Array.isArray(object.material)) object.material.forEach((m) => m.dispose());
-          else object.material.dispose();
-        }
-      });
+      renderer.domElement.removeEventListener("pointerdown", onPointerDown);
+      renderer.domElement.removeEventListener("pointermove", onPointerMove);
+      renderer.domElement.removeEventListener("pointerup", onPointerUp);
+      renderer.domElement.removeEventListener("pointercancel", onPointerUp);
+      for (const group of parcelGroups.values()) {
+        group.traverse((object) => {
+          if (object instanceof THREE.Mesh) {
+            object.geometry.dispose();
+            object.material.dispose();
+          }
+        });
+      }
       renderer.dispose();
-      mount.removeChild(renderer.domElement);
+      if (renderer.domElement.parentElement === mount) mount.removeChild(renderer.domElement);
     };
   }, []);
 
@@ -152,7 +216,7 @@ function SkyScanPage() {
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[.24em] text-amber-300">MySkyParcel · 3D Sky Engine</p>
             <h1 className="mt-1 font-display text-2xl sm:text-3xl">Gökyüzünü Tara</h1>
-            <p className="mt-1 text-xs text-white/55">Parseller gerçek 3B dünya koordinatlarında. 2B harita veya kamera sabit katmanı kullanılmıyor.</p>
+            <p className="mt-1 text-xs text-white/55">Parseller gerçek 3B dünya koordinatlarında. Telefonda sürükleyerek gökyüzünü çevirebilir, 3B parsele dokunabilirsiniz.</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/65">Konum: {locationText}</div>
         </section>
@@ -163,7 +227,7 @@ function SkyScanPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[.2em] text-amber-300">3B parsel seçimi</p>
-              <p className="mt-1 text-sm text-white/70">1 km · 1,5 km · 2 km test parselleri sahnenin içindedir. Bir parseli seçmek için 3B yüzeyine dokunun.</p>
+              <p className="mt-1 text-sm text-white/70">1 km · 1,5 km · 2 km test parselleri gerçek GPS konumunuza göre üretilir.</p>
               {selected && <p className="mt-2 font-display text-xl">PARSEL #{selected.parcelNumber}</p>}
             </div>
             {selected && (
