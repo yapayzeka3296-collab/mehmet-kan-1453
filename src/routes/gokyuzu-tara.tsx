@@ -8,7 +8,7 @@ export const Route = createFileRoute("/gokyuzu-tara")({ component: SkyScanPage }
 
 type TestParcel = { id: string; parcelNumber: string; latitude: number; longitude: number; altitude: number; distance: number; bearing: number };
 type SensorState = "idle" | "starting" | "active" | "denied" | "unsupported";
-type OrientationSample = { alpha: number; beta: number; gamma: number; absolute: boolean; compass?: number };
+type OrientationSample = { alpha: number; beta: number; gamma: number; absolute: boolean; compass?: number; source: "absolute" | "relative" | "compass" };
 
 type DeviceOrientationWithCompass = DeviceOrientationEvent & { webkitCompassHeading?: number; webkitCompassAccuracy?: number };
 
@@ -25,9 +25,6 @@ function makeTestParcels(origin: GeoPoint): TestParcel[] {
     return { ...test, latitude: point.latitude, longitude: point.longitude };
   });
 }
-
-function deg(value: number) { return THREE.MathUtils.degToRad(value); }
-function normalizeAngle(angle: number) { return THREE.MathUtils.euclideanModulo(angle + Math.PI, Math.PI * 2) - Math.PI; }
 
 function SkyScanPage() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -76,21 +73,27 @@ function SkyScanPage() {
   useEffect(() => { void startCamera(); return () => { streamRef.current?.getTracks().forEach((track) => track.stop()); }; }, []);
 
   useEffect(() => {
-    const handleOrientation = (raw: Event) => {
-      const event = raw as DeviceOrientationWithCompass;
+    const read = (event: DeviceOrientationWithCompass, source: "absolute" | "relative") => {
       if (event.alpha == null || event.beta == null || event.gamma == null) return;
-      orientationRef.current = { alpha: event.alpha, beta: event.beta, gamma: event.gamma, absolute: event.absolute, compass: Number.isFinite(event.webkitCompassHeading) ? event.webkitCompassHeading : undefined };
+      const compass = Number.isFinite(event.webkitCompassHeading) ? event.webkitCompassHeading : undefined;
+      if (source === "relative" && orientationRef.current?.source === "absolute" && compass == null) return;
+      orientationRef.current = { alpha: event.alpha, beta: event.beta, gamma: event.gamma, absolute: source === "absolute" || event.absolute, compass, source: compass != null ? "compass" : source };
     };
-    window.addEventListener("deviceorientationabsolute", handleOrientation);
-    window.addEventListener("deviceorientation", handleOrientation);
-    return () => { window.removeEventListener("deviceorientationabsolute", handleOrientation); window.removeEventListener("deviceorientation", handleOrientation); };
+    const handleAbsolute = (raw: Event) => read(raw as DeviceOrientationWithCompass, "absolute");
+    const handleRelative = (raw: Event) => read(raw as DeviceOrientationWithCompass, "relative");
+    window.addEventListener("deviceorientationabsolute", handleAbsolute);
+    window.addEventListener("deviceorientation", handleRelative);
+    return () => {
+      window.removeEventListener("deviceorientationabsolute", handleAbsolute);
+      window.removeEventListener("deviceorientation", handleRelative);
+    };
   }, []);
 
   useEffect(() => {
     const mount = mountRef.current; if (!mount) return;
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(65, Math.max(mount.clientWidth, 1) / Math.max(mount.clientHeight, 1), 0.1, 12000);
-    camera.position.set(0, 0, 0); camera.rotation.order = "YXZ";
+    camera.position.set(0, 0, 0);
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75)); renderer.setSize(mount.clientWidth, mount.clientHeight); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.domElement.style.touchAction = "none"; mount.appendChild(renderer.domElement);
     scene.add(new THREE.HemisphereLight(0x9fc5ff, 0x07111f, 1.8));
@@ -99,6 +102,7 @@ function SkyScanPage() {
     const parcelMeshes = new Map<THREE.Object3D, TestParcel>();
     const parcelGroups = new Map<string, THREE.Group>();
     let origin = FALLBACK_ORIGIN;
+    let lastGpsOrigin: GeoPoint | null = null;
 
     const createParcel = (parcel: TestParcel) => {
       const world = geoToSkyWorld(origin, parcel);
@@ -135,16 +139,16 @@ function SkyScanPage() {
       animationFrame = requestAnimationFrame(animate);
       const sample = orientationRef.current;
       if (sensorEnabledRef.current && sample) {
-        const screenAngle = (screen.orientation?.angle ?? 0) * Math.PI / 180;
-        let heading = sample.compass;
-        if (heading == null) heading = sample.absolute ? sample.alpha : sample.alpha;
-        const yaw = normalizeAngle(-deg(heading) + screenAngle);
-        const beta = deg(sample.beta); const gamma = deg(sample.gamma);
-        const pitch = THREE.MathUtils.clamp(-(beta - Math.PI / 2), -1.25, 1.25);
-        const roll = THREE.MathUtils.clamp(-gamma, -0.7, 0.7);
-        camera.rotation.y = THREE.MathUtils.lerp(camera.rotation.y, yaw, 0.22);
-        camera.rotation.x = THREE.MathUtils.lerp(camera.rotation.x, pitch, 0.22);
-        camera.rotation.z = THREE.MathUtils.lerp(camera.rotation.z, roll, 0.14);
+        const alpha = THREE.MathUtils.degToRad(sample.compass ?? sample.alpha);
+        const beta = THREE.MathUtils.degToRad(sample.beta);
+        const gamma = THREE.MathUtils.degToRad(sample.gamma);
+        const screenAngle = THREE.MathUtils.degToRad(screen.orientation?.angle ?? 0);
+        const deviceEuler = new THREE.Euler(beta, alpha, -gamma, "YXZ");
+        const deviceQuaternion = new THREE.Quaternion().setFromEuler(deviceEuler);
+        const cameraCorrection = new THREE.Quaternion(-Math.SQRT1_2, 0, 0, Math.SQRT1_2);
+        const screenCorrection = new THREE.Quaternion(0, 0, Math.sin(-screenAngle / 2), Math.cos(-screenAngle / 2));
+        deviceQuaternion.multiply(cameraCorrection).multiply(screenCorrection);
+        camera.quaternion.slerp(deviceQuaternion, 0.2);
       }
       renderer.render(scene, camera);
     }; animate();
@@ -152,7 +156,14 @@ function SkyScanPage() {
     const resize = () => { if (!mount.clientWidth || !mount.clientHeight) return; camera.aspect = mount.clientWidth / mount.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(mount.clientWidth, mount.clientHeight); };
     window.addEventListener("resize", resize); window.addEventListener("orientationchange", resize);
     let watchId: number | null = null;
-    if ("geolocation" in navigator) watchId = navigator.geolocation.watchPosition((position) => { const next = { latitude: position.coords.latitude, longitude: position.coords.longitude, altitude: position.coords.altitude ?? 0 }; setLocationText(`${next.latitude.toFixed(5)}, ${next.longitude.toFixed(5)}`); rebuild(next); }, () => setLocationText("GPS izni verilmedi · test koordinatı kullanılıyor"), { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 });
+    if ("geolocation" in navigator) watchId = navigator.geolocation.watchPosition((position) => {
+      const next = { latitude: position.coords.latitude, longitude: position.coords.longitude, altitude: position.coords.altitude ?? 0 };
+      setLocationText(`${next.latitude.toFixed(5)}, ${next.longitude.toFixed(5)}`);
+      if (!lastGpsOrigin || Math.hypot((next.latitude - lastGpsOrigin.latitude) * 111_320, (next.longitude - lastGpsOrigin.longitude) * 111_320 * Math.cos(next.latitude * Math.PI / 180)) > 8) {
+        lastGpsOrigin = next;
+        rebuild(next);
+      }
+    }, () => setLocationText("GPS izni verilmedi · test koordinatı kullanılıyor"), { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 });
 
     return () => {
       cancelAnimationFrame(animationFrame); if (watchId !== null) navigator.geolocation.clearWatch(watchId); window.removeEventListener("resize", resize); window.removeEventListener("orientationchange", resize); renderer.domElement.removeEventListener("pointerup", onPointer);
