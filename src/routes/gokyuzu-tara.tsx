@@ -14,6 +14,15 @@ type TestParcel = {
   altitude: number;
 };
 
+type SensorState = "idle" | "starting" | "active" | "denied" | "unsupported";
+
+type OrientationSample = {
+  alpha: number;
+  beta: number;
+  gamma: number;
+  absolute: boolean;
+};
+
 const FALLBACK_ORIGIN: GeoPoint = { latitude: 37.0662, longitude: 37.3833, altitude: 0 };
 const TEST_RANGES = [
   { distance: 1000, bearing: 0, altitude: 180, id: "sky-test-1000", parcelNumber: "TEST-001000" },
@@ -28,14 +37,23 @@ function makeTestParcels(origin: GeoPoint): TestParcel[] {
   });
 }
 
+function normalizeAngle(angle: number) {
+  return THREE.MathUtils.euclideanModulo(angle + Math.PI, Math.PI * 2) - Math.PI;
+}
+
 function SkyScanPage() {
   const mountRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const orientationRef = useRef<OrientationSample | null>(null);
+  const sensorEnabledRef = useRef(false);
+  const sensorAvailableRef = useRef(false);
   const [selected, setSelected] = useState<TestParcel | null>(null);
   const [locationText, setLocationText] = useState("Test başlangıç konumu");
   const [cameraState, setCameraState] = useState<"starting" | "ready" | "blocked" | "unsupported">("starting");
   const [cameraError, setCameraError] = useState("");
+  const [sensorState, setSensorState] = useState<SensorState>("idle");
+  const [sensorText, setSensorText] = useState("Sensörler başlatılmadı");
   const navigate = useNavigate();
 
   const startCamera = async () => {
@@ -72,6 +90,43 @@ function SkyScanPage() {
     }
   };
 
+  const startSensors = async () => {
+    setSensorState("starting");
+    setSensorText("Pusula ve jiroskop izni isteniyor…");
+
+    if (typeof window === "undefined" || !("DeviceOrientationEvent" in window)) {
+      setSensorState("unsupported");
+      setSensorText("Bu cihaz/tarayıcı yön sensörünü desteklemiyor.");
+      return;
+    }
+
+    try {
+      const Orientation = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & {
+        requestPermission?: (absolute?: boolean) => Promise<PermissionState>;
+      };
+      const Motion = window.DeviceMotionEvent as typeof DeviceMotionEvent & {
+        requestPermission?: () => Promise<PermissionState>;
+      };
+
+      if (typeof Orientation.requestPermission === "function") {
+        const orientationPermission = await Orientation.requestPermission(true);
+        if (orientationPermission !== "granted") throw new Error("orientation-denied");
+      }
+      if (typeof Motion.requestPermission === "function") {
+        const motionPermission = await Motion.requestPermission();
+        if (motionPermission !== "granted") throw new Error("motion-denied");
+      }
+
+      sensorEnabledRef.current = true;
+      setSensorState("active");
+      setSensorText("Sensör aktif · telefonu hareket ettirin");
+    } catch {
+      sensorEnabledRef.current = false;
+      setSensorState("denied");
+      setSensorText("Sensör izni verilmedi. Tekrar denemek için butona dokunun.");
+    }
+  };
+
   useEffect(() => {
     void startCamera();
     return () => {
@@ -79,6 +134,36 @@ function SkyScanPage() {
       streamRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const handleOrientation = (event: DeviceOrientationEvent) => {
+      if (event.alpha == null || event.beta == null || event.gamma == null) return;
+      orientationRef.current = {
+        alpha: event.alpha,
+        beta: event.beta,
+        gamma: event.gamma,
+        absolute: event.absolute,
+      };
+      sensorAvailableRef.current = true;
+      if (sensorEnabledRef.current && sensorState !== "active") {
+        setSensorState("active");
+        setSensorText(event.absolute ? "Sensör aktif · pusula kilitlendi" : "Sensör aktif · göreli yön kullanılıyor");
+      }
+    };
+
+    const handleMotion = () => {
+      sensorAvailableRef.current = true;
+    };
+
+    window.addEventListener("deviceorientationabsolute", handleOrientation as EventListener);
+    window.addEventListener("deviceorientation", handleOrientation as EventListener);
+    window.addEventListener("devicemotion", handleMotion as EventListener);
+    return () => {
+      window.removeEventListener("deviceorientationabsolute", handleOrientation as EventListener);
+      window.removeEventListener("deviceorientation", handleOrientation as EventListener);
+      window.removeEventListener("devicemotion", handleMotion as EventListener);
+    };
+  }, [sensorState]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -181,7 +266,7 @@ function SkyScanPage() {
     let yaw = 0;
     let pitch = -0.02;
     const onPointerMove = (event: PointerEvent) => {
-      if (!dragging) return;
+      if (!dragging || sensorEnabledRef.current) return;
       yaw -= (event.clientX - lastX) * 0.004;
       pitch -= (event.clientY - lastY) * 0.003;
       pitch = THREE.MathUtils.clamp(pitch, -1.2, 1.2);
@@ -212,6 +297,21 @@ function SkyScanPage() {
     let animationFrame = 0;
     const animate = () => {
       animationFrame = requestAnimationFrame(animate);
+      const sample = orientationRef.current;
+      if (sensorEnabledRef.current && sample) {
+        const screenAngle = (screen.orientation?.angle ?? 0) * THREE.MathUtils.DEG2RAD;
+        const alpha = THREE.MathUtils.degToRad(sample.alpha);
+        const beta = THREE.MathUtils.degToRad(sample.beta);
+        const gamma = THREE.MathUtils.degToRad(sample.gamma);
+        const compassHeading = (sample.absolute ? alpha : alpha) + screenAngle;
+        const targetYaw = normalizeAngle(-compassHeading);
+        const targetPitch = THREE.MathUtils.clamp(-(beta - Math.PI / 2), -1.25, 1.25);
+        const targetRoll = THREE.MathUtils.clamp(-gamma, -0.7, 0.7);
+        camera.rotation.order = "YXZ";
+        camera.rotation.y = THREE.MathUtils.lerp(camera.rotation.y, targetYaw, 0.16);
+        camera.rotation.x = THREE.MathUtils.lerp(camera.rotation.x, targetPitch, 0.16);
+        camera.rotation.z = THREE.MathUtils.lerp(camera.rotation.z, targetRoll, 0.12);
+      }
       renderer.render(scene, camera);
     };
     animate();
@@ -223,9 +323,11 @@ function SkyScanPage() {
       renderer.setSize(mount.clientWidth, mount.clientHeight);
     };
     window.addEventListener("resize", resize);
+    window.addEventListener("orientationchange", resize);
 
+    let watchId: number | null = null;
     if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
+      watchId = navigator.geolocation.watchPosition(
         (position) => {
           const nextOrigin = {
             latitude: position.coords.latitude,
@@ -236,13 +338,15 @@ function SkyScanPage() {
           setParcelsForOrigin(nextOrigin);
         },
         () => setLocationText("GPS izni verilmedi · test koordinatı kullanılıyor"),
-        { enableHighAccuracy: true, timeout: 7000, maximumAge: 30000 },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 },
       );
     }
 
     return () => {
       cancelAnimationFrame(animationFrame);
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
       window.removeEventListener("resize", resize);
+      window.removeEventListener("orientationchange", resize);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
@@ -269,7 +373,7 @@ function SkyScanPage() {
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[.24em] text-amber-300">MySkyParcel · 3D Sky Engine</p>
             <h1 className="mt-1 font-display text-2xl sm:text-3xl">Gökyüzünü Tara</h1>
-            <p className="mt-1 text-xs text-white/55">Canlı kamera + gerçek 3B dünya koordinatları. Kamerayı açın, gökyüzündeki 3B parselleri görün.</p>
+            <p className="mt-1 text-xs text-white/55">Canlı kamera + GPS + pusula + jiroskop. Telefonu hareket ettirdikçe gerçek 3B dünya yönünüzü takip eder.</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/65">Konum: {locationText}</div>
         </section>
@@ -293,13 +397,19 @@ function SkyScanPage() {
         <section className="mt-3 rounded-2xl border border-amber-300/15 bg-slate-900/90 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[.2em] text-amber-300">3B parsel seçimi</p>
-              <p className="mt-1 text-sm text-white/70">1 km · 1,5 km · 2 km test parselleri gerçek GPS konumunuza göre üretilir.</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[.2em] text-amber-300">3B parsel + sensör</p>
+              <p className="mt-1 text-sm text-white/70">1 km · 1,5 km · 2 km test parselleri GPS konumunuza göre üretilir.</p>
+              <p className={`mt-2 text-xs ${sensorState === "active" ? "text-emerald-300" : "text-white/55"}`}>● {sensorText}</p>
               {selected && <p className="mt-2 font-display text-xl">PARSEL #{selected.parcelNumber}</p>}
             </div>
-            {selected && (
-              <button type="button" onClick={() => void navigate({ to: "/parsel-satin-al", search: { parcels: selected.id } })} className="rounded-xl bg-amber-300 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-amber-200">Bu parseli satın al</button>
-            )}
+            <div className="flex flex-col gap-2 sm:min-w-[210px]">
+              <button type="button" onClick={() => void startSensors()} disabled={sensorState === "starting"} className="rounded-xl border border-amber-300/30 bg-amber-300 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:opacity-60">
+                {sensorState === "active" ? "Sensörleri Yenile" : "Pusula + Jiroskopu Başlat"}
+              </button>
+              {selected && (
+                <button type="button" onClick={() => void navigate({ to: "/parsel-satin-al", search: { parcels: selected.id } })} className="rounded-xl bg-white/10 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/15">Bu parseli satın al</button>
+              )}
+            </div>
           </div>
         </section>
       </main>
