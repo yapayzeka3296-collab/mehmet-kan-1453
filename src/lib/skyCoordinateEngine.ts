@@ -12,13 +12,14 @@ export type SkyWorldPoint = {
 
 const EARTH_RADIUS_M = 6_378_137;
 const DEG_TO_RAD = Math.PI / 180;
-const MIN_VIRTUAL_SKY_ALTITUDE_M = 5_000;
 
 /**
- * Converts a geographic point into a local ENU-style MySkyParcel world.
- * X = East, Y = Up, Z = North. The observer is always the world origin.
- * MySkyParcel parcels are virtual sky coordinates, so their layer is kept
- * high enough in the 3D sky to remain visible when the user scans upward.
+ * Converts a geographic point into the local MySkyParcel ENU world.
+ * X = East, Y = Up, Z = North.
+ *
+ * Parcel altitude is supplied by the caller from the parcel's sky layer.
+ * It must not be replaced by an artificial 5 km+ height: that pushed normal
+ * nearby parcels above the phone camera's field of view when scanning upward.
  */
 export function geoToSkyWorld(origin: GeoPoint, target: GeoPoint): SkyWorldPoint {
   const dLat = (target.latitude - origin.latitude) * DEG_TO_RAD;
@@ -26,9 +27,7 @@ export function geoToSkyWorld(origin: GeoPoint, target: GeoPoint): SkyWorldPoint
   const meanLat = ((origin.latitude + target.latitude) * 0.5) * DEG_TO_RAD;
   const x = dLon * Math.cos(meanLat) * EARTH_RADIUS_M;
   const z = dLat * EARTH_RADIUS_M;
-  const requestedAltitude = (target.altitude ?? 0) - (origin.altitude ?? 0);
-  const horizontalDistance = Math.hypot(x, z);
-  const y = Math.max(requestedAltitude, MIN_VIRTUAL_SKY_ALTITUDE_M, horizontalDistance * 2.2);
+  const y = (target.altitude ?? 0) - (origin.altitude ?? 0);
 
   return { x, y, z };
 }
