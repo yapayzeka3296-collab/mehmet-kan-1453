@@ -30,23 +30,66 @@ function makeTestParcels(origin: GeoPoint): TestParcel[] {
 
 function SkyScanPage() {
   const mountRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [selected, setSelected] = useState<TestParcel | null>(null);
   const [locationText, setLocationText] = useState("Test başlangıç konumu");
+  const [cameraState, setCameraState] = useState<"starting" | "ready" | "blocked" | "unsupported">("starting");
+  const [cameraError, setCameraError] = useState("");
   const navigate = useNavigate();
+
+  const startCamera = async () => {
+    setCameraError("");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraState("unsupported");
+      setCameraError("Bu tarayıcı canlı kamerayı desteklemiyor.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = stream;
+      const video = videoRef.current;
+      if (!video) return;
+      video.srcObject = stream;
+      video.muted = true;
+      video.playsInline = true;
+      await video.play();
+      setCameraState("ready");
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : "CameraError";
+      setCameraState("blocked");
+      setCameraError(
+        name === "NotAllowedError"
+          ? "Kamera izni verilmedi. Tarayıcıdan kamera iznini açıp tekrar Kamera'yı Aç'a dokunun."
+          : name === "NotFoundError"
+            ? "Kamera bulunamadı."
+            : "Kamera başlatılamadı. HTTPS ve kamera iznini kontrol edin.",
+      );
+    }
+  };
+
+  useEffect(() => {
+    void startCamera();
+    return () => {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x020817);
-    scene.fog = new THREE.FogExp2(0x020817, 0.00035);
-
     const camera = new THREE.PerspectiveCamera(65, mount.clientWidth / mount.clientHeight, 0.1, 12000);
     camera.position.set(0, 6, 0);
     camera.lookAt(0, 100, -1000);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -60,7 +103,7 @@ function SkyScanPage() {
 
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(6000, 6000),
-      new THREE.MeshStandardMaterial({ color: 0x07131f, roughness: 0.92, metalness: 0.02 }),
+      new THREE.MeshStandardMaterial({ color: 0x07131f, transparent: true, opacity: 0.18, roughness: 0.92, metalness: 0.02 }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -8;
@@ -68,6 +111,8 @@ function SkyScanPage() {
 
     const grid = new THREE.GridHelper(6000, 120, 0x21405a, 0x102337);
     grid.position.y = -7.9;
+    grid.material.transparent = true;
+    grid.material.opacity = 0.22;
     scene.add(grid);
 
     const parcelMeshes = new Map<THREE.Object3D, TestParcel>();
@@ -87,6 +132,8 @@ function SkyScanPage() {
         emissiveIntensity: 0.45,
         metalness: 0.55,
         roughness: 0.3,
+        transparent: true,
+        opacity: 0.9,
       });
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData.parcel = parcel;
@@ -115,7 +162,11 @@ function SkyScanPage() {
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
+    let pointerDownX = 0;
+    let pointerDownY = 0;
     const onPointer = (event: PointerEvent) => {
+      const moved = Math.hypot(event.clientX - pointerDownX, event.clientY - pointerDownY);
+      if (moved > 10) return;
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -123,7 +174,6 @@ function SkyScanPage() {
       const hit = raycaster.intersectObjects([...parcelMeshes.keys()], false)[0];
       if (hit) setSelected(parcelMeshes.get(hit.object) ?? null);
     };
-    renderer.domElement.addEventListener("pointerdown", onPointer);
 
     let dragging = false;
     let lastX = 0;
@@ -142,6 +192,8 @@ function SkyScanPage() {
       camera.rotation.x = pitch;
     };
     const onPointerDown = (event: PointerEvent) => {
+      pointerDownX = event.clientX;
+      pointerDownY = event.clientY;
       dragging = true;
       lastX = event.clientX;
       lastY = event.clientY;
@@ -150,6 +202,7 @@ function SkyScanPage() {
     const onPointerUp = (event: PointerEvent) => {
       dragging = false;
       renderer.domElement.releasePointerCapture?.(event.pointerId);
+      onPointer(event);
     };
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
@@ -190,7 +243,6 @@ function SkyScanPage() {
     return () => {
       cancelAnimationFrame(animationFrame);
       window.removeEventListener("resize", resize);
-      renderer.domElement.removeEventListener("pointerdown", onPointer);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
@@ -199,7 +251,8 @@ function SkyScanPage() {
         group.traverse((object) => {
           if (object instanceof THREE.Mesh) {
             object.geometry.dispose();
-            object.material.dispose();
+            if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose());
+            else object.material.dispose();
           }
         });
       }
@@ -216,12 +269,26 @@ function SkyScanPage() {
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[.24em] text-amber-300">MySkyParcel · 3D Sky Engine</p>
             <h1 className="mt-1 font-display text-2xl sm:text-3xl">Gökyüzünü Tara</h1>
-            <p className="mt-1 text-xs text-white/55">Parseller gerçek 3B dünya koordinatlarında. Telefonda sürükleyerek gökyüzünü çevirebilir, 3B parsele dokunabilirsiniz.</p>
+            <p className="mt-1 text-xs text-white/55">Canlı kamera + gerçek 3B dünya koordinatları. Kamerayı açın, gökyüzündeki 3B parselleri görün.</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/65">Konum: {locationText}</div>
         </section>
 
-        <div ref={mountRef} className="relative h-[72vh] min-h-[520px] overflow-hidden rounded-2xl border border-white/10 shadow-2xl" aria-label="MySkyParcel gerçek 3B gökyüzü sahnesi" />
+        <div className="relative h-[72vh] min-h-[520px] overflow-hidden rounded-2xl border border-white/10 shadow-2xl bg-black">
+          <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full object-cover" aria-label="Canlı kamera görüntüsü" />
+          <div ref={mountRef} className="absolute inset-0" aria-label="MySkyParcel gerçek 3B gökyüzü sahnesi" />
+          {cameraState !== "ready" && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-950/85 p-5 text-center backdrop-blur-sm">
+              <div className="max-w-md rounded-2xl border border-amber-300/20 bg-slate-900/95 p-5 shadow-2xl">
+                <p className="text-sm font-semibold text-amber-300">Canlı kamera gerekli</p>
+                <p className="mt-2 text-xs leading-5 text-white/65">{cameraError || "Kamera başlatılıyor…"}</p>
+                {(cameraState === "blocked" || cameraState === "unsupported") && (
+                  <button type="button" onClick={() => void startCamera()} className="mt-4 rounded-xl bg-amber-300 px-5 py-3 text-sm font-bold text-slate-950">Kamera'yı Aç</button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         <section className="mt-3 rounded-2xl border border-amber-300/15 bg-slate-900/90 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -231,13 +298,7 @@ function SkyScanPage() {
               {selected && <p className="mt-2 font-display text-xl">PARSEL #{selected.parcelNumber}</p>}
             </div>
             {selected && (
-              <button
-                type="button"
-                onClick={() => void navigate({ to: "/parsel-satin-al", search: { parcels: selected.id } })}
-                className="rounded-xl bg-amber-300 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-amber-200"
-              >
-                Bu parseli satın al
-              </button>
+              <button type="button" onClick={() => void navigate({ to: "/parsel-satin-al", search: { parcels: selected.id } })} className="rounded-xl bg-amber-300 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-amber-200">Bu parseli satın al</button>
             )}
           </div>
         </section>
