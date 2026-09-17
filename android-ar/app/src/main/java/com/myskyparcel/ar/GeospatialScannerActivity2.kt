@@ -3,6 +3,7 @@ package com.myskyparcel.ar
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -19,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -32,6 +34,7 @@ import io.github.sceneview.ar.node.AnchorNode
 import io.github.sceneview.node.ViewNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberViewNodeManager
+import java.util.Locale
 
 private const val LOCAL_REQUEST = 2099
 
@@ -80,33 +83,41 @@ class GeospatialScannerActivity2 : ComponentActivity() {
 
 @Composable
 private fun Scanner2(location: android.location.Location?, select: (String) -> Unit) {
+    val context = LocalContext.current
     var supported by remember { mutableStateOf<Boolean?>(null) }
+    var cityCode by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(Unit) {
-        ArCoreApk.getInstance().checkAvailabilityAsync(LocalContextHolder.current) { supported = it.isSupported }
+        ArCoreApk.getInstance().checkAvailabilityAsync(context) { supported = it.isSupported }
     }
+    LaunchedEffect(location) {
+        cityCode = location?.let { loc ->
+            val name = runCatching {
+                Geocoder(context, Locale("tr", "TR"))
+                    .getFromLocation(loc.latitude, loc.longitude, 1)
+                    ?.firstOrNull()?.adminArea
+            }.getOrNull()
+            CityCodes.fromName(name)
+        }
+    }
+
     if (supported == false) {
         Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
             Text("Bu cihaz ARCore'u desteklemiyor.", color = Color.White)
         }
         return
     }
-    if (supported == null) {
+    if (supported == null || cityCode == null) {
         Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-            Text("AR hazırlanıyor…", color = Color.White)
+            Text(if (supported == null) "AR hazırlanıyor…" else "Konum hazırlanıyor…", color = Color.White)
         }
         return
     }
-    ParcelScene2(location, select)
-}
-
-private object LocalContextHolder {
-    lateinit var current: android.content.Context
+    ParcelScene2(cityCode!!, select)
 }
 
 @Composable
-private fun ParcelScene2(location: android.location.Location?, select: (String) -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    LocalContextHolder.current = context
+private fun ParcelScene2(cityCode: String, select: (String) -> Unit) {
     val engine = rememberEngine()
     val manager = rememberViewNodeManager()
     val repo = remember { SupabaseParcelRepository() }
@@ -116,8 +127,10 @@ private fun ParcelScene2(location: android.location.Location?, select: (String) 
     var tracking by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("AR konumu hazırlanıyor…") }
 
-    LaunchedEffect(Unit) {
-        parcels = runCatching { repo.loadParcels("27") }.getOrDefault(emptyList())
+    LaunchedEffect(cityCode) {
+        parcels = runCatching { repo.loadParcels(cityCode) }.getOrDefault(emptyList())
+        created = false
+        placed.clear()
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -137,45 +150,46 @@ private fun ParcelScene2(location: android.location.Location?, select: (String) 
                 val earth = session.earth
                 val geoTracking = earth?.trackingState == TrackingState.TRACKING
                 tracking = cameraTracking
-                if (!cameraTracking || created || parcels.isEmpty()) return@ARSceneView
 
-                if (geoTracking && earth != null) {
-                    val p = earth.cameraGeospatialPose
-                    status = "GERÇEK KONUM · GPS ±%.1fm · Yön ±%.1f°".format(p.horizontalAccuracy, p.orientationYawAccuracy)
-                    val usable = p.horizontalAccuracy <= 100.0 && p.verticalAccuracy <= 100.0
-                    if (usable) {
-                        val available = parcels.filter { it.status == "available" }
-                        available.take(3).forEachIndexed { i, parcel ->
-                            val q = GeoMath.destination(p.latitude, p.longitude, p.altitude, i * 120.0, 12.0, 120.0 + i * 60.0)
-                            runCatching { earth.createAnchor(q.latitude, q.longitude, q.altitude, 0f, 0f, 0f, 1f) }
-                                .getOrNull()?.let { placed += PlacedParcel(parcel, it) }
-                        }
-                        available.drop(3).sortedBy { GeoMath.distance(p.latitude, p.longitude, it.latitude, it.longitude) }
-                            .filter { GeoMath.distance(p.latitude, p.longitude, it.latitude, it.longitude) <= 10000.0 }
-                            .take(6).forEach { parcel ->
-                                runCatching { earth.createAnchor(parcel.latitude, parcel.longitude, p.altitude + 150.0, 0f, 0f, 0f, 1f) }
+                if (cameraTracking && !created && parcels.isNotEmpty()) {
+                    if (geoTracking && earth != null) {
+                        val p = earth.cameraGeospatialPose
+                        status = "GERÇEK KONUM · GPS ±%.1fm · Yön ±%.1f°".format(p.horizontalAccuracy, p.orientationYawAccuracy)
+                        if (p.horizontalAccuracy <= 100.0 && p.verticalAccuracy <= 100.0) {
+                            val available = parcels.filter { it.status == "available" }
+                            available.take(3).forEachIndexed { i, parcel ->
+                                val q = GeoMath.destination(p.latitude, p.longitude, p.altitude, i * 120.0, 12.0, 120.0 + i * 60.0)
+                                runCatching { earth.createAnchor(q.latitude, q.longitude, q.altitude, 0f, 0f, 0f, 1f) }
                                     .getOrNull()?.let { placed += PlacedParcel(parcel, it) }
                             }
-                        created = placed.isNotEmpty()
+                            available.drop(3)
+                                .sortedBy { GeoMath.distance(p.latitude, p.longitude, it.latitude, it.longitude) }
+                                .filter { GeoMath.distance(p.latitude, p.longitude, it.latitude, it.longitude) <= 10000.0 }
+                                .take(6).forEach { parcel ->
+                                    runCatching { earth.createAnchor(parcel.latitude, parcel.longitude, p.altitude + 150.0, 0f, 0f, 0f, 1f) }
+                                        .getOrNull()?.let { placed += PlacedParcel(parcel, it) }
+                                }
+                            if (placed.isNotEmpty()) created = true
+                        }
                     }
-                }
 
-                if (!created) {
-                    status = "AR yerel görünüm · pusula/VPS beklemeden parseller gösteriliyor"
-                    val available = parcels.filter { it.status == "available" }.take(6)
-                    val poses = listOf(
-                        Pose.makeTranslation(-1.8f, 1.1f, -4.5f),
-                        Pose.makeTranslation(0f, 1.8f, -5.5f),
-                        Pose.makeTranslation(1.8f, 1.1f, -4.5f),
-                        Pose.makeTranslation(-2.4f, 2.4f, -7.0f),
-                        Pose.makeTranslation(0f, 2.8f, -8.0f),
-                        Pose.makeTranslation(2.4f, 2.4f, -7.0f)
-                    )
-                    available.forEachIndexed { i, parcel ->
-                        val anchor = runCatching { session.createAnchor(session.camera.pose.compose(poses[i])) }.getOrNull()
-                        anchor?.let { placed += PlacedParcel(parcel.copy(isTest = true), it) }
+                    if (!created) {
+                        status = "AR yerel görünüm · pusula/VPS beklemeden parseller gösteriliyor"
+                        val available = parcels.filter { it.status == "available" }.take(6)
+                        val poses = listOf(
+                            Pose.makeTranslation(-1.8f, 1.1f, -4.5f),
+                            Pose.makeTranslation(0f, 1.8f, -5.5f),
+                            Pose.makeTranslation(1.8f, 1.1f, -4.5f),
+                            Pose.makeTranslation(-2.4f, 2.4f, -7.0f),
+                            Pose.makeTranslation(0f, 2.8f, -8.0f),
+                            Pose.makeTranslation(2.4f, 2.4f, -7.0f)
+                        )
+                        available.forEachIndexed { i, parcel ->
+                            runCatching { session.createAnchor(session.camera.pose.compose(poses[i])) }
+                                .getOrNull()?.let { placed += PlacedParcel(parcel.copy(isTest = true), it) }
+                        }
+                        if (placed.isNotEmpty()) created = true
                     }
-                    created = placed.isNotEmpty()
                 }
             }
         ) {
