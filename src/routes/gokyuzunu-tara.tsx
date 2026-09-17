@@ -5,10 +5,17 @@ import { projectSkyParcel, type GeoPoint, type SkyParcel } from '@/features/goky
 
 export const Route = createFileRoute('/gokyuzunu-tara')({ component: SkyScannerPage });
 
-type SensorState = { heading: number | null; location: GeoPoint | null; accuracy: number | null };
+type SensorState = {
+  heading: number | null;
+  pitch: number | null;
+  roll: number | null;
+  location: GeoPoint | null;
+  accuracy: number | null;
+  absolute: boolean;
+};
 
 type PermissionDeviceOrientation = typeof DeviceOrientationEvent & {
-  requestPermission?: () => Promise<'granted' | 'denied'>;
+  requestPermission?: (absolute?: boolean) => Promise<'granted' | 'denied'>;
 };
 
 function SkyScannerPage() {
@@ -17,7 +24,7 @@ function SkyScannerPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [sensor, setSensor] = useState<SensorState>({ heading: null, location: null, accuracy: null });
+  const [sensor, setSensor] = useState<SensorState>({ heading: null, pitch: null, roll: null, location: null, accuracy: null, absolute: false });
   const [parcels, setParcels] = useState<SkyParcel[]>([]);
   const [selected, setSelected] = useState<SkyParcel | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,8 +35,8 @@ function SkyScannerPage() {
     try {
       const orientation = window.DeviceOrientationEvent as PermissionDeviceOrientation;
       if (typeof orientation.requestPermission === 'function') {
-        const permission = await orientation.requestPermission();
-        if (permission !== 'granted') setError('Yön sensörü izni verilmedi. Parseller test görünümünde gösteriliyor.');
+        const permission = await orientation.requestPermission(true);
+        if (permission !== 'granted') throw new Error('Yön sensörü izni verilmedi. Gerçek konum tabanlı parseller için yön izni gereklidir.');
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -46,7 +53,11 @@ function SkyScannerPage() {
 
       if (!navigator.geolocation) throw new Error('Bu cihaz konum bilgisini desteklemiyor.');
       navigator.geolocation.getCurrentPosition(
-        ({ coords }) => setSensor({ heading: null, location: { latitude: coords.latitude, longitude: coords.longitude, altitude: coords.altitude ?? 0 }, accuracy: coords.accuracy }),
+        ({ coords }) => setSensor((current) => ({
+          ...current,
+          location: { latitude: coords.latitude, longitude: coords.longitude, altitude: coords.altitude ?? 0 },
+          accuracy: coords.accuracy,
+        })),
         (positionError) => setError(`GPS açılamadı: ${positionError.message}`),
         { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 },
       );
@@ -59,14 +70,24 @@ function SkyScannerPage() {
     if (!scanning) return;
     let watchId: number | undefined;
     const onOrientation = (event: DeviceOrientationEvent) => {
-      const absoluteEvent = event as DeviceOrientationEvent & { webkitCompassHeading?: number };
-      const webkitHeading = absoluteEvent.webkitCompassHeading;
+      const orientationEvent = event as DeviceOrientationEvent & { webkitCompassHeading?: number };
+      const webkitHeading = orientationEvent.webkitCompassHeading;
       const heading = typeof webkitHeading === 'number'
         ? webkitHeading
-        : typeof event.alpha === 'number'
+        : event.absolute && typeof event.alpha === 'number'
           ? (360 - event.alpha) % 360
           : null;
-      if (heading != null) setSensor((current) => ({ ...current, heading }));
+      const pitch = typeof event.beta === 'number' ? Math.max(-89, Math.min(89, 90 - event.beta)) : null;
+      const roll = typeof event.gamma === 'number' ? event.gamma : null;
+      if (heading != null || pitch != null) {
+        setSensor((current) => ({
+          ...current,
+          heading: heading ?? current.heading,
+          pitch: pitch ?? current.pitch,
+          roll: roll ?? current.roll,
+          absolute: current.absolute || Boolean(event.absolute) || typeof webkitHeading === 'number',
+        }));
+      }
     };
     const updateSize = () => {
       const rect = frameRef.current?.getBoundingClientRect();
@@ -75,7 +96,11 @@ function SkyScannerPage() {
 
     if (navigator.geolocation) {
       watchId = navigator.geolocation.watchPosition(
-        ({ coords }) => setSensor((current) => ({ ...current, location: { latitude: coords.latitude, longitude: coords.longitude, altitude: coords.altitude ?? 0 }, accuracy: coords.accuracy })),
+        ({ coords }) => setSensor((current) => ({
+          ...current,
+          location: { latitude: coords.latitude, longitude: coords.longitude, altitude: coords.altitude ?? 0 },
+          accuracy: coords.accuracy,
+        })),
         () => undefined,
         { enableHighAccuracy: true, maximumAge: 1500, timeout: 10000 },
       );
@@ -104,21 +129,40 @@ function SkyScannerPage() {
   useEffect(() => () => streamRef.current?.getTracks().forEach((track) => track.stop()), []);
 
   const projected = useMemo(() => {
-    if (!sensor.location) return [];
-    const hasHeading = sensor.heading != null;
-    const heading = sensor.heading ?? 0;
-    return parcels
+    if (!sensor.location || sensor.heading == null || sensor.pitch == null) return [];
+
+    const raw = parcels
       .map((parcel) => ({
         parcel,
-        projection: projectSkyParcel(sensor.location!, heading, parcel, viewport, {
-          horizontalFov: hasHeading ? 70 : 360,
-          verticalFov: hasHeading ? 50 : 90,
+        projection: projectSkyParcel(sensor.location!, sensor.heading!, sensor.pitch!, parcel, viewport, {
+          horizontalFov: 70,
+          verticalFov: 55,
         }),
       }))
       .filter(({ projection }) => projection.visible)
       .sort((a, b) => a.projection.distance - b.projection.distance)
-      .slice(0, 30);
-  }, [parcels, sensor.location, sensor.heading, viewport]);
+      .slice(0, 40);
+
+    // Keep the geographic anchor as the primary position. Only the label is
+    // separated when two real parcels land on nearly identical screen pixels.
+    const occupied: Array<{ x: number; y: number }> = [];
+    return raw.map((item) => {
+      const base = item.projection;
+      let x = base.x;
+      let y = base.y;
+      for (let ring = 0; ring < 5; ring += 1) {
+        const conflict = occupied.some((point) => Math.hypot(point.x - x, point.y - y) < 54);
+        if (!conflict) break;
+        const angle = (item.parcel.sector_number ?? item.parcel.grid_x ?? 0) * 0.9 + ring * 2.1;
+        x = base.x + Math.cos(angle) * (26 + ring * 10);
+        y = base.y + Math.sin(angle) * (18 + ring * 8);
+      }
+      occupied.push({ x, y });
+      return { ...item, displayX: x, displayY: y };
+    });
+  }, [parcels, sensor.location, sensor.heading, sensor.pitch, viewport]);
+
+  const sensorReady = sensor.heading != null && sensor.pitch != null;
 
   return (
     <main style={{ minHeight: '100dvh', background: '#020617', color: '#fff', position: 'relative', overflow: 'hidden' }}>
@@ -128,7 +172,7 @@ function SkyScannerPage() {
           <div style={{ maxWidth: 420, textAlign: 'center' }}>
             <div style={{ fontSize: 56, marginBottom: 12 }}>☁️</div>
             <h1 style={{ fontSize: 32, margin: 0 }}>Gökyüzünü Tara</h1>
-            <p style={{ opacity: .82, lineHeight: 1.6 }}>Kamerayı gökyüzüne doğrult. Gerçek MySkyParcel parselleri konum, yön ve sanal gökyüzü katmanına göre görüntünün içine yerleştirilecek.</p>
+            <p style={{ opacity: .82, lineHeight: 1.6 }}>Kamerayı gökyüzüne doğrult. Gerçek MySkyParcel parselleri GPS, pusula ve telefonun fiziksel eğimine göre gerçek dünya yönünde yerleştirilecek.</p>
             <button onClick={startScanner} style={{ marginTop: 18, border: 0, borderRadius: 14, padding: '14px 22px', fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>Kamerayı Aç</button>
             {error && <p style={{ color: '#fecaca' }}>{error}</p>}
           </div>
@@ -137,19 +181,23 @@ function SkyScannerPage() {
         {cameraReady && <>
           <div style={{ position: 'absolute', top: 16, left: 16, right: 16, display: 'flex', gap: 8, justifyContent: 'space-between', pointerEvents: 'none' }}>
             <div style={{ padding: '9px 12px', borderRadius: 12, background: 'rgba(2,6,23,.72)', backdropFilter: 'blur(10px)', fontSize: 13 }}>
-              GPS {sensor.accuracy != null ? `±${Math.round(sensor.accuracy)} m` : 'bekleniyor'} · Yön {sensor.heading != null ? `${Math.round(sensor.heading)}°` : 'test görünümü'}
+              GPS {sensor.accuracy != null ? `±${Math.round(sensor.accuracy)} m` : 'bekleniyor'} · Pusula {sensor.heading != null ? `${Math.round(sensor.heading)}°` : 'bekleniyor'} · Eğim {sensor.pitch != null ? `${Math.round(sensor.pitch)}°` : 'bekleniyor'}
             </div>
             <div style={{ padding: '9px 12px', borderRadius: 12, background: 'rgba(2,6,23,.72)', backdropFilter: 'blur(10px)', fontSize: 13 }}>{parcels.length} gerçek parsel</div>
           </div>
 
-          {projected.map(({ parcel, projection }) => (
-            <button key={parcel.id} onClick={() => setSelected(parcel)} style={{ position: 'absolute', left: projection.x, top: projection.y, transform: 'translate(-50%,-50%)', border: '1px solid rgba(255,255,255,.45)', borderRadius: 14, padding: '9px 11px', background: parcel.status === 'available' ? 'rgba(8,47,73,.9)' : 'rgba(69,10,10,.9)', color: '#fff', boxShadow: '0 8px 30px rgba(0,0,0,.35)', cursor: 'pointer', whiteSpace: 'nowrap', zIndex: 4 }}>
-              <strong style={{ display: 'block' }}>PARSEL #{parcel.parcel_number}</strong>
-              <small>{Math.round(projection.distance)} m · {Math.round(projection.elevation)}°</small>
+          {!sensorReady && sensor.location && <div style={{ position: 'absolute', left: 18, right: 18, top: '50%', transform: 'translateY(-50%)', padding: 16, borderRadius: 16, background: 'rgba(2,6,23,.86)', border: '1px solid rgba(255,255,255,.15)', textAlign: 'center', zIndex: 5 }}>
+            Telefon yönü algılanıyor. Pusulayı açmak için telefonu 8 şeklinde birkaç kez hareket ettir ve kamerayı gökyüzüne doğrult.
+          </div>}
+
+          {projected.map(({ parcel, projection, displayX, displayY }) => (
+            <button key={parcel.id} onClick={() => setSelected(parcel)} style={{ position: 'absolute', left: displayX, top: displayY, transform: `translate(-50%,-50%) scale(${Math.max(.72, Math.min(1.2, 180 / Math.max(projection.distance, 180)))})`, transformOrigin: 'center', border: '1px solid rgba(255,255,255,.55)', borderRadius: 12, padding: '7px 9px', background: parcel.status === 'available' ? 'rgba(8,47,73,.82)' : 'rgba(69,10,10,.82)', color: '#fff', boxShadow: '0 8px 30px rgba(0,0,0,.35)', cursor: 'pointer', whiteSpace: 'nowrap', zIndex: 4 }}>
+              <strong style={{ display: 'block', fontSize: 12 }}>PARSEL #{parcel.parcel_number}</strong>
+              <small style={{ opacity: .78 }}>{Math.round(projection.distance)} m · {Math.round(projection.elevation)}°</small>
             </button>
           ))}
 
-          {parcels.length > 0 && projected.length === 0 && <div style={{ position: 'absolute', left: 16, right: 16, bottom: 18, padding: 14, borderRadius: 14, background: 'rgba(2,6,23,.86)', textAlign: 'center', zIndex: 5 }}>Gerçek parseller bulundu ancak mevcut kamera açısının dışında. Telefonu yavaşça 360° çevir.</div>}
+          {sensorReady && parcels.length > 0 && projected.length === 0 && <div style={{ position: 'absolute', left: 16, right: 16, bottom: 18, padding: 14, borderRadius: 14, background: 'rgba(2,6,23,.86)', textAlign: 'center', zIndex: 5 }}>Bu gerçek GPS konumunda parseller mevcut, ancak şu an telefonun baktığı yönde değiller. Telefonu yavaşça sağa-sola çevir.</div>}
 
           <div style={{ position: 'absolute', left: '50%', top: '50%', width: 28, height: 28, transform: 'translate(-50%,-50%)', border: '2px solid rgba(255,255,255,.8)', borderRadius: '50%', pointerEvents: 'none' }} />
           {error && <div style={{ position: 'absolute', left: 16, right: 16, bottom: 18, padding: 12, borderRadius: 12, background: 'rgba(127,29,29,.9)', zIndex: 6 }}>{error}</div>}
