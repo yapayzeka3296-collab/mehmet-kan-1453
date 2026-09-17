@@ -41,36 +41,46 @@ export function normalizeAngle(angle: number) {
 }
 
 /**
- * MySkyParcel's virtual sky layer. The DB latitude/longitude define the
- * parcel's horizontal world coordinate; altitude is deliberately virtual,
- * so parcels are displayed above the real horizon instead of on the ground.
+ * MySkyParcel sky coordinates are anchored to the real parcel latitude/longitude
+ * and compass bearing. The vertical component is virtual: every parcel receives
+ * a stable elevation angle above the local horizon so it remains visible in the
+ * sky instead of being pinned to the ground or to the camera screen.
  */
-export function skyAltitudeMeters(parcel: SkyParcel, observerAltitude = 0) {
+export function skyElevationDegrees(parcel: SkyParcel) {
   const layer = Math.max(1, parcel.layer_number ?? 1);
   const sector = Math.max(1, parcel.sector_number ?? 1);
-  return observerAltitude + 120 + (layer - 1) * 30 + Math.min(sector, 12) * 2;
+  return Math.min(42, 9 + (layer - 1) * 1.6 + Math.min(sector - 1, 20) * 0.12);
+}
+
+export function skyAltitudeMeters(parcel: SkyParcel, observer: GeoPoint, distance: number) {
+  const elevation = skyElevationDegrees(parcel) * DEG;
+  const base = Math.max(120, distance * Math.tan(elevation));
+  const layer = Math.max(1, parcel.layer_number ?? 1);
+  return (observer.altitude ?? 0) + base + (layer - 1) * 20;
 }
 
 export function projectSkyParcel(
   observer: GeoPoint,
   heading: number,
+  pitch: number,
   parcel: SkyParcel,
   viewport: { width: number; height: number },
   options: { horizontalFov?: number; verticalFov?: number } = {},
 ) {
   const horizontalFov = options.horizontalFov ?? 70;
-  const verticalFov = options.verticalFov ?? 50;
+  const verticalFov = options.verticalFov ?? 55;
   const distance = distanceMeters(observer, parcel);
   const bearing = bearingDegrees(observer, parcel);
   const bearingDelta = normalizeAngle(bearing - heading);
-  const altitude = skyAltitudeMeters(parcel, observer.altitude ?? 0);
-  const elevation = Math.atan2(altitude - (observer.altitude ?? 0), Math.max(distance, 1)) / DEG;
+  const elevation = skyElevationDegrees(parcel);
+  const altitude = skyAltitudeMeters(parcel, observer, distance);
+  const elevationDelta = elevation - pitch;
 
   const x = viewport.width / 2 + (bearingDelta / (horizontalFov / 2)) * (viewport.width / 2);
-  const y = viewport.height / 2 - (elevation / (verticalFov / 2)) * (viewport.height / 2);
-  const visible = Math.abs(bearingDelta) <= horizontalFov / 2 && Math.abs(elevation) <= verticalFov / 2;
+  const y = viewport.height / 2 - (elevationDelta / (verticalFov / 2)) * (viewport.height / 2);
+  const visible = Math.abs(bearingDelta) <= horizontalFov / 2 && Math.abs(elevationDelta) <= verticalFov / 2;
 
-  return { x, y, visible, distance, bearing, bearingDelta, elevation, altitude };
+  return { x, y, visible, distance, bearing, bearingDelta, elevation, elevationDelta, altitude };
 }
 
 export function boundingBox(point: GeoPoint, radiusMeters: number) {
