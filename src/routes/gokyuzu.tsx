@@ -11,17 +11,10 @@ const TEST_CITY = 'Gaziantep';
 const VISIBLE_PARCELS = 260;
 const GRID_COLUMNS = 40;
 const GRID_ROWS = 25;
-const PARCEL_SIZE = 0.9;
 const GRID_GAP = 1.05;
 const DOME_HEIGHT = 15;
 
-function parcelColor(status: string | null) {
-  if (status === 'sold') return new THREE.Color('#f59e0b');
-  if (status === 'reserved') return new THREE.Color('#a78bfa');
-  return new THREE.Color('#38bdf8');
-}
-
-function domePosition(index: number) {
+function parcelPosition(index: number) {
   const column = index % GRID_COLUMNS;
   const row = Math.floor(index / GRID_COLUMNS);
   const x = (column - (GRID_COLUMNS - 1) / 2) * GRID_GAP;
@@ -30,7 +23,7 @@ function domePosition(index: number) {
   const nz = z / ((GRID_ROWS - 1) * GRID_GAP * 0.52);
   const radius = Math.min(1, Math.sqrt(nx * nx + nz * nz));
   const y = DOME_HEIGHT * Math.sqrt(Math.max(0, 1 - radius * radius));
-  return { x, y, z };
+  return { x, y, z, column, row };
 }
 
 function GokyuzuPage() {
@@ -65,8 +58,9 @@ function GokyuzuPage() {
     if (!mount || parcels.length === 0) return;
 
     const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x090021, 0.008);
     const camera = new THREE.PerspectiveCamera(48, mount.clientWidth / mount.clientHeight, 0.1, 1200);
-    camera.position.set(0, 24, 42);
+    camera.position.set(0, 23, 42);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -84,11 +78,38 @@ function GokyuzuPage() {
     controls.maxPolarAngle = Math.PI * 0.49;
     controls.target.set(0, 5, 0);
 
-    const geometry = new THREE.BoxGeometry(PARCEL_SIZE, 0.11, PARCEL_SIZE);
-    const material = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.94 });
+    // Neon wireframe parcels: a single instanced geometry keeps the 3D map lightweight.
+    const geometry = new THREE.BoxGeometry(0.92, 0.035, 0.92);
+    const material = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.78, wireframe: true });
     const mesh = new THREE.InstancedMesh(geometry, material, Math.min(VISIBLE_PARCELS, parcels.length));
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     scene.add(mesh);
+
+    // Soft coordinate-node lights at grid intersections.
+    const nodeGeometry = new THREE.SphereGeometry(0.035, 6, 6);
+    const nodeMaterial = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.9 });
+    const nodeMesh = new THREE.InstancedMesh(nodeGeometry, nodeMaterial, Math.min(VISIBLE_PARCELS, parcels.length));
+    nodeMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(nodeMesh);
+
+    // A subtle curved coordinate network behind the parcels.
+    const guideMaterial = new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.18 });
+    const guideGroup = new THREE.Group();
+    for (let row = 0; row < GRID_ROWS; row += 2) {
+      const points: THREE.Vector3[] = [];
+      for (let column = 0; column < GRID_COLUMNS; column += 1) {
+        points.push(new THREE.Vector3(parcelPosition(row * GRID_COLUMNS + column).x, parcelPosition(row * GRID_COLUMNS + column).y - 0.015, parcelPosition(row * GRID_COLUMNS + column).z));
+      }
+      guideGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), guideMaterial));
+    }
+    for (let column = 0; column < GRID_COLUMNS; column += 2) {
+      const points: THREE.Vector3[] = [];
+      for (let row = 0; row < GRID_ROWS; row += 1) {
+        points.push(new THREE.Vector3(parcelPosition(row * GRID_COLUMNS + column).x, parcelPosition(row * GRID_COLUMNS + column).y - 0.012, parcelPosition(row * GRID_COLUMNS + column).z));
+      }
+      guideGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), guideMaterial));
+    }
+    scene.add(guideGroup);
 
     const visibleIndexRef: number[] = [];
     const matrix = new THREE.Matrix4();
@@ -124,15 +145,19 @@ function GokyuzuPage() {
         if (parcelIndex == null) {
           matrix.makeScale(0, 0, 0);
           mesh.setMatrixAt(instance, matrix);
+          nodeMesh.setMatrixAt(instance, matrix);
           continue;
         }
-        const position = domePosition(parcelIndex);
+        const position = parcelPosition(parcelIndex);
         matrix.makeTranslation(position.x, position.y, position.z);
         mesh.setMatrixAt(instance, matrix);
-        color.copy(parcelColor(parcelsRef.current[parcelIndex].status));
+        nodeMesh.setMatrixAt(instance, matrix);
+        const parcel = parcelsRef.current[parcelIndex];
+        color.set(parcel.status === 'sold' ? 0xff9d00 : parcel.status === 'reserved' ? 0xa78bfa : 0x38bdf8);
         mesh.setColorAt(instance, color);
       }
       mesh.instanceMatrix.needsUpdate = true;
+      nodeMesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       setVisibleCount(visibleParcelsRef.current.length);
     };
@@ -181,6 +206,10 @@ function GokyuzuPage() {
       controls.dispose();
       geometry.dispose();
       material.dispose();
+      nodeGeometry.dispose();
+      nodeMaterial.dispose();
+      guideMaterial.dispose();
+      guideGroup.children.forEach((child) => (child as THREE.Line).geometry.dispose());
       renderer.dispose();
       renderer.domElement.remove();
     };
@@ -189,13 +218,13 @@ function GokyuzuPage() {
   return (
     <main className="gokyuzu-page">
       <div className="gokyuzu-sky" />
-      <div ref={mountRef} className="gokyuzu-canvas" aria-label="Gaziantep parsel dünyası" />
+      <div ref={mountRef} className="gokyuzu-canvas" aria-label="Parsel Dünyası 3D gökyüzü haritası" />
 
       <header className="gokyuzu-header">
         <div>
           <div className="gokyuzu-kicker">MYSKYPARCEL · PARSEL DÜNYASI</div>
           <h1>Gaziantep</h1>
-          <p>Dev parsel kubbesini sürükleyerek keşfet. Performans için aynı anda yalnızca sınırlı sayıda parsel ekranda tutulur.</p>
+          <p>Gökyüzündeki dijital parsel ağını sürükleyerek keşfet.</p>
         </div>
         <div className="gokyuzu-stats">
           <strong>{visibleCount.toLocaleString('tr-TR')}</strong>
@@ -212,10 +241,7 @@ function GokyuzuPage() {
 
       {loaded === 0 && !error && <div className="gokyuzu-loader"><div className="gokyuzu-loader-title">Gaziantep parselleri yükleniyor…</div><small>İlk test yalnızca Gaziantep ile başlıyor.</small></div>}
       {error && <div className="gokyuzu-error">{error}</div>}
-
-      <div className="gokyuzu-controls">
-        <span>👆 Sürükle: yeni parseller</span><span>↕ Yaklaş / uzaklaş</span><span>👆 Parsel seç</span>
-      </div>
+      <div className="gokyuzu-controls"><span>👆 Sürükle: yeni parseller</span><span>↕ Yaklaş / uzaklaş</span><span>👆 Parsel seç</span></div>
 
       {selected && (
         <aside className="gokyuzu-detail">
