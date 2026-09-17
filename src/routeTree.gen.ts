@@ -20,6 +20,7 @@ import { Route as DogumGunuHediyesiRouteImport } from './routes/dogum-gunu-hediy
 import { Route as GirisRouteImport } from './routes/giris'
 import { Route as GizlilikPolitikasiRouteImport } from './routes/gizlilik-politikasi'
 import { Route as GokyuzuHaritasiRouteImport } from './routes/gokyuzu-haritasi'
+import { Route as GokyuzunuTaraRouteImport } from './routes/gokyuzunu-tara'
 import { Route as GuvenlikAyarlariRouteImport } from './routes/guvenlik-ayarlari'
 import { Route as HakkimizdaRouteImport } from './routes/hakkimizda'
 import { Route as HediyeKabulRouteImport } from './routes/hediye-kabul'
@@ -113,6 +114,11 @@ const GizlilikPolitikasiRoute = GizlilikPolitikasiRouteImport.update({
 const GokyuzuHaritasiRoute = GokyuzuHaritasiRouteImport.update({
   id: '/gokyuzu-haritasi',
   path: '/gokyuzu-haritasi',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GokyuzunuTaraRoute = GokyuzunuTaraRouteImport.update({
+  id: '/gokyuzunu-tara',
+  path: '/gokyuzunu-tara',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GuvenlikAyarlariRoute = GuvenlikAyarlariRouteImport.update({
@@ -324,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/giris': typeof GirisRoute
   '/gizlilik-politikasi': typeof GizlilikPolitikasiRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
+  '/gokyuzunu-tara': typeof GokyuzunuTaraRoute
   '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
   '/hakkimizda': typeof HakkimizdaRoute
   '/hediye-kabul': typeof HediyeKabulRoute
@@ -376,6 +383,7 @@ export interface FileRoutesByTo {
   '/giris': typeof GirisRoute
   '/gizlilik-politikasi': typeof GizlilikPolitikasiRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
+  '/gokyuzunu-tara': typeof GokyuzunuTaraRoute
   '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
   '/hakkimizda': typeof HakkimizdaRoute
   '/hediye-kabul': typeof HediyeKabulRoute
@@ -429,6 +437,7 @@ export interface FileRoutesById {
   '/giris': typeof GirisRoute
   '/gizlilik-politikasi': typeof GizlilikPolitikasiRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
+  '/gokyuzunu-tara': typeof GokyuzunuTaraRoute
   '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
   '/hakkimizda': typeof HakkimizdaRoute
   '/hediye-kabul': typeof HediyeKabulRoute
@@ -483,6 +492,7 @@ export interface FileRouteTypes {
     | '/giris'
     | '/gizlilik-politikasi'
     | '/gokyuzu-haritasi'
+    | '/gokyuzunu-tara'
     | '/guvenlik-ayarlari'
     | '/hakkimizda'
     | '/hediye-kabul'
@@ -535,6 +545,7 @@ export interface FileRouteTypes {
     | '/giris'
     | '/gizlilik-politikasi'
     | '/gokyuzu-haritasi'
+    | '/gokyuzunu-tara'
     | '/guvenlik-ayarlari'
     | '/hakkimizda'
     | '/hediye-kabul'
@@ -587,6 +598,7 @@ export interface FileRouteTypes {
     | '/giris'
     | '/gizlilik-politikasi'
     | '/gokyuzu-haritasi'
+    | '/gokyuzunu-tara'
     | '/guvenlik-ayarlari'
     | '/hakkimizda'
     | '/hediye-kabul'
@@ -640,6 +652,7 @@ export interface RootRouteChildren {
   GirisRoute: typeof GirisRoute
   GizlilikPolitikasiRoute: typeof GizlilikPolitikasiRoute
   GokyuzuHaritasiRoute: typeof GokyuzuHaritasiRoute
+  GokyuzunuTaraRoute: typeof GokyuzunuTaraRoute
   GuvenlikAyarlariRoute: typeof GuvenlikAyarlariRoute
   HakkimizdaRoute: typeof HakkimizdaRoute
   HediyeKabulRoute: typeof HediyeKabulRoute
@@ -758,6 +771,13 @@ declare module '@tanstack/react-router' {
       path: '/gokyuzu-haritasi'
       fullPath: '/gokyuzu-haritasi'
       preLoaderRoute: typeof GokyuzuHaritasiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gokyuzunu-tara': {
+      id: '/gokyuzunu-tara'
+      path: '/gokyuzunu-tara'
+      fullPath: '/gokyuzunu-tara'
+      preLoaderRoute: typeof GokyuzunuTaraRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/guvenlik-ayarlari': {
@@ -1048,6 +1068,7 @@ const rootRouteChildren: RootRouteChildren = {
   GirisRoute: GirisRoute,
   GizlilikPolitikasiRoute: GizlilikPolitikasiRoute,
   GokyuzuHaritasiRoute: GokyuzuHaritasiRoute,
+  GokyuzunuTaraRoute: GokyuzunuTaraRoute,
   GuvenlikAyarlariRoute: GuvenlikAyarlariRoute,
   HakkimizdaRoute: HakkimizdaRoute,
   HediyeKabulRoute: HediyeKabulRoute,
