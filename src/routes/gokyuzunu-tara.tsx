@@ -7,6 +7,10 @@ export const Route = createFileRoute('/gokyuzunu-tara')({ component: SkyScannerP
 
 type SensorState = { heading: number | null; location: GeoPoint | null; accuracy: number | null };
 
+type PermissionDeviceOrientation = typeof DeviceOrientationEvent & {
+  requestPermission?: () => Promise<'granted' | 'denied'>;
+};
+
 function SkyScannerPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -22,6 +26,12 @@ function SkyScannerPage() {
   const startScanner = useCallback(async () => {
     setError(null);
     try {
+      const orientation = window.DeviceOrientationEvent as PermissionDeviceOrientation;
+      if (typeof orientation.requestPermission === 'function') {
+        const permission = await orientation.requestPermission();
+        if (permission !== 'granted') setError('Yön sensörü izni verilmedi. Parseller test görünümünde gösteriliyor.');
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: false,
@@ -51,7 +61,11 @@ function SkyScannerPage() {
     const onOrientation = (event: DeviceOrientationEvent) => {
       const absoluteEvent = event as DeviceOrientationEvent & { webkitCompassHeading?: number };
       const webkitHeading = absoluteEvent.webkitCompassHeading;
-      const heading = typeof webkitHeading === 'number' ? webkitHeading : typeof event.alpha === 'number' ? (360 - event.alpha) % 360 : null;
+      const heading = typeof webkitHeading === 'number'
+        ? webkitHeading
+        : typeof event.alpha === 'number'
+          ? (360 - event.alpha) % 360
+          : null;
       if (heading != null) setSensor((current) => ({ ...current, heading }));
     };
     const updateSize = () => {
@@ -90,11 +104,20 @@ function SkyScannerPage() {
   useEffect(() => () => streamRef.current?.getTracks().forEach((track) => track.stop()), []);
 
   const projected = useMemo(() => {
-    if (!sensor.location || sensor.heading == null) return [];
+    if (!sensor.location) return [];
+    const hasHeading = sensor.heading != null;
+    const heading = sensor.heading ?? 0;
     return parcels
-      .map((parcel) => ({ parcel, projection: projectSkyParcel(sensor.location!, sensor.heading!, parcel, viewport) }))
+      .map((parcel) => ({
+        parcel,
+        projection: projectSkyParcel(sensor.location!, heading, parcel, viewport, {
+          horizontalFov: hasHeading ? 70 : 360,
+          verticalFov: hasHeading ? 50 : 90,
+        }),
+      }))
       .filter(({ projection }) => projection.visible)
-      .sort((a, b) => a.projection.distance - b.projection.distance);
+      .sort((a, b) => a.projection.distance - b.projection.distance)
+      .slice(0, 30);
   }, [parcels, sensor.location, sensor.heading, viewport]);
 
   return (
@@ -114,20 +137,22 @@ function SkyScannerPage() {
         {cameraReady && <>
           <div style={{ position: 'absolute', top: 16, left: 16, right: 16, display: 'flex', gap: 8, justifyContent: 'space-between', pointerEvents: 'none' }}>
             <div style={{ padding: '9px 12px', borderRadius: 12, background: 'rgba(2,6,23,.72)', backdropFilter: 'blur(10px)', fontSize: 13 }}>
-              GPS {sensor.accuracy != null ? `±${Math.round(sensor.accuracy)} m` : 'bekleniyor'} · Yön {sensor.heading != null ? `${Math.round(sensor.heading)}°` : 'bekleniyor'}
+              GPS {sensor.accuracy != null ? `±${Math.round(sensor.accuracy)} m` : 'bekleniyor'} · Yön {sensor.heading != null ? `${Math.round(sensor.heading)}°` : 'test görünümü'}
             </div>
             <div style={{ padding: '9px 12px', borderRadius: 12, background: 'rgba(2,6,23,.72)', backdropFilter: 'blur(10px)', fontSize: 13 }}>{parcels.length} gerçek parsel</div>
           </div>
 
           {projected.map(({ parcel, projection }) => (
-            <button key={parcel.id} onClick={() => setSelected(parcel)} style={{ position: 'absolute', left: projection.x, top: projection.y, transform: 'translate(-50%,-50%)', border: '1px solid rgba(255,255,255,.45)', borderRadius: 14, padding: '9px 11px', background: parcel.status === 'available' ? 'rgba(8,47,73,.9)' : 'rgba(69,10,10,.9)', color: '#fff', boxShadow: '0 8px 30px rgba(0,0,0,.35)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <button key={parcel.id} onClick={() => setSelected(parcel)} style={{ position: 'absolute', left: projection.x, top: projection.y, transform: 'translate(-50%,-50%)', border: '1px solid rgba(255,255,255,.45)', borderRadius: 14, padding: '9px 11px', background: parcel.status === 'available' ? 'rgba(8,47,73,.9)' : 'rgba(69,10,10,.9)', color: '#fff', boxShadow: '0 8px 30px rgba(0,0,0,.35)', cursor: 'pointer', whiteSpace: 'nowrap', zIndex: 4 }}>
               <strong style={{ display: 'block' }}>PARSEL #{parcel.parcel_number}</strong>
               <small>{Math.round(projection.distance)} m · {Math.round(projection.elevation)}°</small>
             </button>
           ))}
 
+          {parcels.length > 0 && projected.length === 0 && <div style={{ position: 'absolute', left: 16, right: 16, bottom: 18, padding: 14, borderRadius: 14, background: 'rgba(2,6,23,.86)', textAlign: 'center', zIndex: 5 }}>Gerçek parseller bulundu ancak mevcut kamera açısının dışında. Telefonu yavaşça 360° çevir.</div>}
+
           <div style={{ position: 'absolute', left: '50%', top: '50%', width: 28, height: 28, transform: 'translate(-50%,-50%)', border: '2px solid rgba(255,255,255,.8)', borderRadius: '50%', pointerEvents: 'none' }} />
-          {error && <div style={{ position: 'absolute', left: 16, right: 16, bottom: 18, padding: 12, borderRadius: 12, background: 'rgba(127,29,29,.9)' }}>{error}</div>}
+          {error && <div style={{ position: 'absolute', left: 16, right: 16, bottom: 18, padding: 12, borderRadius: 12, background: 'rgba(127,29,29,.9)', zIndex: 6 }}>{error}</div>}
         </>}
       </div>
 
