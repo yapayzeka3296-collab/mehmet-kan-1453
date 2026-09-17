@@ -9,7 +9,6 @@ export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
 
 const TOTAL_EXPECTED = 81_000;
 const CLUSTER_GAP = 15;
-const CLUSTER_SIZE = 12;
 const PARCEL_SIZE = 0.92;
 const LAYER_HEIGHT = 0.42;
 
