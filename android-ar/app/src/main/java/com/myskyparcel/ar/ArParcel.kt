@@ -8,6 +8,7 @@ data class ArParcel(
     val latitude: Double,
     val longitude: Double,
     val tier: String,
+    val altitude: Double = 150.0,
     val isTest: Boolean = false,
 )
 
