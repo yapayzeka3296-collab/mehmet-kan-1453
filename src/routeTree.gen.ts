@@ -19,6 +19,7 @@ import { Route as DogrulaRouteImport } from './routes/dogrula'
 import { Route as DogumGunuHediyesiRouteImport } from './routes/dogum-gunu-hediyesi'
 import { Route as GirisRouteImport } from './routes/giris'
 import { Route as GizlilikPolitikasiRouteImport } from './routes/gizlilik-politikasi'
+import { Route as GokyuzuRouteImport } from './routes/gokyuzu'
 import { Route as GokyuzuHaritasiRouteImport } from './routes/gokyuzu-haritasi'
 import { Route as GokyuzunuTaraRouteImport } from './routes/gokyuzunu-tara'
 import { Route as GuvenlikAyarlariRouteImport } from './routes/guvenlik-ayarlari'
@@ -109,6 +110,11 @@ const GirisRoute = GirisRouteImport.update({
 const GizlilikPolitikasiRoute = GizlilikPolitikasiRouteImport.update({
   id: '/gizlilik-politikasi',
   path: '/gizlilik-politikasi',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GokyuzuRoute = GokyuzuRouteImport.update({
+  id: '/gokyuzu',
+  path: '/gokyuzu',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GokyuzuHaritasiRoute = GokyuzuHaritasiRouteImport.update({
@@ -329,6 +335,7 @@ export interface FileRoutesByFullPath {
   '/dogum-gunu-hediyesi': typeof DogumGunuHediyesiRoute
   '/giris': typeof GirisRoute
   '/gizlilik-politikasi': typeof GizlilikPolitikasiRoute
+  '/gokyuzu': typeof GokyuzuRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
   '/gokyuzunu-tara': typeof GokyuzunuTaraRoute
   '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
@@ -382,6 +389,7 @@ export interface FileRoutesByTo {
   '/dogum-gunu-hediyesi': typeof DogumGunuHediyesiRoute
   '/giris': typeof GirisRoute
   '/gizlilik-politikasi': typeof GizlilikPolitikasiRoute
+  '/gokyuzu': typeof GokyuzuRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
   '/gokyuzunu-tara': typeof GokyuzunuTaraRoute
   '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
@@ -436,6 +444,7 @@ export interface FileRoutesById {
   '/dogum-gunu-hediyesi': typeof DogumGunuHediyesiRoute
   '/giris': typeof GirisRoute
   '/gizlilik-politikasi': typeof GizlilikPolitikasiRoute
+  '/gokyuzu': typeof GokyuzuRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
   '/gokyuzunu-tara': typeof GokyuzunuTaraRoute
   '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
@@ -491,6 +500,7 @@ export interface FileRouteTypes {
     | '/dogum-gunu-hediyesi'
     | '/giris'
     | '/gizlilik-politikasi'
+    | '/gokyuzu'
     | '/gokyuzu-haritasi'
     | '/gokyuzunu-tara'
     | '/guvenlik-ayarlari'
@@ -544,6 +554,7 @@ export interface FileRouteTypes {
     | '/dogum-gunu-hediyesi'
     | '/giris'
     | '/gizlilik-politikasi'
+    | '/gokyuzu'
     | '/gokyuzu-haritasi'
     | '/gokyuzunu-tara'
     | '/guvenlik-ayarlari'
@@ -597,6 +608,7 @@ export interface FileRouteTypes {
     | '/dogum-gunu-hediyesi'
     | '/giris'
     | '/gizlilik-politikasi'
+    | '/gokyuzu'
     | '/gokyuzu-haritasi'
     | '/gokyuzunu-tara'
     | '/guvenlik-ayarlari'
@@ -651,6 +663,7 @@ export interface RootRouteChildren {
   DogumGunuHediyesiRoute: typeof DogumGunuHediyesiRoute
   GirisRoute: typeof GirisRoute
   GizlilikPolitikasiRoute: typeof GizlilikPolitikasiRoute
+  GokyuzuRoute: typeof GokyuzuRoute
   GokyuzuHaritasiRoute: typeof GokyuzuHaritasiRoute
   GokyuzunuTaraRoute: typeof GokyuzunuTaraRoute
   GuvenlikAyarlariRoute: typeof GuvenlikAyarlariRoute
@@ -764,6 +777,13 @@ declare module '@tanstack/react-router' {
       path: '/gizlilik-politikasi'
       fullPath: '/gizlilik-politikasi'
       preLoaderRoute: typeof GizlilikPolitikasiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gokyuzu': {
+      id: '/gokyuzu'
+      path: '/gokyuzu'
+      fullPath: '/gokyuzu'
+      preLoaderRoute: typeof GokyuzuRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gokyuzu-haritasi': {
@@ -1067,6 +1087,7 @@ const rootRouteChildren: RootRouteChildren = {
   DogumGunuHediyesiRoute: DogumGunuHediyesiRoute,
   GirisRoute: GirisRoute,
   GizlilikPolitikasiRoute: GizlilikPolitikasiRoute,
+  GokyuzuRoute: GokyuzuRoute,
   GokyuzuHaritasiRoute: GokyuzuHaritasiRoute,
   GokyuzunuTaraRoute: GokyuzunuTaraRoute,
   GuvenlikAyarlariRoute: GuvenlikAyarlariRoute,
