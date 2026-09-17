@@ -622,6 +622,14 @@ var KeepStencilOp = 7680;
 */
 var StaticDrawUsage = 35044;
 /**
+* The contents are intended to be respecified repeatedly by the application, and
+* used many times as the source for drawing and image specification commands.
+*
+* @type {number}
+* @constant
+*/
+var DynamicDrawUsage = 35048;
+/**
 * GLSL 3 shader code.
 *
 * @type {string}
@@ -33627,4 +33635,4 @@ function interceptControlUp(event) {
 	}
 }
 //#endregion
-export { Color as a, Mesh as c, PlaneGeometry as d, Raycaster as f, Vector2 as g, StaticDrawUsage as h, BoxGeometry as i, MeshBasicMaterial as l, Scene as m, WebGLRenderer as n, InstancedMesh as o, SRGBColorSpace as p, three_module_exports as r, Matrix4 as s, OrbitControls as t, PerspectiveCamera as u };
+export { Color as a, Matrix4 as c, Raycaster as d, SRGBColorSpace as f, BoxGeometry as i, MeshBasicMaterial as l, Vector2 as m, WebGLRenderer as n, DynamicDrawUsage as o, Scene as p, three_module_exports as r, InstancedMesh as s, OrbitControls as t, PerspectiveCamera as u };
