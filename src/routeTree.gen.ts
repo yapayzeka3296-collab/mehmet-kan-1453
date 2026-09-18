@@ -384,7 +384,6 @@ export interface FileRoutesByTo {
   '/gizlilik-politikasi': typeof GizlilikPolitikasiRoute
   '/gokyuzu': typeof GokyuzuRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
-  '/gokyuzunu-tara': typeof GokyuzunuTaraRoute
   '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
   '/hakkimizda': typeof HakkimizdaRoute
   '/hediye-kabul': typeof HediyeKabulRoute
@@ -439,7 +438,6 @@ export interface FileRoutesById {
   '/gizlilik-politikasi': typeof GizlilikPolitikasiRoute
   '/gokyuzu': typeof GokyuzuRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
-  '/gokyuzunu-tara': typeof GokyuzunuTaraRoute
   '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
   '/hakkimizda': typeof HakkimizdaRoute
   '/hediye-kabul': typeof HediyeKabulRoute
