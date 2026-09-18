@@ -9,9 +9,6 @@ export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
 const SKY_IMAGE_URL =
   'https://cdn.polyhaven.com/asset_img/primary/kloppenheim_03_puresky.png?height=2048';
 
-// Current live world: 81 provinces × 1,000 real Supabase parcels = 81,000.
-// Each province is a 40 × 25 grid, so every current world square has one
-// deterministic city/grid coordinate and one unique real parcel record.
 const CITY_COUNT = 81;
 const REAL_PARCELS_PER_CITY = 1_000;
 const CITY_GRID_WIDTH = 40;
@@ -87,9 +84,6 @@ function GokyuzuPage() {
     camera.position.set(0, 32, 34);
     camera.lookAt(cameraTarget);
 
-    // The parcel world is centered on its own pivot. Logical parcel coordinates
-    // are translated into local coordinates around the current center, so
-    // visual movement and Supabase data use the same coordinate system.
     const parcelGroup = new THREE.Group();
     scene.add(parcelGroup);
 
@@ -142,9 +136,6 @@ function GokyuzuPage() {
 
     const getCityDefinition = (cityIndex: number) => cities[cityIndex];
 
-    // Current logical center is an integer parcel coordinate. visualOffset keeps
-    // the drag continuous between tile boundaries; when a full tile is crossed,
-    // the logical center changes and only the affected Supabase window is fetched.
     let centerColumn = 20;
     let centerRow = 12;
     let visualOffsetX = 0;
@@ -174,28 +165,51 @@ function GokyuzuPage() {
       }
     };
 
+    let updateVisibleParcels: (() => void) | null = null;
+    let dragFrame: number | null = null;
+    let dragPendingDx = 0;
+    let dragPendingDy = 0;
+
     const applyVisualDrag = (dx: number, dy: number) => {
-      visualOffsetX += dx * 0.08;
-      visualOffsetZ += dy * 0.08;
+      dragPendingDx += dx;
+      dragPendingDy += dy;
 
-      while (Math.abs(visualOffsetX) >= TILE_SIZE) {
-        const step = visualOffsetX > 0 ? -1 : 1;
-        shiftLogicalCenter('x', step);
-        visualOffsetX += step * TILE_SIZE;
-      }
-      while (Math.abs(visualOffsetZ) >= TILE_SIZE) {
-        const step = visualOffsetZ > 0 ? -1 : 1;
-        shiftLogicalCenter('z', step);
-        visualOffsetZ += step * TILE_SIZE;
-      }
+      if (dragFrame != null) return;
+      dragFrame = requestAnimationFrame(() => {
+        dragFrame = null;
+        const frameDx = dragPendingDx;
+        const frameDy = dragPendingDy;
+        dragPendingDx = 0;
+        dragPendingDy = 0;
 
-      // Small controlled pitch/yaw gives the centered grid a globe-like feel
-      // without moving the camera or disconnecting parcel data from the world.
-      rotationY = THREE.MathUtils.clamp(rotationY + dx * 0.0025, -0.65, 0.65);
-      rotationX = THREE.MathUtils.clamp(rotationX + dy * 0.0018, -0.38, 0.38);
-      parcelGroup.rotation.y = rotationY;
-      parcelGroup.rotation.x = rotationX;
-      void updateVisibleParcels();
+        visualOffsetX += frameDx * 0.08;
+        visualOffsetZ += frameDy * 0.08;
+
+        let centerChanged = false;
+        while (Math.abs(visualOffsetX) >= TILE_SIZE) {
+          const step = visualOffsetX > 0 ? -1 : 1;
+          const before = centerColumn;
+          shiftLogicalCenter('x', step);
+          visualOffsetX += step * TILE_SIZE;
+          centerChanged ||= before !== centerColumn;
+        }
+        while (Math.abs(visualOffsetZ) >= TILE_SIZE) {
+          const step = visualOffsetZ > 0 ? -1 : 1;
+          const before = centerRow;
+          shiftLogicalCenter('z', step);
+          visualOffsetZ += step * TILE_SIZE;
+          centerChanged ||= before !== centerRow;
+        }
+
+        rotationY = THREE.MathUtils.clamp(rotationY + frameDx * 0.0025, -0.65, 0.65);
+        rotationX = THREE.MathUtils.clamp(rotationX + frameDy * 0.0018, -0.38, 0.38);
+        parcelGroup.rotation.y = rotationY;
+        parcelGroup.rotation.x = rotationX;
+        parcelGroup.position.x = visualOffsetX;
+        parcelGroup.position.z = visualOffsetZ;
+
+        if (centerChanged) updateVisibleParcels?.();
+      });
     };
 
     const onWheel = (event: WheelEvent) => {
@@ -257,8 +271,6 @@ function GokyuzuPage() {
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
 
-      // Hit both the filled parcel plane and its visible grid border.
-      // This makes the whole parcel cell interactive, not only the center.
       const hit = raycaster.intersectObject(parcelGroup, true)
         .map((entry) => findParcelObject(entry.object))
         .find((object): object is THREE.Object3D => Boolean(object));
@@ -298,7 +310,6 @@ function GokyuzuPage() {
         setZoom(current / (distance / pinchDistance));
         pinchDistance = distance;
         clearHover();
-        pinchDistance = distance;
         return;
       }
 
@@ -435,18 +446,15 @@ function GokyuzuPage() {
     let visibleUpdateId = 0;
     let lastRenderedCenter = '';
     let updateQueued = false;
+    let loadRequestFrame: number | null = null;
 
     const renderVisibleWindow = () => {
       const center = centerColumn + ':' + centerRow;
-      if (center === lastRenderedCenter) {
-        // Still update smooth visual offset without rebuilding geometries.
-        parcelGroup.position.x = visualOffsetX;
-        parcelGroup.position.z = visualOffsetZ;
-        return;
-      }
-      lastRenderedCenter = center;
       parcelGroup.position.x = visualOffsetX;
       parcelGroup.position.z = visualOffsetZ;
+
+      if (center === lastRenderedCenter) return;
+      lastRenderedCenter = center;
 
       let index = 0;
       for (let dz = -VISIBLE_Z; dz <= VISIBLE_Z; dz += 1) {
@@ -457,12 +465,7 @@ function GokyuzuPage() {
           const mesh = parcelMeshes[index];
           index += 1;
 
-          if (
-            column < 0 ||
-            column >= PARCEL_COLUMNS ||
-            row < 0 ||
-            row >= PARCEL_ROWS
-          ) {
+          if (column < 0 || column >= PARCEL_COLUMNS || row < 0 || row >= PARCEL_ROWS) {
             line.visible = false;
             mesh.visible = false;
             continue;
@@ -478,13 +481,22 @@ function GokyuzuPage() {
           const realParcel = parcelCache.get(cityIndex)?.get(localX + ':' + localZ);
           const y = realParcel ? 2.5 : 2.15;
 
-          line.geometry.dispose();
-          line.geometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(x, y, z),
-            new THREE.Vector3(x + TILE_SIZE, y, z),
-            new THREE.Vector3(x + TILE_SIZE, y, z + TILE_SIZE),
-            new THREE.Vector3(x, y, z + TILE_SIZE),
-          ]);
+          const points = line.geometry.getAttribute('position') as THREE.BufferAttribute;
+          if (points.count !== 4) {
+            line.geometry.setFromPoints([
+              new THREE.Vector3(x, y, z),
+              new THREE.Vector3(x + TILE_SIZE, y, z),
+              new THREE.Vector3(x + TILE_SIZE, y, z + TILE_SIZE),
+              new THREE.Vector3(x, y, z + TILE_SIZE),
+            ]);
+          } else {
+            const values = points.array as Float32Array;
+            values[0] = x; values[1] = y; values[2] = z;
+            values[3] = x + TILE_SIZE; values[4] = y; values[5] = z;
+            values[6] = x + TILE_SIZE; values[7] = y; values[8] = z + TILE_SIZE;
+            values[9] = x; values[10] = y; values[11] = z + TILE_SIZE;
+            points.needsUpdate = true;
+          }
           line.visible = true;
           line.userData.parcel = realParcel ?? null;
           line.userData.parcelNumber = realParcel?.parcel_number ?? null;
@@ -508,49 +520,55 @@ function GokyuzuPage() {
       }
     };
 
-    const updateVisibleParcels = async () => {
+    updateVisibleParcels = () => {
       if (updateQueued) return;
       updateQueued = true;
-      updateQueued = false;
 
-      renderVisibleWindow();
-      const updateId = ++visibleUpdateId;
-
-      try {
-        const definitions = await loadCities();
-        const minColumn = THREE.MathUtils.clamp(centerColumn - VISIBLE_X, 0, PARCEL_COLUMNS - 1);
-        const maxColumn = THREE.MathUtils.clamp(centerColumn + VISIBLE_X, 0, PARCEL_COLUMNS - 1);
-        const minRow = THREE.MathUtils.clamp(centerRow - VISIBLE_Z, 0, PARCEL_ROWS - 1);
-        const maxRow = THREE.MathUtils.clamp(centerRow + VISIBLE_Z, 0, PARCEL_ROWS - 1);
-        const tasks: Promise<void>[] = [];
-
-        const minCityX = Math.floor(minColumn / CITY_GRID_WIDTH);
-        const maxCityX = Math.floor(maxColumn / CITY_GRID_WIDTH);
-        const minCityZ = Math.floor(minRow / CITY_GRID_HEIGHT);
-        const maxCityZ = Math.floor(maxRow / CITY_GRID_HEIGHT);
-
-        for (let cityZ = minCityZ; cityZ <= maxCityZ; cityZ += 1) {
-          for (let cityX = minCityX; cityX <= maxCityX; cityX += 1) {
-            const cityIndex = cityZ * CITY_BLOCKS + cityX;
-            const city = definitions[cityIndex];
-            if (!city) continue;
-
-            const cityMinColumn = cityX * CITY_GRID_WIDTH;
-            const cityMinRow = cityZ * CITY_GRID_HEIGHT;
-            const localMinX = Math.max(0, minColumn - cityMinColumn);
-            const localMaxX = Math.min(CITY_GRID_WIDTH - 1, maxColumn - cityMinColumn);
-            const localMinY = Math.max(0, minRow - cityMinRow);
-            const localMaxY = Math.min(CITY_GRID_HEIGHT - 1, maxRow - cityMinRow);
-            tasks.push(loadCityParcels(cityIndex, localMinX, localMaxX, localMinY, localMaxY));
-          }
-        }
-
-        await Promise.all(tasks);
-        if (updateId !== visibleUpdateId) return;
+      if (loadRequestFrame != null) cancelAnimationFrame(loadRequestFrame);
+      loadRequestFrame = requestAnimationFrame(async () => {
+        loadRequestFrame = null;
         renderVisibleWindow();
-      } catch (error) {
-        console.error('Gökyüzü parselleri yüklenemedi:', error);
-      }
+
+        const updateId = ++visibleUpdateId;
+        try {
+          const definitions = await loadCities();
+          const minColumn = THREE.MathUtils.clamp(centerColumn - VISIBLE_X, 0, PARCEL_COLUMNS - 1);
+          const maxColumn = THREE.MathUtils.clamp(centerColumn + VISIBLE_X, 0, PARCEL_COLUMNS - 1);
+          const minRow = THREE.MathUtils.clamp(centerRow - VISIBLE_Z, 0, PARCEL_ROWS - 1);
+          const maxRow = THREE.MathUtils.clamp(centerRow + VISIBLE_Z, 0, PARCEL_ROWS - 1);
+          const tasks: Promise<void>[] = [];
+
+          const minCityX = Math.floor(minColumn / CITY_GRID_WIDTH);
+          const maxCityX = Math.floor(maxColumn / CITY_GRID_WIDTH);
+          const minCityZ = Math.floor(minRow / CITY_GRID_HEIGHT);
+          const maxCityZ = Math.floor(maxRow / CITY_GRID_HEIGHT);
+
+          for (let cityZ = minCityZ; cityZ <= maxCityZ; cityZ += 1) {
+            for (let cityX = minCityX; cityX <= maxCityX; cityX += 1) {
+              const cityIndex = cityZ * CITY_BLOCKS + cityX;
+              const city = definitions[cityIndex];
+              if (!city) continue;
+
+              const cityMinColumn = cityX * CITY_GRID_WIDTH;
+              const cityMinRow = cityZ * CITY_GRID_HEIGHT;
+              const localMinX = Math.max(0, minColumn - cityMinColumn);
+              const localMaxX = Math.min(CITY_GRID_WIDTH - 1, maxColumn - cityMinColumn);
+              const localMinY = Math.max(0, minRow - cityMinRow);
+              const localMaxY = Math.min(CITY_GRID_HEIGHT - 1, maxRow - cityMinRow);
+              tasks.push(loadCityParcels(cityIndex, localMinX, localMaxX, localMinY, localMaxY));
+            }
+          }
+
+          await Promise.all(tasks);
+          if (updateId !== visibleUpdateId) return;
+          renderVisibleWindow();
+        } catch (error) {
+          console.error('Gökyüzü parselleri yüklenemedi:', error);
+        } finally {
+          updateQueued = false;
+          if (centerColumn + ':' + centerRow !== lastRenderedCenter) updateVisibleParcels?.();
+        }
+      });
     };
 
     void updateVisibleParcels();
@@ -609,6 +627,8 @@ function GokyuzuPage() {
 
     return () => {
       cancelAnimationFrame(frame);
+      if (dragFrame != null) cancelAnimationFrame(dragFrame);
+      if (loadRequestFrame != null) cancelAnimationFrame(loadRequestFrame);
       renderer.domElement.removeEventListener('wheel', onWheel);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       renderer.domElement.removeEventListener('pointermove', onPointerMove);
