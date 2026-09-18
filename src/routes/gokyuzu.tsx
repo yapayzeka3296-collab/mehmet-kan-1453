@@ -1,186 +1,164 @@
 import { createFileRoute } from '@tanstack/react-router';
 import * as THREE from 'three';
+import { Sky } from 'three/addons/objects/Sky.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { useEffect, useRef, useState } from 'react';
-import { loadCitySkyParcels, type AllSkyParcel } from '@/features/gokyuzu/allSkyParcels';
+import { useEffect, useRef } from 'react';
 import './gokyuzu.css';
 
 export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
 
-const TEST_CITY = 'Gaziantep';
-const VISIBLE_PARCELS = 260;
-const GRID_COLUMNS = 40;
-const GRID_ROWS = 25;
-const GRID_GAP = 1.05;
-const DOME_HEIGHT = 15;
+type Cloud = {
+  sprite: THREE.Sprite;
+  baseX: number;
+  baseZ: number;
+  drift: number;
+  scale: number;
+};
 
-function parcelPosition(index: number) {
-  const column = index % GRID_COLUMNS;
-  const row = Math.floor(index / GRID_COLUMNS);
-  const x = (column - (GRID_COLUMNS - 1) / 2) * GRID_GAP;
-  const z = (row - (GRID_ROWS - 1) / 2) * GRID_GAP;
-  const nx = x / ((GRID_COLUMNS - 1) * GRID_GAP * 0.52);
-  const nz = z / ((GRID_ROWS - 1) * GRID_GAP * 0.52);
-  const radius = Math.min(1, Math.sqrt(nx * nx + nz * nz));
-  const y = DOME_HEIGHT * Math.sqrt(Math.max(0, 1 - radius * radius));
-  return { x, y, z, column, row };
+function createCloudTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const context = canvas.getContext('2d');
+  if (!context) return null;
+
+  const gradient = context.createRadialGradient(128, 64, 8, 128, 64, 108);
+  gradient.addColorStop(0, 'rgba(255,255,255,0.92)');
+  gradient.addColorStop(0.42, 'rgba(255,255,255,0.72)');
+  gradient.addColorStop(0.78, 'rgba(255,255,255,0.28)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, 256, 128);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
 
 function GokyuzuPage() {
   const mountRef = useRef<HTMLDivElement>(null);
-  const parcelsRef = useRef<AllSkyParcel[]>([]);
-  const visibleParcelsRef = useRef<AllSkyParcel[]>([]);
-  const [parcels, setParcels] = useState<AllSkyParcel[]>([]);
-  const [loaded, setLoaded] = useState(0);
-  const [selected, setSelected] = useState<AllSkyParcel | null>(null);
-  const [visibleCount, setVisibleCount] = useState(VISIBLE_PARCELS);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadCitySkyParcels(TEST_CITY, (current) => {
-      if (!cancelled) setLoaded(current);
-    })
-      .then((rows) => {
-        if (cancelled) return;
-        parcelsRef.current = rows;
-        setParcels(rows);
-        setVisibleCount(Math.min(VISIBLE_PARCELS, rows.length));
-      })
-      .catch((cause) => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : `${TEST_CITY} parselleri yüklenemedi.`);
-      });
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     const mount = mountRef.current;
-    if (!mount || parcels.length === 0) return;
+    if (!mount) return;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x090021, 0.008);
-    const camera = new THREE.PerspectiveCamera(48, mount.clientWidth / mount.clientHeight, 0.1, 1200);
-    camera.position.set(0, 23, 42);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    const camera = new THREE.PerspectiveCamera(
+      58,
+      mount.clientWidth / mount.clientHeight,
+      0.1,
+      1000000,
+    );
+    camera.position.set(0, 12, 35);
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: 'high-performance',
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.82;
     mount.appendChild(renderer.domElement);
+
+    // Physically-inspired daylight atmosphere from the official Three.js Sky addon.
+    const sky = new Sky();
+    sky.scale.setScalar(450000);
+    scene.add(sky);
+
+    const skyUniforms = sky.material.uniforms;
+    skyUniforms.turbidity.value = 5.2;
+    skyUniforms.rayleigh.value = 2.15;
+    skyUniforms.mieCoefficient.value = 0.0042;
+    skyUniforms.mieDirectionalG.value = 0.72;
+
+    const sun = new THREE.Vector3();
+    const elevation = 48;
+    const azimuth = -35;
+    const phi = THREE.MathUtils.degToRad(90 - elevation);
+    const theta = THREE.MathUtils.degToRad(azimuth);
+    sun.setFromSphericalCoords(1, phi, theta);
+    skyUniforms.sunPosition.value.copy(sun);
+
+    // A soft atmospheric horizon keeps the scene bright and endless instead of flat.
+    scene.fog = new THREE.FogExp2(0x9ccff5, 0.00018);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.enablePan = true;
-    controls.screenSpacePanning = true;
-    controls.minDistance = 12;
-    controls.maxDistance = 95;
-    controls.maxPolarAngle = Math.PI * 0.49;
-    controls.target.set(0, 5, 0);
+    controls.dampingFactor = 0.035;
+    controls.enablePan = false;
+    controls.minDistance = 18;
+    controls.maxDistance = 110;
+    controls.minPolarAngle = 0.12;
+    controls.maxPolarAngle = Math.PI * 0.82;
+    controls.target.set(0, 28, 0);
 
-    // Neon wireframe parcels: a single instanced geometry keeps the 3D map lightweight.
-    const geometry = new THREE.BoxGeometry(0.92, 0.035, 0.92);
-    const material = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.78, wireframe: true });
-    const mesh = new THREE.InstancedMesh(geometry, material, Math.min(VISIBLE_PARCELS, parcels.length));
-    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    scene.add(mesh);
+    // Lightweight procedural cloud puffs. No external image download is required.
+    const cloudTexture = createCloudTexture();
+    const cloudGroup = new THREE.Group();
+    scene.add(cloudGroup);
 
-    // Soft coordinate-node lights at grid intersections.
-    const nodeGeometry = new THREE.SphereGeometry(0.035, 6, 6);
-    const nodeMaterial = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.9 });
-    const nodeMesh = new THREE.InstancedMesh(nodeGeometry, nodeMaterial, Math.min(VISIBLE_PARCELS, parcels.length));
-    nodeMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    scene.add(nodeMesh);
+    const clouds: Cloud[] = [];
+    if (cloudTexture) {
+      const cloudMaterial = new THREE.SpriteMaterial({
+        map: cloudTexture,
+        transparent: true,
+        opacity: 0.78,
+        depthWrite: false,
+        color: 0xffffff,
+        fog: true,
+      });
 
-    // A subtle curved coordinate network behind the parcels.
-    const guideMaterial = new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.18 });
-    const guideGroup = new THREE.Group();
-    for (let row = 0; row < GRID_ROWS; row += 2) {
-      const points: THREE.Vector3[] = [];
-      for (let column = 0; column < GRID_COLUMNS; column += 1) {
-        points.push(new THREE.Vector3(parcelPosition(row * GRID_COLUMNS + column).x, parcelPosition(row * GRID_COLUMNS + column).y - 0.015, parcelPosition(row * GRID_COLUMNS + column).z));
+      const cloudCount = 42;
+      for (let i = 0; i < cloudCount; i += 1) {
+        const sprite = new THREE.Sprite(cloudMaterial.clone());
+        const angle = (i / cloudCount) * Math.PI * 2 + (i % 5) * 0.21;
+        const radius = 90 + ((i * 47) % 260);
+        const scale = 24 + ((i * 19) % 55);
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+        const y = 35 + ((i * 23) % 52);
+        sprite.position.set(x, y, z);
+        sprite.scale.set(scale * 1.55, scale * 0.7, 1);
+        sprite.renderOrder = 2;
+        cloudGroup.add(sprite);
+        clouds.push({
+          sprite,
+          baseX: x,
+          baseZ: z,
+          drift: 0.7 + (i % 7) * 0.06,
+          scale,
+        });
       }
-      guideGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), guideMaterial));
     }
-    for (let column = 0; column < GRID_COLUMNS; column += 2) {
-      const points: THREE.Vector3[] = [];
-      for (let row = 0; row < GRID_ROWS; row += 1) {
-        points.push(new THREE.Vector3(parcelPosition(row * GRID_COLUMNS + column).x, parcelPosition(row * GRID_COLUMNS + column).y - 0.012, parcelPosition(row * GRID_COLUMNS + column).z));
+
+    const ambient = new THREE.HemisphereLight(0xdff4ff, 0x8ab4d8, 1.5);
+    scene.add(ambient);
+
+    const sunLight = new THREE.DirectionalLight(0xffffff, 2.2);
+    sunLight.position.set(80, 160, -120);
+    scene.add(sunLight);
+
+    const updateClouds = (time: number) => {
+      const cameraX = camera.position.x;
+      const cameraZ = camera.position.z;
+      const wrap = 330;
+
+      for (const cloud of clouds) {
+        let x = cloud.baseX + time * cloud.drift;
+        let z = cloud.baseZ;
+
+        x = ((x - cameraX + wrap / 2) % wrap + wrap) % wrap - wrap / 2 + cameraX;
+        z = ((z - cameraZ + wrap / 2) % wrap + wrap) % wrap - wrap / 2 + cameraZ;
+
+        cloud.sprite.position.x = x;
+        cloud.sprite.position.z = z;
+        cloud.sprite.position.y += Math.sin(time * 0.18 + cloud.baseX) * 0.002;
       }
-      guideGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), guideMaterial));
-    }
-    scene.add(guideGroup);
-
-    const visibleIndexRef: number[] = [];
-    const matrix = new THREE.Matrix4();
-    const color = new THREE.Color();
-
-    const updateVisibleWindow = () => {
-      const targetX = controls.target.x;
-      const targetZ = controls.target.z;
-      const centerColumn = Math.round(targetX / GRID_GAP + (GRID_COLUMNS - 1) / 2);
-      const centerRow = Math.round(targetZ / GRID_GAP + (GRID_ROWS - 1) / 2);
-      const halfColumns = 7;
-      const halfRows = 9;
-      const candidates: Array<{ index: number; distance: number }> = [];
-
-      for (let row = Math.max(0, centerRow - halfRows); row <= Math.min(GRID_ROWS - 1, centerRow + halfRows); row += 1) {
-        for (let column = Math.max(0, centerColumn - halfColumns); column <= Math.min(GRID_COLUMNS - 1, centerColumn + halfColumns); column += 1) {
-          const index = row * GRID_COLUMNS + column;
-          if (index >= parcelsRef.current.length) continue;
-          const dx = column - centerColumn;
-          const dz = row - centerRow;
-          candidates.push({ index, distance: dx * dx + dz * dz });
-        }
-      }
-
-      candidates.sort((a, b) => a.distance - b.distance);
-      const next = candidates.slice(0, Math.min(VISIBLE_PARCELS, parcelsRef.current.length));
-      visibleIndexRef.length = 0;
-      visibleIndexRef.push(...next.map((item) => item.index));
-      visibleParcelsRef.current = visibleIndexRef.map((index) => parcelsRef.current[index]);
-
-      for (let instance = 0; instance < mesh.count; instance += 1) {
-        const parcelIndex = visibleIndexRef[instance];
-        if (parcelIndex == null) {
-          matrix.makeScale(0, 0, 0);
-          mesh.setMatrixAt(instance, matrix);
-          nodeMesh.setMatrixAt(instance, matrix);
-          continue;
-        }
-        const position = parcelPosition(parcelIndex);
-        matrix.makeTranslation(position.x, position.y, position.z);
-        mesh.setMatrixAt(instance, matrix);
-        nodeMesh.setMatrixAt(instance, matrix);
-        const parcel = parcelsRef.current[parcelIndex];
-        color.set(parcel.status === 'sold' ? 0xff9d00 : parcel.status === 'reserved' ? 0xa78bfa : 0x38bdf8);
-        mesh.setColorAt(instance, color);
-      }
-      mesh.instanceMatrix.needsUpdate = true;
-      nodeMesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-      setVisibleCount(visibleParcelsRef.current.length);
     };
-
-    updateVisibleWindow();
-    const onControlsChange = () => updateVisibleWindow();
-    controls.addEventListener('change', onControlsChange);
-
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    let pointerDown = { x: 0, y: 0 };
-    const onPointerDown = (event: PointerEvent) => { pointerDown = { x: event.clientX, y: event.clientY }; };
-    const onPointerUp = (event: PointerEvent) => {
-      if (Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y) > 8) return;
-      const rect = renderer.domElement.getBoundingClientRect();
-      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObject(mesh, false)[0];
-      if (hit && hit.instanceId != null) setSelected(visibleParcelsRef.current[hit.instanceId] ?? null);
-    };
-    renderer.domElement.addEventListener('pointerdown', onPointerDown);
-    renderer.domElement.addEventListener('pointerup', onPointerUp);
 
     const resize = () => {
       camera.aspect = mount.clientWidth / mount.clientHeight;
@@ -189,70 +167,68 @@ function GokyuzuPage() {
     };
     window.addEventListener('resize', resize);
 
+    const clock = new THREE.Clock();
     let frame = 0;
+
     const animate = () => {
       frame = requestAnimationFrame(animate);
+      const time = clock.getElapsedTime();
       controls.update();
+      updateClouds(time);
       renderer.render(scene, camera);
     };
     animate();
 
     return () => {
       cancelAnimationFrame(frame);
-      controls.removeEventListener('change', onControlsChange);
       window.removeEventListener('resize', resize);
-      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
-      renderer.domElement.removeEventListener('pointerup', onPointerUp);
       controls.dispose();
-      geometry.dispose();
-      material.dispose();
-      nodeGeometry.dispose();
-      nodeMaterial.dispose();
-      guideMaterial.dispose();
-      guideGroup.children.forEach((child) => (child as THREE.Line).geometry.dispose());
+
+      cloudGroup.traverse((object) => {
+        const sprite = object as THREE.Sprite;
+        if (sprite.material) {
+          const material = sprite.material as THREE.SpriteMaterial;
+          material.map?.dispose();
+          material.dispose();
+        }
+      });
+      cloudTexture?.dispose();
+
+      sky.geometry.dispose();
+      sky.material.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     };
-  }, [parcels]);
+  }, []);
 
   return (
     <main className="gokyuzu-page">
-      <div className="gokyuzu-sky" />
-      <div ref={mountRef} className="gokyuzu-canvas" aria-label="Parsel Dünyası 3D gökyüzü haritası" />
+      <div ref={mountRef} className="gokyuzu-canvas" aria-label="Parsel Dünyası sonsuz 3D gündüz gökyüzü" />
 
       <header className="gokyuzu-header">
         <div>
           <div className="gokyuzu-kicker">MYSKYPARCEL · PARSEL DÜNYASI</div>
-          <h1>Gaziantep</h1>
-          <p>Gökyüzündeki dijital parsel ağını sürükleyerek keşfet.</p>
+          <h1>Gökyüzü</h1>
+          <p>Gündüz gökyüzünün içinde sonsuz bir 3D dünya. Sürükleyerek ufku keşfet.</p>
         </div>
-        <div className="gokyuzu-stats">
-          <strong>{visibleCount.toLocaleString('tr-TR')}</strong>
-          <span>ekranda · {loaded.toLocaleString('tr-TR')} Gaziantep parseli</span>
+        <div className="gokyuzu-badge">
+          <span className="sun-dot" />
+          <span>Gündüz modu</span>
         </div>
       </header>
 
-      <div className="gokyuzu-city-label">GAZİANTEP · TEST 01</div>
-      <div className="gokyuzu-legend">
-        <span><i className="available" /> Müsait</span>
-        <span><i className="sold" /> Satılmış</span>
-        <span><i className="reserved" /> Rezerve</span>
+      <div className="gokyuzu-horizon">
+        <span>∞</span>
+        <div>
+          <strong>Sonsuz gökyüzü</strong>
+          <small>Bulutlar hareket eder · kamera yönü özgür</small>
+        </div>
       </div>
 
-      {loaded === 0 && !error && <div className="gokyuzu-loader"><div className="gokyuzu-loader-title">Gaziantep parselleri yükleniyor…</div><small>İlk test yalnızca Gaziantep ile başlıyor.</small></div>}
-      {error && <div className="gokyuzu-error">{error}</div>}
-      <div className="gokyuzu-controls"><span>👆 Sürükle: yeni parseller</span><span>↕ Yaklaş / uzaklaş</span><span>👆 Parsel seç</span></div>
-
-      {selected && (
-        <aside className="gokyuzu-detail">
-          <button className="gokyuzu-close" onClick={() => setSelected(null)} aria-label="Kapat">×</button>
-          <div className="detail-city">{selected.city_name} · Katman {selected.layer_number ?? '-'} · Sektör {selected.sector_number ?? '-'}</div>
-          <h2>#{selected.parcel_number}</h2>
-          <div className="detail-row"><span>Durum</span><strong>{selected.status === 'sold' ? 'Satılmış' : selected.status === 'reserved' ? 'Rezerve' : 'Müsait'}</strong></div>
-          {selected.price != null && <div className="detail-row"><span>Fiyat</span><strong>{selected.price.toLocaleString('tr-TR')} ₺</strong></div>}
-          {selected.status !== 'sold' && <a className="detail-action" href={`/parsel-satin-al?parcels=${encodeURIComponent(selected.id)}`}>Bu parseli incele</a>}
-        </aside>
-      )}
+      <div className="gokyuzu-controls">
+        <span>👆 Sürükle: gökyüzünü keşfet</span>
+        <span>↕ Yaklaş / uzaklaş</span>
+      </div>
     </main>
   );
 }
