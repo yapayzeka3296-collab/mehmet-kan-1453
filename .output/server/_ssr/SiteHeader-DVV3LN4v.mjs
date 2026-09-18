@@ -55,8 +55,6 @@ var NAV_LINKS = [
 		to: "/gokyuzu"
 	},
 	{
-		label: "Gökyüzünü Tara",
-		to: "/gokyuzunu-tara"
 	},
 	{
 		label: "Gökyüzü Haritası",
