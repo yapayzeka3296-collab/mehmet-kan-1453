@@ -10,9 +10,9 @@ export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
 const SKY_IMAGE_URL =
   'https://cdn.polyhaven.com/asset_img/primary/kloppenheim_03_puresky.png?height=2048';
 
-// 81 provinces × 1,000,000 logical sky parcels = 81,000,000.
-// The database currently contains the real 81,000 seeded parcel records.
-// The large coordinate space stays logical; real records are loaded lazily.
+// Current live world: 81 provinces × 1,000 real Supabase parcels = 81,000.
+// Each province is a 40 × 25 grid, so every current world square has one
+// deterministic city/grid coordinate and one unique real parcel record.
 const CITY_COUNT = 81;
 const REAL_PARCELS_PER_CITY = 1_000;
 const CITY_GRID_WIDTH = 40;
@@ -215,8 +215,8 @@ function GokyuzuPage() {
       const maxRow = THREE.MathUtils.clamp(safeRow + VISIBLE_Z, 0, PARCEL_ROWS - 1);
       const minCityX = Math.floor(minColumn / CITY_GRID_WIDTH);
       const maxCityX = Math.floor(maxColumn / CITY_GRID_WIDTH);
-      const minCityZ = Math.floor(minRow / CITY_GRID_WIDTH);
-      const maxCityZ = Math.floor(maxRow / CITY_GRID_WIDTH);
+      const minCityZ = Math.floor(minRow / CITY_GRID_HEIGHT);
+      const maxCityZ = Math.floor(maxRow / CITY_GRID_HEIGHT);
       const citiesToLoad: number[] = [];
       for (let cityZ = minCityZ; cityZ <= maxCityZ; cityZ += 1) {
         for (let cityX = minCityX; cityX <= maxCityX; cityX += 1) {
@@ -249,7 +249,7 @@ function GokyuzuPage() {
           const z = row * TILE_SIZE;
 
           const cityX = Math.floor(column / CITY_GRID_WIDTH);
-          const cityZ = Math.floor(row / CITY_GRID_WIDTH);
+          const cityZ = Math.floor(row / CITY_GRID_HEIGHT);
           const cityIndex = cityZ * CITY_BLOCKS + cityX;
           const localX = column - cityX * CITY_GRID_WIDTH;
           const localZ = row - cityZ * CITY_GRID_HEIGHT;
@@ -320,7 +320,7 @@ function GokyuzuPage() {
           }
 
           const cityX = Math.floor(column / CITY_GRID_WIDTH);
-          const cityZ = Math.floor(row / CITY_GRID_WIDTH);
+          const cityZ = Math.floor(row / CITY_GRID_HEIGHT);
           const cityIndex = cityZ * CITY_BLOCKS + cityX;
           const localX = column - cityX * CITY_GRID_WIDTH;
           const localZ = row - cityZ * CITY_GRID_HEIGHT;
