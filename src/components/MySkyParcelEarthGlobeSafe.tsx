@@ -111,7 +111,6 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         const stars = createStarField();
         const pointers = new Map<number, { x: number; y: number }>();
         let frame = 0;
-        let lastRender = 0;
         let dragging = false;
         let lastX = 0;
         let lastY = 0;
@@ -187,12 +186,8 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
           if (cancelled) return;
           frame = requestAnimationFrame(animate);
           const delta = clock.getDelta();
-          const elapsed = clock.elapsedTime;
           if (!dragging && !pointers.size) { earth.rotation.y += delta * 0.018; clouds.rotation.y += delta * 0.004; syncStarsToEarth(); }
-          if (elapsed - lastRender >= 0.033) {
-            lastRender = elapsed;
-            renderer.render(scene, camera);
-          }
+          renderer.render(scene, camera);
         };
         animate();
 
