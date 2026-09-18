@@ -225,13 +225,23 @@ function GokyuzuPage() {
       renderer.domElement.style.cursor = 'grabbing';
     };
 
-    let hoveredParcelMesh: THREE.Mesh | null = null;
+    let hoveredParcelObject: THREE.Object3D | null = null;
 
     const clearHover = () => {
-      if (!hoveredParcelMesh) return;
-      hoveredParcelMesh.scale.set(1, 1, 1);
-      hoveredParcelMesh = null;
+      if (!hoveredParcelObject) return;
+      hoveredParcelObject.scale.set(1, 1, 1);
+      hoveredParcelObject.renderOrder = 0;
+      hoveredParcelObject = null;
       renderer.domElement.style.cursor = dragging ? 'grabbing' : 'grab';
+    };
+
+    const findParcelObject = (root: THREE.Object3D) => {
+      let object: THREE.Object3D | null = root;
+      while (object && object !== parcelGroup) {
+        if (object.userData?.parcel) return object;
+        object = object.parent;
+      }
+      return null;
     };
 
     const updateHover = (event: PointerEvent) => {
@@ -241,42 +251,29 @@ function GokyuzuPage() {
       }
 
       const rect = renderer.domElement.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
 
-      // Raycast recursively through the parcel group. The visible parcel may
-      // be represented by a child object, so never depend on a flat mesh list.
-      const hit = raycaster.intersectObject(parcelGroup, true).find((entry) => {
-        let object: THREE.Object3D | null = entry.object;
-        while (object && object !== parcelGroup) {
-          if (object.userData?.parcel) return true;
-          object = object.parent;
-        }
-        return false;
-      });
+      // Hit both the filled parcel plane and its visible grid border.
+      // This makes the whole parcel cell interactive, not only the center.
+      const hit = raycaster.intersectObject(parcelGroup, true)
+        .map((entry) => findParcelObject(entry.object))
+        .find((object): object is THREE.Object3D => Boolean(object));
 
-      let next: THREE.Mesh | null = null;
-      if (hit) {
-        let object: THREE.Object3D | null = hit.object;
-        while (object && object !== parcelGroup) {
-          if (object.userData?.parcel && object instanceof THREE.Mesh) {
-            next = object;
-            break;
-          }
-          object = object.parent;
+      if (hit !== hoveredParcelObject) {
+        if (hoveredParcelObject) {
+          hoveredParcelObject.scale.set(1, 1, 1);
+          hoveredParcelObject.renderOrder = 0;
         }
-      }
 
-      if (next !== hoveredParcelMesh) {
-        if (hoveredParcelMesh) {
-          hoveredParcelMesh.scale.set(1, 1, 1);
-          hoveredParcelMesh.renderOrder = 0;
-        }
-        hoveredParcelMesh = next;
-        if (hoveredParcelMesh) {
-          hoveredParcelMesh.scale.set(1.12, 1.12, 1.12);
-          hoveredParcelMesh.renderOrder = 20;
+        hoveredParcelObject = hit;
+
+        if (hoveredParcelObject) {
+          hoveredParcelObject.scale.set(1.08, 1.08, 1.08);
+          hoveredParcelObject.renderOrder = 50;
           renderer.domElement.style.cursor = 'pointer';
         } else {
           renderer.domElement.style.cursor = 'grab';
@@ -580,25 +577,11 @@ function GokyuzuPage() {
       raycaster.setFromCamera(pointer, camera);
 
       const hit = raycaster.intersectObject(parcelGroup, true).find((entry) => {
-        let object: THREE.Object3D | null = entry.object;
-        while (object && object !== parcelGroup) {
-          if (object.userData?.parcel) return true;
-          object = object.parent;
-        }
-        return false;
+        return Boolean(findParcelObject(entry.object));
       });
 
-      let parcel: RealSkyParcel | null = null;
-      if (hit) {
-        let object: THREE.Object3D | null = hit.object;
-        while (object && object !== parcelGroup) {
-          if (object.userData?.parcel) {
-            parcel = object.userData.parcel as RealSkyParcel;
-            break;
-          }
-          object = object.parent;
-        }
-      }
+      const parcelObject = hit ? findParcelObject(hit.object) : null;
+      const parcel = parcelObject?.userData?.parcel as RealSkyParcel | null | undefined;
       if (parcel) setSelectedParcel(parcel);
       dragMoved = false;
     };
