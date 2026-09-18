@@ -92,32 +92,92 @@ function GokyuzuPage() {
     });
     scene.add(new THREE.Mesh(skyGeometry, skyMaterial));
 
-    // Same interaction model as the landing-page globe:
-    // one-finger/left-mouse rotates the 3D view; two-finger/wheel zooms.
-    // Panning is disabled so the parcel world behaves like a 3D globe view.
+    // Match the landing-page globe interaction: drag the 3D world itself.
+    // OrbitControls was unsuitable here because it rotates the camera around a
+    // fixed target while this page's parcels are the object that must move.
     const cameraTarget = new THREE.Vector3(initialWorldX, 2.5, initialWorldZ);
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.copy(cameraTarget);
-    controls.enablePan = false;
-    controls.enableRotate = true;
-    controls.enableZoom = true;
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.075;
-    controls.rotateSpeed = 0.72;
-    controls.zoomSpeed = 0.85;
-    controls.minDistance = 18;
-    controls.maxDistance = 150;
-    controls.minPolarAngle = 0.35;
-    controls.maxPolarAngle = 1.48;
-    controls.touches.ONE = THREE.TOUCH.ROTATE;
-    controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
-    controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
-    controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
-    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
-    controls.update();
+    camera.lookAt(cameraTarget);
 
     const parcelGroup = new THREE.Group();
     scene.add(parcelGroup);
+
+    let dragging = false;
+    let lastPointerX = 0;
+    let lastPointerY = 0;
+    const pointers = new Map<number, { x: number; y: number }>();
+    let pinchDistance: number | null = null;
+
+    const clampGridRotation = () => {
+      parcelGroup.rotation.x = THREE.MathUtils.clamp(parcelGroup.rotation.x, -1.05, 1.05);
+    };
+    const setZoom = (distance: number) => {
+      camera.position.y = THREE.MathUtils.clamp(distance, 14, 90);
+      camera.position.z = cameraTarget.z + THREE.MathUtils.clamp(distance, 18, 120);
+      camera.lookAt(cameraTarget);
+    };
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const current = Math.max(18, camera.position.z - cameraTarget.z);
+      setZoom(current + THREE.MathUtils.clamp(event.deltaY, -160, 160) * 0.08);
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      try { renderer.domElement.setPointerCapture(event.pointerId); } catch { /* unsupported */ }
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        pinchDistance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+        dragging = false;
+        return;
+      }
+      dragging = true;
+      lastPointerX = event.clientX;
+      lastPointerY = event.clientY;
+      renderer.domElement.style.cursor = 'grabbing';
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      const previous = pointers.get(event.pointerId);
+      if (!previous) return;
+      event.preventDefault();
+      event.stopPropagation();
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size === 2 && pinchDistance) {
+        const [a, b] = [...pointers.values()];
+        const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+        const current = Math.max(18, camera.position.z - cameraTarget.z);
+        setZoom(current / (distance / pinchDistance));
+        pinchDistance = distance;
+        return;
+      }
+      if (!dragging) return;
+      const dx = event.clientX - lastPointerX;
+      const dy = event.clientY - lastPointerY;
+      lastPointerX = event.clientX;
+      lastPointerY = event.clientY;
+      parcelGroup.rotation.y += dx * 0.008;
+      parcelGroup.rotation.x += dy * 0.005;
+      clampGridRotation();
+    };
+    const onPointerUp = (event: PointerEvent) => {
+      pointers.delete(event.pointerId);
+      if (pointers.size < 2) pinchDistance = null;
+      dragging = pointers.size === 1;
+      if (dragging) {
+        const remaining = [...pointers.values()][0];
+        lastPointerX = remaining.x;
+        lastPointerY = remaining.y;
+      } else {
+        renderer.domElement.style.cursor = 'grab';
+      }
+      try { renderer.domElement.releasePointerCapture(event.pointerId); } catch { /* unsupported */ }
+    };
+    renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    renderer.domElement.addEventListener('pointermove', onPointerMove);
+    renderer.domElement.addEventListener('pointerup', onPointerUp);
+    renderer.domElement.addEventListener('pointercancel', onPointerUp);
 
     const realParcelCache = new Map<number, Map<string, RealSkyParcel>>();
     const loadingCities = new Set<number>();
@@ -423,7 +483,11 @@ function GokyuzuPage() {
     return () => {
       cancelAnimationFrame(frame);
 
-      controls.dispose();
+      renderer.domElement.removeEventListener('wheel', onWheel);
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      renderer.domElement.removeEventListener('pointermove', onPointerMove);
+      renderer.domElement.removeEventListener('pointerup', onPointerUp);
+      renderer.domElement.removeEventListener('pointercancel', onPointerUp);
       window.removeEventListener('resize', resize);
 
       skyTexture.dispose();
