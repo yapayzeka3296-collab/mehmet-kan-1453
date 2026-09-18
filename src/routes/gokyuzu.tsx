@@ -9,6 +9,9 @@ export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
 const SKY_IMAGE_URL =
   'https://cdn.polyhaven.com/asset_img/primary/kloppenheim_03_puresky.png?height=2048';
 
+// Current live world: 81 provinces × 1,000 real Supabase parcels = 81,000.
+// Each province is a 40 × 25 grid, so every current world square has one
+// deterministic city/grid coordinate and one unique real parcel record.
 const CITY_COUNT = 81;
 const REAL_PARCELS_PER_CITY = 1_000;
 const CITY_GRID_WIDTH = 40;
@@ -84,22 +87,11 @@ function GokyuzuPage() {
     camera.position.set(0, 32, 34);
     camera.lookAt(cameraTarget);
 
+    // The parcel world is centered on its own pivot. Logical parcel coordinates
+    // are translated into local coordinates around the current center, so
+    // visual movement and Supabase data use the same coordinate system.
     const parcelGroup = new THREE.Group();
     scene.add(parcelGroup);
-
-    // Keep the grid visible immediately while Supabase data is loading.
-    const baseGrid = new THREE.GridHelper(
-      Math.max(PARCEL_COLUMNS, PARCEL_ROWS) * TILE_SIZE,
-      Math.max(PARCEL_COLUMNS, PARCEL_ROWS),
-      0xffd166,
-      0xffd166,
-    );
-    baseGrid.position.set(0, 2.05, 0);
-    baseGrid.material.transparent = true;
-    baseGrid.material.opacity = 0.42;
-    baseGrid.material.depthTest = false;
-    baseGrid.renderOrder = 5;
-    parcelGroup.add(baseGrid);
 
     const specialProvinceNumbers: Record<string, number> = {
       ANK: 6,
@@ -150,6 +142,9 @@ function GokyuzuPage() {
 
     const getCityDefinition = (cityIndex: number) => cities[cityIndex];
 
+    // Current logical center is an integer parcel coordinate. visualOffset keeps
+    // the drag continuous between tile boundaries; when a full tile is crossed,
+    // the logical center changes and only the affected Supabase window is fetched.
     let centerColumn = 20;
     let centerRow = 12;
     let visualOffsetX = 0;
@@ -179,51 +174,28 @@ function GokyuzuPage() {
       }
     };
 
-    let updateVisibleParcels: (() => void) | null = null;
-    let dragFrame: number | null = null;
-    let dragPendingDx = 0;
-    let dragPendingDy = 0;
-
     const applyVisualDrag = (dx: number, dy: number) => {
-      dragPendingDx += dx;
-      dragPendingDy += dy;
+      visualOffsetX += dx * 0.08;
+      visualOffsetZ += dy * 0.08;
 
-      if (dragFrame != null) return;
-      dragFrame = requestAnimationFrame(() => {
-        dragFrame = null;
-        const frameDx = dragPendingDx;
-        const frameDy = dragPendingDy;
-        dragPendingDx = 0;
-        dragPendingDy = 0;
+      while (Math.abs(visualOffsetX) >= TILE_SIZE) {
+        const step = visualOffsetX > 0 ? -1 : 1;
+        shiftLogicalCenter('x', step);
+        visualOffsetX += step * TILE_SIZE;
+      }
+      while (Math.abs(visualOffsetZ) >= TILE_SIZE) {
+        const step = visualOffsetZ > 0 ? -1 : 1;
+        shiftLogicalCenter('z', step);
+        visualOffsetZ += step * TILE_SIZE;
+      }
 
-        visualOffsetX += frameDx * 0.08;
-        visualOffsetZ += frameDy * 0.08;
-
-        let centerChanged = false;
-        while (Math.abs(visualOffsetX) >= TILE_SIZE) {
-          const step = visualOffsetX > 0 ? -1 : 1;
-          const before = centerColumn;
-          shiftLogicalCenter('x', step);
-          visualOffsetX += step * TILE_SIZE;
-          centerChanged ||= before !== centerColumn;
-        }
-        while (Math.abs(visualOffsetZ) >= TILE_SIZE) {
-          const step = visualOffsetZ > 0 ? -1 : 1;
-          const before = centerRow;
-          shiftLogicalCenter('z', step);
-          visualOffsetZ += step * TILE_SIZE;
-          centerChanged ||= before !== centerRow;
-        }
-
-        rotationY = THREE.MathUtils.clamp(rotationY + frameDx * 0.0025, -0.65, 0.65);
-        rotationX = THREE.MathUtils.clamp(rotationX + frameDy * 0.0018, -0.38, 0.38);
-        parcelGroup.rotation.y = rotationY;
-        parcelGroup.rotation.x = rotationX;
-        parcelGroup.position.x = visualOffsetX;
-        parcelGroup.position.z = visualOffsetZ;
-
-        if (centerChanged) updateVisibleParcels?.();
-      });
+      // Small controlled pitch/yaw gives the centered grid a globe-like feel
+      // without moving the camera or disconnecting parcel data from the world.
+      rotationY = THREE.MathUtils.clamp(rotationY + dx * 0.0025, -0.65, 0.65);
+      rotationX = THREE.MathUtils.clamp(rotationX + dy * 0.0018, -0.38, 0.38);
+      parcelGroup.rotation.y = rotationY;
+      parcelGroup.rotation.x = rotationX;
+      void updateVisibleParcels();
     };
 
     const onWheel = (event: WheelEvent) => {
@@ -253,23 +225,13 @@ function GokyuzuPage() {
       renderer.domElement.style.cursor = 'grabbing';
     };
 
-    let hoveredParcelObject: THREE.Object3D | null = null;
+    let hoveredParcelMesh: THREE.Mesh | null = null;
 
     const clearHover = () => {
-      if (!hoveredParcelObject) return;
-      hoveredParcelObject.scale.set(1, 1, 1);
-      hoveredParcelObject.renderOrder = 10;
-      hoveredParcelObject = null;
+      if (!hoveredParcelMesh) return;
+      hoveredParcelMesh.scale.set(1, 1, 1);
+      hoveredParcelMesh = null;
       renderer.domElement.style.cursor = dragging ? 'grabbing' : 'grab';
-    };
-
-    const findParcelObject = (root: THREE.Object3D) => {
-      let object: THREE.Object3D | null = root;
-      while (object && object !== parcelGroup) {
-        if (object.userData?.parcel) return object;
-        object = object.parent;
-      }
-      return null;
     };
 
     const updateHover = (event: PointerEvent) => {
@@ -279,28 +241,42 @@ function GokyuzuPage() {
       }
 
       const rect = renderer.domElement.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
 
-      const hit = raycaster.intersectObject(parcelGroup, true)
-        .map((entry) => entry.object)
-        .map((object) => findParcelObject(object) ?? (Number.isInteger(object.userData?.worldColumn) && Number.isInteger(object.userData?.worldRow) ? object : null))
-        .find((object): object is THREE.Object3D => Boolean(object));
-
-      if (hit !== hoveredParcelObject) {
-        if (hoveredParcelObject) {
-          hoveredParcelObject.scale.set(1, 1, 1);
-          hoveredParcelObject.renderOrder = 0;
+      // Raycast recursively through the parcel group. The visible parcel may
+      // be represented by a child object, so never depend on a flat mesh list.
+      const hit = raycaster.intersectObject(parcelGroup, true).find((entry) => {
+        let object: THREE.Object3D | null = entry.object;
+        while (object && object !== parcelGroup) {
+          if (object.userData?.parcel) return true;
+          object = object.parent;
         }
+        return false;
+      });
 
-        hoveredParcelObject = hit ?? null;
+      let next: THREE.Mesh | null = null;
+      if (hit) {
+        let object: THREE.Object3D | null = hit.object;
+        while (object && object !== parcelGroup) {
+          if (object.userData?.parcel && object instanceof THREE.Mesh) {
+            next = object;
+            break;
+          }
+          object = object.parent;
+        }
+      }
 
-        if (hoveredParcelObject) {
-          hoveredParcelObject.scale.set(1.08, 1.08, 1.08);
-          hoveredParcelObject.renderOrder = 60;
+      if (next !== hoveredParcelMesh) {
+        if (hoveredParcelMesh) {
+          hoveredParcelMesh.scale.set(1, 1, 1);
+          hoveredParcelMesh.renderOrder = 0;
+        }
+        hoveredParcelMesh = next;
+        if (hoveredParcelMesh) {
+          hoveredParcelMesh.scale.set(1.12, 1.12, 1.12);
+          hoveredParcelMesh.renderOrder = 20;
           renderer.domElement.style.cursor = 'pointer';
         } else {
           renderer.domElement.style.cursor = 'grab';
@@ -325,6 +301,7 @@ function GokyuzuPage() {
         setZoom(current / (distance / pinchDistance));
         pinchDistance = distance;
         clearHover();
+        pinchDistance = distance;
         return;
       }
 
@@ -434,7 +411,7 @@ function GokyuzuPage() {
       available: new THREE.MeshBasicMaterial({ color: 0x2ee6a6, transparent: true, opacity: 0.72, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
       sold: new THREE.MeshBasicMaterial({ color: 0xff5c7a, transparent: true, opacity: 0.48, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
       reserved: new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.76, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
-      other: new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
+      other: new THREE.MeshBasicMaterial({ color: 0x8ea0b8, transparent: true, opacity: 0.58, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
     };
 
     const visibleWidth = VISIBLE_X * 2 + 1;
@@ -453,8 +430,7 @@ function GokyuzuPage() {
       );
       mesh.rotation.x = -Math.PI / 2;
       mesh.position.y = 2.65;
-      mesh.visible = true;
-      mesh.renderOrder = 6;
+      mesh.visible = false;
       parcelGroup.add(mesh);
       parcelMeshes.push(mesh);
     }
@@ -462,15 +438,18 @@ function GokyuzuPage() {
     let visibleUpdateId = 0;
     let lastRenderedCenter = '';
     let updateQueued = false;
-    let loadRequestFrame: number | null = null;
 
     const renderVisibleWindow = () => {
       const center = centerColumn + ':' + centerRow;
+      if (center === lastRenderedCenter) {
+        // Still update smooth visual offset without rebuilding geometries.
+        parcelGroup.position.x = visualOffsetX;
+        parcelGroup.position.z = visualOffsetZ;
+        return;
+      }
+      lastRenderedCenter = center;
       parcelGroup.position.x = visualOffsetX;
       parcelGroup.position.z = visualOffsetZ;
-
-      const centerChanged = center !== lastRenderedCenter;
-      if (centerChanged) lastRenderedCenter = center;
 
       let index = 0;
       for (let dz = -VISIBLE_Z; dz <= VISIBLE_Z; dz += 1) {
@@ -481,7 +460,12 @@ function GokyuzuPage() {
           const mesh = parcelMeshes[index];
           index += 1;
 
-          if (column < 0 || column >= PARCEL_COLUMNS || row < 0 || row >= PARCEL_ROWS) {
+          if (
+            column < 0 ||
+            column >= PARCEL_COLUMNS ||
+            row < 0 ||
+            row >= PARCEL_ROWS
+          ) {
             line.visible = false;
             mesh.visible = false;
             continue;
@@ -497,24 +481,13 @@ function GokyuzuPage() {
           const realParcel = parcelCache.get(cityIndex)?.get(localX + ':' + localZ);
           const y = realParcel ? 2.5 : 2.15;
 
-          if (centerChanged) {
-            const points = line.geometry.getAttribute('position') as THREE.BufferAttribute;
-            if (points.count !== 4) {
-            line.geometry.setFromPoints([
-              new THREE.Vector3(x, y, z),
-              new THREE.Vector3(x + TILE_SIZE, y, z),
-              new THREE.Vector3(x + TILE_SIZE, y, z + TILE_SIZE),
-              new THREE.Vector3(x, y, z + TILE_SIZE),
-            ]);
-          } else {
-            const values = points.array as Float32Array;
-            values[0] = x; values[1] = y; values[2] = z;
-            values[3] = x + TILE_SIZE; values[4] = y; values[5] = z;
-            values[6] = x + TILE_SIZE; values[7] = y; values[8] = z + TILE_SIZE;
-            values[9] = x; values[10] = y; values[11] = z + TILE_SIZE;
-              points.needsUpdate = true;
-            }
-          }
+          line.geometry.dispose();
+          line.geometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(x, y, z),
+            new THREE.Vector3(x + TILE_SIZE, y, z),
+            new THREE.Vector3(x + TILE_SIZE, y, z + TILE_SIZE),
+            new THREE.Vector3(x, y, z + TILE_SIZE),
+          ]);
           line.visible = true;
           line.userData.parcel = realParcel ?? null;
           line.userData.parcelNumber = realParcel?.parcel_number ?? null;
@@ -522,76 +495,65 @@ function GokyuzuPage() {
           line.userData.worldRow = row;
 
           mesh.position.set(x + TILE_SIZE / 2, y + 0.42, z + TILE_SIZE / 2);
-          mesh.visible = true;
+          mesh.visible = Boolean(realParcel);
           mesh.userData.parcel = realParcel ?? null;
-          mesh.userData.parcelNumber = realParcel?.parcel_number ?? null;
-          mesh.userData.worldColumn = column;
-          mesh.userData.worldRow = row;
-
-          const status = realParcel
-            ? realParcel.status === 'sold'
+          if (realParcel) {
+            const status = realParcel.status === 'sold'
               ? 'sold'
               : realParcel.status === 'reserved'
                 ? 'reserved'
                 : realParcel.status === 'available'
                   ? 'available'
-                  : 'other'
-            : 'other';
-          mesh.material = realParcelMaterials[status];
-          mesh.renderOrder = realParcel ? 12 : 10;
+                  : 'other';
+            mesh.material = realParcelMaterials[status];
+          }
         }
       }
     };
 
-    updateVisibleParcels = () => {
+    const updateVisibleParcels = async () => {
       if (updateQueued) return;
       updateQueued = true;
+      updateQueued = false;
 
-      if (loadRequestFrame != null) cancelAnimationFrame(loadRequestFrame);
-      loadRequestFrame = requestAnimationFrame(async () => {
-        loadRequestFrame = null;
-        renderVisibleWindow();
+      renderVisibleWindow();
+      const updateId = ++visibleUpdateId;
 
-        const updateId = ++visibleUpdateId;
-        try {
-          const definitions = await loadCities();
-          const minColumn = THREE.MathUtils.clamp(centerColumn - VISIBLE_X, 0, PARCEL_COLUMNS - 1);
-          const maxColumn = THREE.MathUtils.clamp(centerColumn + VISIBLE_X, 0, PARCEL_COLUMNS - 1);
-          const minRow = THREE.MathUtils.clamp(centerRow - VISIBLE_Z, 0, PARCEL_ROWS - 1);
-          const maxRow = THREE.MathUtils.clamp(centerRow + VISIBLE_Z, 0, PARCEL_ROWS - 1);
-          const tasks: Promise<void>[] = [];
+      try {
+        const definitions = await loadCities();
+        const minColumn = THREE.MathUtils.clamp(centerColumn - VISIBLE_X, 0, PARCEL_COLUMNS - 1);
+        const maxColumn = THREE.MathUtils.clamp(centerColumn + VISIBLE_X, 0, PARCEL_COLUMNS - 1);
+        const minRow = THREE.MathUtils.clamp(centerRow - VISIBLE_Z, 0, PARCEL_ROWS - 1);
+        const maxRow = THREE.MathUtils.clamp(centerRow + VISIBLE_Z, 0, PARCEL_ROWS - 1);
+        const tasks: Promise<void>[] = [];
 
-          const minCityX = Math.floor(minColumn / CITY_GRID_WIDTH);
-          const maxCityX = Math.floor(maxColumn / CITY_GRID_WIDTH);
-          const minCityZ = Math.floor(minRow / CITY_GRID_HEIGHT);
-          const maxCityZ = Math.floor(maxRow / CITY_GRID_HEIGHT);
+        const minCityX = Math.floor(minColumn / CITY_GRID_WIDTH);
+        const maxCityX = Math.floor(maxColumn / CITY_GRID_WIDTH);
+        const minCityZ = Math.floor(minRow / CITY_GRID_HEIGHT);
+        const maxCityZ = Math.floor(maxRow / CITY_GRID_HEIGHT);
 
-          for (let cityZ = minCityZ; cityZ <= maxCityZ; cityZ += 1) {
-            for (let cityX = minCityX; cityX <= maxCityX; cityX += 1) {
-              const cityIndex = cityZ * CITY_BLOCKS + cityX;
-              const city = definitions[cityIndex];
-              if (!city) continue;
+        for (let cityZ = minCityZ; cityZ <= maxCityZ; cityZ += 1) {
+          for (let cityX = minCityX; cityX <= maxCityX; cityX += 1) {
+            const cityIndex = cityZ * CITY_BLOCKS + cityX;
+            const city = definitions[cityIndex];
+            if (!city) continue;
 
-              const cityMinColumn = cityX * CITY_GRID_WIDTH;
-              const cityMinRow = cityZ * CITY_GRID_HEIGHT;
-              const localMinX = Math.max(0, minColumn - cityMinColumn);
-              const localMaxX = Math.min(CITY_GRID_WIDTH - 1, maxColumn - cityMinColumn);
-              const localMinY = Math.max(0, minRow - cityMinRow);
-              const localMaxY = Math.min(CITY_GRID_HEIGHT - 1, maxRow - cityMinRow);
-              tasks.push(loadCityParcels(cityIndex, localMinX, localMaxX, localMinY, localMaxY));
-            }
+            const cityMinColumn = cityX * CITY_GRID_WIDTH;
+            const cityMinRow = cityZ * CITY_GRID_HEIGHT;
+            const localMinX = Math.max(0, minColumn - cityMinColumn);
+            const localMaxX = Math.min(CITY_GRID_WIDTH - 1, maxColumn - cityMinColumn);
+            const localMinY = Math.max(0, minRow - cityMinRow);
+            const localMaxY = Math.min(CITY_GRID_HEIGHT - 1, maxRow - cityMinRow);
+            tasks.push(loadCityParcels(cityIndex, localMinX, localMaxX, localMinY, localMaxY));
           }
-
-          await Promise.all(tasks);
-          if (updateId !== visibleUpdateId) return;
-          renderVisibleWindow();
-        } catch (error) {
-          console.error('Gökyüzü parselleri yüklenemedi:', error);
-        } finally {
-          updateQueued = false;
-          if (centerColumn + ':' + centerRow !== lastRenderedCenter) updateVisibleParcels?.();
         }
-      });
+
+        await Promise.all(tasks);
+        if (updateId !== visibleUpdateId) return;
+        renderVisibleWindow();
+      } catch (error) {
+        console.error('Gökyüzü parselleri yüklenemedi:', error);
+      }
     };
 
     void updateVisibleParcels();
@@ -607,7 +569,7 @@ function GokyuzuPage() {
       pointerDownY = event.clientY;
     };
 
-    const onSelectPointerUp = async (event: PointerEvent) => {
+    const onSelectPointerUp = (event: PointerEvent) => {
       if (dragMoved || Math.hypot(event.clientX - pointerDownX, event.clientY - pointerDownY) > 8) {
         dragMoved = false;
         return;
@@ -617,48 +579,27 @@ function GokyuzuPage() {
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
 
-      const intersections = raycaster.intersectObject(parcelGroup, true);
-      const parcelHit = intersections.find((entry) => Boolean(findParcelObject(entry.object)) || (Number.isInteger(entry.object.userData?.worldColumn) && Number.isInteger(entry.object.userData?.worldRow)));
-      const parcelObject = parcelHit ? (findParcelObject(parcelHit.object) ?? parcelHit.object) : null;
-      const loadedParcel = parcelObject?.userData?.parcel as RealSkyParcel | null | undefined;
+      const hit = raycaster.intersectObject(parcelGroup, true).find((entry) => {
+        let object: THREE.Object3D | null = entry.object;
+        while (object && object !== parcelGroup) {
+          if (object.userData?.parcel) return true;
+          object = object.parent;
+        }
+        return false;
+      });
 
-      if (loadedParcel) {
-        window.location.assign(`/parsel-satin-al?parcels=${encodeURIComponent(loadedParcel.id)}`);
-        dragMoved = false;
-        return;
-      }
-
-      // 81.000 world positionin tamamı tıklanabilir: görünür havuzda veri henüz
-      // yüklenmemişse tıklanan karenin dünya koordinatından gerçek parseli bul.
-      const gridHit = intersections.find((entry) =>
-        Number.isInteger(entry.object.userData?.worldColumn) &&
-        Number.isInteger(entry.object.userData?.worldRow),
-      );
-      const worldColumn = gridHit?.object.userData?.worldColumn as number | undefined;
-      const worldRow = gridHit?.object.userData?.worldRow as number | undefined;
-
-      if (worldColumn != null && worldRow != null) {
-        const cityX = Math.floor(worldColumn / CITY_GRID_WIDTH);
-        const cityZ = Math.floor(worldRow / CITY_GRID_HEIGHT);
-        const cityIndex = cityZ * CITY_BLOCKS + cityX;
-        const city = (await loadCities())[cityIndex];
-        if (city) {
-          const localX = worldColumn - cityX * CITY_GRID_WIDTH;
-          const localY = worldRow - cityZ * CITY_GRID_HEIGHT;
-          const { data, error } = await supabaseBrowser
-            .from('parcel_map_public')
-            .select('id,parcel_number,status,price,tier,city_name,city_code,layer_number,sector_number,grid_x,grid_y')
-            .eq('city_name', city.name)
-            .eq('grid_x', localX)
-            .eq('grid_y', localY)
-            .maybeSingle();
-
-          if (!error && data?.id) {
-            const parcel = data as RealSkyParcel;
-            window.location.assign(`/parsel-satin-al?parcels=${encodeURIComponent(parcel.id)}`);
+      let parcel: RealSkyParcel | null = null;
+      if (hit) {
+        let object: THREE.Object3D | null = hit.object;
+        while (object && object !== parcelGroup) {
+          if (object.userData?.parcel) {
+            parcel = object.userData.parcel as RealSkyParcel;
+            break;
           }
+          object = object.parent;
         }
       }
+      if (parcel) setSelectedParcel(parcel);
       dragMoved = false;
     };
 
@@ -685,8 +626,6 @@ function GokyuzuPage() {
 
     return () => {
       cancelAnimationFrame(frame);
-      if (dragFrame != null) cancelAnimationFrame(dragFrame);
-      if (loadRequestFrame != null) cancelAnimationFrame(loadRequestFrame);
       renderer.domElement.removeEventListener('wheel', onWheel);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       renderer.domElement.removeEventListener('pointermove', onPointerMove);
@@ -700,9 +639,6 @@ function GokyuzuPage() {
       skyGeometry.dispose();
       skyMaterial.dispose();
       lineMaterial.dispose();
-      if (Array.isArray(baseGrid.material)) baseGrid.material.forEach((material) => material.dispose());
-      else baseGrid.material.dispose();
-      baseGrid.geometry.dispose();
       Object.values(realParcelMaterials).forEach((material) => material.dispose());
       parcelLines.forEach((line) => line.geometry.dispose());
       parcelMeshes.forEach((mesh) => mesh.geometry.dispose());
