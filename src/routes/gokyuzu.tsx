@@ -96,8 +96,9 @@ function GokyuzuPage() {
     const lineMaterial = new THREE.LineBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.72,
+      opacity: 0.92,
       depthWrite: false,
+      depthTest: false,
     });
 
     const parcelLines: THREE.LineLoop[] = [];
@@ -149,16 +150,18 @@ function GokyuzuPage() {
           const x = column * TILE_SIZE;
           const z = row * TILE_SIZE;
 
+          const y = 2.5;
           const points = [
-            new THREE.Vector3(x, 0, z),
-            new THREE.Vector3(x + TILE_SIZE, 0, z),
-            new THREE.Vector3(x + TILE_SIZE, 0, z + TILE_SIZE),
-            new THREE.Vector3(x, 0, z + TILE_SIZE),
+            new THREE.Vector3(x, y, z),
+            new THREE.Vector3(x + TILE_SIZE, y, z),
+            new THREE.Vector3(x + TILE_SIZE, y, z + TILE_SIZE),
+            new THREE.Vector3(x, y, z + TILE_SIZE),
           ];
 
           line.geometry.dispose();
           line.geometry = new THREE.BufferGeometry().setFromPoints(points);
           line.visible = true;
+          line.position.set(0, 0, 0);
           line.userData.parcelNumber = parcelNumber(column, row);
           line.userData.column = column;
           line.userData.row = row;
@@ -181,6 +184,7 @@ function GokyuzuPage() {
 
       controls.target.x = THREE.MathUtils.clamp(controls.target.x, minX, maxX);
       controls.target.z = THREE.MathUtils.clamp(controls.target.z, minZ, maxZ);
+      controls.target.y = 2.5;
 
       const dx = controls.target.x - oldX;
       const dz = controls.target.z - oldZ;
