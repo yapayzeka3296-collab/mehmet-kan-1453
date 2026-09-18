@@ -40,6 +40,11 @@ canvas {
   pointer-events: none;
 }
 
+/* Parsel Dünyası Three.js canvas'ı etkileşimli olmalıdır. */
+.gokyuzu-canvas canvas {
+  pointer-events: auto;
+}
+
 .msp-three-interactive {
   pointer-events: auto;
   position: relative;
