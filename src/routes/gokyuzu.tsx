@@ -11,14 +11,12 @@ export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
 const SKY_IMAGE_URL =
   'https://cdn.polyhaven.com/asset_img/primary/kloppenheim_03_puresky.png?height=2048';
 
-const CITY_COUNT = 81;
 const REAL_PARCELS_PER_CITY = 1_000;
 const CITY_GRID_WIDTH = 40;
 const CITY_GRID_HEIGHT = 25;
-const CITY_BLOCKS = 9;
-const PARCEL_COLUMNS = CITY_BLOCKS * CITY_GRID_WIDTH;
-const PARCEL_ROWS = CITY_BLOCKS * CITY_GRID_HEIGHT;
-const REAL_PARCEL_COUNT = CITY_COUNT * REAL_PARCELS_PER_CITY;
+const PARCEL_COLUMNS = CITY_GRID_WIDTH;
+const PARCEL_ROWS = CITY_GRID_HEIGHT;
+const REAL_PARCEL_COUNT = REAL_PARCELS_PER_CITY;
 const TOTAL_PARCELS = 81_000_000;
 const TILE_SIZE = 10;
 
@@ -55,6 +53,79 @@ const specialProvinceNumbers: Record<string, number> = {
   KAY: 38,
 };
 
+const normalizeCityName = (value: string) =>
+  value
+    .toLocaleLowerCase('tr-TR')
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/[^a-z0-9]/g, '');
+
+const pointInRing = (longitude: number, latitude: number, ring: number[][]) => {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i]?.[0] ?? 0;
+    const yi = ring[i]?.[1] ?? 0;
+    const xj = ring[j]?.[0] ?? 0;
+    const yj = ring[j]?.[1] ?? 0;
+    const intersects =
+      yi > latitude !== yj > latitude &&
+      longitude < ((xj - xi) * (latitude - yi)) / ((yj - yi) || Number.EPSILON) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+};
+
+const pointInPolygon = (longitude: number, latitude: number, coordinates: number[][][]) => {
+  if (!coordinates[0] || !pointInRing(longitude, latitude, coordinates[0])) return false;
+  for (let i = 1; i < coordinates.length; i += 1) {
+    if (coordinates[i] && pointInRing(longitude, latitude, coordinates[i])) return false;
+  }
+  return true;
+};
+
+const findProvinceFromGeoJson = (
+  longitude: number,
+  latitude: number,
+  geoJson: {
+    features?: Array<{
+      properties?: Record<string, unknown>;
+      geometry?: { type?: string; coordinates?: unknown };
+    }>;
+  },
+) => {
+  for (const feature of geoJson.features ?? []) {
+    const geometry = feature.geometry;
+    if (!geometry?.coordinates) continue;
+    const coordinates = geometry.coordinates;
+    let matched = false;
+    if (geometry.type === 'Polygon') {
+      matched = pointInPolygon(longitude, latitude, coordinates as number[][][]);
+    } else if (geometry.type === 'MultiPolygon') {
+      matched = (coordinates as number[][][][]).some((polygon) =>
+        pointInPolygon(longitude, latitude, polygon),
+      );
+    }
+    if (!matched) continue;
+
+    const properties = feature.properties ?? {};
+    const name =
+      properties.name ??
+      properties.NAME_1 ??
+      properties.NAME ??
+      properties.il_adi ??
+      properties.IL_ADI ??
+      properties.province;
+    if (typeof name === 'string' && name.trim()) return name.trim();
+  }
+  return null;
+};
+
 function GokyuzuPage() {
   const { user } = useAuth();
   const mountRef = useRef<HTMLDivElement>(null);
@@ -68,6 +139,8 @@ function GokyuzuPage() {
   const [adMessage, setAdMessage] = useState('');
   const [worldLoading, setWorldLoading] = useState(true);
   const [worldLoaded, setWorldLoaded] = useState(0);
+  const [detectedCity, setDetectedCity] = useState<string | null>(null);
+  const [locationMessage, setLocationMessage] = useState('Konumunuz alınıyor…');
 
   useEffect(() => {
     if (!selectedParcel) {
@@ -373,6 +446,12 @@ function GokyuzuPage() {
     const loadAllWorldData = async () => {
       setWorldLoading(true);
       setWorldLoaded(0);
+      setDetectedCity(null);
+      setLocationMessage('Konumunuz alınıyor…');
+
+      if (!navigator.geolocation) {
+        throw new Error('Bu cihazda konum özelliği desteklenmiyor.');
+      }
 
       const citiesResult = await supabaseBrowser
         .from('cities')
@@ -381,54 +460,62 @@ function GokyuzuPage() {
 
       if (citiesResult.error) throw citiesResult.error;
 
-      const cities = (citiesResult.data ?? [])
-        .map((city) => {
-          const numericCode = Number(city.code);
-          const provinceNumber = specialProvinceNumbers[city.code] ?? (
-            Number.isFinite(numericCode) ? numericCode : Number.NaN
-          );
-          return {
-            name: city.name,
-            code: city.code,
-            provinceNumber,
-          };
-        })
-        .filter((city) => Number.isInteger(city.provinceNumber) && city.provinceNumber >= 1 && city.provinceNumber <= CITY_COUNT)
-        .sort((a, b) => a.provinceNumber - b.provinceNumber);
+      const cities = (citiesResult.data ?? []).map((city) => ({
+        name: city.name,
+        code: city.code,
+      }));
 
-      if (cities.length !== CITY_COUNT) {
-        throw new Error('81 il eşleştirmesi tamamlanamadı.');
+      if (cities.length === 0) {
+        throw new Error('Aktif il kaydı bulunamadı.');
       }
 
-      const cityIndexByCode = new Map(cities.map((city, index) => [city.code, index]));
-      const allParcels: RealSkyParcel[] = [];
-      const batchSize = 9;
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 12_000,
+          maximumAge: 5 * 60_000,
+        });
+      });
 
-      for (let start = 0; start < cities.length; start += batchSize) {
-        const batch = cities.slice(start, start + batchSize);
-        const results = await Promise.all(
-          batch.map((city) =>
-            supabaseBrowser
-              .from('parcel_map_public')
-              .select('id,parcel_number,status,price,tier,city_name,city_code,layer_number,sector_number,grid_x,grid_y')
-              .eq('city_name', city.name)
-              .order('grid_y', { ascending: true })
-              .order('grid_x', { ascending: true })
-              .range(0, REAL_PARCELS_PER_CITY - 1),
-          ),
-        );
+      const { latitude, longitude } = position.coords;
+      setLocationMessage('Bulunduğunuz il belirleniyor…');
 
-        for (let i = 0; i < results.length; i += 1) {
-          const result = results[i];
-          if (result.error) throw result.error;
-          allParcels.push(...((result.data ?? []) as RealSkyParcel[]));
-        }
-        setWorldLoaded(Math.min(allParcels.length, REAL_PARCEL_COUNT));
+      const provinceResponse = await fetch('/api/earth-assets?type=provinces', {
+        cache: 'force-cache',
+      });
+      if (!provinceResponse.ok) throw new Error('İl sınırları alınamadı.');
+      const provinceGeoJson = await provinceResponse.json();
+      const provinceName = findProvinceFromGeoJson(longitude, latitude, provinceGeoJson);
+
+      if (!provinceName) {
+        throw new Error('Konumunuz Türkiye sınırları içinde bir ile eşleştirilemedi.');
       }
 
-      if (allParcels.length !== REAL_PARCEL_COUNT) {
-        throw new Error('81.000 gerçek parselin tamamı yüklenemedi. Yüklenen: ' + allParcels.length);
+      const normalizedProvince = normalizeCityName(provinceName);
+      const city = cities.find((item) => normalizeCityName(item.name) === normalizedProvince);
+
+      if (!city) {
+        throw new Error('Konumunuzdaki il MySkyParcel il listesinde bulunamadı.');
       }
+
+      setDetectedCity(city.name);
+      setLocationMessage(city.name + ' · 1.000 parsel hazırlanıyor…');
+
+      const { data: parcelData, error: parcelError } = await supabaseBrowser
+        .from('parcel_map_public')
+        .select('id,parcel_number,status,price,tier,city_name,city_code,layer_number,sector_number,grid_x,grid_y')
+        .eq('city_name', city.name)
+        .order('grid_y', { ascending: true })
+        .order('grid_x', { ascending: true })
+        .range(0, REAL_PARCELS_PER_CITY - 1);
+
+      if (parcelError) throw parcelError;
+
+      const allParcels = (parcelData ?? []) as RealSkyParcel[];
+      if (allParcels.length !== REAL_PARCELS_PER_CITY) {
+        throw new Error(city.name + ' için 1.000 parsel yerine ' + allParcels.length.toLocaleString('tr-TR') + ' parsel bulundu.');
+      }
+      setWorldLoaded(allParcels.length);
 
       const adsResult = await supabaseBrowser
         .from('parcel_advertisements')
@@ -495,13 +582,10 @@ function GokyuzuPage() {
 
       for (let i = 0; i < allParcels.length; i += 1) {
         const parcel = allParcels[i];
-        const cityIndex = cityIndexByCode.get(parcel.city_code ?? '');
-        if (cityIndex == null || parcel.grid_x == null || parcel.grid_y == null) continue;
+        if (parcel.grid_x == null || parcel.grid_y == null) continue;
 
-        const cityX = cityIndex % CITY_BLOCKS;
-        const cityZ = Math.floor(cityIndex / CITY_BLOCKS);
-        const globalX = cityX * CITY_GRID_WIDTH + parcel.grid_x;
-        const globalZ = cityZ * CITY_GRID_HEIGHT + parcel.grid_y;
+        const globalX = parcel.grid_x;
+        const globalZ = parcel.grid_y;
         const x = globalX * TILE_SIZE - halfWorldX + TILE_SIZE / 2;
         const z = globalZ * TILE_SIZE - halfWorldZ + TILE_SIZE / 2;
 
@@ -517,16 +601,17 @@ function GokyuzuPage() {
         const color = baseColor.clone();
         parcelBaseColors[i] = color;
         parcelMesh.setColorAt(i, color);
-        parcelMesh.userData.parcels = allParcels;
-        parcelMesh.userData.ads = adMap;
       }
 
+      parcelMesh.userData.parcels = allParcels;
+      parcelMesh.userData.ads = adMap;
       parcelMesh.instanceMatrix.needsUpdate = true;
       if (parcelMesh.instanceColor) parcelMesh.instanceColor.needsUpdate = true;
       parcelGroup.add(parcelMesh);
 
       setWorldLoading(false);
       setWorldLoaded(allParcels.length);
+      setLocationMessage(city.name + ' · 1.000 parsel yüklendi');
     };
 
     void loadAllWorldData().catch((error) => {
@@ -620,7 +705,7 @@ function GokyuzuPage() {
       <div
         ref={mountRef}
         className="gokyuzu-canvas"
-        aria-label="81 bin gerçek gökyüzü parselinden oluşan sürüklenebilir parsel dünyası"
+        aria-label="Konuma göre bulunduğunuz ilin 1.000 gerçek gökyüzü parselinden oluşan sürüklenebilir parsel dünyası"
       />
 
       <header className="gokyuzu-header">
@@ -628,21 +713,21 @@ function GokyuzuPage() {
           <div className="gokyuzu-kicker">MYSKYPARCEL · PARSEL DÜNYASI</div>
           <h1>Gökyüzü</h1>
           <p>
-            81 milyonluk MySkyParcel evreninin şu anki 81.000 gerçek parselini keşfet.
-            Açılışta tüm gerçek parseller yüklenir; sürüklediğinde yeni veri beklemezsin.
+            {detectedCity ? detectedCity + ' ilindeki 1.000 gerçek gökyüzü parselini keşfet.' : 'Konumunuza göre yalnızca bulunduğunuz ilin 1.000 gerçek gökyüzü parseli yüklenir.'}
+            Açılışta bu ilin parselleri doğrudan yüklenir; sürüklediğinde yeni veri beklemezsin.
           </p>
         </div>
 
         <div className="gokyuzu-badge">
           <span className="sun-dot" />
-          <span>{worldLoading ? worldLoaded.toLocaleString('tr-TR') + ' / ' + REAL_PARCEL_COUNT.toLocaleString('tr-TR') + ' YÜKLENİYOR' : REAL_PARCEL_COUNT.toLocaleString('tr-TR') + ' GERÇEK PARSEL · ' + TOTAL_PARCELS.toLocaleString('tr-TR') + ' HEDEF'}</span>
+          <span>{worldLoading ? worldLoaded.toLocaleString('tr-TR') + ' / ' + REAL_PARCELS_PER_CITY.toLocaleString('tr-TR') + ' YÜKLENİYOR' : detectedCity ? detectedCity.toLocaleUpperCase('tr-TR') + ' · ' + REAL_PARCELS_PER_CITY.toLocaleString('tr-TR') + ' GERÇEK PARSEL' : locationMessage}</span>
         </div>
       </header>
 
       {worldLoading && (
         <div className="gokyuzu-loading" role="status">
           <strong>Parsel Dünyası hazırlanıyor</strong>
-          <span>{worldLoaded.toLocaleString('tr-TR')} / {REAL_PARCEL_COUNT.toLocaleString('tr-TR')} gerçek parsel yükleniyor…</span>
+          <span>{locationMessage} {worldLoaded > 0 ? '· ' + worldLoaded.toLocaleString('tr-TR') + ' / ' + REAL_PARCELS_PER_CITY.toLocaleString('tr-TR') : ''}</span>
         </div>
       )}
 
@@ -650,7 +735,7 @@ function GokyuzuPage() {
         <span>👆 Parmağınla sürükle</span>
         <span>🖱️ Fareyle sürükle</span>
         <span>↕️ Yakınlaştır / uzaklaştır</span>
-        <span>▦ Açılışta tüm 81.000 gerçek parsel</span>
+        <span>▦ {detectedCity ? detectedCity + ' · 1.000 parsel' : 'Konuma göre 1.000 parsel'}</span>
       </div>
 
       {selectedParcel && (
@@ -719,4 +804,3 @@ function GokyuzuPage() {
     </main>
   );
 }
-
