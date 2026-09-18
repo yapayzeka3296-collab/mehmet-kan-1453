@@ -32578,7 +32578,7 @@ var _startEvent = { type: "start" };
 */
 var _endEvent = { type: "end" };
 var _ray = new Ray();
-var _plane$1 = new Plane();
+var _plane = new Plane();
 var _TILT_LIMIT = Math.cos(70 * MathUtils.DEG2RAD);
 var _v = new Vector3();
 var _twoPI = 2 * Math.PI;
@@ -33177,8 +33177,8 @@ var OrbitControls = class extends Controls {
 					_ray.direction.set(0, 0, -1).transformDirection(this.object.matrix);
 					if (Math.abs(this.object.up.dot(_ray.direction)) < _TILT_LIMIT) this.object.lookAt(this.target);
 					else {
-						_plane$1.setFromNormalAndCoplanarPoint(this.object.up, this.target);
-						_ray.intersectPlane(_plane$1, this.target);
+						_plane.setFromNormalAndCoplanarPoint(this.object.up, this.target);
+						_ray.intersectPlane(_plane, this.target);
 					}
 				}
 			}
@@ -33667,93 +33667,4 @@ function interceptControlUp(event) {
 	}
 }
 //#endregion
-//#region node_modules/three/examples/jsm/controls/MapControls.js
-var _plane = new Plane();
-var _raycaster = new Raycaster();
-var _mouse = new Vector2();
-var _panCurrent = new Vector3();
-/**
-* This class is intended for transforming a camera over a map from bird's eye perspective.
-* The class shares its implementation with {@link OrbitControls} but uses a specific preset
-* for mouse/touch interaction and disables screen space panning by default.
-*
-* - Orbit: Right mouse, or left mouse + ctrl/meta/shiftKey / touch: two-finger rotate.
-* - Zoom: Middle mouse, or mousewheel / touch: two-finger spread or squish.
-* - Pan: Left mouse, or arrow keys / touch: one-finger move.
-*
-* @augments OrbitControls
-* @three_import import { MapControls } from 'three/addons/controls/MapControls.js';
-*/
-var MapControls = class extends OrbitControls {
-	constructor(object, domElement) {
-		super(object, domElement);
-		/**
-		* Overwritten and set to `false` to pan orthogonal to world-space direction `camera.up`.
-		*
-		* @type {boolean}
-		* @default false
-		*/
-		this.screenSpacePanning = false;
-		/**
-		* This object contains references to the mouse actions used by the controls.
-		*
-		* ```js
-		* controls.mouseButtons = {
-		* 	LEFT: THREE.MOUSE.PAN,
-		* 	MIDDLE: THREE.MOUSE.DOLLY,
-		* 	RIGHT: THREE.MOUSE.ROTATE
-		* }
-		* ```
-		* @type {Object}
-		*/
-		this.mouseButtons = {
-			LEFT: MOUSE.PAN,
-			MIDDLE: MOUSE.DOLLY,
-			RIGHT: MOUSE.ROTATE
-		};
-		/**
-		* This object contains references to the touch actions used by the controls.
-		*
-		* ```js
-		* controls.mouseButtons = {
-		* 	ONE: THREE.TOUCH.PAN,
-		* 	TWO: THREE.TOUCH.DOLLY_ROTATE
-		* }
-		* ```
-		* @type {Object}
-		*/
-		this.touches = {
-			ONE: TOUCH.PAN,
-			TWO: TOUCH.DOLLY_ROTATE
-		};
-		this._panWorldStart = new Vector3();
-	}
-	_handleMouseDownPan(event) {
-		super._handleMouseDownPan(event);
-		this._panOffset.set(0, 0, 0);
-		if (this.screenSpacePanning === true) return;
-		_plane.setFromNormalAndCoplanarPoint(this.object.up, this.target);
-		const rect = this.domElement.getBoundingClientRect();
-		_mouse.x = (event.clientX - rect.left) / rect.width * 2 - 1;
-		_mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-		_raycaster.setFromCamera(_mouse, this.object);
-		_raycaster.ray.intersectPlane(_plane, this._panWorldStart);
-	}
-	_handleMouseMovePan(event) {
-		if (this.screenSpacePanning === true) {
-			super._handleMouseMovePan(event);
-			return;
-		}
-		const rect = this.domElement.getBoundingClientRect();
-		_mouse.x = (event.clientX - rect.left) / rect.width * 2 - 1;
-		_mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-		_raycaster.setFromCamera(_mouse, this.object);
-		if (_raycaster.ray.intersectPlane(_plane, _panCurrent)) {
-			_panCurrent.sub(this._panWorldStart);
-			this._panOffset.copy(_panCurrent).negate();
-			this.update();
-		}
-	}
-};
-//#endregion
-export { Vector3 as S, Scene as _, BufferGeometry as a, TextureLoader as b, LineLoop as c, Mesh as d, MeshBasicMaterial as f, SRGBColorSpace as g, Raycaster as h, BackSide as i, MOUSE as l, PlaneGeometry as m, WebGLRenderer as n, Group as o, PerspectiveCamera as p, three_module_exports as r, LineBasicMaterial as s, MapControls as t, MathUtils as u, SphereGeometry as v, Vector2 as x, TOUCH as y };
+export { Vector3 as S, Scene as _, BufferGeometry as a, TextureLoader as b, LineLoop as c, Mesh as d, MeshBasicMaterial as f, SRGBColorSpace as g, Raycaster as h, BackSide as i, MOUSE as l, PlaneGeometry as m, WebGLRenderer as n, Group as o, PerspectiveCamera as p, three_module_exports as r, LineBasicMaterial as s, OrbitControls as t, MathUtils as u, SphereGeometry as v, Vector2 as x, TOUCH as y };
