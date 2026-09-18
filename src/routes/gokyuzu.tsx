@@ -1,14 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { useEffect, useRef } from 'react';
 import './gokyuzu.css';
 
 export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
 
-// Poly Haven CDN preview: same photographic sky family, served from a web CDN.
-// The CSS background is also used as a visible fallback so a texture/network
-// failure can never leave the Three.js canvas black.
+// Poly Haven photographic daytime sky.
 const SKY_IMAGE_URL =
   'https://cdn.polyhaven.com/asset_img/primary/kloppenheim_03_puresky.png?height=2048';
 
@@ -20,7 +17,6 @@ function GokyuzuPage() {
     if (!mount) return;
 
     const scene = new THREE.Scene();
-
     const camera = new THREE.PerspectiveCamera(
       68,
       Math.max(mount.clientWidth, 1) / Math.max(mount.clientHeight, 1),
@@ -75,26 +71,7 @@ function GokyuzuPage() {
       fog: false,
     });
 
-    const skyDome = new THREE.Mesh(skyGeometry, skyMaterial);
-    scene.add(skyDome);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-
-    // Full 360° panorama navigation: one-finger drag on mobile and
-    // left-mouse drag on desktop rotate the view without panning or zooming.
-    controls.enableRotate = true;
-    controls.enablePan = false;
-    controls.enableZoom = false;
-    controls.minAzimuthAngle = -Infinity;
-    controls.maxAzimuthAngle = Infinity;
-    controls.minPolarAngle = 0.001;
-    controls.maxPolarAngle = Math.PI - 0.001;
-    controls.rotateSpeed = 0.55;
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.045;
-    controls.touches.ONE = THREE.TOUCH.ROTATE;
-    controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
-    controls.target.set(0, 0, -1);
+    scene.add(new THREE.Mesh(skyGeometry, skyMaterial));
 
     const resize = () => {
       const width = Math.max(mount.clientWidth, 1);
@@ -110,7 +87,6 @@ function GokyuzuPage() {
     let frame = 0;
     const animate = () => {
       frame = requestAnimationFrame(animate);
-      controls.update();
       renderer.render(scene, camera);
     };
     animate();
@@ -118,7 +94,6 @@ function GokyuzuPage() {
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener('resize', resize);
-      controls.dispose();
       skyTexture.dispose();
       skyGeometry.dispose();
       skyMaterial.dispose();
@@ -132,26 +107,21 @@ function GokyuzuPage() {
       <div
         ref={mountRef}
         className="gokyuzu-canvas"
-        aria-label="Parsel Dünyası gerçek 3D gündüz gökyüzü"
+        aria-label="Parsel Dünyası gökyüzü"
       />
 
       <header className="gokyuzu-header">
         <div>
           <div className="gokyuzu-kicker">MYSKYPARCEL · PARSEL DÜNYASI</div>
           <h1>Gökyüzü</h1>
-          <p>Gerçek gündüz gökyüzünü 360° olarak keşfet.</p>
+          <p>Gerçek gündüz gökyüzü görüntüsü.</p>
         </div>
 
         <div className="gokyuzu-badge">
           <span className="sun-dot" />
-          <span>360° gündüz gökyüzü</span>
+          <span>Gündüz gökyüzü</span>
         </div>
       </header>
-
-      <div className="gokyuzu-controls">
-        <span>👆 Sürükle: 360° bakış</span>
-        <span>☁️ Bulutlar sabit</span>
-      </div>
     </main>
   );
 }
