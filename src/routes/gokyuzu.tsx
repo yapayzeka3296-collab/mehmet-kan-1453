@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import * as THREE from 'three';
+import { MapControls } from 'three/addons/controls/MapControls.js';
 import { useEffect, useRef } from 'react';
 import './gokyuzu.css';
 
@@ -7,6 +8,20 @@ export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
 
 const SKY_IMAGE_URL =
   'https://cdn.polyhaven.com/asset_img/primary/kloppenheim_03_puresky.png?height=2048';
+
+// 81,000 logical parcels: 360 columns × 225 rows.
+// Only the parcels around the camera are rendered; dragging loads/recycles
+// the visible window, so we do not create 81,000 WebGL objects at once.
+const PARCEL_COLUMNS = 360;
+const PARCEL_ROWS = 225;
+const TOTAL_PARCELS = PARCEL_COLUMNS * PARCEL_ROWS;
+const TILE_SIZE = 10;
+const VISIBLE_X = 18;
+const VISIBLE_Z = 14;
+
+function parcelNumber(column: number, row: number) {
+  return row * PARCEL_COLUMNS + column + 1;
+}
 
 function GokyuzuPage() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -16,14 +31,18 @@ function GokyuzuPage() {
     if (!mount) return;
 
     const scene = new THREE.Scene();
+
     const camera = new THREE.PerspectiveCamera(
-      55,
+      52,
       Math.max(mount.clientWidth, 1) / Math.max(mount.clientHeight, 1),
       0.1,
       20000,
     );
-    camera.position.set(0, 32, 34);
-    camera.lookAt(0, 0, -8);
+
+    const worldCenterX = ((PARCEL_COLUMNS - 1) * TILE_SIZE) / 2;
+    const worldCenterZ = ((PARCEL_ROWS - 1) * TILE_SIZE) / 2;
+
+    camera.position.set(worldCenterX, 32, worldCenterZ + 34);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -33,6 +52,8 @@ function GokyuzuPage() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.domElement.style.touchAction = 'none';
+    renderer.domElement.style.cursor = 'grab';
     mount.appendChild(renderer.domElement);
 
     const loader = new THREE.TextureLoader();
@@ -50,147 +71,129 @@ function GokyuzuPage() {
     });
     scene.add(new THREE.Mesh(skyGeometry, skyMaterial));
 
-    // Infinite-feeling sky parcel grid: a large tiled plane is recycled
-    // underneath the camera while dragging, so new squares continuously enter view.
-    const gridSize = 200;
-    const divisions = 20;
-    const grid = new THREE.GridHelper(gridSize, divisions, 0xffffff, 0xffffff);
-    grid.position.set(0, 0, -40);
-    grid.material.transparent = true;
-    grid.material.opacity = 0.42;
-    scene.add(grid);
+    // The parcel world is a real finite 81,000-cell coordinate system.
+    // MapControls is intentionally used instead of custom touch handlers:
+    // Three.js supports one-finger pan and left-mouse pan natively.
+    const controls = new MapControls(camera, renderer.domElement);
+    controls.enableRotate = false;
+    controls.enableZoom = false;
+    controls.enablePan = true;
+    controls.screenSpacePanning = false;
+    controls.panSpeed = 1.15;
+    controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+    controls.touches.ONE = THREE.TOUCH.PAN;
+    controls.touches.TWO = THREE.TOUCH.PAN;
+    controls.target.set(worldCenterX, 0, worldCenterZ);
+    controls.update();
 
-    const gridGroup = new THREE.Group();
-    scene.add(gridGroup);
-    const tileSize = 10;
-    const tileCount = 12;
-    const lines = new THREE.LineBasicMaterial({
+    const parcelGroup = new THREE.Group();
+    scene.add(parcelGroup);
+
+    const lineMaterial = new THREE.LineBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.48,
+      opacity: 0.72,
+      depthWrite: false,
     });
 
-    const buildTile = (x: number, z: number) => {
-      const points = [
-        new THREE.Vector3(x, 0.05, z),
-        new THREE.Vector3(x + tileSize, 0.05, z),
-        new THREE.Vector3(x + tileSize, 0.05, z + tileSize),
-        new THREE.Vector3(x, 0.05, z + tileSize),
-        new THREE.Vector3(x, 0.05, z),
-      ];
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
-      const line = new THREE.Line(geometry, lines);
-      gridGroup.add(line);
-    };
+    const parcelLines: THREE.LineLoop[] = [];
+    const visibleWidth = VISIBLE_X * 2 + 1;
+    const visibleDepth = VISIBLE_Z * 2 + 1;
 
-    for (let ix = -tileCount; ix < tileCount; ix += 1) {
-      for (let iz = -tileCount; iz < tileCount; iz += 1) {
-        buildTile(ix * tileSize, iz * tileSize);
-      }
+    for (let i = 0; i < visibleWidth * visibleDepth; i += 1) {
+      const geometry = new THREE.BufferGeometry();
+      const line = new THREE.LineLoop(geometry, lineMaterial);
+      parcelGroup.add(line);
+      parcelLines.push(line);
     }
 
-    let dragging = false;
-    let lastX = 0;
-    let lastY = 0;
-    let activeTouchId: number | null = null;
+    let lastCenterColumn = -1;
+    let lastCenterRow = -1;
 
-    const moveGrid = (clientX: number, clientY: number) => {
-      const dx = clientX - lastX;
-      const dy = clientY - lastY;
-      lastX = clientX;
-      lastY = clientY;
+    const updateVisibleParcels = () => {
+      const centerColumn = Math.floor(controls.target.x / TILE_SIZE);
+      const centerRow = Math.floor(controls.target.z / TILE_SIZE);
 
-      // Move the parcel world itself. This is deliberately independent
-      // of camera rotation so touch dragging works like a map.
-      const moveX = dx * 0.28;
-      const moveZ = dy * 0.28;
-      gridGroup.position.x += moveX;
-      gridGroup.position.z += moveZ;
-      grid.position.x += moveX;
-      grid.position.z += moveZ;
-
-      // Recycle in complete parcel-sized steps to keep the world endless.
-      if (Math.abs(gridGroup.position.x) >= tileSize) {
-        const steps = Math.trunc(gridGroup.position.x / tileSize);
-        gridGroup.position.x -= steps * tileSize;
-        grid.position.x -= steps * tileSize;
+      if (
+        centerColumn === lastCenterColumn &&
+        centerRow === lastCenterRow
+      ) {
+        return;
       }
-      if (Math.abs(gridGroup.position.z) >= tileSize) {
-        const steps = Math.trunc(gridGroup.position.z / tileSize);
-        gridGroup.position.z -= steps * tileSize;
-        grid.position.z -= steps * tileSize;
+
+      lastCenterColumn = centerColumn;
+      lastCenterRow = centerRow;
+
+      let index = 0;
+
+      for (let dz = -VISIBLE_Z; dz <= VISIBLE_Z; dz += 1) {
+        for (let dx = -VISIBLE_X; dx <= VISIBLE_X; dx += 1) {
+          const column = centerColumn + dx;
+          const row = centerRow + dz;
+          const line = parcelLines[index++];
+
+          if (
+            column < 0 ||
+            column >= PARCEL_COLUMNS ||
+            row < 0 ||
+            row >= PARCEL_ROWS
+          ) {
+            line.visible = false;
+            continue;
+          }
+
+          const x = column * TILE_SIZE;
+          const z = row * TILE_SIZE;
+
+          const points = [
+            new THREE.Vector3(x, 0, z),
+            new THREE.Vector3(x + TILE_SIZE, 0, z),
+            new THREE.Vector3(x + TILE_SIZE, 0, z + TILE_SIZE),
+            new THREE.Vector3(x, 0, z + TILE_SIZE),
+          ];
+
+          line.geometry.dispose();
+          line.geometry = new THREE.BufferGeometry().setFromPoints(points);
+          line.visible = true;
+          line.userData.parcelNumber = parcelNumber(column, row);
+          line.userData.column = column;
+          line.userData.row = row;
+        }
       }
     };
 
-    const onPointerDown = (event: PointerEvent) => {
-      event.preventDefault();
-      dragging = true;
-      lastX = event.clientX;
-      lastY = event.clientY;
-      renderer.domElement.style.cursor = 'grabbing';
-      renderer.domElement.setPointerCapture?.(event.pointerId);
-    };
+    updateVisibleParcels();
 
-    const onPointerMove = (event: PointerEvent) => {
-      if (!dragging) return;
-      event.preventDefault();
-      moveGrid(event.clientX, event.clientY);
-    };
+    const clampTarget = () => {
+      const halfX = TILE_SIZE / 2;
+      const halfZ = TILE_SIZE / 2;
+      const minX = halfX;
+      const maxX = (PARCEL_COLUMNS - 1) * TILE_SIZE + halfX;
+      const minZ = halfZ;
+      const maxZ = (PARCEL_ROWS - 1) * TILE_SIZE + halfZ;
 
-    const onPointerUp = (event: PointerEvent) => {
-      dragging = false;
-      renderer.domElement.style.cursor = 'grab';
-      if (renderer.domElement.hasPointerCapture?.(event.pointerId)) {
-        renderer.domElement.releasePointerCapture(event.pointerId);
+      const oldX = controls.target.x;
+      const oldZ = controls.target.z;
+
+      controls.target.x = THREE.MathUtils.clamp(controls.target.x, minX, maxX);
+      controls.target.z = THREE.MathUtils.clamp(controls.target.z, minZ, maxZ);
+
+      const dx = controls.target.x - oldX;
+      const dz = controls.target.z - oldZ;
+
+      if (dx !== 0 || dz !== 0) {
+        camera.position.x += dx;
+        camera.position.z += dz;
       }
     };
 
-    // Android browsers/WebViews can behave differently with Pointer Events.
-    // Keep an explicit touch path as a fallback, with passive:false so the
-    // page cannot steal the gesture for scrolling.
-    const onTouchStart = (event: TouchEvent) => {
-      if (event.touches.length !== 1) return;
-      const touch = event.touches[0];
-      activeTouchId = touch.identifier;
-      dragging = true;
-      lastX = touch.clientX;
-      lastY = touch.clientY;
-      event.preventDefault();
+    const onControlsChange = () => {
+      clampTarget();
+      updateVisibleParcels();
     };
 
-    const onTouchMove = (event: TouchEvent) => {
-      if (!dragging || activeTouchId === null) return;
-      const touch = Array.from(event.touches).find(
-        (item) => item.identifier === activeTouchId,
-      );
-      if (!touch) return;
-      event.preventDefault();
-      moveGrid(touch.clientX, touch.clientY);
-    };
-
-    const onTouchEnd = (event: TouchEvent) => {
-      if (activeTouchId === null) return;
-      const stillActive = Array.from(event.touches).some(
-        (item) => item.identifier === activeTouchId,
-      );
-      if (!stillActive) {
-        dragging = false;
-        activeTouchId = null;
-        renderer.domElement.style.cursor = 'grab';
-      }
-      event.preventDefault();
-    };
-
-    renderer.domElement.style.touchAction = 'none';
-    renderer.domElement.style.cursor = 'grab';
-    renderer.domElement.addEventListener('pointerdown', onPointerDown);
-    renderer.domElement.addEventListener('pointermove', onPointerMove);
-    renderer.domElement.addEventListener('pointerup', onPointerUp);
-    renderer.domElement.addEventListener('pointercancel', onPointerUp);
-    renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false });
-    renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
-    renderer.domElement.addEventListener('touchend', onTouchEnd, { passive: false });
-    renderer.domElement.addEventListener('touchcancel', onTouchEnd, { passive: false });
+    controls.addEventListener('change', onControlsChange);
 
     const resize = () => {
       const width = Math.max(mount.clientWidth, 1);
@@ -199,6 +202,7 @@ function GokyuzuPage() {
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
     };
+
     window.addEventListener('resize', resize);
     resize();
 
@@ -211,26 +215,16 @@ function GokyuzuPage() {
 
     return () => {
       cancelAnimationFrame(frame);
+      controls.removeEventListener('change', onControlsChange);
+      controls.dispose();
       window.removeEventListener('resize', resize);
-      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
-      renderer.domElement.removeEventListener('pointermove', onPointerMove);
-      renderer.domElement.removeEventListener('pointerup', onPointerUp);
-      renderer.domElement.removeEventListener('pointercancel', onPointerUp);
-      renderer.domElement.removeEventListener('touchstart', onTouchStart);
-      renderer.domElement.removeEventListener('touchmove', onTouchMove);
-      renderer.domElement.removeEventListener('touchend', onTouchEnd);
-      renderer.domElement.removeEventListener('touchcancel', onTouchEnd);
-      window.removeEventListener('resize', resize);
+
       skyTexture.dispose();
       skyGeometry.dispose();
       skyMaterial.dispose();
-      grid.geometry.dispose();
-      (grid.material as THREE.Material).dispose();
-      gridGroup.children.forEach((child) => {
-        const line = child as THREE.Line;
-        line.geometry.dispose();
-      });
-      lines.dispose();
+      lineMaterial.dispose();
+
+      parcelLines.forEach((line) => line.geometry.dispose());
       renderer.dispose();
       renderer.domElement.remove();
     };
@@ -241,22 +235,29 @@ function GokyuzuPage() {
       <div
         ref={mountRef}
         className="gokyuzu-canvas"
-        aria-label="Parsel Dünyası sonsuz gökyüzü parsel ızgarası"
+        aria-label="81 bin gökyüzü parselinden oluşan sürüklenebilir parsel dünyası"
       />
+
       <header className="gokyuzu-header">
         <div>
           <div className="gokyuzu-kicker">MYSKYPARCEL · PARSEL DÜNYASI</div>
           <h1>Gökyüzü</h1>
-          <p>Gökyüzünde sonsuz parsel ızgarasını keşfet.</p>
+          <p>
+            81.000 parseli gökyüzünde keşfet. Parmağınla veya farenle
+            sürükledikçe yeni parseller görünür.
+          </p>
         </div>
+
         <div className="gokyuzu-badge">
           <span className="sun-dot" />
-          <span>Sonsuz parsel görünümü</span>
+          <span>{TOTAL_PARCELS.toLocaleString('tr-TR')} PARSEL</span>
         </div>
       </header>
+
       <div className="gokyuzu-controls">
-        <span>👆 Sürükle: parsel dünyasını hareket ettir</span>
-        <span>▦ Yeni kareler görünür</span>
+        <span>👆 Parmağınla sürükle</span>
+        <span>🖱️ Fareyle sürükle</span>
+        <span>▦ Yeni parseller yüklenir</span>
       </div>
     </main>
   );
