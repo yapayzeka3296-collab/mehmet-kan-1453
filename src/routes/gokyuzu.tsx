@@ -92,36 +92,24 @@ function GokyuzuPage() {
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
+    let activeTouchId: number | null = null;
 
-    const onPointerDown = (event: PointerEvent) => {
-      event.preventDefault();
-      dragging = true;
-      lastX = event.clientX;
-      lastY = event.clientY;
-      renderer.domElement.style.cursor = 'grabbing';
-      renderer.domElement.setPointerCapture(event.pointerId);
-    };
+    const moveGrid = (clientX: number, clientY: number) => {
+      const dx = clientX - lastX;
+      const dy = clientY - lastY;
+      lastX = clientX;
+      lastY = clientY;
 
-    const onPointerMove = (event: PointerEvent) => {
-      if (!dragging) return;
-      event.preventDefault();
-
-      const dx = event.clientX - lastX;
-      const dy = event.clientY - lastY;
-      lastX = event.clientX;
-      lastY = event.clientY;
-
-      // Move the actual parcel surface with the finger/mouse.
-      // No camera rotation: only the parcel world slides underneath the view.
+      // Move the parcel world itself. This is deliberately independent
+      // of camera rotation so touch dragging works like a map.
       const moveX = dx * 0.28;
       const moveZ = dy * 0.28;
-
       gridGroup.position.x += moveX;
       gridGroup.position.z += moveZ;
       grid.position.x += moveX;
       grid.position.z += moveZ;
 
-      // Recycle the visible grid in whole-tile steps so the world feels endless.
+      // Recycle in complete parcel-sized steps to keep the world endless.
       if (Math.abs(gridGroup.position.x) >= tileSize) {
         const steps = Math.trunc(gridGroup.position.x / tileSize);
         gridGroup.position.x -= steps * tileSize;
@@ -134,18 +122,75 @@ function GokyuzuPage() {
       }
     };
 
+    const onPointerDown = (event: PointerEvent) => {
+      event.preventDefault();
+      dragging = true;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      renderer.domElement.style.cursor = 'grabbing';
+      renderer.domElement.setPointerCapture?.(event.pointerId);
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!dragging) return;
+      event.preventDefault();
+      moveGrid(event.clientX, event.clientY);
+    };
+
     const onPointerUp = (event: PointerEvent) => {
       dragging = false;
       renderer.domElement.style.cursor = 'grab';
-      if (renderer.domElement.hasPointerCapture(event.pointerId)) {
+      if (renderer.domElement.hasPointerCapture?.(event.pointerId)) {
         renderer.domElement.releasePointerCapture(event.pointerId);
       }
     };
 
+    // Android browsers/WebViews can behave differently with Pointer Events.
+    // Keep an explicit touch path as a fallback, with passive:false so the
+    // page cannot steal the gesture for scrolling.
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      activeTouchId = touch.identifier;
+      dragging = true;
+      lastX = touch.clientX;
+      lastY = touch.clientY;
+      event.preventDefault();
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!dragging || activeTouchId === null) return;
+      const touch = Array.from(event.touches).find(
+        (item) => item.identifier === activeTouchId,
+      );
+      if (!touch) return;
+      event.preventDefault();
+      moveGrid(touch.clientX, touch.clientY);
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (activeTouchId === null) return;
+      const stillActive = Array.from(event.touches).some(
+        (item) => item.identifier === activeTouchId,
+      );
+      if (!stillActive) {
+        dragging = false;
+        activeTouchId = null;
+        renderer.domElement.style.cursor = 'grab';
+      }
+      event.preventDefault();
+    };
+
+    renderer.domElement.style.touchAction = 'none';
+    renderer.domElement.style.cursor = 'grab';
     renderer.domElement.addEventListener('pointerdown', onPointerDown);
     renderer.domElement.addEventListener('pointermove', onPointerMove);
     renderer.domElement.addEventListener('pointerup', onPointerUp);
     renderer.domElement.addEventListener('pointercancel', onPointerUp);
+    renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false });
+    renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
+    renderer.domElement.addEventListener('touchend', onTouchEnd, { passive: false });
+    renderer.domElement.addEventListener('touchcancel', onTouchEnd, { passive: false });
 
     const resize = () => {
       const width = Math.max(mount.clientWidth, 1);
