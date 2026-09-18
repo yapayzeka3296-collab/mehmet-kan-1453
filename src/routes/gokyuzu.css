@@ -1,19 +1,135 @@
-.gokyuzu-page{position:relative;min-height:100dvh;overflow:hidden;background:#78bde8;color:#083b5a;font-family:inherit}
-.gokyuzu-canvas{position:absolute;inset:0;z-index:1;background:#78bde8}
-.gokyuzu-canvas canvas{display:block;width:100%;height:100%;touch-action:none}
-.gokyuzu-header{position:absolute;left:24px;top:22px;right:24px;z-index:5;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;pointer-events:none}
-.gokyuzu-kicker{font-size:11px;letter-spacing:.2em;font-weight:900;color:#075985;text-shadow:0 1px 10px rgba(255,255,255,.85)}
-.gokyuzu-header h1{margin:7px 0 0;font-size:clamp(42px,7vw,76px);line-height:.95;font-weight:950;letter-spacing:-.045em;color:#063b5c;text-shadow:0 3px 22px rgba(255,255,255,.72)}
-.gokyuzu-header p{margin:11px 0 0;max-width:560px;font-size:14px;line-height:1.5;color:#164e68;text-shadow:0 1px 9px rgba(255,255,255,.9)}
-.gokyuzu-badge{display:flex;align-items:center;gap:9px;padding:11px 14px;border:1px solid rgba(255,255,255,.72);border-radius:999px;background:rgba(255,255,255,.3);backdrop-filter:blur(16px);box-shadow:0 10px 35px rgba(18,82,120,.14);font-size:12px;font-weight:850;color:#075985;white-space:nowrap}
-.sun-dot{width:10px;height:10px;border-radius:50%;background:#ffd34e;box-shadow:0 0 16px rgba(255,211,78,.9)}
-.gokyuzu-controls{position:absolute;left:24px;bottom:22px;z-index:5;display:flex;gap:8px;flex-wrap:wrap;font-size:11px;pointer-events:none}
-.gokyuzu-controls span{padding:8px 11px;border:1px solid rgba(255,255,255,.65);border-radius:11px;background:rgba(255,255,255,.28);backdrop-filter:blur(12px);box-shadow:0 8px 25px rgba(20,83,115,.1);color:#164e63}
+.gokyuzu-page{
+  position:relative;
+  min-height:100dvh;
+  overflow:hidden;
+  background:
+    linear-gradient(180deg,rgba(92,180,235,.08),rgba(31,116,182,.22)),
+    #58aee0;
+  color:#063b5c;
+  font-family:inherit;
+}
+
+.gokyuzu-canvas{
+  position:absolute;
+  inset:0;
+  z-index:1;
+  overflow:hidden;
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.03),rgba(39,137,205,.08)),
+    #58aee0;
+  background-image:
+    linear-gradient(180deg,rgba(255,255,255,.04),rgba(39,137,205,.12)),
+    url('https://cdn.polyhaven.com/asset_img/primary/kloppenheim_03_puresky.png?height=2048');
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+}
+
+.gokyuzu-canvas.gokyuzu-sky-fallback{
+  background-image:
+    radial-gradient(circle at 74% 22%,rgba(255,255,255,.92) 0 2%,rgba(255,255,255,.34) 10%,transparent 24%),
+    radial-gradient(circle at 24% 34%,rgba(255,255,255,.75) 0 3%,rgba(255,255,255,.25) 11%,transparent 25%),
+    linear-gradient(180deg,#82d0f4 0%,#49a6da 56%,#2784bf 100%);
+}
+
+.gokyuzu-canvas canvas{
+  display:block;
+  width:100%;
+  height:100%;
+  touch-action:none;
+}
+
+.gokyuzu-header{
+  position:absolute;
+  left:24px;
+  top:22px;
+  right:24px;
+  z-index:5;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:20px;
+  pointer-events:none;
+}
+
+.gokyuzu-kicker{
+  font-size:11px;
+  letter-spacing:.2em;
+  font-weight:900;
+  color:#075985;
+  text-shadow:0 1px 10px rgba(255,255,255,.9);
+}
+
+.gokyuzu-header h1{
+  margin:7px 0 0;
+  font-size:clamp(42px,7vw,76px);
+  line-height:.95;
+  font-weight:950;
+  letter-spacing:-.045em;
+  color:#063b5c;
+  text-shadow:0 3px 22px rgba(255,255,255,.72);
+}
+
+.gokyuzu-header p{
+  margin:11px 0 0;
+  max-width:560px;
+  font-size:14px;
+  line-height:1.5;
+  color:#164e68;
+  text-shadow:0 1px 9px rgba(255,255,255,.9);
+}
+
+.gokyuzu-badge{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  padding:11px 14px;
+  border:1px solid rgba(255,255,255,.72);
+  border-radius:999px;
+  background:rgba(255,255,255,.3);
+  backdrop-filter:blur(16px);
+  box-shadow:0 10px 35px rgba(18,82,120,.14);
+  font-size:12px;
+  font-weight:850;
+  color:#075985;
+  white-space:nowrap;
+}
+
+.sun-dot{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  background:#ffd34e;
+  box-shadow:0 0 16px rgba(255,211,78,.9);
+}
+
+.gokyuzu-controls{
+  position:absolute;
+  left:24px;
+  bottom:22px;
+  z-index:5;
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  font-size:11px;
+  pointer-events:none;
+}
+
+.gokyuzu-controls span{
+  padding:8px 11px;
+  border:1px solid rgba(255,255,255,.65);
+  border-radius:11px;
+  background:rgba(255,255,255,.28);
+  backdrop-filter:blur(12px);
+  box-shadow:0 8px 25px rgba(20,83,115,.1);
+  color:#164e63;
+}
+
 @media(max-width:700px){
-.gokyuzu-header{left:14px;right:14px;top:14px}
-.gokyuzu-kicker{font-size:9px}
-.gokyuzu-header h1{font-size:43px}
-.gokyuzu-header p{display:none}
-.gokyuzu-badge{padding:9px 11px;font-size:10px}
-.gokyuzu-controls{left:14px;bottom:14px}
+  .gokyuzu-header{left:14px;right:14px;top:14px}
+  .gokyuzu-kicker{font-size:9px}
+  .gokyuzu-header h1{font-size:43px}
+  .gokyuzu-header p{display:none}
+  .gokyuzu-badge{padding:9px 11px;font-size:10px}
+  .gokyuzu-controls{left:14px;bottom:14px}
 }
