@@ -622,14 +622,6 @@ var KeepStencilOp = 7680;
 */
 var StaticDrawUsage = 35044;
 /**
-* The contents are intended to be respecified repeatedly by the application, and
-* used many times as the source for drawing and image specification commands.
-*
-* @type {number}
-* @constant
-*/
-var DynamicDrawUsage = 35048;
-/**
 * GLSL 3 shader code.
 *
 * @type {string}
@@ -13065,6 +13057,573 @@ var BufferGeometry = class BufferGeometry extends EventDispatcher {
 		this.dispatchEvent({ type: "dispose" });
 	}
 };
+/**
+* "Interleaved" means that multiple attributes, possibly of different types,
+* (e.g., position, normal, uv, color) are packed into a single array buffer.
+*
+* An introduction into interleaved arrays can be found here: [Interleaved array basics](https://blog.tojicode.com/2011/05/interleaved-array-basics.html)
+*/
+var InterleavedBuffer = class {
+	/**
+	* Constructs a new interleaved buffer.
+	*
+	* @param {TypedArray} array - A typed array with a shared buffer storing attribute data.
+	* @param {number} stride - The number of typed-array elements per vertex.
+	*/
+	constructor(array, stride) {
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isInterleavedBuffer = true;
+		/**
+		* A typed array with a shared buffer storing attribute data.
+		*
+		* @type {TypedArray}
+		*/
+		this.array = array;
+		/**
+		* The number of typed-array elements per vertex.
+		*
+		* @type {number}
+		*/
+		this.stride = stride;
+		/**
+		* The total number of elements in the array
+		*
+		* @type {number}
+		* @readonly
+		*/
+		this.count = array !== void 0 ? array.length / stride : 0;
+		/**
+		* Defines the intended usage pattern of the data store for optimization purposes.
+		*
+		* Note: After the initial use of a buffer, its usage cannot be changed. Instead,
+		* instantiate a new one and set the desired usage before the next render.
+		*
+		* @type {(StaticDrawUsage|DynamicDrawUsage|StreamDrawUsage|StaticReadUsage|DynamicReadUsage|StreamReadUsage|StaticCopyUsage|DynamicCopyUsage|StreamCopyUsage)}
+		* @default StaticDrawUsage
+		*/
+		this.usage = StaticDrawUsage;
+		/**
+		* This can be used to only update some components of stored vectors (for example, just the
+		* component related to color). Use the `addUpdateRange()` function to add ranges to this array.
+		*
+		* @type {Array<Object>}
+		*/
+		this.updateRanges = [];
+		/**
+		* A version number, incremented every time the `needsUpdate` is set to `true`.
+		*
+		* @type {number}
+		*/
+		this.version = 0;
+		/**
+		* The UUID of the interleaved buffer.
+		*
+		* @type {string}
+		* @readonly
+		*/
+		this.uuid = generateUUID();
+	}
+	/**
+	* A callback function that is executed after the renderer has transferred the attribute array
+	* data to the GPU.
+	*/
+	onUploadCallback() {}
+	/**
+	* Flag to indicate that this attribute has changed and should be re-sent to
+	* the GPU. Set this to `true` when you modify the value of the array.
+	*
+	* @type {number}
+	* @default false
+	* @param {boolean} value
+	*/
+	set needsUpdate(value) {
+		if (value === true) this.version++;
+	}
+	/**
+	* Sets the usage of this interleaved buffer.
+	*
+	* @param {(StaticDrawUsage|DynamicDrawUsage|StreamDrawUsage|StaticReadUsage|DynamicReadUsage|StreamReadUsage|StaticCopyUsage|DynamicCopyUsage|StreamCopyUsage)} value - The usage to set.
+	* @return {InterleavedBuffer} A reference to this interleaved buffer.
+	*/
+	setUsage(value) {
+		this.usage = value;
+		return this;
+	}
+	/**
+	* Adds a range of data in the data array to be updated on the GPU.
+	*
+	* @param {number} start - Position at which to start update.
+	* @param {number} count - The number of components to update.
+	*/
+	addUpdateRange(start, count) {
+		this.updateRanges.push({
+			start,
+			count
+		});
+	}
+	/**
+	* Clears the update ranges.
+	*/
+	clearUpdateRanges() {
+		this.updateRanges.length = 0;
+	}
+	/**
+	* Copies the values of the given interleaved buffer to this instance.
+	*
+	* @param {InterleavedBuffer} source - The interleaved buffer to copy.
+	* @return {InterleavedBuffer} A reference to this instance.
+	*/
+	copy(source) {
+		this.array = new source.array.constructor(source.array);
+		this.count = source.count;
+		this.stride = source.stride;
+		this.usage = source.usage;
+		return this;
+	}
+	/**
+	* Copies a vector from the given interleaved buffer to this one. The start
+	* and destination position in the attribute buffers are represented by the
+	* given indices.
+	*
+	* @param {number} index1 - The destination index into this interleaved buffer.
+	* @param {InterleavedBuffer} interleavedBuffer - The interleaved buffer to copy from.
+	* @param {number} index2 - The source index into the given interleaved buffer.
+	* @return {InterleavedBuffer} A reference to this instance.
+	*/
+	copyAt(index1, interleavedBuffer, index2) {
+		index1 *= this.stride;
+		index2 *= interleavedBuffer.stride;
+		for (let i = 0, l = this.stride; i < l; i++) this.array[index1 + i] = interleavedBuffer.array[index2 + i];
+		return this;
+	}
+	/**
+	* Sets the given array data in the interleaved buffer.
+	*
+	* @param {(TypedArray|Array)} value - The array data to set.
+	* @param {number} [offset=0] - The offset in this interleaved buffer's array.
+	* @return {InterleavedBuffer} A reference to this instance.
+	*/
+	set(value, offset = 0) {
+		this.array.set(value, offset);
+		return this;
+	}
+	/**
+	* Returns a new interleaved buffer with copied values from this instance.
+	*
+	* @param {Object} [data] - An object with shared array buffers that allows to retain shared structures.
+	* @return {InterleavedBuffer} A clone of this instance.
+	*/
+	clone(data) {
+		if (data.arrayBuffers === void 0) data.arrayBuffers = {};
+		if (this.array.buffer._uuid === void 0) this.array.buffer._uuid = generateUUID();
+		if (data.arrayBuffers[this.array.buffer._uuid] === void 0) data.arrayBuffers[this.array.buffer._uuid] = this.array.slice(0).buffer;
+		const array = new this.array.constructor(data.arrayBuffers[this.array.buffer._uuid]);
+		const ib = new this.constructor(array, this.stride);
+		ib.setUsage(this.usage);
+		return ib;
+	}
+	/**
+	* Sets the given callback function that is executed after the Renderer has transferred
+	* the array data to the GPU. Can be used to perform clean-up operations after
+	* the upload when data are not needed anymore on the CPU side.
+	*
+	* @param {Function} callback - The `onUpload()` callback.
+	* @return {InterleavedBuffer} A reference to this instance.
+	*/
+	onUpload(callback) {
+		this.onUploadCallback = callback;
+		return this;
+	}
+	/**
+	* Serializes the interleaved buffer into JSON.
+	*
+	* @param {Object} [data] - An optional value holding meta information about the serialization.
+	* @return {Object} A JSON object representing the serialized interleaved buffer.
+	*/
+	toJSON(data) {
+		if (data.arrayBuffers === void 0) data.arrayBuffers = {};
+		if (this.array.buffer._uuid === void 0) this.array.buffer._uuid = generateUUID();
+		if (data.arrayBuffers[this.array.buffer._uuid] === void 0) data.arrayBuffers[this.array.buffer._uuid] = Array.from(new Uint32Array(this.array.buffer));
+		return {
+			uuid: this.uuid,
+			buffer: this.array.buffer._uuid,
+			type: this.array.constructor.name,
+			stride: this.stride
+		};
+	}
+};
+var _vector$8 = /*@__PURE__*/ new Vector3();
+/**
+* An alternative version of a buffer attribute with interleaved data. Interleaved
+* attributes share a common interleaved data storage ({@link InterleavedBuffer}) and refer with
+* different offsets into the buffer.
+*/
+var InterleavedBufferAttribute = class InterleavedBufferAttribute {
+	/**
+	* Constructs a new interleaved buffer attribute.
+	*
+	* @param {InterleavedBuffer} interleavedBuffer - The buffer holding the interleaved data.
+	* @param {number} itemSize - The item size.
+	* @param {number} offset - The attribute offset into the buffer.
+	* @param {boolean} [normalized=false] - Whether the data are normalized or not.
+	*/
+	constructor(interleavedBuffer, itemSize, offset, normalized = false) {
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isInterleavedBufferAttribute = true;
+		/**
+		* The name of the buffer attribute.
+		*
+		* @type {string}
+		*/
+		this.name = "";
+		/**
+		* The buffer holding the interleaved data.
+		*
+		* @type {InterleavedBuffer}
+		*/
+		this.data = interleavedBuffer;
+		/**
+		* The item size, see {@link BufferAttribute#itemSize}.
+		*
+		* @type {number}
+		*/
+		this.itemSize = itemSize;
+		/**
+		* The attribute offset into the buffer.
+		*
+		* @type {number}
+		*/
+		this.offset = offset;
+		/**
+		* Whether the data are normalized or not, see {@link BufferAttribute#normalized}
+		*
+		* @type {InterleavedBuffer}
+		*/
+		this.normalized = normalized;
+	}
+	/**
+	* The item count of this buffer attribute.
+	*
+	* @type {number}
+	* @readonly
+	*/
+	get count() {
+		return this.data.count;
+	}
+	/**
+	* The array holding the interleaved buffer attribute data.
+	*
+	* @type {TypedArray}
+	*/
+	get array() {
+		return this.data.array;
+	}
+	/**
+	* Flag to indicate that this attribute has changed and should be re-sent to
+	* the GPU. Set this to `true` when you modify the value of the array.
+	*
+	* @type {number}
+	* @default false
+	* @param {boolean} value
+	*/
+	set needsUpdate(value) {
+		this.data.needsUpdate = value;
+	}
+	/**
+	* Applies the given 4x4 matrix to the given attribute. Only works with
+	* item size `3`.
+	*
+	* @param {Matrix4} m - The matrix to apply.
+	* @return {InterleavedBufferAttribute} A reference to this instance.
+	*/
+	applyMatrix4(m) {
+		for (let i = 0, l = this.data.count; i < l; i++) {
+			_vector$8.fromBufferAttribute(this, i);
+			_vector$8.applyMatrix4(m);
+			this.setXYZ(i, _vector$8.x, _vector$8.y, _vector$8.z);
+		}
+		return this;
+	}
+	/**
+	* Applies the given 3x3 normal matrix to the given attribute. Only works with
+	* item size `3`.
+	*
+	* @param {Matrix3} m - The normal matrix to apply.
+	* @return {InterleavedBufferAttribute} A reference to this instance.
+	*/
+	applyNormalMatrix(m) {
+		for (let i = 0, l = this.count; i < l; i++) {
+			_vector$8.fromBufferAttribute(this, i);
+			_vector$8.applyNormalMatrix(m);
+			this.setXYZ(i, _vector$8.x, _vector$8.y, _vector$8.z);
+		}
+		return this;
+	}
+	/**
+	* Applies the given 4x4 matrix to the given attribute. Only works with
+	* item size `3` and with direction vectors.
+	*
+	* @param {Matrix4} m - The matrix to apply.
+	* @return {InterleavedBufferAttribute} A reference to this instance.
+	*/
+	transformDirection(m) {
+		for (let i = 0, l = this.count; i < l; i++) {
+			_vector$8.fromBufferAttribute(this, i);
+			_vector$8.transformDirection(m);
+			this.setXYZ(i, _vector$8.x, _vector$8.y, _vector$8.z);
+		}
+		return this;
+	}
+	/**
+	* Returns the given component of the vector at the given index.
+	*
+	* @param {number} index - The index into the buffer attribute.
+	* @param {number} component - The component index.
+	* @return {number} The returned value.
+	*/
+	getComponent(index, component) {
+		let value = this.array[index * this.data.stride + this.offset + component];
+		if (this.normalized) value = denormalize(value, this.array);
+		return value;
+	}
+	/**
+	* Sets the given value to the given component of the vector at the given index.
+	*
+	* @param {number} index - The index into the buffer attribute.
+	* @param {number} component - The component index.
+	* @param {number} value - The value to set.
+	* @return {InterleavedBufferAttribute} A reference to this instance.
+	*/
+	setComponent(index, component, value) {
+		if (this.normalized) value = normalize(value, this.array);
+		this.data.array[index * this.data.stride + this.offset + component] = value;
+		return this;
+	}
+	/**
+	* Sets the x component of the vector at the given index.
+	*
+	* @param {number} index - The index into the buffer attribute.
+	* @param {number} x - The value to set.
+	* @return {InterleavedBufferAttribute} A reference to this instance.
+	*/
+	setX(index, x) {
+		if (this.normalized) x = normalize(x, this.array);
+		this.data.array[index * this.data.stride + this.offset] = x;
+		return this;
+	}
+	/**
+	* Sets the y component of the vector at the given index.
+	*
+	* @param {number} index - The index into the buffer attribute.
+	* @param {number} y - The value to set.
+	* @return {InterleavedBufferAttribute} A reference to this instance.
+	*/
+	setY(index, y) {
+		if (this.normalized) y = normalize(y, this.array);
+		this.data.array[index * this.data.stride + this.offset + 1] = y;
+		return this;
+	}
+	/**
+	* Sets the z component of the vector at the given index.
+	*
+	* @param {number} index - The index into the buffer attribute.
+	* @param {number} z - The value to set.
+	* @return {InterleavedBufferAttribute} A reference to this instance.
+	*/
+	setZ(index, z) {
+		if (this.normalized) z = normalize(z, this.array);
+		this.data.array[index * this.data.stride + this.offset + 2] = z;
+		return this;
+	}
+	/**
+	* Sets the w component of the vector at the given index.
+	*
+	* @param {number} index - The index into the buffer attribute.
+	* @param {number} w - The value to set.
+	* @return {InterleavedBufferAttribute} A reference to this instance.
+	*/
+	setW(index, w) {
+		if (this.normalized) w = normalize(w, this.array);
+		this.data.array[index * this.data.stride + this.offset + 3] = w;
+		return this;
+	}
+	/**
+	* Returns the x component of the vector at the given index.
+	*
+	* @param {number} index - The index into the buffer attribute.
+	* @return {number} The x component.
+	*/
+	getX(index) {
+		let x = this.data.array[index * this.data.stride + this.offset];
+		if (this.normalized) x = denormalize(x, this.array);
+		return x;
+	}
+	/**
+	* Returns the y component of the vector at the given index.
+	*
+	* @param {number} index - The index into the buffer attribute.
+	* @return {number} The y component.
+	*/
+	getY(index) {
+		let y = this.data.array[index * this.data.stride + this.offset + 1];
+		if (this.normalized) y = denormalize(y, this.array);
+		return y;
+	}
+	/**
+	* Returns the z component of the vector at the given index.
+	*
+	* @param {number} index - The index into the buffer attribute.
+	* @return {number} The z component.
+	*/
+	getZ(index) {
+		let z = this.data.array[index * this.data.stride + this.offset + 2];
+		if (this.normalized) z = denormalize(z, this.array);
+		return z;
+	}
+	/**
+	* Returns the w component of the vector at the given index.
+	*
+	* @param {number} index - The index into the buffer attribute.
+	* @return {number} The w component.
+	*/
+	getW(index) {
+		let w = this.data.array[index * this.data.stride + this.offset + 3];
+		if (this.normalized) w = denormalize(w, this.array);
+		return w;
+	}
+	/**
+	* Sets the x and y component of the vector at the given index.
+	*
+	* @param {number} index - The index into the buffer attribute.
+	* @param {number} x - The value for the x component to set.
+	* @param {number} y - The value for the y component to set.
+	* @return {InterleavedBufferAttribute} A reference to this instance.
+	*/
+	setXY(index, x, y) {
+		index = index * this.data.stride + this.offset;
+		if (this.normalized) {
+			x = normalize(x, this.array);
+			y = normalize(y, this.array);
+		}
+		this.data.array[index + 0] = x;
+		this.data.array[index + 1] = y;
+		return this;
+	}
+	/**
+	* Sets the x, y and z component of the vector at the given index.
+	*
+	* @param {number} index - The index into the buffer attribute.
+	* @param {number} x - The value for the x component to set.
+	* @param {number} y - The value for the y component to set.
+	* @param {number} z - The value for the z component to set.
+	* @return {InterleavedBufferAttribute} A reference to this instance.
+	*/
+	setXYZ(index, x, y, z) {
+		index = index * this.data.stride + this.offset;
+		if (this.normalized) {
+			x = normalize(x, this.array);
+			y = normalize(y, this.array);
+			z = normalize(z, this.array);
+		}
+		this.data.array[index + 0] = x;
+		this.data.array[index + 1] = y;
+		this.data.array[index + 2] = z;
+		return this;
+	}
+	/**
+	* Sets the x, y, z and w component of the vector at the given index.
+	*
+	* @param {number} index - The index into the buffer attribute.
+	* @param {number} x - The value for the x component to set.
+	* @param {number} y - The value for the y component to set.
+	* @param {number} z - The value for the z component to set.
+	* @param {number} w - The value for the w component to set.
+	* @return {InterleavedBufferAttribute} A reference to this instance.
+	*/
+	setXYZW(index, x, y, z, w) {
+		index = index * this.data.stride + this.offset;
+		if (this.normalized) {
+			x = normalize(x, this.array);
+			y = normalize(y, this.array);
+			z = normalize(z, this.array);
+			w = normalize(w, this.array);
+		}
+		this.data.array[index + 0] = x;
+		this.data.array[index + 1] = y;
+		this.data.array[index + 2] = z;
+		this.data.array[index + 3] = w;
+		return this;
+	}
+	/**
+	* Returns a new buffer attribute with copied values from this instance.
+	*
+	* If no parameter is provided, cloning an interleaved buffer attribute will de-interleave buffer data.
+	*
+	* @param {Object} [data] - An object with interleaved buffers that allows to retain the interleaved property.
+	* @return {BufferAttribute|InterleavedBufferAttribute} A clone of this instance.
+	*/
+	clone(data) {
+		if (data === void 0) {
+			log("InterleavedBufferAttribute.clone(): Cloning an interleaved buffer attribute will de-interleave buffer data.");
+			const array = [];
+			for (let i = 0; i < this.count; i++) {
+				const index = i * this.data.stride + this.offset;
+				for (let j = 0; j < this.itemSize; j++) array.push(this.data.array[index + j]);
+			}
+			return new BufferAttribute(new this.array.constructor(array), this.itemSize, this.normalized);
+		} else {
+			if (data.interleavedBuffers === void 0) data.interleavedBuffers = {};
+			if (data.interleavedBuffers[this.data.uuid] === void 0) data.interleavedBuffers[this.data.uuid] = this.data.clone(data);
+			return new InterleavedBufferAttribute(data.interleavedBuffers[this.data.uuid], this.itemSize, this.offset, this.normalized);
+		}
+	}
+	/**
+	* Serializes the buffer attribute into JSON.
+	*
+	* If no parameter is provided, cloning an interleaved buffer attribute will de-interleave buffer data.
+	*
+	* @param {Object} [data] - An optional value holding meta information about the serialization.
+	* @return {Object} A JSON object representing the serialized buffer attribute.
+	*/
+	toJSON(data) {
+		if (data === void 0) {
+			log("InterleavedBufferAttribute.toJSON(): Serializing an interleaved buffer attribute will de-interleave buffer data.");
+			const array = [];
+			for (let i = 0; i < this.count; i++) {
+				const index = i * this.data.stride + this.offset;
+				for (let j = 0; j < this.itemSize; j++) array.push(this.data.array[index + j]);
+			}
+			return {
+				itemSize: this.itemSize,
+				type: this.array.constructor.name,
+				array,
+				normalized: this.normalized
+			};
+		} else {
+			if (data.interleavedBuffers === void 0) data.interleavedBuffers = {};
+			if (data.interleavedBuffers[this.data.uuid] === void 0) data.interleavedBuffers[this.data.uuid] = this.data.toJSON(data);
+			return {
+				isInterleavedBufferAttribute: true,
+				itemSize: this.itemSize,
+				data: this.data.uuid,
+				offset: this.offset,
+				normalized: this.normalized
+			};
+		}
+	}
+};
 var _materialId = 0;
 /**
 * Abstract base class for materials.
@@ -13957,6 +14516,293 @@ var Material = class extends EventDispatcher {
 		if (value === true) this.version++;
 	}
 };
+/**
+* A material for rendering instances of {@link Sprite}.
+*
+* ```js
+* const map = new THREE.TextureLoader().load( 'textures/sprite.png' );
+* const material = new THREE.SpriteMaterial( { map: map, color: 0xffffff } );
+*
+* const sprite = new THREE.Sprite( material );
+* sprite.scale.set(200, 200, 1)
+* scene.add( sprite );
+* ```
+*
+* @augments Material
+*/
+var SpriteMaterial = class extends Material {
+	/**
+	* Constructs a new sprite material.
+	*
+	* @param {Object} [parameters] - An object with one or more properties
+	* defining the material's appearance. Any property of the material
+	* (including any property from inherited materials) can be passed
+	* in here. Color values can be passed any type of value accepted
+	* by {@link Color#set}.
+	*/
+	constructor(parameters) {
+		super();
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isSpriteMaterial = true;
+		this.type = "SpriteMaterial";
+		/**
+		* Color of the material.
+		*
+		* @type {Color}
+		* @default (1,1,1)
+		*/
+		this.color = new Color(16777215);
+		/**
+		* The color map. May optionally include an alpha channel, typically combined
+		* with {@link Material#transparent} or {@link Material#alphaTest}. The texture map
+		* color is modulated by the diffuse `color`.
+		*
+		* `map` represents color data, and the texture must be assigned a
+		* {@link Texture#colorSpace}. Most `map` textures set
+		* `texture.colorSpace = SRGBColorSpace`.
+		*
+		* @type {?Texture}
+		* @default null
+		*/
+		this.map = null;
+		/**
+		* The alpha map is a grayscale texture that controls the opacity across the
+		* surface (black: fully transparent; white: fully opaque).
+		*
+		* Only the color of the texture is used, ignoring the alpha channel if one
+		* exists. For RGB and RGBA textures, the renderer will use the green channel
+		* when sampling this texture due to the extra bit of precision provided for
+		* green in DXT-compressed and uncompressed RGB 565 formats. Luminance-only and
+		* luminance/alpha textures will also still work as expected.
+		*
+		* `alphaMap` represents non-color data. Any texture assigned must have
+		* `texture.colorSpace = NoColorSpace` (default).
+		*
+		* @type {?Texture}
+		* @default null
+		*/
+		this.alphaMap = null;
+		/**
+		* The rotation of the sprite in radians.
+		*
+		* @type {number}
+		* @default 0
+		*/
+		this.rotation = 0;
+		/**
+		* Specifies whether size of the sprite is attenuated by the camera depth (perspective camera only).
+		*
+		* @type {boolean}
+		* @default true
+		*/
+		this.sizeAttenuation = true;
+		/**
+		* Overwritten since sprite materials are transparent
+		* by default.
+		*
+		* @type {boolean}
+		* @default true
+		*/
+		this.transparent = true;
+		/**
+		* Whether the material is affected by fog or not.
+		*
+		* @type {boolean}
+		* @default true
+		*/
+		this.fog = true;
+		this.setValues(parameters);
+	}
+	copy(source) {
+		super.copy(source);
+		this.color.copy(source.color);
+		this.map = source.map;
+		this.alphaMap = source.alphaMap;
+		this.rotation = source.rotation;
+		this.sizeAttenuation = source.sizeAttenuation;
+		this.fog = source.fog;
+		return this;
+	}
+};
+var _geometry;
+var _intersectPoint = /*@__PURE__*/ new Vector3();
+var _worldScale = /*@__PURE__*/ new Vector3();
+var _mvPosition = /*@__PURE__*/ new Vector3();
+var _alignedPosition = /*@__PURE__*/ new Vector2();
+var _rotatedPosition = /*@__PURE__*/ new Vector2();
+var _viewWorldMatrix = /*@__PURE__*/ new Matrix4();
+var _vA$1 = /*@__PURE__*/ new Vector3();
+var _vB$1 = /*@__PURE__*/ new Vector3();
+var _vC$1 = /*@__PURE__*/ new Vector3();
+var _uvA = /*@__PURE__*/ new Vector2();
+var _uvB = /*@__PURE__*/ new Vector2();
+var _uvC = /*@__PURE__*/ new Vector2();
+/**
+* A sprite is a plane that always faces towards the camera, generally with a
+* partially transparent texture applied.
+*
+* Sprites do not cast shadows, setting {@link Object3D#castShadow} to `true` will
+* have no effect.
+*
+* ```js
+* const map = new THREE.TextureLoader().load( 'sprite.png' );
+* const material = new THREE.SpriteMaterial( { map: map } );
+*
+* const sprite = new THREE.Sprite( material );
+* scene.add( sprite );
+* ```
+*
+* @augments Object3D
+*/
+var Sprite = class extends Object3D {
+	/**
+	* Constructs a new sprite.
+	*
+	* @param {(SpriteMaterial|SpriteNodeMaterial)} [material] - The sprite material.
+	*/
+	constructor(material = new SpriteMaterial()) {
+		super();
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isSprite = true;
+		this.type = "Sprite";
+		if (_geometry === void 0) {
+			_geometry = new BufferGeometry();
+			const interleavedBuffer = new InterleavedBuffer(new Float32Array([
+				-.5,
+				-.5,
+				0,
+				0,
+				0,
+				.5,
+				-.5,
+				0,
+				1,
+				0,
+				.5,
+				.5,
+				0,
+				1,
+				1,
+				-.5,
+				.5,
+				0,
+				0,
+				1
+			]), 5);
+			_geometry.setIndex([
+				0,
+				1,
+				2,
+				0,
+				2,
+				3
+			]);
+			_geometry.setAttribute("position", new InterleavedBufferAttribute(interleavedBuffer, 3, 0, false));
+			_geometry.setAttribute("uv", new InterleavedBufferAttribute(interleavedBuffer, 2, 3, false));
+		}
+		/**
+		* The sprite geometry.
+		*
+		* @type {BufferGeometry}
+		*/
+		this.geometry = _geometry;
+		/**
+		* The sprite material.
+		*
+		* @type {(SpriteMaterial|SpriteNodeMaterial)}
+		*/
+		this.material = material;
+		/**
+		* The sprite's anchor point, and the point around which the sprite rotates.
+		* A value of `(0.5, 0.5)` corresponds to the midpoint of the sprite. A value
+		* of `(0, 0)` corresponds to the lower left corner of the sprite.
+		*
+		* @type {Vector2}
+		* @default (0.5,0.5)
+		*/
+		this.center = new Vector2(.5, .5);
+		/**
+		* The number of instances of this sprite.
+		* Can only be used with {@link WebGPURenderer}.
+		*
+		* @type {number}
+		* @default 1
+		*/
+		this.count = 1;
+	}
+	/**
+	* Computes intersection points between a casted ray and this sprite.
+	*
+	* @param {Raycaster} raycaster - The raycaster.
+	* @param {Array<Object>} intersects - The target array that holds the intersection points.
+	*/
+	raycast(raycaster, intersects) {
+		if (raycaster.camera === null) error("Sprite: \"Raycaster.camera\" needs to be set in order to raycast against sprites.");
+		_worldScale.setFromMatrixScale(this.matrixWorld);
+		_viewWorldMatrix.copy(raycaster.camera.matrixWorld);
+		this.modelViewMatrix.multiplyMatrices(raycaster.camera.matrixWorldInverse, this.matrixWorld);
+		_mvPosition.setFromMatrixPosition(this.modelViewMatrix);
+		if (raycaster.camera.isPerspectiveCamera && this.material.sizeAttenuation === false) _worldScale.multiplyScalar(-_mvPosition.z);
+		const rotation = this.material.rotation;
+		let sin, cos;
+		if (rotation !== 0) {
+			cos = Math.cos(rotation);
+			sin = Math.sin(rotation);
+		}
+		const center = this.center;
+		transformVertex(_vA$1.set(-.5, -.5, 0), _mvPosition, center, _worldScale, sin, cos);
+		transformVertex(_vB$1.set(.5, -.5, 0), _mvPosition, center, _worldScale, sin, cos);
+		transformVertex(_vC$1.set(.5, .5, 0), _mvPosition, center, _worldScale, sin, cos);
+		_uvA.set(0, 0);
+		_uvB.set(1, 0);
+		_uvC.set(1, 1);
+		let intersect = raycaster.ray.intersectTriangle(_vA$1, _vB$1, _vC$1, false, _intersectPoint);
+		if (intersect === null) {
+			transformVertex(_vB$1.set(-.5, .5, 0), _mvPosition, center, _worldScale, sin, cos);
+			_uvB.set(0, 1);
+			intersect = raycaster.ray.intersectTriangle(_vA$1, _vC$1, _vB$1, false, _intersectPoint);
+			if (intersect === null) return;
+		}
+		const distance = raycaster.ray.origin.distanceTo(_intersectPoint);
+		if (distance < raycaster.near || distance > raycaster.far) return;
+		intersects.push({
+			distance,
+			point: _intersectPoint.clone(),
+			uv: Triangle.getInterpolation(_intersectPoint, _vA$1, _vB$1, _vC$1, _uvA, _uvB, _uvC, new Vector2()),
+			face: null,
+			object: this
+		});
+	}
+	copy(source, recursive) {
+		super.copy(source, recursive);
+		if (source.center !== void 0) this.center.copy(source.center);
+		this.material = source.material;
+		return this;
+	}
+};
+function transformVertex(vertexPosition, mvPosition, center, scale, sin, cos) {
+	_alignedPosition.subVectors(vertexPosition, center).addScalar(.5).multiply(scale);
+	if (sin !== void 0) {
+		_rotatedPosition.x = cos * _alignedPosition.x - sin * _alignedPosition.y;
+		_rotatedPosition.y = sin * _alignedPosition.x + cos * _alignedPosition.y;
+	} else _rotatedPosition.copy(_alignedPosition);
+	vertexPosition.copy(mvPosition);
+	vertexPosition.x += _rotatedPosition.x;
+	vertexPosition.y += _rotatedPosition.y;
+	vertexPosition.applyMatrix4(_viewWorldMatrix);
+}
 var _vector$7 = /*@__PURE__*/ new Vector3();
 var _segCenter = /*@__PURE__*/ new Vector3();
 var _segDir = /*@__PURE__*/ new Vector3();
@@ -14918,296 +15764,6 @@ var DataTexture = class extends Texture {
 		this.unpackAlignment = 1;
 	}
 };
-/**
-* An instanced version of a buffer attribute.
-*
-* @augments BufferAttribute
-*/
-var InstancedBufferAttribute = class extends BufferAttribute {
-	/**
-	* Constructs a new instanced buffer attribute.
-	*
-	* @param {TypedArray} array - The array holding the attribute data.
-	* @param {number} itemSize - The item size.
-	* @param {boolean} [normalized=false] - Whether the data are normalized or not.
-	* @param {number} [meshPerAttribute=1] - How often a value of this buffer attribute should be repeated.
-	*/
-	constructor(array, itemSize, normalized, meshPerAttribute = 1) {
-		super(array, itemSize, normalized);
-		/**
-		* This flag can be used for type testing.
-		*
-		* @type {boolean}
-		* @readonly
-		* @default true
-		*/
-		this.isInstancedBufferAttribute = true;
-		/**
-		* Defines how often a value of this buffer attribute should be repeated. A
-		* value of one means that each value of the instanced attribute is used for
-		* a single instance. A value of two means that each value is used for two
-		* consecutive instances (and so on).
-		*
-		* @type {number}
-		* @default 1
-		*/
-		this.meshPerAttribute = meshPerAttribute;
-	}
-	copy(source) {
-		super.copy(source);
-		this.meshPerAttribute = source.meshPerAttribute;
-		return this;
-	}
-	toJSON() {
-		const data = super.toJSON();
-		data.meshPerAttribute = this.meshPerAttribute;
-		data.isInstancedBufferAttribute = true;
-		return data;
-	}
-};
-var _instanceLocalMatrix = /*@__PURE__*/ new Matrix4();
-var _instanceWorldMatrix = /*@__PURE__*/ new Matrix4();
-var _instanceIntersects = [];
-var _box3 = /*@__PURE__*/ new Box3();
-var _identity = /*@__PURE__*/ new Matrix4();
-var _mesh$1 = /*@__PURE__*/ new Mesh();
-var _sphere$4 = /*@__PURE__*/ new Sphere();
-/**
-* A special version of a mesh with instanced rendering support. Use
-* this class if you have to render a large number of objects with the same
-* geometry and material(s) but with different world transformations. The usage
-* of 'InstancedMesh' will help you to reduce the number of draw calls and thus
-* improve the overall rendering performance in your application.
-*
-* @augments Mesh
-*/
-var InstancedMesh = class extends Mesh {
-	/**
-	* Constructs a new instanced mesh.
-	*
-	* @param {BufferGeometry} [geometry] - The mesh geometry.
-	* @param {Material|Array<Material>} [material] - The mesh material.
-	* @param {number} count - The number of instances.
-	*/
-	constructor(geometry, material, count) {
-		super(geometry, material);
-		/**
-		* This flag can be used for type testing.
-		*
-		* @type {boolean}
-		* @readonly
-		* @default true
-		*/
-		this.isInstancedMesh = true;
-		/**
-		* Represents the local transformation of all instances. You have to set its
-		* {@link BufferAttribute#needsUpdate} flag to true if you modify instanced data
-		* via {@link InstancedMesh#setMatrixAt}.
-		*
-		* @type {InstancedBufferAttribute}
-		*/
-		this.instanceMatrix = new InstancedBufferAttribute(new Float32Array(count * 16), 16);
-		/**
-		* Represents the color of all instances. You have to set its
-		* {@link BufferAttribute#needsUpdate} flag to true if you modify instanced data
-		* via {@link InstancedMesh#setColorAt}.
-		*
-		* @type {?InstancedBufferAttribute}
-		* @default null
-		*/
-		this.instanceColor = null;
-		/**
-		* Represents the morph target weights of all instances. You have to set its
-		* {@link Texture#needsUpdate} flag to true if you modify instanced data
-		* via {@link InstancedMesh#setMorphAt}.
-		*
-		* @type {?DataTexture}
-		* @default null
-		*/
-		this.morphTexture = null;
-		/**
-		* The number of instances.
-		*
-		* @type {number}
-		*/
-		this.count = count;
-		/**
-		* The bounding box of the instanced mesh. Can be computed via {@link InstancedMesh#computeBoundingBox}.
-		*
-		* @type {?Box3}
-		* @default null
-		*/
-		this.boundingBox = null;
-		/**
-		* The bounding sphere of the instanced mesh. Can be computed via {@link InstancedMesh#computeBoundingSphere}.
-		*
-		* @type {?Sphere}
-		* @default null
-		*/
-		this.boundingSphere = null;
-		for (let i = 0; i < count; i++) this.setMatrixAt(i, _identity);
-	}
-	/**
-	* Computes the bounding box of the instanced mesh, and updates {@link InstancedMesh#boundingBox}.
-	* The bounding box is not automatically computed by the engine; this method must be called by your app.
-	* You may need to recompute the bounding box if an instance is transformed via {@link InstancedMesh#setMatrixAt}.
-	*/
-	computeBoundingBox() {
-		const geometry = this.geometry;
-		const count = this.count;
-		if (this.boundingBox === null) this.boundingBox = new Box3();
-		if (geometry.boundingBox === null) geometry.computeBoundingBox();
-		this.boundingBox.makeEmpty();
-		for (let i = 0; i < count; i++) {
-			this.getMatrixAt(i, _instanceLocalMatrix);
-			_box3.copy(geometry.boundingBox).applyMatrix4(_instanceLocalMatrix);
-			this.boundingBox.union(_box3);
-		}
-	}
-	/**
-	* Computes the bounding sphere of the instanced mesh, and updates {@link InstancedMesh#boundingSphere}
-	* The engine automatically computes the bounding sphere when it is needed, e.g., for ray casting or view frustum culling.
-	* You may need to recompute the bounding sphere if an instance is transformed via {@link InstancedMesh#setMatrixAt}.
-	*/
-	computeBoundingSphere() {
-		const geometry = this.geometry;
-		const count = this.count;
-		if (this.boundingSphere === null) this.boundingSphere = new Sphere();
-		if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
-		this.boundingSphere.makeEmpty();
-		for (let i = 0; i < count; i++) {
-			this.getMatrixAt(i, _instanceLocalMatrix);
-			_sphere$4.copy(geometry.boundingSphere).applyMatrix4(_instanceLocalMatrix);
-			this.boundingSphere.union(_sphere$4);
-		}
-	}
-	copy(source, recursive) {
-		super.copy(source, recursive);
-		this.instanceMatrix.copy(source.instanceMatrix);
-		if (source.morphTexture !== null) this.morphTexture = source.morphTexture.clone();
-		if (source.instanceColor !== null) this.instanceColor = source.instanceColor.clone();
-		this.count = source.count;
-		if (source.boundingBox !== null) this.boundingBox = source.boundingBox.clone();
-		if (source.boundingSphere !== null) this.boundingSphere = source.boundingSphere.clone();
-		return this;
-	}
-	/**
-	* Gets the color of the defined instance.
-	*
-	* @param {number} index - The instance index.
-	* @param {Color} color - The target object that is used to store the method's result.
-	* @return {Color} A reference to the target color.
-	*/
-	getColorAt(index, color) {
-		if (this.instanceColor === null) return color.setRGB(1, 1, 1);
-		else return color.fromArray(this.instanceColor.array, index * 3);
-	}
-	/**
-	* Gets the local transformation matrix of the defined instance.
-	*
-	* @param {number} index - The instance index.
-	* @param {Matrix4} matrix - The target object that is used to store the method's result.
-	* @return {Matrix4} A reference to the target matrix.
-	*/
-	getMatrixAt(index, matrix) {
-		return matrix.fromArray(this.instanceMatrix.array, index * 16);
-	}
-	/**
-	* Gets the morph target weights of the defined instance.
-	*
-	* @param {number} index - The instance index.
-	* @param {Mesh} object - The target object that is used to store the method's result.
-	*/
-	getMorphAt(index, object) {
-		const objectInfluences = object.morphTargetInfluences;
-		const array = this.morphTexture.source.data.data;
-		const dataIndex = index * (objectInfluences.length + 1) + 1;
-		for (let i = 0; i < objectInfluences.length; i++) objectInfluences[i] = array[dataIndex + i];
-	}
-	raycast(raycaster, intersects) {
-		const matrixWorld = this.matrixWorld;
-		const raycastTimes = this.count;
-		_mesh$1.geometry = this.geometry;
-		_mesh$1.material = this.material;
-		if (_mesh$1.material === void 0) return;
-		if (this.boundingSphere === null) this.computeBoundingSphere();
-		_sphere$4.copy(this.boundingSphere);
-		_sphere$4.applyMatrix4(matrixWorld);
-		if (raycaster.ray.intersectsSphere(_sphere$4) === false) return;
-		for (let instanceId = 0; instanceId < raycastTimes; instanceId++) {
-			this.getMatrixAt(instanceId, _instanceLocalMatrix);
-			_instanceWorldMatrix.multiplyMatrices(matrixWorld, _instanceLocalMatrix);
-			_mesh$1.matrixWorld = _instanceWorldMatrix;
-			_mesh$1.raycast(raycaster, _instanceIntersects);
-			for (let i = 0, l = _instanceIntersects.length; i < l; i++) {
-				const intersect = _instanceIntersects[i];
-				intersect.instanceId = instanceId;
-				intersect.object = this;
-				intersects.push(intersect);
-			}
-			_instanceIntersects.length = 0;
-		}
-	}
-	/**
-	* Sets the given color to the defined instance. Make sure you set the `needsUpdate` flag of
-	* {@link InstancedMesh#instanceColor} to `true` after updating all the colors.
-	*
-	* @param {number} index - The instance index.
-	* @param {Color} color - The instance color.
-	* @return {InstancedMesh} A reference to this instanced mesh.
-	*/
-	setColorAt(index, color) {
-		if (this.instanceColor === null) this.instanceColor = new InstancedBufferAttribute(new Float32Array(this.instanceMatrix.count * 3).fill(1), 3);
-		color.toArray(this.instanceColor.array, index * 3);
-		return this;
-	}
-	/**
-	* Sets the given local transformation matrix to the defined instance. Make sure you set the `needsUpdate` flag of
-	* {@link InstancedMesh#instanceMatrix} to `true` after updating all the matrices.
-	*
-	* @param {number} index - The instance index.
-	* @param {Matrix4} matrix - The local transformation.
-	* @return {InstancedMesh} A reference to this instanced mesh.
-	*/
-	setMatrixAt(index, matrix) {
-		matrix.toArray(this.instanceMatrix.array, index * 16);
-		return this;
-	}
-	/**
-	* Sets the morph target weights to the defined instance. Make sure you set the `needsUpdate` flag of
-	* {@link InstancedMesh#morphTexture} to `true` after updating all the influences.
-	*
-	* @param {number} index - The instance index.
-	* @param {Mesh} object -  A mesh which `morphTargetInfluences` property containing the morph target weights
-	* of a single instance.
-	* @return {InstancedMesh} A reference to this instanced mesh.
-	*/
-	setMorphAt(index, object) {
-		const objectInfluences = object.morphTargetInfluences;
-		const len = objectInfluences.length + 1;
-		if (this.morphTexture === null) this.morphTexture = new DataTexture(new Float32Array(len * this.count), len, this.count, RedFormat, FloatType);
-		const array = this.morphTexture.source.data.data;
-		let morphInfluencesSum = 0;
-		for (let i = 0; i < objectInfluences.length; i++) morphInfluencesSum += objectInfluences[i];
-		const morphBaseInfluence = this.geometry.morphTargetsRelative ? 1 : 1 - morphInfluencesSum;
-		const dataIndex = len * index;
-		array[dataIndex] = morphBaseInfluence;
-		array.set(objectInfluences, dataIndex + 1);
-		return this;
-	}
-	updateMorphTargets() {}
-	/**
-	* Frees the GPU-related resources allocated by this instance. Call this
-	* method whenever this instance is no longer used in your app.
-	*/
-	dispose() {
-		this.dispatchEvent({ type: "dispose" });
-		if (this.morphTexture !== null) {
-			this.morphTexture.dispose();
-			this.morphTexture = null;
-		}
-	}
-};
 var _vector1 = /*@__PURE__*/ new Vector3();
 var _vector2 = /*@__PURE__*/ new Vector3();
 var _normalMatrix = /*@__PURE__*/ new Matrix3();
@@ -15649,302 +16205,6 @@ var Frustum = class {
 	}
 };
 /**
-* A material for rendering line primitives.
-*
-* Materials define the appearance of renderable 3D objects.
-*
-* ```js
-* const material = new THREE.LineBasicMaterial( { color: 0xffffff } );
-* ```
-*
-* @augments Material
-*/
-var LineBasicMaterial = class extends Material {
-	/**
-	* Constructs a new line basic material.
-	*
-	* @param {Object} [parameters] - An object with one or more properties
-	* defining the material's appearance. Any property of the material
-	* (including any property from inherited materials) can be passed
-	* in here. Color values can be passed any type of value accepted
-	* by {@link Color#set}.
-	*/
-	constructor(parameters) {
-		super();
-		/**
-		* This flag can be used for type testing.
-		*
-		* @type {boolean}
-		* @readonly
-		* @default true
-		*/
-		this.isLineBasicMaterial = true;
-		this.type = "LineBasicMaterial";
-		/**
-		* Color of the material.
-		*
-		* @type {Color}
-		* @default (1,1,1)
-		*/
-		this.color = new Color(16777215);
-		/**
-		* Sets the color of the lines using data from a texture. The texture map
-		* color is modulated by the diffuse `color`.
-		*
-		* `map` represents color data, and the texture must be assigned a
-		* {@link Texture#colorSpace}. Most `map` textures set
-		* `texture.colorSpace = SRGBColorSpace`.
-		*
-		* @type {?Texture}
-		* @default null
-		*/
-		this.map = null;
-		/**
-		* Controls line thickness or lines.
-		*
-		* Can only be used with {@link SVGRenderer}. WebGL and WebGPU
-		* ignore this setting and always render line primitives with a
-		* width of one pixel.
-		*
-		* @type {number}
-		* @default 1
-		*/
-		this.linewidth = 1;
-		/**
-		* Defines appearance of line ends.
-		*
-		* Can only be used with {@link SVGRenderer}.
-		*
-		* @type {('butt'|'round'|'square')}
-		* @default 'round'
-		*/
-		this.linecap = "round";
-		/**
-		* Defines appearance of line joints.
-		*
-		* Can only be used with {@link SVGRenderer}.
-		*
-		* @type {('round'|'bevel'|'miter')}
-		* @default 'round'
-		*/
-		this.linejoin = "round";
-		/**
-		* Whether the material is affected by fog or not.
-		*
-		* @type {boolean}
-		* @default true
-		*/
-		this.fog = true;
-		this.setValues(parameters);
-	}
-	copy(source) {
-		super.copy(source);
-		this.color.copy(source.color);
-		this.map = source.map;
-		this.linewidth = source.linewidth;
-		this.linecap = source.linecap;
-		this.linejoin = source.linejoin;
-		this.fog = source.fog;
-		return this;
-	}
-};
-var _vStart = /*@__PURE__*/ new Vector3();
-var _vEnd = /*@__PURE__*/ new Vector3();
-var _inverseMatrix$1 = /*@__PURE__*/ new Matrix4();
-var _ray$1 = /*@__PURE__*/ new Ray();
-var _sphere$1 = /*@__PURE__*/ new Sphere();
-var _intersectPointOnRay = /*@__PURE__*/ new Vector3();
-var _intersectPointOnSegment = /*@__PURE__*/ new Vector3();
-/**
-* A continuous line. The line are rendered by connecting consecutive
-* vertices with straight lines.
-*
-* ```js
-* const material = new THREE.LineBasicMaterial( { color: 0x0000ff } );
-*
-* const points = [];
-* points.push( new THREE.Vector3( - 10, 0, 0 ) );
-* points.push( new THREE.Vector3( 0, 10, 0 ) );
-* points.push( new THREE.Vector3( 10, 0, 0 ) );
-*
-* const geometry = new THREE.BufferGeometry().setFromPoints( points );
-*
-* const line = new THREE.Line( geometry, material );
-* scene.add( line );
-* ```
-*
-* @augments Object3D
-*/
-var Line = class extends Object3D {
-	/**
-	* Constructs a new line.
-	*
-	* @param {BufferGeometry} [geometry] - The line geometry.
-	* @param {Material|Array<Material>} [material] - The line material.
-	*/
-	constructor(geometry = new BufferGeometry(), material = new LineBasicMaterial()) {
-		super();
-		/**
-		* This flag can be used for type testing.
-		*
-		* @type {boolean}
-		* @readonly
-		* @default true
-		*/
-		this.isLine = true;
-		this.type = "Line";
-		/**
-		* The line geometry.
-		*
-		* @type {BufferGeometry}
-		*/
-		this.geometry = geometry;
-		/**
-		* The line material.
-		*
-		* @type {Material|Array<Material>}
-		* @default LineBasicMaterial
-		*/
-		this.material = material;
-		/**
-		* A dictionary representing the morph targets in the geometry. The key is the
-		* morph targets name, the value its attribute index. This member is `undefined`
-		* by default and only set when morph targets are detected in the geometry.
-		*
-		* @type {Object<string,number>|undefined}
-		* @default undefined
-		*/
-		this.morphTargetDictionary = void 0;
-		/**
-		* An array of weights typically in the range `[0,1]` that specify how much of the morph
-		* is applied. This member is `undefined` by default and only set when morph targets are
-		* detected in the geometry.
-		*
-		* @type {Array<number>|undefined}
-		* @default undefined
-		*/
-		this.morphTargetInfluences = void 0;
-		this.updateMorphTargets();
-	}
-	copy(source, recursive) {
-		super.copy(source, recursive);
-		this.material = Array.isArray(source.material) ? source.material.slice() : source.material;
-		this.geometry = source.geometry;
-		return this;
-	}
-	/**
-	* Computes an array of distance values which are necessary for rendering dashed lines.
-	* For each vertex in the geometry, the method calculates the cumulative length from the
-	* current point to the very beginning of the line.
-	*
-	* @return {Line} A reference to this line.
-	*/
-	computeLineDistances() {
-		const geometry = this.geometry;
-		if (geometry.index === null) {
-			const positionAttribute = geometry.attributes.position;
-			const lineDistances = [0];
-			for (let i = 1, l = positionAttribute.count; i < l; i++) {
-				_vStart.fromBufferAttribute(positionAttribute, i - 1);
-				_vEnd.fromBufferAttribute(positionAttribute, i);
-				lineDistances[i] = lineDistances[i - 1];
-				lineDistances[i] += _vStart.distanceTo(_vEnd);
-			}
-			geometry.setAttribute("lineDistance", new Float32BufferAttribute(lineDistances, 1));
-		} else warn("Line.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.");
-		return this;
-	}
-	/**
-	* Computes intersection points between a casted ray and this line.
-	*
-	* @param {Raycaster} raycaster - The raycaster.
-	* @param {Array<Object>} intersects - The target array that holds the intersection points.
-	*/
-	raycast(raycaster, intersects) {
-		const geometry = this.geometry;
-		const matrixWorld = this.matrixWorld;
-		const threshold = raycaster.params.Line.threshold;
-		const drawRange = geometry.drawRange;
-		if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
-		_sphere$1.copy(geometry.boundingSphere);
-		_sphere$1.applyMatrix4(matrixWorld);
-		_sphere$1.radius += threshold;
-		if (raycaster.ray.intersectsSphere(_sphere$1) === false) return;
-		_inverseMatrix$1.copy(matrixWorld).invert();
-		_ray$1.copy(raycaster.ray).applyMatrix4(_inverseMatrix$1);
-		const localThreshold = threshold / ((this.scale.x + this.scale.y + this.scale.z) / 3);
-		const localThresholdSq = localThreshold * localThreshold;
-		const step = this.isLineSegments ? 2 : 1;
-		const index = geometry.index;
-		const positionAttribute = geometry.attributes.position;
-		if (index !== null) {
-			const start = Math.max(0, drawRange.start);
-			const end = Math.min(index.count, drawRange.start + drawRange.count);
-			for (let i = start, l = end - 1; i < l; i += step) {
-				const a = index.getX(i);
-				const b = index.getX(i + 1);
-				const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, a, b, i);
-				if (intersect) intersects.push(intersect);
-			}
-			if (this.isLineLoop) {
-				const a = index.getX(end - 1);
-				const b = index.getX(start);
-				const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, a, b, end - 1);
-				if (intersect) intersects.push(intersect);
-			}
-		} else {
-			const start = Math.max(0, drawRange.start);
-			const end = Math.min(positionAttribute.count, drawRange.start + drawRange.count);
-			for (let i = start, l = end - 1; i < l; i += step) {
-				const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, i, i + 1, i);
-				if (intersect) intersects.push(intersect);
-			}
-			if (this.isLineLoop) {
-				const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, end - 1, start, end - 1);
-				if (intersect) intersects.push(intersect);
-			}
-		}
-	}
-	/**
-	* Sets the values of {@link Line#morphTargetDictionary} and {@link Line#morphTargetInfluences}
-	* to make sure existing morph targets can influence this 3D object.
-	*/
-	updateMorphTargets() {
-		const morphAttributes = this.geometry.morphAttributes;
-		const keys = Object.keys(morphAttributes);
-		if (keys.length > 0) {
-			const morphAttribute = morphAttributes[keys[0]];
-			if (morphAttribute !== void 0) {
-				this.morphTargetInfluences = [];
-				this.morphTargetDictionary = {};
-				for (let m = 0, ml = morphAttribute.length; m < ml; m++) {
-					const name = morphAttribute[m].name || String(m);
-					this.morphTargetInfluences.push(0);
-					this.morphTargetDictionary[name] = m;
-				}
-			}
-		}
-	}
-};
-function checkIntersection(object, raycaster, ray, thresholdSq, a, b, i) {
-	const positionAttribute = object.geometry.attributes.position;
-	_vStart.fromBufferAttribute(positionAttribute, a);
-	_vEnd.fromBufferAttribute(positionAttribute, b);
-	if (ray.distanceSqToSegment(_vStart, _vEnd, _intersectPointOnRay, _intersectPointOnSegment) > thresholdSq) return;
-	_intersectPointOnRay.applyMatrix4(object.matrixWorld);
-	const distance = raycaster.ray.origin.distanceTo(_intersectPointOnRay);
-	if (distance < raycaster.near || distance > raycaster.far) return;
-	return {
-		distance,
-		point: _intersectPointOnSegment.clone().applyMatrix4(object.matrixWorld),
-		index: i,
-		face: null,
-		faceIndex: null,
-		barycoord: null,
-		object
-	};
-}
-/**
 * A material for rendering point primitives.
 *
 * Materials define the appearance of renderable 3D objects.
@@ -16064,7 +16324,7 @@ var PointsMaterial = class extends Material {
 	}
 };
 var _inverseMatrix = /*@__PURE__*/ new Matrix4();
-var _ray$2 = /*@__PURE__*/ new Ray();
+var _ray$1 = /*@__PURE__*/ new Ray();
 var _sphere = /*@__PURE__*/ new Sphere();
 var _position$3 = /*@__PURE__*/ new Vector3();
 /**
@@ -16146,7 +16406,7 @@ var Points = class extends Object3D {
 		_sphere.radius += threshold;
 		if (raycaster.ray.intersectsSphere(_sphere) === false) return;
 		_inverseMatrix.copy(matrixWorld).invert();
-		_ray$2.copy(raycaster.ray).applyMatrix4(_inverseMatrix);
+		_ray$1.copy(raycaster.ray).applyMatrix4(_inverseMatrix);
 		const localThreshold = threshold / ((this.scale.x + this.scale.y + this.scale.z) / 3);
 		const localThresholdSq = localThreshold * localThreshold;
 		const index = geometry.index;
@@ -16190,10 +16450,10 @@ var Points = class extends Object3D {
 	}
 };
 function testPoint(point, index, localThresholdSq, matrixWorld, raycaster, intersects, object) {
-	const rayPointDistanceSq = _ray$2.distanceSqToPoint(point);
+	const rayPointDistanceSq = _ray$1.distanceSqToPoint(point);
 	if (rayPointDistanceSq < localThresholdSq) {
 		const intersectPoint = new Vector3();
-		_ray$2.closestPointToPoint(point, intersectPoint);
+		_ray$1.closestPointToPoint(point, intersectPoint);
 		intersectPoint.applyMatrix4(matrixWorld);
 		const distance = raycaster.ray.origin.distanceTo(intersectPoint);
 		if (distance < raycaster.near || distance > raycaster.far) return;
@@ -16271,6 +16531,41 @@ var CubeTexture = class extends Texture {
 	}
 	set images(value) {
 		this.image = value;
+	}
+};
+/**
+* Creates a texture from a canvas element.
+*
+* This is almost the same as the base texture class, except that it sets {@link Texture#needsUpdate}
+* to `true` immediately since a canvas can directly be used for rendering.
+*
+* @augments Texture
+*/
+var CanvasTexture = class extends Texture {
+	/**
+	* Constructs a new texture.
+	*
+	* @param {HTMLCanvasElement} [canvas] - The HTML canvas element.
+	* @param {number} [mapping=Texture.DEFAULT_MAPPING] - The texture mapping.
+	* @param {number} [wrapS=ClampToEdgeWrapping] - The wrapS value.
+	* @param {number} [wrapT=ClampToEdgeWrapping] - The wrapT value.
+	* @param {number} [magFilter=LinearFilter] - The mag filter value.
+	* @param {number} [minFilter=LinearMipmapLinearFilter] - The min filter value.
+	* @param {number} [format=RGBAFormat] - The texture format.
+	* @param {number} [type=UnsignedByteType] - The texture type.
+	* @param {number} [anisotropy=Texture.DEFAULT_ANISOTROPY] - The anisotropy value.
+	*/
+	constructor(canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy) {
+		super(canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy);
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isCanvasTexture = true;
+		this.needsUpdate = true;
 	}
 };
 /**
@@ -19501,6 +19796,58 @@ var Light = class extends Object3D {
 		return data;
 	}
 };
+/**
+* A light source positioned directly above the scene, with color fading from
+* the sky color to the ground color.
+*
+* This light cannot be used to cast shadows.
+*
+* ```js
+* const light = new THREE.HemisphereLight( 0xffffbb, 0x080820, 1 );
+* scene.add( light );
+* ```
+*
+* @augments Light
+*/
+var HemisphereLight = class extends Light {
+	/**
+	* Constructs a new hemisphere light.
+	*
+	* @param {(number|Color|string)} [skyColor=0xffffff] - The light's sky color.
+	* @param {(number|Color|string)} [groundColor=0xffffff] - The light's ground color.
+	* @param {number} [intensity=1] - The light's strength/intensity.
+	*/
+	constructor(skyColor, groundColor, intensity) {
+		super(skyColor, intensity);
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isHemisphereLight = true;
+		this.type = "HemisphereLight";
+		this.position.copy(Object3D.DEFAULT_UP);
+		this.updateMatrix();
+		/**
+		* The light's ground color.
+		*
+		* @type {Color}
+		*/
+		this.groundColor = new Color(groundColor);
+	}
+	copy(source, recursive) {
+		super.copy(source, recursive);
+		this.groundColor.copy(source.groundColor);
+		return this;
+	}
+	toJSON(meta) {
+		const data = super.toJSON(meta);
+		data.object.groundColor = this.groundColor.getHex();
+		return data;
+	}
+};
 var _projScreenMatrix$1 = /*@__PURE__*/ new Matrix4();
 var _lightPositionWorld$1 = /*@__PURE__*/ new Vector3();
 var _lookTarget$1 = /*@__PURE__*/ new Vector3();
@@ -21087,195 +21434,6 @@ PropertyBinding.prototype.SetterByBindingTypeAndVersioning = [
 		PropertyBinding.prototype._setValue_fromArray_setMatrixWorldNeedsUpdate
 	]
 ];
-var _matrix = /*@__PURE__*/ new Matrix4();
-/**
-* This class is designed to assist with raycasting. Raycasting is used for
-* mouse picking (working out what objects in the 3d space the mouse is over)
-* amongst other things.
-*/
-var Raycaster = class {
-	/**
-	* Constructs a new raycaster.
-	*
-	* @param {Vector3} origin - The origin vector where the ray casts from.
-	* @param {Vector3} direction - The (normalized) direction vector that gives direction to the ray.
-	* @param {number} [near=0] - All results returned are further away than near. Near can't be negative.
-	* @param {number} [far=Infinity] - All results returned are closer than far. Far can't be lower than near.
-	*/
-	constructor(origin, direction, near = 0, far = Infinity) {
-		/**
-		* The ray used for raycasting.
-		*
-		* @type {Ray}
-		*/
-		this.ray = new Ray(origin, direction);
-		/**
-		* All results returned are further away than near. Near can't be negative.
-		*
-		* @type {number}
-		* @default 0
-		*/
-		this.near = near;
-		/**
-		* All results returned are closer than far. Far can't be lower than near.
-		*
-		* @type {number}
-		* @default Infinity
-		*/
-		this.far = far;
-		/**
-		* The camera to use when raycasting against view-dependent objects such as
-		* billboarded objects like sprites. This field can be set manually or
-		* is set when calling `setFromCamera()`.
-		*
-		* @type {?Camera}
-		* @default null
-		*/
-		this.camera = null;
-		/**
-		* Allows to selectively ignore 3D objects when performing intersection tests.
-		* The following code example ensures that only 3D objects on layer `1` will be
-		* honored by raycaster.
-		* ```js
-		* raycaster.layers.set( 1 );
-		* object.layers.enable( 1 );
-		* ```
-		*
-		* @type {Layers}
-		*/
-		this.layers = new Layers();
-		/**
-		* A parameter object that configures the raycasting. It has the structure:
-		*
-		* ```
-		* {
-		* 	Mesh: {},
-		* 	Line: { threshold: 1 },
-		* 	LOD: {},
-		* 	Points: { threshold: 1 },
-		* 	Sprite: {}
-		* }
-		* ```
-		* Where `threshold` is the precision of the raycaster when intersecting objects, in world units.
-		*
-		* @type {Object}
-		*/
-		this.params = {
-			Mesh: {},
-			Line: { threshold: 1 },
-			LOD: {},
-			Points: { threshold: 1 },
-			Sprite: {}
-		};
-	}
-	/**
-	* Updates the ray with a new origin and direction by copying the values from the arguments.
-	*
-	* @param {Vector3} origin - The origin vector where the ray casts from.
-	* @param {Vector3} direction - The (normalized) direction vector that gives direction to the ray.
-	*/
-	set(origin, direction) {
-		this.ray.set(origin, direction);
-	}
-	/**
-	* Uses the given coordinates and camera to compute a new origin and direction for the internal ray.
-	*
-	* @param {Vector2} coords - 2D coordinates of the mouse, in normalized device coordinates (NDC).
-	* X and Y components should be between `-1` and `1`.
-	* @param {Camera} camera - The camera from which the ray should originate.
-	*/
-	setFromCamera(coords, camera) {
-		if (camera.isPerspectiveCamera) {
-			this.ray.origin.setFromMatrixPosition(camera.matrixWorld);
-			this.ray.direction.set(coords.x, coords.y, .5).unproject(camera).sub(this.ray.origin).normalize();
-			this.camera = camera;
-		} else if (camera.isOrthographicCamera) {
-			this.ray.origin.set(coords.x, coords.y, camera.projectionMatrix.elements[14]).unproject(camera);
-			this.ray.direction.set(0, 0, -1).transformDirection(camera.matrixWorld);
-			this.camera = camera;
-		} else error("Raycaster: Unsupported camera type: " + camera.type);
-	}
-	/**
-	* Uses the given WebXR controller to compute a new origin and direction for the internal ray.
-	*
-	* @param {WebXRController} controller - The controller to copy the position and direction from.
-	* @return {Raycaster} A reference to this raycaster.
-	*/
-	setFromXRController(controller) {
-		_matrix.identity().extractRotation(controller.matrixWorld);
-		this.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-		this.ray.direction.set(0, 0, -1).applyMatrix4(_matrix);
-		return this;
-	}
-	/**
-	* The intersection point of a raycaster intersection test.
-	* @typedef {Object} Raycaster~Intersection
-	* @property {number} distance - The distance from the ray's origin to the intersection point.
-	* @property {number} distanceToRay -  Some 3D objects e.g. {@link Points} provide the distance of the
-	* intersection to the nearest point on the ray. For other objects it will be `undefined`.
-	* @property {Vector3} point - The intersection point, in world coordinates.
-	* @property {Object} face - The face that has been intersected.
-	* @property {number} faceIndex - The face index.
-	* @property {Object3D} object - The 3D object that has been intersected.
-	* @property {Vector2} uv - U,V coordinates at point of intersection.
-	* @property {Vector2} uv1 - Second set of U,V coordinates at point of intersection.
-	* @property {Vector3} normal - Interpolated normal vector at point of intersection.
-	* @property {number} instanceId - The index number of the instance where the ray
-	* intersects the {@link InstancedMesh}.
-	*/
-	/**
-	* Checks all intersection between the ray and the object with or without the
-	* descendants. Intersections are returned sorted by distance, closest first.
-	*
-	* `Raycaster` delegates to the `raycast()` method of the passed 3D object, when
-	* evaluating whether the ray intersects the object or not. This allows meshes to respond
-	* differently to ray casting than lines or points.
-	*
-	* Note that for meshes, faces must be pointed towards the origin of the ray in order
-	* to be detected; intersections of the ray passing through the back of a face will not
-	* be detected. To raycast against both faces of an object, you'll want to set  {@link Material#side}
-	* to `THREE.DoubleSide`.
-	*
-	* @param {Object3D} object - The 3D object to check for intersection with the ray.
-	* @param {boolean} [recursive=true] - If set to `true`, it also checks all descendants.
-	* Otherwise it only checks intersection with the object.
-	* @param {Array<Raycaster~Intersection>} [intersects=[]] The target array that holds the result of the method.
-	* @return {Array<Raycaster~Intersection>} An array holding the intersection points.
-	*/
-	intersectObject(object, recursive = true, intersects = []) {
-		intersect(object, this, intersects, recursive);
-		intersects.sort(ascSort);
-		return intersects;
-	}
-	/**
-	* Checks all intersection between the ray and the objects with or without
-	* the descendants. Intersections are returned sorted by distance, closest first.
-	*
-	* @param {Array<Object3D>} objects - The 3D objects to check for intersection with the ray.
-	* @param {boolean} [recursive=true] - If set to `true`, it also checks all descendants.
-	* Otherwise it only checks intersection with the object.
-	* @param {Array<Raycaster~Intersection>} [intersects=[]] The target array that holds the result of the method.
-	* @return {Array<Raycaster~Intersection>} An array holding the intersection points.
-	*/
-	intersectObjects(objects, recursive = true, intersects = []) {
-		for (let i = 0, l = objects.length; i < l; i++) intersect(objects[i], this, intersects, recursive);
-		intersects.sort(ascSort);
-		return intersects;
-	}
-};
-function ascSort(a, b) {
-	return a.distance - b.distance;
-}
-function intersect(object, raycaster, intersects, recursive) {
-	let propagate = true;
-	if (object.layers.test(raycaster.layers)) {
-		if (object.raycast(raycaster, intersects) === false) propagate = false;
-	}
-	if (propagate === true && recursive === true) {
-		const children = object.children;
-		for (let i = 0, l = children.length; i < l; i++) intersect(children[i], raycaster, intersects, true);
-	}
-}
 /**
 * Class for keeping track of time.
 *
@@ -32888,6 +33046,305 @@ var WebGLRenderer = class {
 	}
 };
 //#endregion
+//#region node_modules/three/examples/jsm/objects/Sky.js
+/**
+* Represents a skydome for scene backgrounds. Based on [A Practical Analytic Model for Daylight](https://www.researchgate.net/publication/220720443_A_Practical_Analytic_Model_for_Daylight)
+* aka The Preetham Model, the de facto standard for analytical skydomes.
+*
+* Note that this class can only be used with {@link WebGLRenderer}.
+* When using {@link WebGPURenderer}, use {@link SkyMesh}.
+*
+* More references:
+*
+* - {@link http://simonwallner.at/project/atmospheric-scattering/}
+* - {@link http://blenderartists.org/forum/showthread.php?245954-preethams-sky-impementation-HDR}
+*
+*
+* ```js
+* const sky = new Sky();
+* sky.scale.setScalar( 10000 );
+* scene.add( sky );
+* ```
+* 
+* It can be useful to hide the sun disc when generating an environment map to avoid artifacts
+* 
+* ```js
+* // disable before rendering environment map
+* sky.material.uniforms.showSunDisc.value = false;
+* // ...
+* // re-enable before scene sky box rendering
+* sky.material.uniforms.showSunDisc.value = true;
+* ```
+*
+* @augments Mesh
+* @three_import import { Sky } from 'three/addons/objects/Sky.js';
+*/
+var Sky = class Sky extends Mesh {
+	/**
+	* Constructs a new skydome.
+	*/
+	constructor() {
+		const shader = Sky.SkyShader;
+		const material = new ShaderMaterial({
+			name: shader.name,
+			uniforms: UniformsUtils.clone(shader.uniforms),
+			vertexShader: shader.vertexShader,
+			fragmentShader: shader.fragmentShader,
+			side: 1,
+			depthWrite: false
+		});
+		super(new BoxGeometry(1, 1, 1), material);
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isSky = true;
+	}
+};
+Sky.SkyShader = {
+	name: "SkyShader",
+	uniforms: {
+		"turbidity": { value: 2 },
+		"rayleigh": { value: 1 },
+		"mieCoefficient": { value: .005 },
+		"mieDirectionalG": { value: .8 },
+		"sunPosition": { value: new Vector3() },
+		"up": { value: new Vector3(0, 1, 0) },
+		"cloudScale": { value: 2e-4 },
+		"cloudSpeed": { value: 1e-4 },
+		"cloudCoverage": { value: .4 },
+		"cloudDensity": { value: .4 },
+		"cloudElevation": { value: .5 },
+		"showSunDisc": { value: 1 },
+		"time": { value: 0 }
+	},
+	vertexShader: `
+		uniform vec3 sunPosition;
+		uniform float rayleigh;
+		uniform float turbidity;
+		uniform float mieCoefficient;
+		uniform vec3 up;
+
+		varying vec3 vWorldPosition;
+		varying vec3 vSunDirection;
+		varying float vSunfade;
+		varying vec3 vBetaR;
+		varying vec3 vBetaM;
+		varying float vSunE;
+
+		// constants for atmospheric scattering
+		const float e = 2.71828182845904523536028747135266249775724709369995957;
+		const float pi = 3.141592653589793238462643383279502884197169;
+
+		// wavelength of used primaries, according to preetham
+		const vec3 lambda = vec3( 680E-9, 550E-9, 450E-9 );
+		// this pre-calculation replaces older TotalRayleigh(vec3 lambda) function:
+		// (8.0 * pow(pi, 3.0) * pow(pow(n, 2.0) - 1.0, 2.0) * (6.0 + 3.0 * pn)) / (3.0 * N * pow(lambda, vec3(4.0)) * (6.0 - 7.0 * pn))
+		const vec3 totalRayleigh = vec3( 5.804542996261093E-6, 1.3562911419845635E-5, 3.0265902468824876E-5 );
+
+		// mie stuff
+		// K coefficient for the primaries
+		const float v = 4.0;
+		const vec3 K = vec3( 0.686, 0.678, 0.666 );
+		// MieConst = pi * pow( ( 2.0 * pi ) / lambda, vec3( v - 2.0 ) ) * K
+		const vec3 MieConst = vec3( 1.8399918514433978E14, 2.7798023919660528E14, 4.0790479543861094E14 );
+
+		// earth shadow hack
+		// cutoffAngle = pi / 1.95;
+		const float cutoffAngle = 1.6110731556870734;
+		const float steepness = 1.5;
+		const float EE = 1000.0;
+
+		float sunIntensity( float zenithAngleCos ) {
+			zenithAngleCos = clamp( zenithAngleCos, -1.0, 1.0 );
+			return EE * max( 0.0, 1.0 - pow( e, -( ( cutoffAngle - acos( zenithAngleCos ) ) / steepness ) ) );
+		}
+
+		vec3 totalMie( float T ) {
+			float c = ( 0.2 * T ) * 10E-18;
+			return 0.434 * c * MieConst;
+		}
+
+		void main() {
+
+			vec4 worldPosition = modelMatrix * vec4( position, 1.0 );
+			vWorldPosition = worldPosition.xyz;
+
+			gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+			gl_Position.z = gl_Position.w; // set z to camera.far
+
+			vSunDirection = normalize( sunPosition );
+
+			vSunE = sunIntensity( dot( vSunDirection, up ) );
+
+			vSunfade = 1.0 - clamp( 1.0 - exp( ( sunPosition.y / 450000.0 ) ), 0.0, 1.0 );
+
+			float rayleighCoefficient = rayleigh - ( 1.0 * ( 1.0 - vSunfade ) );
+
+			// extinction (absorption + out scattering)
+			// rayleigh coefficients
+			vBetaR = totalRayleigh * rayleighCoefficient;
+
+			// mie coefficients
+			vBetaM = totalMie( turbidity ) * mieCoefficient;
+
+		}`,
+	fragmentShader: `
+		varying vec3 vWorldPosition;
+		varying vec3 vSunDirection;
+		varying vec3 vBetaR;
+		varying vec3 vBetaM;
+		varying float vSunE;
+
+		uniform float mieDirectionalG;
+		uniform vec3 up;
+		uniform float cloudScale;
+		uniform float cloudSpeed;
+		uniform float cloudCoverage;
+		uniform float cloudDensity;
+		uniform float cloudElevation;
+		uniform float showSunDisc;
+		uniform float time;
+
+		// Cloud noise functions
+		float hash( vec2 p ) {
+			return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453123 );
+		}
+
+		float noise( vec2 p ) {
+			vec2 i = floor( p );
+			vec2 f = fract( p );
+			f = f * f * ( 3.0 - 2.0 * f );
+			float a = hash( i );
+			float b = hash( i + vec2( 1.0, 0.0 ) );
+			float c = hash( i + vec2( 0.0, 1.0 ) );
+			float d = hash( i + vec2( 1.0, 1.0 ) );
+			return mix( mix( a, b, f.x ), mix( c, d, f.x ), f.y );
+		}
+
+		float fbm( vec2 p ) {
+			float value = 0.0;
+			float amplitude = 0.5;
+			for ( int i = 0; i < 5; i ++ ) {
+				value += amplitude * noise( p );
+				p *= 2.0;
+				amplitude *= 0.5;
+			}
+			return value;
+		}
+
+		// constants for atmospheric scattering
+		const float pi = 3.141592653589793238462643383279502884197169;
+
+		const float n = 1.0003; // refractive index of air
+		const float N = 2.545E25; // number of molecules per unit volume for air at 288.15K and 1013mb (sea level -45 celsius)
+
+		// optical length at zenith for molecules
+		const float rayleighZenithLength = 8.4E3;
+		const float mieZenithLength = 1.25E3;
+		// 66 arc seconds -> degrees, and the cosine of that
+		const float sunAngularDiameterCos = 0.999956676946448443553574619906976478926848692873900859324;
+
+		// 3.0 / ( 16.0 * pi )
+		const float THREE_OVER_SIXTEENPI = 0.05968310365946075;
+		// 1.0 / ( 4.0 * pi )
+		const float ONE_OVER_FOURPI = 0.07957747154594767;
+
+		float rayleighPhase( float cosTheta ) {
+			return THREE_OVER_SIXTEENPI * ( 1.0 + pow( cosTheta, 2.0 ) );
+		}
+
+		float hgPhase( float cosTheta, float g ) {
+			float g2 = pow( g, 2.0 );
+			float inverse = 1.0 / pow( 1.0 - 2.0 * g * cosTheta + g2, 1.5 );
+			return ONE_OVER_FOURPI * ( ( 1.0 - g2 ) * inverse );
+		}
+
+		void main() {
+
+			vec3 direction = normalize( vWorldPosition - cameraPosition );
+
+			// optical length
+			// cutoff angle at 90 to avoid singularity in next formula.
+			float zenithAngle = acos( max( 0.0, dot( up, direction ) ) );
+			float inverse = 1.0 / ( cos( zenithAngle ) + 0.15 * pow( 93.885 - ( ( zenithAngle * 180.0 ) / pi ), -1.253 ) );
+			float sR = rayleighZenithLength * inverse;
+			float sM = mieZenithLength * inverse;
+
+			// combined extinction factor
+			vec3 Fex = exp( -( vBetaR * sR + vBetaM * sM ) );
+
+			// in scattering
+			float cosTheta = dot( direction, vSunDirection );
+
+			float rPhase = rayleighPhase( cosTheta * 0.5 + 0.5 );
+			vec3 betaRTheta = vBetaR * rPhase;
+
+			float mPhase = hgPhase( cosTheta, mieDirectionalG );
+			vec3 betaMTheta = vBetaM * mPhase;
+
+			vec3 Lin = pow( vSunE * ( ( betaRTheta + betaMTheta ) / ( vBetaR + vBetaM ) ) * ( 1.0 - Fex ), vec3( 1.5 ) );
+			Lin *= mix( vec3( 1.0 ), pow( vSunE * ( ( betaRTheta + betaMTheta ) / ( vBetaR + vBetaM ) ) * Fex, vec3( 1.0 / 2.0 ) ), clamp( pow( 1.0 - dot( up, vSunDirection ), 5.0 ), 0.0, 1.0 ) );
+
+			// nightsky
+			float theta = acos( direction.y ); // elevation --> y-axis, [-pi/2, pi/2]
+			float phi = atan( direction.z, direction.x ); // azimuth --> x-axis [-pi/2, pi/2]
+			vec2 uv = vec2( phi, theta ) / vec2( 2.0 * pi, pi ) + vec2( 0.5, 0.0 );
+			vec3 L0 = vec3( 0.1 ) * Fex;
+
+			// composition + solar disc
+			float sundisc = smoothstep( sunAngularDiameterCos, sunAngularDiameterCos + 0.00002, cosTheta ) * showSunDisc;
+			L0 += ( vSunE * 19000.0 * Fex ) * sundisc;
+
+			vec3 texColor = ( Lin + L0 ) * 0.04 + vec3( 0.0, 0.0003, 0.00075 );
+
+			// Clouds
+			if ( direction.y > 0.0 && cloudCoverage > 0.0 ) {
+
+				// Project to cloud plane (higher elevation = clouds appear lower/closer)
+				float elevation = mix( 1.0, 0.1, cloudElevation );
+				vec2 cloudUV = direction.xz / ( direction.y * elevation );
+				cloudUV *= cloudScale;
+				cloudUV += time * cloudSpeed;
+
+				// Multi-octave noise for fluffy clouds
+				float cloudNoise = fbm( cloudUV * 1000.0 );
+				cloudNoise += 0.5 * fbm( cloudUV * 2000.0 + 3.7 );
+				cloudNoise = cloudNoise * 0.5 + 0.5;
+
+				// Apply coverage threshold
+				float cloudMask = smoothstep( 1.0 - cloudCoverage, 1.0 - cloudCoverage + 0.3, cloudNoise );
+
+				// Fade clouds near horizon (adjusted by elevation)
+				float horizonFade = smoothstep( 0.0, 0.1 + 0.2 * cloudElevation, direction.y );
+				cloudMask *= horizonFade;
+
+				// Cloud lighting based on sun position
+				float sunInfluence = dot( direction, vSunDirection ) * 0.5 + 0.5;
+				float daylight = max( 0.0, vSunDirection.y * 2.0 );
+
+				// Base cloud color affected by atmosphere
+				vec3 atmosphereColor = Lin * 0.04;
+				vec3 cloudColor = mix( vec3( 0.3 ), vec3( 1.0 ), daylight );
+				cloudColor = mix( cloudColor, atmosphereColor + vec3( 1.0 ), sunInfluence * 0.5 );
+				cloudColor *= vSunE * 0.00002;
+
+				// Blend clouds with sky
+				texColor = mix( texColor, cloudColor, cloudMask * cloudDensity );
+
+			}
+
+			gl_FragColor = vec4( texColor, 1.0 );
+
+			#include <tonemapping_fragment>
+			#include <colorspace_fragment>
+
+		}`
+};
+//#endregion
 //#region node_modules/three/examples/jsm/controls/OrbitControls.js
 /**
 * Fires when the camera has been transformed by the controls.
@@ -34000,4 +34457,4 @@ function interceptControlUp(event) {
 	}
 }
 //#endregion
-export { SRGBColorSpace as _, BufferGeometry as a, Vector2 as b, FogExp2 as c, Line as d, LineBasicMaterial as f, Raycaster as g, PerspectiveCamera as h, BoxGeometry as i, Group as l, MeshBasicMaterial as m, WebGLRenderer as n, Color as o, Matrix4 as p, three_module_exports as r, DynamicDrawUsage as s, OrbitControls as t, InstancedMesh as u, Scene as v, Vector3 as x, SphereGeometry as y };
+export { Vector3 as _, CanvasTexture as a, FogExp2 as c, MathUtils as d, PerspectiveCamera as f, SpriteMaterial as g, Sprite as h, three_module_exports as i, Group as l, Scene as m, Sky as n, Clock as o, SRGBColorSpace as p, WebGLRenderer as r, DirectionalLight as s, OrbitControls as t, HemisphereLight as u };
