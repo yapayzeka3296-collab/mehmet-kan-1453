@@ -30,7 +30,7 @@ function MySkyParcelEarthGlobeSafe({ className = "" }) {
 			try {
 				const test = document.createElement("canvas");
 				if (!(test.getContext("webgl") || test.getContext("experimental-webgl"))) throw new Error("WebGL unavailable");
-				const THREE = await import("../_libs/three.mjs").then((n) => n.r);
+				const THREE = await import("../_libs/three.mjs").then((n) => n.n);
 				if (cancelled) return;
 				const renderer = new THREE.WebGLRenderer({
 					antialias: true,
