@@ -164,7 +164,6 @@ function GokyuzuPage() {
       cancelAnimationFrame(frame);
 
       controls.dispose();
-      controls.dispose();
       window.removeEventListener('resize', resize);
 
       skyTexture.dispose();
