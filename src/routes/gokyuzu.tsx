@@ -89,42 +89,54 @@ function GokyuzuPage() {
       }
     }
 
-    let offsetX = 0;
-    let offsetZ = 0;
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
 
-    const wrap = (value: number, size: number) =>
-      ((value % size) + size) % size;
-
     const onPointerDown = (event: PointerEvent) => {
+      event.preventDefault();
       dragging = true;
       lastX = event.clientX;
       lastY = event.clientY;
+      renderer.domElement.style.cursor = 'grabbing';
       renderer.domElement.setPointerCapture(event.pointerId);
     };
 
     const onPointerMove = (event: PointerEvent) => {
       if (!dragging) return;
+      event.preventDefault();
+
       const dx = event.clientX - lastX;
       const dy = event.clientY - lastY;
       lastX = event.clientX;
       lastY = event.clientY;
 
-      offsetX += dx * 0.16;
-      offsetZ += dy * 0.16;
+      // Move the actual parcel surface with the finger/mouse.
+      // No camera rotation: only the parcel world slides underneath the view.
+      const moveX = dx * 0.28;
+      const moveZ = dy * 0.28;
 
-      const wrappedX = wrap(offsetX, tileSize);
-      const wrappedZ = wrap(offsetZ, tileSize);
-      gridGroup.position.x = wrappedX;
-      gridGroup.position.z = wrappedZ;
-      grid.position.x = wrappedX;
-      grid.position.z = -40 + wrappedZ;
+      gridGroup.position.x += moveX;
+      gridGroup.position.z += moveZ;
+      grid.position.x += moveX;
+      grid.position.z += moveZ;
+
+      // Recycle the visible grid in whole-tile steps so the world feels endless.
+      if (Math.abs(gridGroup.position.x) >= tileSize) {
+        const steps = Math.trunc(gridGroup.position.x / tileSize);
+        gridGroup.position.x -= steps * tileSize;
+        grid.position.x -= steps * tileSize;
+      }
+      if (Math.abs(gridGroup.position.z) >= tileSize) {
+        const steps = Math.trunc(gridGroup.position.z / tileSize);
+        gridGroup.position.z -= steps * tileSize;
+        grid.position.z -= steps * tileSize;
+      }
     };
 
     const onPointerUp = (event: PointerEvent) => {
       dragging = false;
+      renderer.domElement.style.cursor = 'grab';
       if (renderer.domElement.hasPointerCapture(event.pointerId)) {
         renderer.domElement.releasePointerCapture(event.pointerId);
       }
