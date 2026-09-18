@@ -102,6 +102,8 @@ function GokyuzuPage() {
     // Three.js supports one-finger pan and left-mouse pan natively.
     const controls = new MapControls(camera, renderer.domElement);
     controls.enableRotate = false;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
     controls.enableZoom = true;
     controls.minDistance = 18;
     controls.maxDistance = 150;
@@ -324,6 +326,10 @@ function GokyuzuPage() {
     };
 
     controls.addEventListener('change', onControlsChange);
+    const onControlsStart = () => { renderer.domElement.style.cursor = 'grabbing'; };
+    const onControlsEnd = () => { renderer.domElement.style.cursor = 'grab'; };
+    controls.addEventListener('start', onControlsStart);
+    controls.addEventListener('end', onControlsEnd);
 
     const raycaster = new THREE.Raycaster();
     raycaster.params.Line.threshold = 2.5;
@@ -381,6 +387,7 @@ function GokyuzuPage() {
         line.position.y = wave + secondaryWave;
       }
 
+      controls.update();
       renderer.render(scene, camera);
     };
     animate();
@@ -388,6 +395,8 @@ function GokyuzuPage() {
     return () => {
       cancelAnimationFrame(frame);
       controls.removeEventListener('change', onControlsChange);
+      controls.removeEventListener('start', onControlsStart);
+      controls.removeEventListener('end', onControlsEnd);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       renderer.domElement.removeEventListener('pointerup', onPointerUp);
       controls.dispose();
