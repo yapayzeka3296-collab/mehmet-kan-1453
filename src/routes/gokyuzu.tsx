@@ -104,8 +104,8 @@ function GokyuzuPage() {
     controls.maxDistance = 150;
     controls.zoomSpeed = 1.15;
     controls.enablePan = true;
-    controls.screenSpacePanning = false;
-    controls.panSpeed = 1.15;
+    controls.screenSpacePanning = true;
+    controls.panSpeed = 2.0;
     controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
     controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
     controls.touches.ONE = THREE.TOUCH.PAN;
@@ -117,26 +117,51 @@ function GokyuzuPage() {
     scene.add(parcelGroup);
 
     const realParcelCache = new Map<number, Map<string, RealSkyParcel>>();
-    let cityNames: string[] = [];
-    let cityNamesLoaded = false;
     const loadingCities = new Set<number>();
+    const specialProvinceNumbers: Record<string, number> = {
+      ANK: 6,
+      ANT: 7,
+      BUR: 16,
+      GZT: 27,
+      IST: 34,
+      IZM: 35,
+      KAY: 38,
+    };
+    let cityCodes: string[] = [];
+    let cityNamesLoaded = false;
 
     const loadCityParcels = async (cityIndex: number) => {
       if (cityIndex < 0 || cityIndex >= CITY_COUNT || realParcelCache.has(cityIndex) || loadingCities.has(cityIndex)) return;
+
       if (!cityNamesLoaded) {
-        const result = await supabaseBrowser.from('cities').select('name,code').eq('is_active', true).order('code', { ascending: true });
+        const result = await supabaseBrowser
+          .from('cities')
+          .select('name,code')
+          .eq('is_active', true);
+
         if (result.error) throw new Error('İller yüklenemedi: ' + result.error.message);
-        cityNames = (result.data ?? []).map((city) => city.name);
+
+        const cities = (result.data ?? [])
+          .map((city) => ({ name: city.name, code: city.code }))
+          .sort((a, b) => {
+            const aNumber = specialProvinceNumbers[a.code] ?? Number(a.code);
+            const bNumber = specialProvinceNumbers[b.code] ?? Number(b.code);
+            return aNumber - bNumber;
+          });
+
+        cityCodes = cities.map((city) => city.code);
         cityNamesLoaded = true;
       }
-      const cityName = cityNames[cityIndex];
-      if (!cityName) return;
+
+      const cityCode = cityCodes[cityIndex];
+      if (!cityCode) return;
+
       loadingCities.add(cityIndex);
       try {
         const result = await supabaseBrowser
           .from('parcel_map_public')
           .select('id,parcel_number,status,price,tier,city_name,city_code,layer_number,sector_number,grid_x,grid_y')
-          .eq('city_name', cityName)
+          .eq('city_code', cityCode)
           .order('grid_y', { ascending: true })
           .order('grid_x', { ascending: true })
           .limit(1000);
@@ -163,10 +188,10 @@ function GokyuzuPage() {
     const parcelLines: THREE.LineLoop[] = [];
     const parcelMeshes: THREE.Mesh[] = [];
     const realParcelMaterials = {
-      available: new THREE.MeshBasicMaterial({ color: 0x2ee6a6, transparent: true, opacity: 0.22, side: THREE.DoubleSide }),
-      sold: new THREE.MeshBasicMaterial({ color: 0xff5c7a, transparent: true, opacity: 0.24, side: THREE.DoubleSide }),
-      reserved: new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.24, side: THREE.DoubleSide }),
-      other: new THREE.MeshBasicMaterial({ color: 0x8ea0b8, transparent: true, opacity: 0.18, side: THREE.DoubleSide }),
+      available: new THREE.MeshBasicMaterial({ color: 0x2ee6a6, transparent: true, opacity: 0.48, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
+      sold: new THREE.MeshBasicMaterial({ color: 0xff5c7a, transparent: true, opacity: 0.48, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
+      reserved: new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.52, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
+      other: new THREE.MeshBasicMaterial({ color: 0x8ea0b8, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
     };
     const visibleWidth = VISIBLE_X * 2 + 1;
     const visibleDepth = VISIBLE_Z * 2 + 1;
@@ -182,7 +207,7 @@ function GokyuzuPage() {
         realParcelMaterials.other,
       );
       mesh.rotation.x = -Math.PI / 2;
-      mesh.position.y = 2.2;
+      mesh.position.y = 2.65;
       mesh.visible = false;
       parcelGroup.add(mesh);
       parcelMeshes.push(mesh);
@@ -274,7 +299,7 @@ function GokyuzuPage() {
 
           const mesh = parcelMeshes[index - 1];
           mesh.visible = Boolean(realParcel);
-          mesh.position.set(x + TILE_SIZE / 2, y + 0.08, z + TILE_SIZE / 2);
+          mesh.position.set(x + TILE_SIZE / 2, y + 0.18, z + TILE_SIZE / 2);
           mesh.rotation.x = -Math.PI / 2;
           if (realParcel) {
             const status = realParcel.status === 'sold'
