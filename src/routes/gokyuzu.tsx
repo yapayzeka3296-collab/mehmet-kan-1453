@@ -55,13 +55,10 @@ function GokyuzuPage() {
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
         texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-
-        // Keep the real photographic sky visible behind the UI.
         mount.classList.add('gokyuzu-sky-ready');
       },
       undefined,
       () => {
-        // Never leave a black canvas if the remote image is unavailable.
         mount.classList.add('gokyuzu-sky-fallback');
       },
     );
@@ -82,16 +79,22 @@ function GokyuzuPage() {
     scene.add(skyDome);
 
     const controls = new OrbitControls(camera, renderer.domElement);
+
+    // Full 360° panorama navigation: one-finger drag on mobile and
+    // left-mouse drag on desktop rotate the view without panning or zooming.
+    controls.enableRotate = true;
+    controls.enablePan = false;
+    controls.enableZoom = false;
+    controls.minAzimuthAngle = -Infinity;
+    controls.maxAzimuthAngle = Infinity;
+    controls.minPolarAngle = 0.001;
+    controls.maxPolarAngle = Math.PI - 0.001;
+    controls.rotateSpeed = 0.55;
     controls.enableDamping = true;
     controls.dampingFactor = 0.045;
-    controls.enablePan = false;
-    controls.minDistance = 0.01;
-    controls.maxDistance = 0.01;
-    controls.minPolarAngle = 0.08;
-    controls.maxPolarAngle = Math.PI - 0.08;
+    controls.touches.ONE = THREE.TOUCH.ROTATE;
+    controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
     controls.target.set(0, 0, -1);
-    controls.rotateSpeed = 0.2;
-    controls.zoomToCursor = false;
 
     const resize = () => {
       const width = Math.max(mount.clientWidth, 1);
@@ -136,17 +139,17 @@ function GokyuzuPage() {
         <div>
           <div className="gokyuzu-kicker">MYSKYPARCEL · PARSEL DÜNYASI</div>
           <h1>Gökyüzü</h1>
-          <p>Gerçek gündüz gökyüzünü 3D olarak keşfet.</p>
+          <p>Gerçek gündüz gökyüzünü 360° olarak keşfet.</p>
         </div>
 
         <div className="gokyuzu-badge">
           <span className="sun-dot" />
-          <span>Gerçek gündüz gökyüzü</span>
+          <span>360° gündüz gökyüzü</span>
         </div>
       </header>
 
       <div className="gokyuzu-controls">
-        <span>👆 Sürükle: gökyüzüne bak</span>
+        <span>👆 Sürükle: 360° bakış</span>
         <span>☁️ Bulutlar sabit</span>
       </div>
     </main>
