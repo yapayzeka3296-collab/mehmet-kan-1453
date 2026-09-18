@@ -1,24 +1,19 @@
-.gokyuzu-page{position:relative;min-height:100dvh;overflow:hidden;background:linear-gradient(180deg,#4da9e8 0%,#8fd2f4 48%,#dff5ff 100%);color:#0b2940;font-family:inherit}
-.gokyuzu-canvas{position:absolute;inset:0;z-index:1}
+.gokyuzu-page{position:relative;min-height:100dvh;overflow:hidden;background:#78bde8;color:#083b5a;font-family:inherit}
+.gokyuzu-canvas{position:absolute;inset:0;z-index:1;background:#78bde8}
 .gokyuzu-canvas canvas{display:block;width:100%;height:100%;touch-action:none}
 .gokyuzu-header{position:absolute;left:24px;top:22px;right:24px;z-index:5;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;pointer-events:none}
-.gokyuzu-kicker{font-size:11px;letter-spacing:.2em;font-weight:900;color:#075985;text-shadow:0 1px 12px rgba(255,255,255,.65)}
-.gokyuzu-header h1{margin:7px 0 0;font-size:clamp(42px,7vw,76px);line-height:.95;font-weight:950;letter-spacing:-.045em;color:#073b5c;text-shadow:0 3px 22px rgba(255,255,255,.65)}
-.gokyuzu-header p{margin:11px 0 0;max-width:560px;font-size:14px;line-height:1.5;color:#164e68;text-shadow:0 1px 10px rgba(255,255,255,.8)}
-.gokyuzu-badge{display:flex;align-items:center;gap:9px;padding:11px 14px;border:1px solid rgba(255,255,255,.68);border-radius:999px;background:rgba(255,255,255,.34);backdrop-filter:blur(16px);box-shadow:0 10px 35px rgba(18,82,120,.14);font-size:12px;font-weight:850;color:#075985;white-space:nowrap}
-.sun-dot{width:10px;height:10px;border-radius:50%;background:#fbbf24;box-shadow:0 0 16px rgba(251,191,36,.9)}
-.gokyuzu-horizon{position:absolute;left:50%;bottom:92px;z-index:5;transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:11px 16px;border:1px solid rgba(255,255,255,.62);border-radius:18px;background:rgba(255,255,255,.25);backdrop-filter:blur(14px);box-shadow:0 14px 45px rgba(20,83,115,.13);pointer-events:none}
-.gokyuzu-horizon>span{font-size:28px;font-weight:300;color:#0c83bb;line-height:1}
-.gokyuzu-horizon strong{display:block;font-size:12px;color:#0c4a6e}
-.gokyuzu-horizon small{display:block;margin-top:2px;font-size:10px;color:#155e75;opacity:.76}
-.gokyuzu-controls{position:absolute;left:24px;bottom:22px;z-index:5;display:flex;gap:8px;flex-wrap:wrap;font-size:11px}
-.gokyuzu-controls span{padding:8px 11px;border:1px solid rgba(255,255,255,.6);border-radius:11px;background:rgba(255,255,255,.28);backdrop-filter:blur(12px);box-shadow:0 8px 25px rgba(20,83,115,.1);color:#164e63}
+.gokyuzu-kicker{font-size:11px;letter-spacing:.2em;font-weight:900;color:#075985;text-shadow:0 1px 10px rgba(255,255,255,.85)}
+.gokyuzu-header h1{margin:7px 0 0;font-size:clamp(42px,7vw,76px);line-height:.95;font-weight:950;letter-spacing:-.045em;color:#063b5c;text-shadow:0 3px 22px rgba(255,255,255,.72)}
+.gokyuzu-header p{margin:11px 0 0;max-width:560px;font-size:14px;line-height:1.5;color:#164e68;text-shadow:0 1px 9px rgba(255,255,255,.9)}
+.gokyuzu-badge{display:flex;align-items:center;gap:9px;padding:11px 14px;border:1px solid rgba(255,255,255,.72);border-radius:999px;background:rgba(255,255,255,.3);backdrop-filter:blur(16px);box-shadow:0 10px 35px rgba(18,82,120,.14);font-size:12px;font-weight:850;color:#075985;white-space:nowrap}
+.sun-dot{width:10px;height:10px;border-radius:50%;background:#ffd34e;box-shadow:0 0 16px rgba(255,211,78,.9)}
+.gokyuzu-controls{position:absolute;left:24px;bottom:22px;z-index:5;display:flex;gap:8px;flex-wrap:wrap;font-size:11px;pointer-events:none}
+.gokyuzu-controls span{padding:8px 11px;border:1px solid rgba(255,255,255,.65);border-radius:11px;background:rgba(255,255,255,.28);backdrop-filter:blur(12px);box-shadow:0 8px 25px rgba(20,83,115,.1);color:#164e63}
 @media(max-width:700px){
 .gokyuzu-header{left:14px;right:14px;top:14px}
 .gokyuzu-kicker{font-size:9px}
 .gokyuzu-header h1{font-size:43px}
 .gokyuzu-header p{display:none}
 .gokyuzu-badge{padding:9px 11px;font-size:10px}
-.gokyuzu-horizon{bottom:76px;width:max-content;max-width:calc(100% - 28px)}
 .gokyuzu-controls{left:14px;bottom:14px}
 }
