@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 
 type Props = { className?: string };
 
-const EARTH_TEXTURE = "/api/earth-assets?type=earth";
+const EARTH_TEXTURE = "https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg";
 const CLOUD_TEXTURE = "/api/earth-assets?type=clouds";
 const RADIUS = 1.5;
 const MIN_ZOOM = 3;
@@ -38,7 +38,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
 
         const mobile = window.matchMedia("(max-width:767px)").matches ? 0.7 : 1;
         const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "high-performance" });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile === 1 ? 0.85 : 1));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile === 1 ? 0.8 : 0.9));
         renderer.setClearColor(0, 0);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.domElement.style.cssText = "position:absolute;inset:0;display:block;width:100%;height:100%;max-width:100%;max-height:100%;touch-action:none;pointer-events:auto;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;cursor:grab";
@@ -57,26 +57,26 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         scene.add(fill);
 
         const loader = new THREE.TextureLoader();
-        const earthTexture = loader.load(EARTH_TEXTURE);
+        const earthTexture = loader.load(EARTH_TEXTURE, (texture) => { texture.colorSpace = THREE.SRGBColorSpace; try { renderer.initTexture(texture); } catch (error) { console.warn("MySkyParcel earth texture init", error); } });
         earthTexture.colorSpace = THREE.SRGBColorSpace;
         earthTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 2);
-        const cloudTexture = loader.load(CLOUD_TEXTURE);
+        const cloudTexture = loader.load(CLOUD_TEXTURE, (texture) => { texture.colorSpace = THREE.SRGBColorSpace; try { renderer.initTexture(texture); } catch (error) { console.warn("MySkyParcel cloud texture init", error); } });
         cloudTexture.colorSpace = THREE.SRGBColorSpace;
         cloudTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 1);
 
         const radius = RADIUS * mobile;
 
-        const earthGeometry = new THREE.SphereGeometry(radius, 96, 96);
+        const earthGeometry = new THREE.SphereGeometry(radius, 64, 64);
         const earthMaterial = new THREE.MeshPhongMaterial({ map: earthTexture, shininess: 10, specular: new THREE.Color(0x28476a) });
         const earth = new THREE.Mesh(earthGeometry, earthMaterial);
         scene.add(earth);
 
-        const cloudGeometry = new THREE.SphereGeometry(radius * 1.014, 64, 64);
+        const cloudGeometry = new THREE.SphereGeometry(radius * 1.014, 48, 48);
         const cloudMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, alphaMap: cloudTexture, transparent: true, opacity: 0.43, depthWrite: false });
         const clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
         scene.add(clouds);
 
-        const atmosphereGeometry = new THREE.SphereGeometry(radius * 1.09, 64, 64);
+        const atmosphereGeometry = new THREE.SphereGeometry(radius * 1.09, 48, 48);
         const atmosphereMaterial = new THREE.MeshBasicMaterial({
           color: 0x4da6ff,
           transparent: true,
@@ -89,7 +89,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         scene.add(atmosphere);
 
         const createStarField = () => {
-          const count = mobile < 1 ? 700 : 1200;
+          const count = mobile < 1 ? 450 : 700;
           const positions = new Float32Array(count * 3);
           for (let i = 0; i < count; i++) {
             const distance = 12 + Math.random() * 29;
@@ -189,13 +189,15 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
           const delta = clock.getDelta();
           const interacting = dragging || pointers.size > 0;
           if (!interacting) { earth.rotation.y += delta * 0.018; clouds.rotation.y += delta * 0.004; syncStarsToEarth(); }
-          const interval = interacting ? 1000 / 60 : 1000 / 30;
+          const interval = interacting ? 1000 / 60 : 1000 / 24;
           if (time - lastRender >= interval) {
             lastRender = time;
             renderer.render(scene, camera);
           }
         };
         animate();
+
+        void renderer.compileAsync(scene, camera).catch((error) => console.warn("MySkyParcel globe shader compile", error));
 
         const visibility = () => {
           if (document.hidden) {
