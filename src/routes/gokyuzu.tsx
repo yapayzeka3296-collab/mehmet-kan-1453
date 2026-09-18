@@ -119,6 +119,67 @@ function GokyuzuPage() {
     const parcelGroup = new THREE.Group();
     scene.add(parcelGroup);
 
+    const realParcelCache = new Map<number, Map<string, RealSkyParcel>>();
+    const loadingCities = new Set<number>();
+    const specialProvinceNumbers: Record<string, number> = {
+      ANK: 6,
+      ANT: 7,
+      BUR: 16,
+      GZT: 27,
+      IST: 34,
+      IZM: 35,
+      KAY: 38,
+    };
+    let cityCodes: string[] = [];
+    let cityNamesLoaded = false;
+
+    const loadCityParcels = async (cityIndex: number) => {
+      if (cityIndex < 0 || cityIndex >= CITY_COUNT || realParcelCache.has(cityIndex) || loadingCities.has(cityIndex)) return;
+
+      if (!cityNamesLoaded) {
+        const result = await supabaseBrowser
+          .from('cities')
+          .select('name,code')
+          .eq('is_active', true);
+
+        if (result.error) throw new Error('İller yüklenemedi: ' + result.error.message);
+
+        const cities = (result.data ?? [])
+          .map((city) => ({ name: city.name, code: city.code }))
+          .sort((a, b) => {
+            const aNumber = specialProvinceNumbers[a.code] ?? Number(a.code);
+            const bNumber = specialProvinceNumbers[b.code] ?? Number(b.code);
+            return aNumber - bNumber;
+          });
+
+        cityCodes = cities.map((city) => city.code);
+        cityNamesLoaded = true;
+      }
+
+      const cityCode = cityCodes[cityIndex];
+      if (!cityCode) return;
+
+      loadingCities.add(cityIndex);
+      try {
+        const result = await supabaseBrowser
+          .from('parcel_map_public')
+          .select('id,parcel_number,status,price,tier,city_name,city_code,layer_number,sector_number,grid_x,grid_y')
+          .eq('city_code', cityCode)
+          .order('grid_y', { ascending: true })
+          .order('grid_x', { ascending: true })
+          .limit(1000);
+        if (result.error) throw new Error(`Şehir ${cityCode} parselleri yüklenemedi: ${result.error.message}`);
+        const byGrid = new Map<string, RealSkyParcel>();
+        for (const parcel of (result.data ?? []) as RealSkyParcel[]) {
+          if (parcel.grid_x == null || parcel.grid_y == null) continue;
+          byGrid.set(parcel.grid_x + ':' + parcel.grid_y, parcel);
+        }
+        realParcelCache.set(cityIndex, byGrid);
+      } finally {
+        loadingCities.delete(cityIndex);
+      }
+    };
+
     const lineMaterial = new THREE.LineBasicMaterial({
       color: 0xffd166,
       transparent: true,
