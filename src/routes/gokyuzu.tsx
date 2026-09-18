@@ -87,6 +87,20 @@ function GokyuzuPage() {
     const parcelGroup = new THREE.Group();
     scene.add(parcelGroup);
 
+    // Keep the grid visible immediately while Supabase data is loading.
+    const baseGrid = new THREE.GridHelper(
+      Math.max(PARCEL_COLUMNS, PARCEL_ROWS) * TILE_SIZE,
+      Math.max(PARCEL_COLUMNS, PARCEL_ROWS),
+      0xffd166,
+      0xffd166,
+    );
+    baseGrid.position.set(0, 2.05, 0);
+    baseGrid.material.transparent = true;
+    baseGrid.material.opacity = 0.42;
+    baseGrid.material.depthTest = false;
+    baseGrid.renderOrder = 5;
+    parcelGroup.add(baseGrid);
+
     const specialProvinceNumbers: Record<string, number> = {
       ANK: 6,
       ANT: 7,
@@ -453,8 +467,8 @@ function GokyuzuPage() {
       parcelGroup.position.x = visualOffsetX;
       parcelGroup.position.z = visualOffsetZ;
 
-      if (center === lastRenderedCenter) return;
-      lastRenderedCenter = center;
+      const centerChanged = center !== lastRenderedCenter;
+      if (centerChanged) lastRenderedCenter = center;
 
       let index = 0;
       for (let dz = -VISIBLE_Z; dz <= VISIBLE_Z; dz += 1) {
@@ -481,8 +495,9 @@ function GokyuzuPage() {
           const realParcel = parcelCache.get(cityIndex)?.get(localX + ':' + localZ);
           const y = realParcel ? 2.5 : 2.15;
 
-          const points = line.geometry.getAttribute('position') as THREE.BufferAttribute;
-          if (points.count !== 4) {
+          if (centerChanged) {
+            const points = line.geometry.getAttribute('position') as THREE.BufferAttribute;
+            if (points.count !== 4) {
             line.geometry.setFromPoints([
               new THREE.Vector3(x, y, z),
               new THREE.Vector3(x + TILE_SIZE, y, z),
@@ -495,7 +510,8 @@ function GokyuzuPage() {
             values[3] = x + TILE_SIZE; values[4] = y; values[5] = z;
             values[6] = x + TILE_SIZE; values[7] = y; values[8] = z + TILE_SIZE;
             values[9] = x; values[10] = y; values[11] = z + TILE_SIZE;
-            points.needsUpdate = true;
+              points.needsUpdate = true;
+            }
           }
           line.visible = true;
           line.userData.parcel = realParcel ?? null;
@@ -642,6 +658,9 @@ function GokyuzuPage() {
       skyGeometry.dispose();
       skyMaterial.dispose();
       lineMaterial.dispose();
+      if (Array.isArray(baseGrid.material)) baseGrid.material.forEach((material) => material.dispose());
+      else baseGrid.material.dispose();
+      baseGrid.geometry.dispose();
       Object.values(realParcelMaterials).forEach((material) => material.dispose());
       parcelLines.forEach((line) => line.geometry.dispose());
       parcelMeshes.forEach((mesh) => mesh.geometry.dispose());
