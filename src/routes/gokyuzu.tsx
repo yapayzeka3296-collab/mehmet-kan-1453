@@ -165,7 +165,7 @@ function GokyuzuPage() {
           .order('grid_y', { ascending: true })
           .order('grid_x', { ascending: true })
           .limit(1000);
-        if (result.error) throw new Error(cityName + ' parselleri yüklenemedi: ' + result.error.message);
+        if (result.error) throw new Error(`Şehir ${cityCode} parselleri yüklenemedi: ${result.error.message}`);
         const byGrid = new Map<string, RealSkyParcel>();
         for (const parcel of (result.data ?? []) as RealSkyParcel[]) {
           if (parcel.grid_x == null || parcel.grid_y == null) continue;
@@ -188,10 +188,10 @@ function GokyuzuPage() {
     const parcelLines: THREE.LineLoop[] = [];
     const parcelMeshes: THREE.Mesh[] = [];
     const realParcelMaterials = {
-      available: new THREE.MeshBasicMaterial({ color: 0x2ee6a6, transparent: true, opacity: 0.48, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
+      available: new THREE.MeshBasicMaterial({ color: 0x2ee6a6, transparent: true, opacity: 0.72, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
       sold: new THREE.MeshBasicMaterial({ color: 0xff5c7a, transparent: true, opacity: 0.48, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
-      reserved: new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.52, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
-      other: new THREE.MeshBasicMaterial({ color: 0x8ea0b8, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
+      reserved: new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.76, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
+      other: new THREE.MeshBasicMaterial({ color: 0x8ea0b8, transparent: true, opacity: 0.58, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
     };
     const visibleWidth = VISIBLE_X * 2 + 1;
     const visibleDepth = VISIBLE_Z * 2 + 1;
@@ -299,7 +299,7 @@ function GokyuzuPage() {
 
           const mesh = parcelMeshes[index - 1];
           mesh.visible = Boolean(realParcel);
-          mesh.position.set(x + TILE_SIZE / 2, y + 0.18, z + TILE_SIZE / 2);
+          mesh.position.set(x + TILE_SIZE / 2, y + 0.42, z + TILE_SIZE / 2);
           mesh.rotation.x = -Math.PI / 2;
           if (realParcel) {
             const status = realParcel.status === 'sold'
@@ -397,16 +397,56 @@ function GokyuzuPage() {
       }
     };
 
-    const onControlsChange = () => {
+    // Use an explicit pointer drag layer. This avoids browser/MapControls gesture
+    // differences on Android and makes one-finger/touch dragging deterministic.
+    controls.enabled = false;
+    let dragging = false;
+    let dragPointerId = -1;
+    let lastPointerX = 0;
+    let lastPointerY = 0;
+
+    const onDragStart = (event: PointerEvent) => {
+      dragging = true;
+      dragPointerId = event.pointerId;
+      lastPointerX = event.clientX;
+      lastPointerY = event.clientY;
+      renderer.domElement.setPointerCapture(event.pointerId);
+      renderer.domElement.style.cursor = 'grabbing';
+    };
+    const onDragMove = (event: PointerEvent) => {
+      if (!dragging || event.pointerId !== dragPointerId) return;
+      const dx = event.clientX - lastPointerX;
+      const dy = event.clientY - lastPointerY;
+      lastPointerX = event.clientX;
+      lastPointerY = event.clientY;
+
+      const speed = Math.max(0.08, controls.target.distanceTo(camera.position) * 0.006);
+      controls.target.x -= dx * speed;
+      controls.target.z += dy * speed;
+      camera.position.x -= dx * speed;
+      camera.position.z += dy * speed;
       clampTarget();
       void updateVisibleParcels();
     };
-
-    controls.addEventListener('change', onControlsChange);
-    const onControlsStart = () => { renderer.domElement.style.cursor = 'grabbing'; };
-    const onControlsEnd = () => { renderer.domElement.style.cursor = 'grab'; };
-    controls.addEventListener('start', onControlsStart);
-    controls.addEventListener('end', onControlsEnd);
+    const onDragEnd = (event: PointerEvent) => {
+      if (event.pointerId !== dragPointerId) return;
+      dragging = false;
+      dragPointerId = -1;
+      renderer.domElement.style.cursor = 'grab';
+    };
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const direction = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+      const distance = controls.target.distanceTo(camera.position);
+      const nextDistance = THREE.MathUtils.clamp(distance * (event.deltaY > 0 ? 1.12 : 0.89), 18, 150);
+      const delta = nextDistance - distance;
+      camera.position.addScaledVector(direction, delta);
+    };
+    renderer.domElement.addEventListener('pointerdown', onDragStart);
+    renderer.domElement.addEventListener('pointermove', onDragMove);
+    renderer.domElement.addEventListener('pointerup', onDragEnd);
+    renderer.domElement.addEventListener('pointercancel', onDragEnd);
+    renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
 
     const raycaster = new THREE.Raycaster();
     raycaster.params.Line.threshold = 2.5;
@@ -464,18 +504,18 @@ function GokyuzuPage() {
         line.position.y = wave + secondaryWave;
       }
 
-      controls.update();
       renderer.render(scene, camera);
     };
     animate();
 
     return () => {
       cancelAnimationFrame(frame);
-      controls.removeEventListener('change', onControlsChange);
-      controls.removeEventListener('start', onControlsStart);
-      controls.removeEventListener('end', onControlsEnd);
-      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
-      renderer.domElement.removeEventListener('pointerup', onPointerUp);
+
+      renderer.domElement.removeEventListener('pointerdown', onDragStart);
+      renderer.domElement.removeEventListener('pointermove', onDragMove);
+      renderer.domElement.removeEventListener('pointerup', onDragEnd);
+      renderer.domElement.removeEventListener('pointercancel', onDragEnd);
+      renderer.domElement.removeEventListener('wheel', onWheel);
       controls.dispose();
       window.removeEventListener('resize', resize);
 
