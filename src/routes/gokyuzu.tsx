@@ -62,7 +62,13 @@ function GokyuzuPage() {
     const worldCenterX = ((PARCEL_COLUMNS - 1) * TILE_SIZE) / 2;
     const worldCenterZ = ((PARCEL_ROWS - 1) * TILE_SIZE) / 2;
 
-    camera.position.set(worldCenterX, 32, worldCenterZ + 34);
+    // Start over the first real Supabase parcel region (city 0, local grid 20/12),
+    // not the empty center of the 1000×1000 logical block.
+    const initialColumn = 20;
+    const initialRow = 12;
+    const initialWorldX = initialColumn * TILE_SIZE;
+    const initialWorldZ = initialRow * TILE_SIZE;
+    camera.position.set(initialWorldX, 32, initialWorldZ + 34);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -107,7 +113,7 @@ function GokyuzuPage() {
     controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
     controls.touches.ONE = THREE.TOUCH.PAN;
     controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
-    controls.target.set(worldCenterX, 0, worldCenterZ);
+    controls.target.set(initialWorldX, 2.5, initialWorldZ);
     controls.update();
 
     const parcelGroup = new THREE.Group();
@@ -158,6 +164,13 @@ function GokyuzuPage() {
     });
 
     const parcelLines: THREE.LineLoop[] = [];
+    const parcelMeshes: THREE.Mesh[] = [];
+    const realParcelMaterials = {
+      available: new THREE.MeshBasicMaterial({ color: 0x2ee6a6, transparent: true, opacity: 0.22, side: THREE.DoubleSide }),
+      sold: new THREE.MeshBasicMaterial({ color: 0xff5c7a, transparent: true, opacity: 0.24, side: THREE.DoubleSide }),
+      reserved: new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.24, side: THREE.DoubleSide }),
+      other: new THREE.MeshBasicMaterial({ color: 0x8ea0b8, transparent: true, opacity: 0.18, side: THREE.DoubleSide }),
+    };
     const visibleWidth = VISIBLE_X * 2 + 1;
     const visibleDepth = VISIBLE_Z * 2 + 1;
 
@@ -166,6 +179,16 @@ function GokyuzuPage() {
       const line = new THREE.LineLoop(geometry, lineMaterial);
       parcelGroup.add(line);
       parcelLines.push(line);
+
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(TILE_SIZE * 0.92, TILE_SIZE * 0.92),
+        realParcelMaterials.other,
+      );
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.y = 2.2;
+      mesh.visible = false;
+      parcelGroup.add(mesh);
+      parcelMeshes.push(mesh);
     }
 
     let lastCenterColumn = -1;
@@ -187,10 +210,21 @@ function GokyuzuPage() {
 
       const safeColumn = THREE.MathUtils.clamp(centerColumn, 0, PARCEL_COLUMNS - 1);
       const safeRow = THREE.MathUtils.clamp(centerRow, 0, PARCEL_ROWS - 1);
-      const centerCityX = Math.floor(safeColumn / CITY_GRID_SIZE);
-      const centerCityZ = Math.floor(safeRow / CITY_GRID_SIZE);
-      const centerCityIndex = centerCityZ * CITY_BLOCKS + centerCityX;
-      await loadCityParcels(centerCityIndex);
+      const minColumn = THREE.MathUtils.clamp(safeColumn - VISIBLE_X, 0, PARCEL_COLUMNS - 1);
+      const maxColumn = THREE.MathUtils.clamp(safeColumn + VISIBLE_X, 0, PARCEL_COLUMNS - 1);
+      const minRow = THREE.MathUtils.clamp(safeRow - VISIBLE_Z, 0, PARCEL_ROWS - 1);
+      const maxRow = THREE.MathUtils.clamp(safeRow + VISIBLE_Z, 0, PARCEL_ROWS - 1);
+      const minCityX = Math.floor(minColumn / CITY_GRID_SIZE);
+      const maxCityX = Math.floor(maxColumn / CITY_GRID_SIZE);
+      const minCityZ = Math.floor(minRow / CITY_GRID_SIZE);
+      const maxCityZ = Math.floor(maxRow / CITY_GRID_SIZE);
+      const citiesToLoad: number[] = [];
+      for (let cityZ = minCityZ; cityZ <= maxCityZ; cityZ += 1) {
+        for (let cityX = minCityX; cityX <= maxCityX; cityX += 1) {
+          citiesToLoad.push(cityZ * CITY_BLOCKS + cityX);
+        }
+      }
+      await Promise.all(citiesToLoad.map((cityIndex) => loadCityParcels(cityIndex)));
 
       let index = 0;
 
@@ -207,6 +241,7 @@ function GokyuzuPage() {
             row >= PARCEL_ROWS
           ) {
             line.visible = false;
+            parcelMeshes[index - 1].visible = false;
             continue;
           }
 
@@ -235,6 +270,24 @@ function GokyuzuPage() {
           line.userData.column = column;
           line.userData.row = row;
           line.userData.parcel = realParcel ?? null;
+
+          const mesh = parcelMeshes[index - 1];
+          mesh.visible = Boolean(realParcel);
+          mesh.position.set(x + TILE_SIZE / 2, y + 0.08, z + TILE_SIZE / 2);
+          mesh.rotation.x = -Math.PI / 2;
+          if (realParcel) {
+            const status = realParcel.status === 'sold'
+              ? 'sold'
+              : realParcel.status === 'reserved'
+                ? 'reserved'
+                : realParcel.status === 'available'
+                  ? 'available'
+                  : 'other';
+            mesh.material = realParcelMaterials[status];
+            mesh.userData.parcel = realParcel;
+          } else {
+            mesh.userData.parcel = null;
+          }
         }
       }
     };
@@ -284,7 +337,10 @@ function GokyuzuPage() {
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects(parcelLines.filter((line) => line.visible), false)[0];
+      const realMeshes = parcelMeshes.filter((mesh) => mesh.visible);
+      const meshHit = raycaster.intersectObjects(realMeshes, false)[0];
+      const lineHit = raycaster.intersectObjects(parcelLines.filter((line) => line.visible), false)[0];
+      const hit = meshHit ?? lineHit;
       const parcel = hit?.object?.userData?.parcel as RealSkyParcel | null | undefined;
       if (parcel) setSelectedParcel(parcel);
     };
@@ -340,8 +396,10 @@ function GokyuzuPage() {
       skyGeometry.dispose();
       skyMaterial.dispose();
       lineMaterial.dispose();
+      Object.values(realParcelMaterials).forEach((material) => material.dispose());
 
       parcelLines.forEach((line) => line.geometry.dispose());
+      parcelMeshes.forEach((mesh) => mesh.geometry.dispose());
       renderer.dispose();
       renderer.domElement.remove();
     };
