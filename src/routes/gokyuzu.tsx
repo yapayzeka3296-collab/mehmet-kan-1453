@@ -1,7 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import * as THREE from 'three';
 import { MapControls } from 'three/addons/controls/MapControls.js';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import './gokyuzu.css';
 
 export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
@@ -9,22 +10,41 @@ export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
 const SKY_IMAGE_URL =
   'https://cdn.polyhaven.com/asset_img/primary/kloppenheim_03_puresky.png?height=2048';
 
-// 81,000 logical parcels: 360 columns × 225 rows.
-// Only the parcels around the camera are rendered; dragging loads/recycles
-// the visible window, so we do not create 81,000 WebGL objects at once.
-const PARCEL_COLUMNS = 360;
-const PARCEL_ROWS = 225;
-const TOTAL_PARCELS = PARCEL_COLUMNS * PARCEL_ROWS;
+// 81 provinces × 1,000,000 logical sky parcels = 81,000,000.
+// The database currently contains the real 81,000 seeded parcel records.
+// The large coordinate space stays logical; real records are loaded lazily.
+const CITY_COUNT = 81;
+const PARCELS_PER_CITY = 1_000_000;
+const CITY_GRID_SIZE = 1_000;
+const CITY_BLOCKS = 9;
+const PARCEL_COLUMNS = CITY_BLOCKS * CITY_GRID_SIZE;
+const PARCEL_ROWS = CITY_BLOCKS * CITY_GRID_SIZE;
+const TOTAL_PARCELS = CITY_COUNT * PARCELS_PER_CITY;
 const TILE_SIZE = 10;
 const VISIBLE_X = 18;
 const VISIBLE_Z = 14;
 
-function parcelNumber(column: number, row: number) {
-  return row * PARCEL_COLUMNS + column + 1;
+type RealSkyParcel = {
+  id: string;
+  parcel_number: string;
+  status: string;
+  price: number | null;
+  tier: string | null;
+  city_name: string | null;
+  city_code: string | null;
+  layer_number: number | null;
+  sector_number: number | null;
+  grid_x: number | null;
+  grid_y: number | null;
+};
+
+function logicalParcelNumber(cityIndex: number, localX: number, localZ: number) {
+  return cityIndex * PARCELS_PER_CITY + localZ * CITY_GRID_SIZE + localX + 1;
 }
 
 function GokyuzuPage() {
   const mountRef = useRef<HTMLDivElement>(null);
+  const [selectedParcel, setSelectedParcel] = useState<RealSkyParcel | null>(null);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -93,6 +113,42 @@ function GokyuzuPage() {
     const parcelGroup = new THREE.Group();
     scene.add(parcelGroup);
 
+    const realParcelCache = new Map<number, Map<string, RealSkyParcel>>();
+    let cityNames: string[] = [];
+    let cityNamesLoaded = false;
+    const loadingCities = new Set<number>();
+
+    const loadCityParcels = async (cityIndex: number) => {
+      if (cityIndex < 0 || cityIndex >= CITY_COUNT || realParcelCache.has(cityIndex) || loadingCities.has(cityIndex)) return;
+      if (!cityNamesLoaded) {
+        const result = await supabaseBrowser.from('cities').select('name,code').eq('is_active', true).order('code', { ascending: true });
+        if (result.error) throw new Error('İller yüklenemedi: ' + result.error.message);
+        cityNames = (result.data ?? []).map((city) => city.name);
+        cityNamesLoaded = true;
+      }
+      const cityName = cityNames[cityIndex];
+      if (!cityName) return;
+      loadingCities.add(cityIndex);
+      try {
+        const result = await supabaseBrowser
+          .from('parcel_map_public')
+          .select('id,parcel_number,status,price,tier,city_name,city_code,layer_number,sector_number,grid_x,grid_y')
+          .eq('city_name', cityName)
+          .order('grid_y', { ascending: true })
+          .order('grid_x', { ascending: true })
+          .limit(1000);
+        if (result.error) throw new Error(cityName + ' parselleri yüklenemedi: ' + result.error.message);
+        const byGrid = new Map<string, RealSkyParcel>();
+        for (const parcel of (result.data ?? []) as RealSkyParcel[]) {
+          if (parcel.grid_x == null || parcel.grid_y == null) continue;
+          byGrid.set(parcel.grid_x + ':' + parcel.grid_y, parcel);
+        }
+        realParcelCache.set(cityIndex, byGrid);
+      } finally {
+        loadingCities.delete(cityIndex);
+      }
+    };
+
     const lineMaterial = new THREE.LineBasicMaterial({
       color: 0xffd166,
       transparent: true,
@@ -115,7 +171,7 @@ function GokyuzuPage() {
     let lastCenterColumn = -1;
     let lastCenterRow = -1;
 
-    const updateVisibleParcels = () => {
+    const updateVisibleParcels = async () => {
       const centerColumn = Math.floor(controls.target.x / TILE_SIZE);
       const centerRow = Math.floor(controls.target.z / TILE_SIZE);
 
@@ -128,6 +184,13 @@ function GokyuzuPage() {
 
       lastCenterColumn = centerColumn;
       lastCenterRow = centerRow;
+
+      const safeColumn = THREE.MathUtils.clamp(centerColumn, 0, PARCEL_COLUMNS - 1);
+      const safeRow = THREE.MathUtils.clamp(centerRow, 0, PARCEL_ROWS - 1);
+      const centerCityX = Math.floor(safeColumn / CITY_GRID_SIZE);
+      const centerCityZ = Math.floor(safeRow / CITY_GRID_SIZE);
+      const centerCityIndex = centerCityZ * CITY_BLOCKS + centerCityX;
+      await loadCityParcels(centerCityIndex);
 
       let index = 0;
 
@@ -150,7 +213,13 @@ function GokyuzuPage() {
           const x = column * TILE_SIZE;
           const z = row * TILE_SIZE;
 
-          const y = 2.5;
+          const cityX = Math.floor(column / CITY_GRID_SIZE);
+          const cityZ = Math.floor(row / CITY_GRID_SIZE);
+          const cityIndex = cityZ * CITY_BLOCKS + cityX;
+          const localX = column - cityX * CITY_GRID_SIZE;
+          const localZ = row - cityZ * CITY_GRID_SIZE;
+          const realParcel = realParcelCache.get(cityIndex)?.get(localX + ':' + localZ);
+          const y = realParcel ? 2.5 : 2.15;
           const points = [
             new THREE.Vector3(x, y, z),
             new THREE.Vector3(x + TILE_SIZE, y, z),
@@ -162,14 +231,15 @@ function GokyuzuPage() {
           line.geometry = new THREE.BufferGeometry().setFromPoints(points);
           line.visible = true;
           line.position.set(0, 0, 0);
-          line.userData.parcelNumber = parcelNumber(column, row);
+          line.userData.parcelNumber = realParcel?.parcel_number ?? logicalParcelNumber(cityIndex, localX, localZ);
           line.userData.column = column;
           line.userData.row = row;
+          line.userData.parcel = realParcel ?? null;
         }
       }
     };
 
-    updateVisibleParcels();
+    void updateVisibleParcels();
 
     const clampTarget = () => {
       const halfX = TILE_SIZE / 2;
@@ -197,10 +267,29 @@ function GokyuzuPage() {
 
     const onControlsChange = () => {
       clampTarget();
-      updateVisibleParcels();
+      void updateVisibleParcels();
     };
 
     controls.addEventListener('change', onControlsChange);
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.params.Line.threshold = 2.5;
+    const pointer = new THREE.Vector2();
+    let pointerDownX = 0;
+    let pointerDownY = 0;
+    const onPointerDown = (event: PointerEvent) => { pointerDownX = event.clientX; pointerDownY = event.clientY; };
+    const onPointerUp = (event: PointerEvent) => {
+      if (Math.hypot(event.clientX - pointerDownX, event.clientY - pointerDownY) > 8) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObjects(parcelLines.filter((line) => line.visible), false)[0];
+      const parcel = hit?.object?.userData?.parcel as RealSkyParcel | null | undefined;
+      if (parcel) setSelectedParcel(parcel);
+    };
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    renderer.domElement.addEventListener('pointerup', onPointerUp);
 
     const resize = () => {
       const width = Math.max(mount.clientWidth, 1);
@@ -242,6 +331,8 @@ function GokyuzuPage() {
     return () => {
       cancelAnimationFrame(frame);
       controls.removeEventListener('change', onControlsChange);
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      renderer.domElement.removeEventListener('pointerup', onPointerUp);
       controls.dispose();
       window.removeEventListener('resize', resize);
 
@@ -276,7 +367,7 @@ function GokyuzuPage() {
 
         <div className="gokyuzu-badge">
           <span className="sun-dot" />
-          <span>{TOTAL_PARCELS.toLocaleString('tr-TR')} PARSEL</span>
+          <span>{TOTAL_PARCELS.toLocaleString('tr-TR')} SANAL PARSEL</span>
         </div>
       </header>
 
@@ -284,8 +375,23 @@ function GokyuzuPage() {
         <span>👆 Parmağınla sürükle</span>
         <span>🖱️ Fareyle sürükle</span>
         <span>↕️ Yakınlaştır / uzaklaştır</span>
-        <span>▦ Sürükledikçe yeni parseller</span>
+        <span>▦ Gerçek Supabase parselleri</span>
       </div>
+
+      {selectedParcel && (
+        <aside className="gokyuzu-parcel-panel">
+          <button className="gokyuzu-parcel-close" onClick={() => setSelectedParcel(null)} aria-label="Parsel panelini kapat">×</button>
+          <div className="gokyuzu-parcel-kicker">{selectedParcel.city_name ?? 'Türkiye'} · Katman {selectedParcel.layer_number ?? 1} · Sektör {selectedParcel.sector_number ?? 1}</div>
+          <h2>PARSEL #{selectedParcel.parcel_number}</h2>
+          <div className="gokyuzu-parcel-meta">
+            <span>{selectedParcel.status === 'available' ? 'Satın alınabilir' : selectedParcel.status === 'sold' ? 'Satıldı' : 'Rezerve'}</span>
+            {selectedParcel.price != null && <strong>{selectedParcel.price.toLocaleString('tr-TR')} TL</strong>}
+          </div>
+          {selectedParcel.status === 'available' && (
+            <Link to="/parsel-satin-al" search={{ parcels: selectedParcel.id }} className="gokyuzu-buy-button">Bu parseli satın al</Link>
+          )}
+        </aside>
+      )}
     </main>
   );
 }
