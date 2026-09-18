@@ -946,8 +946,6 @@ var $$splitComponentImporter$32 = () => import("./gokyuzu-BMpQ66J5.mjs");
 var Route$41 = createFileRoute("/gokyuzu")({ component: lazyRouteComponent($$splitComponentImporter$32, "component") });
 var $$splitComponentImporter$31 = () => import("./gokyuzu-haritasi-DabP56xE.mjs");
 var Route$40 = createFileRoute("/gokyuzu-haritasi")({ component: lazyRouteComponent($$splitComponentImporter$31, "component") });
-var $$splitComponentImporter$30 = () => import("./gokyuzunu-tara-Wua19FY5.mjs");
-var Route$39 = createFileRoute("/gokyuzunu-tara")({ component: lazyRouteComponent($$splitComponentImporter$30, "component") });
 var $$splitComponentImporter$29 = () => import("./guvenlik-ayarlari-BRPtQWms.mjs");
 var Route$38 = createFileRoute("/guvenlik-ayarlari")({
 	head: () => ({ meta: [
