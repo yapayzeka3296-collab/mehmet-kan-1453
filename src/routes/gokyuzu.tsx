@@ -225,9 +225,48 @@ function GokyuzuPage() {
       renderer.domElement.style.cursor = 'grabbing';
     };
 
+    let hoveredParcelMesh: THREE.Mesh | null = null;
+
+    const clearHover = () => {
+      if (!hoveredParcelMesh) return;
+      hoveredParcelMesh.scale.set(1, 1, 1);
+      hoveredParcelMesh = null;
+      renderer.domElement.style.cursor = dragging ? 'grabbing' : 'grab';
+    };
+
+    const updateHover = (event: PointerEvent) => {
+      if (dragging || pointers.size > 1) {
+        clearHover();
+        return;
+      }
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+
+      const realMeshes = parcelMeshes.filter((mesh) => mesh.visible && mesh.userData.parcel);
+      const hit = raycaster.intersectObjects(realMeshes, false)[0];
+      const next = (hit?.object as THREE.Mesh | undefined) ?? null;
+
+      if (next !== hoveredParcelMesh) {
+        if (hoveredParcelMesh) hoveredParcelMesh.scale.set(1, 1, 1);
+        hoveredParcelMesh = next;
+        if (hoveredParcelMesh) {
+          hoveredParcelMesh.scale.set(1.08, 1.08, 1.08);
+          renderer.domElement.style.cursor = 'pointer';
+        } else {
+          renderer.domElement.style.cursor = 'grab';
+        }
+      }
+    };
+
     const onPointerMove = (event: PointerEvent) => {
       const previous = pointers.get(event.pointerId);
-      if (!previous) return;
+      if (!previous) {
+        updateHover(event);
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -238,10 +277,17 @@ function GokyuzuPage() {
         const current = Math.max(18, camera.position.z);
         setZoom(current / (distance / pinchDistance));
         pinchDistance = distance;
+        clearHover();
+        pinchDistance = distance;
         return;
       }
 
-      if (!dragging) return;
+      if (!dragging) {
+        updateHover(event);
+        return;
+      }
+
+      clearHover();
       const dx = event.clientX - lastPointerX;
       const dy = event.clientY - lastPointerY;
       if (Math.hypot(dx, dy) > 1) dragMoved = true;
