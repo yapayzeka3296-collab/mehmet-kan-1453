@@ -1,0 +1,1 @@
+-- Remove the retired Gökyüzünü Tara scanner RPC.\n-- The scanner feature and its dedicated table were removed; this migration\n-- prevents the old database endpoint from being recreated on future deploys.\nDROP FUNCTION IF EXISTS public.sky_scan_parcels(double precision, double precision, double precision, double precision, integer);\n
