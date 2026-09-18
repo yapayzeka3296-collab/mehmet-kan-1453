@@ -33155,4 +33155,4 @@ function interceptControlUp(event) {
 	}
 }
 //#endregion
-export { ClampToEdgeWrapping as a, MeshBasicMaterial as c, SRGBColorSpace as d, Scene as f, BackSide as i, PerspectiveCamera as l, TextureLoader as m, WebGLRenderer as n, LoadingManager as o, SphereGeometry as p, three_module_exports as r, Mesh as s, OrbitControls as t, RepeatWrapping as u };
+export { ClampToEdgeWrapping as a, Mesh as c, RepeatWrapping as d, SRGBColorSpace as f, TextureLoader as g, TOUCH as h, BackSide as i, MeshBasicMaterial as l, SphereGeometry as m, WebGLRenderer as n, LoadingManager as o, Scene as p, three_module_exports as r, MOUSE as s, OrbitControls as t, PerspectiveCamera as u };
