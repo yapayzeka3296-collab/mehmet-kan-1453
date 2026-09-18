@@ -14,12 +14,14 @@ const SKY_IMAGE_URL =
 // The database currently contains the real 81,000 seeded parcel records.
 // The large coordinate space stays logical; real records are loaded lazily.
 const CITY_COUNT = 81;
-const PARCELS_PER_CITY = 1_000_000;
-const CITY_GRID_SIZE = 1_000;
+const REAL_PARCELS_PER_CITY = 1_000;
+const CITY_GRID_WIDTH = 40;
+const CITY_GRID_HEIGHT = 25;
 const CITY_BLOCKS = 9;
-const PARCEL_COLUMNS = CITY_BLOCKS * CITY_GRID_SIZE;
-const PARCEL_ROWS = CITY_BLOCKS * CITY_GRID_SIZE;
-const TOTAL_PARCELS = CITY_COUNT * PARCELS_PER_CITY;
+const PARCEL_COLUMNS = CITY_BLOCKS * CITY_GRID_WIDTH;
+const PARCEL_ROWS = CITY_BLOCKS * CITY_GRID_HEIGHT;
+const REAL_PARCEL_COUNT = CITY_COUNT * REAL_PARCELS_PER_CITY;
+const TOTAL_PARCELS = 81_000_000;
 const TILE_SIZE = 10;
 const VISIBLE_X = 18;
 const VISIBLE_Z = 14;
@@ -38,10 +40,6 @@ type RealSkyParcel = {
   grid_y: number | null;
 };
 
-function logicalParcelNumber(cityIndex: number, localX: number, localZ: number) {
-  return cityIndex * PARCELS_PER_CITY + localZ * CITY_GRID_SIZE + localX + 1;
-}
-
 function GokyuzuPage() {
   const mountRef = useRef<HTMLDivElement>(null);
   const [selectedParcel, setSelectedParcel] = useState<RealSkyParcel | null>(null);
@@ -59,10 +57,7 @@ function GokyuzuPage() {
       20000,
     );
 
-    const worldCenterX = ((PARCEL_COLUMNS - 1) * TILE_SIZE) / 2;
-    const worldCenterZ = ((PARCEL_ROWS - 1) * TILE_SIZE) / 2;
-
-    // Start over the first real Supabase parcel region (city 0, local grid 20/12),
+        // Start over the first real Supabase parcel region (city 0, local grid 20/12),
     // not the empty center of the 1000×1000 logical block.
     const initialColumn = 20;
     const initialRow = 12;
@@ -218,10 +213,10 @@ function GokyuzuPage() {
       const maxColumn = THREE.MathUtils.clamp(safeColumn + VISIBLE_X, 0, PARCEL_COLUMNS - 1);
       const minRow = THREE.MathUtils.clamp(safeRow - VISIBLE_Z, 0, PARCEL_ROWS - 1);
       const maxRow = THREE.MathUtils.clamp(safeRow + VISIBLE_Z, 0, PARCEL_ROWS - 1);
-      const minCityX = Math.floor(minColumn / CITY_GRID_SIZE);
-      const maxCityX = Math.floor(maxColumn / CITY_GRID_SIZE);
-      const minCityZ = Math.floor(minRow / CITY_GRID_SIZE);
-      const maxCityZ = Math.floor(maxRow / CITY_GRID_SIZE);
+      const minCityX = Math.floor(minColumn / CITY_GRID_WIDTH);
+      const maxCityX = Math.floor(maxColumn / CITY_GRID_WIDTH);
+      const minCityZ = Math.floor(minRow / CITY_GRID_WIDTH);
+      const maxCityZ = Math.floor(maxRow / CITY_GRID_WIDTH);
       const citiesToLoad: number[] = [];
       for (let cityZ = minCityZ; cityZ <= maxCityZ; cityZ += 1) {
         for (let cityX = minCityX; cityX <= maxCityX; cityX += 1) {
@@ -253,11 +248,11 @@ function GokyuzuPage() {
           const x = column * TILE_SIZE;
           const z = row * TILE_SIZE;
 
-          const cityX = Math.floor(column / CITY_GRID_SIZE);
-          const cityZ = Math.floor(row / CITY_GRID_SIZE);
+          const cityX = Math.floor(column / CITY_GRID_WIDTH);
+          const cityZ = Math.floor(row / CITY_GRID_WIDTH);
           const cityIndex = cityZ * CITY_BLOCKS + cityX;
-          const localX = column - cityX * CITY_GRID_SIZE;
-          const localZ = row - cityZ * CITY_GRID_SIZE;
+          const localX = column - cityX * CITY_GRID_WIDTH;
+          const localZ = row - cityZ * CITY_GRID_HEIGHT;
           const realParcel = realParcelCache.get(cityIndex)?.get(localX + ':' + localZ);
           const y = realParcel ? 2.5 : 2.15;
           const points = [
@@ -271,7 +266,8 @@ function GokyuzuPage() {
           line.geometry = new THREE.BufferGeometry().setFromPoints(points);
           line.visible = true;
           line.position.set(0, 0, 0);
-          line.userData.parcelNumber = realParcel?.parcel_number ?? logicalParcelNumber(cityIndex, localX, localZ);
+          // No synthetic parcel is created: the square maps to a real Supabase record.
+          line.userData.parcelNumber = realParcel?.parcel_number ?? null;
           line.userData.column = column;
           line.userData.row = row;
           line.userData.parcel = realParcel ?? null;
@@ -311,6 +307,7 @@ function GokyuzuPage() {
         for (let dx = -VISIBLE_X; dx <= VISIBLE_X; dx += 1) {
           const column = centerColumn + dx;
           const row = centerRow + dz;
+          const line = parcelLines[realIndex];
           const mesh = parcelMeshes[realIndex++];
           if (
             column < 0 ||
@@ -322,13 +319,15 @@ function GokyuzuPage() {
             continue;
           }
 
-          const cityX = Math.floor(column / CITY_GRID_SIZE);
-          const cityZ = Math.floor(row / CITY_GRID_SIZE);
+          const cityX = Math.floor(column / CITY_GRID_WIDTH);
+          const cityZ = Math.floor(row / CITY_GRID_WIDTH);
           const cityIndex = cityZ * CITY_BLOCKS + cityX;
-          const localX = column - cityX * CITY_GRID_SIZE;
-          const localZ = row - cityZ * CITY_GRID_SIZE;
+          const localX = column - cityX * CITY_GRID_WIDTH;
+          const localZ = row - cityZ * CITY_GRID_HEIGHT;
           const realParcel = realParcelCache.get(cityIndex)?.get(localX + ':' + localZ);
 
+          line.userData.parcel = realParcel ?? null;
+          line.userData.parcelNumber = realParcel?.parcel_number ?? null;
           mesh.visible = Boolean(realParcel);
           if (realParcel) {
             const status = realParcel.status === 'sold'
@@ -481,14 +480,14 @@ function GokyuzuPage() {
           <div className="gokyuzu-kicker">MYSKYPARCEL · PARSEL DÜNYASI</div>
           <h1>Gökyüzü</h1>
           <p>
-            81 milyonluk sanal gökyüzünde gerçek MySkyParcel parsellerini keşfet. Parmağınla veya farenle
-            sürükledikçe yalnızca gerekli bölge yüklenir.
+            81 milyonluk MySkyParcel evreninin şu anki 81.000 gerçek parselini keşfet.
+            Her kare, Supabase'deki tekil bir gerçek parsele bağlanır.
           </p>
         </div>
 
         <div className="gokyuzu-badge">
           <span className="sun-dot" />
-          <span>{TOTAL_PARCELS.toLocaleString('tr-TR')} SANAL PARSEL</span>
+          <span>{REAL_PARCEL_COUNT.toLocaleString('tr-TR')} GERÇEK PARSEL · {TOTAL_PARCELS.toLocaleString('tr-TR')} HEDEF</span>
         </div>
       </header>
 
