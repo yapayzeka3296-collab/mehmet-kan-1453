@@ -14822,6 +14822,296 @@ var DataTexture = class extends Texture {
 		this.unpackAlignment = 1;
 	}
 };
+/**
+* An instanced version of a buffer attribute.
+*
+* @augments BufferAttribute
+*/
+var InstancedBufferAttribute = class extends BufferAttribute {
+	/**
+	* Constructs a new instanced buffer attribute.
+	*
+	* @param {TypedArray} array - The array holding the attribute data.
+	* @param {number} itemSize - The item size.
+	* @param {boolean} [normalized=false] - Whether the data are normalized or not.
+	* @param {number} [meshPerAttribute=1] - How often a value of this buffer attribute should be repeated.
+	*/
+	constructor(array, itemSize, normalized, meshPerAttribute = 1) {
+		super(array, itemSize, normalized);
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isInstancedBufferAttribute = true;
+		/**
+		* Defines how often a value of this buffer attribute should be repeated. A
+		* value of one means that each value of the instanced attribute is used for
+		* a single instance. A value of two means that each value is used for two
+		* consecutive instances (and so on).
+		*
+		* @type {number}
+		* @default 1
+		*/
+		this.meshPerAttribute = meshPerAttribute;
+	}
+	copy(source) {
+		super.copy(source);
+		this.meshPerAttribute = source.meshPerAttribute;
+		return this;
+	}
+	toJSON() {
+		const data = super.toJSON();
+		data.meshPerAttribute = this.meshPerAttribute;
+		data.isInstancedBufferAttribute = true;
+		return data;
+	}
+};
+var _instanceLocalMatrix = /*@__PURE__*/ new Matrix4();
+var _instanceWorldMatrix = /*@__PURE__*/ new Matrix4();
+var _instanceIntersects = [];
+var _box3 = /*@__PURE__*/ new Box3();
+var _identity = /*@__PURE__*/ new Matrix4();
+var _mesh$1 = /*@__PURE__*/ new Mesh();
+var _sphere$4 = /*@__PURE__*/ new Sphere();
+/**
+* A special version of a mesh with instanced rendering support. Use
+* this class if you have to render a large number of objects with the same
+* geometry and material(s) but with different world transformations. The usage
+* of 'InstancedMesh' will help you to reduce the number of draw calls and thus
+* improve the overall rendering performance in your application.
+*
+* @augments Mesh
+*/
+var InstancedMesh = class extends Mesh {
+	/**
+	* Constructs a new instanced mesh.
+	*
+	* @param {BufferGeometry} [geometry] - The mesh geometry.
+	* @param {Material|Array<Material>} [material] - The mesh material.
+	* @param {number} count - The number of instances.
+	*/
+	constructor(geometry, material, count) {
+		super(geometry, material);
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isInstancedMesh = true;
+		/**
+		* Represents the local transformation of all instances. You have to set its
+		* {@link BufferAttribute#needsUpdate} flag to true if you modify instanced data
+		* via {@link InstancedMesh#setMatrixAt}.
+		*
+		* @type {InstancedBufferAttribute}
+		*/
+		this.instanceMatrix = new InstancedBufferAttribute(new Float32Array(count * 16), 16);
+		/**
+		* Represents the color of all instances. You have to set its
+		* {@link BufferAttribute#needsUpdate} flag to true if you modify instanced data
+		* via {@link InstancedMesh#setColorAt}.
+		*
+		* @type {?InstancedBufferAttribute}
+		* @default null
+		*/
+		this.instanceColor = null;
+		/**
+		* Represents the morph target weights of all instances. You have to set its
+		* {@link Texture#needsUpdate} flag to true if you modify instanced data
+		* via {@link InstancedMesh#setMorphAt}.
+		*
+		* @type {?DataTexture}
+		* @default null
+		*/
+		this.morphTexture = null;
+		/**
+		* The number of instances.
+		*
+		* @type {number}
+		*/
+		this.count = count;
+		/**
+		* The bounding box of the instanced mesh. Can be computed via {@link InstancedMesh#computeBoundingBox}.
+		*
+		* @type {?Box3}
+		* @default null
+		*/
+		this.boundingBox = null;
+		/**
+		* The bounding sphere of the instanced mesh. Can be computed via {@link InstancedMesh#computeBoundingSphere}.
+		*
+		* @type {?Sphere}
+		* @default null
+		*/
+		this.boundingSphere = null;
+		for (let i = 0; i < count; i++) this.setMatrixAt(i, _identity);
+	}
+	/**
+	* Computes the bounding box of the instanced mesh, and updates {@link InstancedMesh#boundingBox}.
+	* The bounding box is not automatically computed by the engine; this method must be called by your app.
+	* You may need to recompute the bounding box if an instance is transformed via {@link InstancedMesh#setMatrixAt}.
+	*/
+	computeBoundingBox() {
+		const geometry = this.geometry;
+		const count = this.count;
+		if (this.boundingBox === null) this.boundingBox = new Box3();
+		if (geometry.boundingBox === null) geometry.computeBoundingBox();
+		this.boundingBox.makeEmpty();
+		for (let i = 0; i < count; i++) {
+			this.getMatrixAt(i, _instanceLocalMatrix);
+			_box3.copy(geometry.boundingBox).applyMatrix4(_instanceLocalMatrix);
+			this.boundingBox.union(_box3);
+		}
+	}
+	/**
+	* Computes the bounding sphere of the instanced mesh, and updates {@link InstancedMesh#boundingSphere}
+	* The engine automatically computes the bounding sphere when it is needed, e.g., for ray casting or view frustum culling.
+	* You may need to recompute the bounding sphere if an instance is transformed via {@link InstancedMesh#setMatrixAt}.
+	*/
+	computeBoundingSphere() {
+		const geometry = this.geometry;
+		const count = this.count;
+		if (this.boundingSphere === null) this.boundingSphere = new Sphere();
+		if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
+		this.boundingSphere.makeEmpty();
+		for (let i = 0; i < count; i++) {
+			this.getMatrixAt(i, _instanceLocalMatrix);
+			_sphere$4.copy(geometry.boundingSphere).applyMatrix4(_instanceLocalMatrix);
+			this.boundingSphere.union(_sphere$4);
+		}
+	}
+	copy(source, recursive) {
+		super.copy(source, recursive);
+		this.instanceMatrix.copy(source.instanceMatrix);
+		if (source.morphTexture !== null) this.morphTexture = source.morphTexture.clone();
+		if (source.instanceColor !== null) this.instanceColor = source.instanceColor.clone();
+		this.count = source.count;
+		if (source.boundingBox !== null) this.boundingBox = source.boundingBox.clone();
+		if (source.boundingSphere !== null) this.boundingSphere = source.boundingSphere.clone();
+		return this;
+	}
+	/**
+	* Gets the color of the defined instance.
+	*
+	* @param {number} index - The instance index.
+	* @param {Color} color - The target object that is used to store the method's result.
+	* @return {Color} A reference to the target color.
+	*/
+	getColorAt(index, color) {
+		if (this.instanceColor === null) return color.setRGB(1, 1, 1);
+		else return color.fromArray(this.instanceColor.array, index * 3);
+	}
+	/**
+	* Gets the local transformation matrix of the defined instance.
+	*
+	* @param {number} index - The instance index.
+	* @param {Matrix4} matrix - The target object that is used to store the method's result.
+	* @return {Matrix4} A reference to the target matrix.
+	*/
+	getMatrixAt(index, matrix) {
+		return matrix.fromArray(this.instanceMatrix.array, index * 16);
+	}
+	/**
+	* Gets the morph target weights of the defined instance.
+	*
+	* @param {number} index - The instance index.
+	* @param {Mesh} object - The target object that is used to store the method's result.
+	*/
+	getMorphAt(index, object) {
+		const objectInfluences = object.morphTargetInfluences;
+		const array = this.morphTexture.source.data.data;
+		const dataIndex = index * (objectInfluences.length + 1) + 1;
+		for (let i = 0; i < objectInfluences.length; i++) objectInfluences[i] = array[dataIndex + i];
+	}
+	raycast(raycaster, intersects) {
+		const matrixWorld = this.matrixWorld;
+		const raycastTimes = this.count;
+		_mesh$1.geometry = this.geometry;
+		_mesh$1.material = this.material;
+		if (_mesh$1.material === void 0) return;
+		if (this.boundingSphere === null) this.computeBoundingSphere();
+		_sphere$4.copy(this.boundingSphere);
+		_sphere$4.applyMatrix4(matrixWorld);
+		if (raycaster.ray.intersectsSphere(_sphere$4) === false) return;
+		for (let instanceId = 0; instanceId < raycastTimes; instanceId++) {
+			this.getMatrixAt(instanceId, _instanceLocalMatrix);
+			_instanceWorldMatrix.multiplyMatrices(matrixWorld, _instanceLocalMatrix);
+			_mesh$1.matrixWorld = _instanceWorldMatrix;
+			_mesh$1.raycast(raycaster, _instanceIntersects);
+			for (let i = 0, l = _instanceIntersects.length; i < l; i++) {
+				const intersect = _instanceIntersects[i];
+				intersect.instanceId = instanceId;
+				intersect.object = this;
+				intersects.push(intersect);
+			}
+			_instanceIntersects.length = 0;
+		}
+	}
+	/**
+	* Sets the given color to the defined instance. Make sure you set the `needsUpdate` flag of
+	* {@link InstancedMesh#instanceColor} to `true` after updating all the colors.
+	*
+	* @param {number} index - The instance index.
+	* @param {Color} color - The instance color.
+	* @return {InstancedMesh} A reference to this instanced mesh.
+	*/
+	setColorAt(index, color) {
+		if (this.instanceColor === null) this.instanceColor = new InstancedBufferAttribute(new Float32Array(this.instanceMatrix.count * 3).fill(1), 3);
+		color.toArray(this.instanceColor.array, index * 3);
+		return this;
+	}
+	/**
+	* Sets the given local transformation matrix to the defined instance. Make sure you set the `needsUpdate` flag of
+	* {@link InstancedMesh#instanceMatrix} to `true` after updating all the matrices.
+	*
+	* @param {number} index - The instance index.
+	* @param {Matrix4} matrix - The local transformation.
+	* @return {InstancedMesh} A reference to this instanced mesh.
+	*/
+	setMatrixAt(index, matrix) {
+		matrix.toArray(this.instanceMatrix.array, index * 16);
+		return this;
+	}
+	/**
+	* Sets the morph target weights to the defined instance. Make sure you set the `needsUpdate` flag of
+	* {@link InstancedMesh#morphTexture} to `true` after updating all the influences.
+	*
+	* @param {number} index - The instance index.
+	* @param {Mesh} object -  A mesh which `morphTargetInfluences` property containing the morph target weights
+	* of a single instance.
+	* @return {InstancedMesh} A reference to this instanced mesh.
+	*/
+	setMorphAt(index, object) {
+		const objectInfluences = object.morphTargetInfluences;
+		const len = objectInfluences.length + 1;
+		if (this.morphTexture === null) this.morphTexture = new DataTexture(new Float32Array(len * this.count), len, this.count, RedFormat, FloatType);
+		const array = this.morphTexture.source.data.data;
+		let morphInfluencesSum = 0;
+		for (let i = 0; i < objectInfluences.length; i++) morphInfluencesSum += objectInfluences[i];
+		const morphBaseInfluence = this.geometry.morphTargetsRelative ? 1 : 1 - morphInfluencesSum;
+		const dataIndex = len * index;
+		array[dataIndex] = morphBaseInfluence;
+		array.set(objectInfluences, dataIndex + 1);
+		return this;
+	}
+	updateMorphTargets() {}
+	/**
+	* Frees the GPU-related resources allocated by this instance. Call this
+	* method whenever this instance is no longer used in your app.
+	*/
+	dispose() {
+		this.dispatchEvent({ type: "dispose" });
+		if (this.morphTexture !== null) {
+			this.morphTexture.dispose();
+			this.morphTexture = null;
+		}
+	}
+};
 var _vector1 = /*@__PURE__*/ new Vector3();
 var _vector2 = /*@__PURE__*/ new Vector3();
 var _normalMatrix = /*@__PURE__*/ new Matrix3();
@@ -15558,16 +15848,16 @@ function checkIntersection(object, raycaster, ray, thresholdSq, a, b, i) {
 		object
 	};
 }
+var _start = /*@__PURE__*/ new Vector3();
+var _end = /*@__PURE__*/ new Vector3();
 /**
-* A continuous line. This is nearly the same as {@link Line} the only difference
-* is that the last vertex is connected with the first vertex in order to close
-* the line to form a loop.
+* A series of lines drawn between pairs of vertices.
 *
 * @augments Line
 */
-var LineLoop = class extends Line {
+var LineSegments = class extends Line {
 	/**
-	* Constructs a new line loop.
+	* Constructs a new line segments.
 	*
 	* @param {BufferGeometry} [geometry] - The line geometry.
 	* @param {Material|Array<Material>} [material] - The line material.
@@ -15581,8 +15871,23 @@ var LineLoop = class extends Line {
 		* @readonly
 		* @default true
 		*/
-		this.isLineLoop = true;
-		this.type = "LineLoop";
+		this.isLineSegments = true;
+		this.type = "LineSegments";
+	}
+	computeLineDistances() {
+		const geometry = this.geometry;
+		if (geometry.index === null) {
+			const positionAttribute = geometry.attributes.position;
+			const lineDistances = [];
+			for (let i = 0, l = positionAttribute.count; i < l; i += 2) {
+				_start.fromBufferAttribute(positionAttribute, i);
+				_end.fromBufferAttribute(positionAttribute, i + 1);
+				lineDistances[i] = i === 0 ? 0 : lineDistances[i - 1];
+				lineDistances[i + 1] = lineDistances[i] + _start.distanceTo(_end);
+			}
+			geometry.setAttribute("lineDistance", new Float32BufferAttribute(lineDistances, 1));
+		} else warn("LineSegments.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.");
+		return this;
 	}
 };
 /**
@@ -32319,4 +32624,4 @@ var WebGLRenderer = class {
 	}
 };
 //#endregion
-export { TextureLoader as _, Group as a, MathUtils as c, PerspectiveCamera as d, PlaneGeometry as f, SphereGeometry as g, Scene as h, BufferGeometry as i, Mesh as l, SRGBColorSpace as m, three_module_exports as n, LineBasicMaterial as o, Raycaster as p, BackSide as r, LineLoop as s, WebGLRenderer as t, MeshBasicMaterial as u, Vector2 as v, Vector3 as y };
+export { Vector2 as C, TextureLoader as S, Raycaster as _, BufferGeometry as a, SphereGeometry as b, InstancedMesh as c, MathUtils as d, Matrix4 as f, PlaneGeometry as g, PerspectiveCamera as h, BufferAttribute as i, LineBasicMaterial as l, MeshBasicMaterial as m, three_module_exports as n, Color as o, Mesh as p, BackSide as r, Group as s, WebGLRenderer as t, LineSegments as u, SRGBColorSpace as v, Vector3 as w, StaticDrawUsage as x, Scene as y };
