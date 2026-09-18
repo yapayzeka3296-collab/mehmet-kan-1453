@@ -600,7 +600,7 @@ function GokyuzuPage() {
       pointerDownY = event.clientY;
     };
 
-    const onSelectPointerUp = (event: PointerEvent) => {
+    const onSelectPointerUp = async (event: PointerEvent) => {
       if (dragMoved || Math.hypot(event.clientX - pointerDownX, event.clientY - pointerDownY) > 8) {
         dragMoved = false;
         return;
