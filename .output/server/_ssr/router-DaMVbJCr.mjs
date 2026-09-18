@@ -2522,9 +2522,6 @@ var rootRouteChildren = {
 		path: "/gokyuzu-haritasi",
 		getParentRoute: () => Route$52
 	}),
-	GokyuzunuTaraRoute: Route$39.update({
-		getParentRoute: () => Route$52
-	}),
 	GuvenlikAyarlariRoute: Route$38.update({
 		id: "/guvenlik-ayarlari",
 		path: "/guvenlik-ayarlari",
