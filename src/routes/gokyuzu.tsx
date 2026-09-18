@@ -305,7 +305,6 @@ function GokyuzuPage() {
           .from('parcel_map_public')
           .select('id,parcel_number,status,price,tier,city_name,city_code,layer_number,sector_number,grid_x,grid_y')
           .eq('city_name', city.name)
-          .eq('city_code', city.code)
           .gte('grid_x', safeMinX)
           .lte('grid_x', safeMaxX)
           .gte('grid_y', safeMinY)
