@@ -452,7 +452,8 @@ function GokyuzuPage() {
       );
       mesh.rotation.x = -Math.PI / 2;
       mesh.position.y = 2.65;
-      mesh.visible = false;
+      mesh.visible = true;
+      mesh.renderOrder = 6;
       parcelGroup.add(mesh);
       parcelMeshes.push(mesh);
     }
@@ -520,23 +521,23 @@ function GokyuzuPage() {
           line.userData.worldRow = row;
 
           mesh.position.set(x + TILE_SIZE / 2, y + 0.42, z + TILE_SIZE / 2);
-          mesh.visible = Boolean(realParcel);
+          mesh.visible = true;
           mesh.userData.parcel = realParcel ?? null;
           mesh.userData.parcelNumber = realParcel?.parcel_number ?? null;
           mesh.userData.worldColumn = column;
           mesh.userData.worldRow = row;
 
-          if (realParcel) {
-            const status = realParcel.status === 'sold'
+          const status = realParcel
+            ? realParcel.status === 'sold'
               ? 'sold'
               : realParcel.status === 'reserved'
                 ? 'reserved'
                 : realParcel.status === 'available'
                   ? 'available'
-                  : 'other';
-            mesh.material = realParcelMaterials[status];
-            mesh.renderOrder = 7;
-          }
+                  : 'other'
+            : 'other';
+          mesh.material = realParcelMaterials[status];
+          mesh.renderOrder = realParcel ? 7 : 6;
         }
       }
     };
