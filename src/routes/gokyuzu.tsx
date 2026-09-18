@@ -266,13 +266,7 @@ function GokyuzuPage() {
     const findParcelObject = (root: THREE.Object3D) => {
       let object: THREE.Object3D | null = root;
       while (object && object !== parcelGroup) {
-        if (
-          object.userData?.parcel ||
-          (Number.isInteger(object.userData?.worldColumn) &&
-            Number.isInteger(object.userData?.worldRow))
-        ) {
-          return object;
-        }
+        if (object.userData?.parcel) return object;
         object = object.parent;
       }
       return null;
@@ -458,10 +452,7 @@ function GokyuzuPage() {
       );
       mesh.rotation.x = -Math.PI / 2;
       mesh.position.y = 2.65;
-      // Parseller Supabase cevabını beklerken de görünür kalır.
-      // Veri geldiğinde aşağıdaki durum rengi gerçek parseli temsil eder.
-      mesh.visible = true;
-      mesh.renderOrder = 6;
+      mesh.visible = false;
       parcelGroup.add(mesh);
       parcelMeshes.push(mesh);
     }
@@ -529,23 +520,23 @@ function GokyuzuPage() {
           line.userData.worldRow = row;
 
           mesh.position.set(x + TILE_SIZE / 2, y + 0.42, z + TILE_SIZE / 2);
-          mesh.visible = true;
+          mesh.visible = Boolean(realParcel);
           mesh.userData.parcel = realParcel ?? null;
           mesh.userData.parcelNumber = realParcel?.parcel_number ?? null;
           mesh.userData.worldColumn = column;
           mesh.userData.worldRow = row;
 
-          const status = realParcel
-            ? realParcel.status === 'sold'
+          if (realParcel) {
+            const status = realParcel.status === 'sold'
               ? 'sold'
               : realParcel.status === 'reserved'
                 ? 'reserved'
                 : realParcel.status === 'available'
                   ? 'available'
-                  : 'other'
-            : 'other';
-          mesh.material = realParcelMaterials[status];
-          mesh.renderOrder = realParcel ? 7 : 6;
+                  : 'other';
+            mesh.material = realParcelMaterials[status];
+            mesh.renderOrder = 7;
+          }
         }
       }
     };
