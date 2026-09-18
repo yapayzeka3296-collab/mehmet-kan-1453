@@ -415,12 +415,13 @@ function GokyuzuPage() {
     };
     const onDragMove = (event: PointerEvent) => {
       if (!dragging || event.pointerId !== dragPointerId) return;
+      event.preventDefault();
       const dx = event.clientX - lastPointerX;
       const dy = event.clientY - lastPointerY;
       lastPointerX = event.clientX;
       lastPointerY = event.clientY;
 
-      const speed = Math.max(0.08, controls.target.distanceTo(camera.position) * 0.006);
+      const speed = Math.max(0.16, controls.target.distanceTo(camera.position) * 0.012);
       controls.target.x -= dx * speed;
       controls.target.z += dy * speed;
       camera.position.x -= dx * speed;
@@ -443,7 +444,7 @@ function GokyuzuPage() {
       camera.position.addScaledVector(direction, delta);
     };
     renderer.domElement.addEventListener('pointerdown', onDragStart);
-    renderer.domElement.addEventListener('pointermove', onDragMove);
+    renderer.domElement.addEventListener('pointermove', onDragMove, { passive: false });
     renderer.domElement.addEventListener('pointerup', onDragEnd);
     renderer.domElement.addEventListener('pointercancel', onDragEnd);
     renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
