@@ -610,13 +610,48 @@ function GokyuzuPage() {
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
 
-      const hit = raycaster.intersectObject(parcelGroup, true).find((entry) => {
-        return Boolean(findParcelObject(entry.object));
-      });
+      const intersections = raycaster.intersectObject(parcelGroup, true);
+      const parcelHit = intersections.find((entry) => Boolean(findParcelObject(entry.object)));
+      const parcelObject = parcelHit ? findParcelObject(parcelHit.object) : null;
+      const loadedParcel = parcelObject?.userData?.parcel as RealSkyParcel | null | undefined;
 
-      const parcelObject = hit ? findParcelObject(hit.object) : null;
-      const parcel = parcelObject?.userData?.parcel as RealSkyParcel | null | undefined;
-      if (parcel) setSelectedParcel(parcel);
+      if (loadedParcel) {
+        window.location.assign(`/parsel-satin-al?parcels=${encodeURIComponent(loadedParcel.id)}`);
+        dragMoved = false;
+        return;
+      }
+
+      // 81.000 world positionin tamamı tıklanabilir: görünür havuzda veri henüz
+      // yüklenmemişse tıklanan karenin dünya koordinatından gerçek parseli bul.
+      const gridHit = intersections.find((entry) =>
+        Number.isInteger(entry.object.userData?.worldColumn) &&
+        Number.isInteger(entry.object.userData?.worldRow),
+      );
+      const worldColumn = gridHit?.object.userData?.worldColumn as number | undefined;
+      const worldRow = gridHit?.object.userData?.worldRow as number | undefined;
+
+      if (worldColumn != null && worldRow != null) {
+        const cityX = Math.floor(worldColumn / CITY_GRID_WIDTH);
+        const cityZ = Math.floor(worldRow / CITY_GRID_HEIGHT);
+        const cityIndex = cityZ * CITY_BLOCKS + cityX;
+        const city = (await loadCities())[cityIndex];
+        if (city) {
+          const localX = worldColumn - cityX * CITY_GRID_WIDTH;
+          const localY = worldRow - cityZ * CITY_GRID_HEIGHT;
+          const { data, error } = await supabaseBrowser
+            .from('parcel_map_public')
+            .select('id,parcel_number,status,price,tier,city_name,city_code,layer_number,sector_number,grid_x,grid_y')
+            .eq('city_name', city.name)
+            .eq('grid_x', localX)
+            .eq('grid_y', localY)
+            .maybeSingle();
+
+          if (!error && data?.id) {
+            const parcel = data as RealSkyParcel;
+            window.location.assign(`/parsel-satin-al?parcels=${encodeURIComponent(parcel.id)}`);
+          }
+        }
+      }
       dragMoved = false;
     };
 
