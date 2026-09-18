@@ -3,6 +3,9 @@ name: MySkyParcel AR Android Build
 on:
   push:
     branches: ["main", "ar-complete"]
+    paths:
+      - "android-ar/**"
+      - ".github/workflows/android-ar.yml"
   pull_request:
     paths:
       - "android-ar/**"
