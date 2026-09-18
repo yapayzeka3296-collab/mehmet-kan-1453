@@ -376,8 +376,9 @@ function GokyuzuPage() {
         if (!line.visible) continue;
         const column = Number(line.userData.column ?? 0);
         const row = Number(line.userData.row ?? 0);
-        const wave = Math.sin(motionTime * 0.9 + column * 0.07 + row * 0.05) * 0.035;
-        line.position.y = wave;
+        const wave = Math.sin(motionTime * 0.9 + column * 0.07 + row * 0.05) * 0.65;
+        const secondaryWave = Math.sin(motionTime * 0.45 + column * 0.025 - row * 0.035) * 0.18;
+        line.position.y = wave + secondaryWave;
       }
 
       renderer.render(scene, camera);
