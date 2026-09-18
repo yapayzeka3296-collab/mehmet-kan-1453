@@ -21,7 +21,6 @@ import { Route as GirisRouteImport } from './routes/giris'
 import { Route as GizlilikPolitikasiRouteImport } from './routes/gizlilik-politikasi'
 import { Route as GokyuzuRouteImport } from './routes/gokyuzu'
 import { Route as GokyuzuHaritasiRouteImport } from './routes/gokyuzu-haritasi'
-import { Route as GokyuzunuTaraRouteImport } from './routes/gokyuzunu-tara'
 import { Route as GuvenlikAyarlariRouteImport } from './routes/guvenlik-ayarlari'
 import { Route as HakkimizdaRouteImport } from './routes/hakkimizda'
 import { Route as HediyeKabulRouteImport } from './routes/hediye-kabul'
@@ -120,11 +119,6 @@ const GokyuzuRoute = GokyuzuRouteImport.update({
 const GokyuzuHaritasiRoute = GokyuzuHaritasiRouteImport.update({
   id: '/gokyuzu-haritasi',
   path: '/gokyuzu-haritasi',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GokyuzunuTaraRoute = GokyuzunuTaraRouteImport.update({
-  id: '/gokyuzunu-tara',
-  path: '/gokyuzunu-tara',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GuvenlikAyarlariRoute = GuvenlikAyarlariRouteImport.update({
@@ -337,7 +331,6 @@ export interface FileRoutesByFullPath {
   '/gizlilik-politikasi': typeof GizlilikPolitikasiRoute
   '/gokyuzu': typeof GokyuzuRoute
   '/gokyuzu-haritasi': typeof GokyuzuHaritasiRoute
-  '/gokyuzunu-tara': typeof GokyuzunuTaraRoute
   '/guvenlik-ayarlari': typeof GuvenlikAyarlariRoute
   '/hakkimizda': typeof HakkimizdaRoute
   '/hediye-kabul': typeof HediyeKabulRoute
@@ -665,7 +658,6 @@ export interface RootRouteChildren {
   GizlilikPolitikasiRoute: typeof GizlilikPolitikasiRoute
   GokyuzuRoute: typeof GokyuzuRoute
   GokyuzuHaritasiRoute: typeof GokyuzuHaritasiRoute
-  GokyuzunuTaraRoute: typeof GokyuzunuTaraRoute
   GuvenlikAyarlariRoute: typeof GuvenlikAyarlariRoute
   HakkimizdaRoute: typeof HakkimizdaRoute
   HediyeKabulRoute: typeof HediyeKabulRoute
@@ -791,13 +783,6 @@ declare module '@tanstack/react-router' {
       path: '/gokyuzu-haritasi'
       fullPath: '/gokyuzu-haritasi'
       preLoaderRoute: typeof GokyuzuHaritasiRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gokyuzunu-tara': {
-      id: '/gokyuzunu-tara'
-      path: '/gokyuzunu-tara'
-      fullPath: '/gokyuzunu-tara'
-      preLoaderRoute: typeof GokyuzunuTaraRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/guvenlik-ayarlari': {
@@ -1089,7 +1074,6 @@ const rootRouteChildren: RootRouteChildren = {
   GizlilikPolitikasiRoute: GizlilikPolitikasiRoute,
   GokyuzuRoute: GokyuzuRoute,
   GokyuzuHaritasiRoute: GokyuzuHaritasiRoute,
-  GokyuzunuTaraRoute: GokyuzunuTaraRoute,
   GuvenlikAyarlariRoute: GuvenlikAyarlariRoute,
   HakkimizdaRoute: HakkimizdaRoute,
   HediyeKabulRoute: HediyeKabulRoute,
