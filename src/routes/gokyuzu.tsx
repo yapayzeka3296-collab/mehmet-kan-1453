@@ -195,6 +195,7 @@ function GokyuzuPage() {
 
     let lastCenterColumn = -1;
     let lastCenterRow = -1;
+    let visibleUpdateId = 0;
 
     const updateVisibleParcels = async () => {
       const centerColumn = Math.floor(controls.target.x / TILE_SIZE);
@@ -209,6 +210,7 @@ function GokyuzuPage() {
 
       lastCenterColumn = centerColumn;
       lastCenterRow = centerRow;
+      const updateId = ++visibleUpdateId;
 
       const safeColumn = THREE.MathUtils.clamp(centerColumn, 0, PARCEL_COLUMNS - 1);
       const safeRow = THREE.MathUtils.clamp(centerRow, 0, PARCEL_ROWS - 1);
@@ -226,8 +228,9 @@ function GokyuzuPage() {
           citiesToLoad.push(cityZ * CITY_BLOCKS + cityX);
         }
       }
-      await Promise.all(citiesToLoad.map((cityIndex) => loadCityParcels(cityIndex)));
-
+      // Move the pooled parcel grid immediately. Supabase loading must not
+      // block the drag gesture; otherwise the screen can appear frozen while
+      // the user is holding and dragging across a new region.
       let index = 0;
 
       for (let dz = -VISIBLE_Z; dz <= VISIBLE_Z; dz += 1) {
@@ -277,6 +280,56 @@ function GokyuzuPage() {
           mesh.visible = Boolean(realParcel);
           mesh.position.set(x + TILE_SIZE / 2, y + 0.08, z + TILE_SIZE / 2);
           mesh.rotation.x = -Math.PI / 2;
+          if (realParcel) {
+            const status = realParcel.status === 'sold'
+              ? 'sold'
+              : realParcel.status === 'reserved'
+                ? 'reserved'
+                : realParcel.status === 'available'
+                  ? 'available'
+                  : 'other';
+            mesh.material = realParcelMaterials[status];
+            mesh.userData.parcel = realParcel;
+          } else {
+            mesh.userData.parcel = null;
+          }
+        }
+      }
+
+      // Fetch the real Supabase parcels after the new logical grid is already
+      // visible. Ignore stale responses if the user has dragged farther.
+      try {
+        await Promise.all(citiesToLoad.map((cityIndex) => loadCityParcels(cityIndex)));
+      } catch (error) {
+        console.error('Gökyüzü parselleri yüklenemedi:', error);
+      }
+
+      if (updateId !== visibleUpdateId) return;
+
+      let realIndex = 0;
+      for (let dz = -VISIBLE_Z; dz <= VISIBLE_Z; dz += 1) {
+        for (let dx = -VISIBLE_X; dx <= VISIBLE_X; dx += 1) {
+          const column = centerColumn + dx;
+          const row = centerRow + dz;
+          const mesh = parcelMeshes[realIndex++];
+          if (
+            column < 0 ||
+            column >= PARCEL_COLUMNS ||
+            row < 0 ||
+            row >= PARCEL_ROWS
+          ) {
+            mesh.visible = false;
+            continue;
+          }
+
+          const cityX = Math.floor(column / CITY_GRID_SIZE);
+          const cityZ = Math.floor(row / CITY_GRID_SIZE);
+          const cityIndex = cityZ * CITY_BLOCKS + cityX;
+          const localX = column - cityX * CITY_GRID_SIZE;
+          const localZ = row - cityZ * CITY_GRID_SIZE;
+          const realParcel = realParcelCache.get(cityIndex)?.get(localX + ':' + localZ);
+
+          mesh.visible = Boolean(realParcel);
           if (realParcel) {
             const status = realParcel.status === 'sold'
               ? 'sold'
