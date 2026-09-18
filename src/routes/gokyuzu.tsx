@@ -94,9 +94,9 @@ function GokyuzuPage() {
     scene.add(parcelGroup);
 
     const lineMaterial = new THREE.LineBasicMaterial({
-      color: 0xffffff,
+      color: 0xffd166,
       transparent: true,
-      opacity: 0.92,
+      opacity: 1,
       depthWrite: false,
       depthTest: false,
     });
@@ -221,8 +221,11 @@ function GokyuzuPage() {
 
       // The parcel plane has a subtle living 3D motion so the grid never
       // feels like a flat, static overlay while the camera moves through it.
-      parcelGroup.rotation.x = -0.035 + Math.sin(motionTime * 0.55) * 0.008;
-      parcelGroup.position.y = Math.sin(motionTime * 0.8) * 0.35;
+      // Keep the grid anchored to its real world coordinates. The 3D feeling
+      // comes from perspective + a small per-parcel vertical wave, rather
+      // than rotating the whole world around (0,0,0) and moving it off-screen.
+      parcelGroup.rotation.set(0, 0, 0);
+      parcelGroup.position.set(0, 0, 0);
 
       for (const line of parcelLines) {
         if (!line.visible) continue;
