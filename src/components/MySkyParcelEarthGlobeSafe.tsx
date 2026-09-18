@@ -36,8 +36,9 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         const THREE = await import("three");
         if (cancelled) return;
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+        const mobile = window.matchMedia("(max-width:767px)").matches ? 0.7 : 1;
+        const renderer = new THREE.WebGLRenderer({ antialias: mobile === 1, alpha: true, powerPreference: "high-performance" });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile === 1 ? 1.25 : 1));
         renderer.setClearColor(0, 0);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.domElement.style.cssText = "position:absolute;inset:0;display:block;width:100%;height:100%;max-width:100%;max-height:100%;touch-action:none;pointer-events:auto;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;cursor:grab";
@@ -58,25 +59,24 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         const loader = new THREE.TextureLoader();
         const earthTexture = loader.load(EARTH_TEXTURE);
         earthTexture.colorSpace = THREE.SRGBColorSpace;
-        earthTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
+        earthTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 2);
         const cloudTexture = loader.load(CLOUD_TEXTURE);
         cloudTexture.colorSpace = THREE.SRGBColorSpace;
-        cloudTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 2);
+        cloudTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 1);
 
-        const mobile = window.matchMedia("(max-width:767px)").matches ? 0.7 : 1;
         const radius = RADIUS * mobile;
 
-        const earthGeometry = new THREE.SphereGeometry(radius, 128, 128);
+        const earthGeometry = new THREE.SphereGeometry(radius, 96, 96);
         const earthMaterial = new THREE.MeshPhongMaterial({ map: earthTexture, shininess: 10, specular: new THREE.Color(0x28476a) });
         const earth = new THREE.Mesh(earthGeometry, earthMaterial);
         scene.add(earth);
 
-        const cloudGeometry = new THREE.SphereGeometry(radius * 1.014, 96, 96);
+        const cloudGeometry = new THREE.SphereGeometry(radius * 1.014, 64, 64);
         const cloudMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, alphaMap: cloudTexture, transparent: true, opacity: 0.43, depthWrite: false });
         const clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
         scene.add(clouds);
 
-        const atmosphereGeometry = new THREE.SphereGeometry(radius * 1.09, 96, 96);
+        const atmosphereGeometry = new THREE.SphereGeometry(radius * 1.09, 64, 64);
         const atmosphereMaterial = new THREE.ShaderMaterial({
           uniforms: { glowColor: { value: new THREE.Color(0x536b80) }, glowPower: { value: 2.9 }, glowStrength: { value: 0.34 } },
           vertexShader: `varying vec3 vWorldNormal; varying vec3 vWorldPosition; void main(){vec4 worldPosition=modelMatrix*vec4(position,1.0);vWorldPosition=worldPosition.xyz;vWorldNormal=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*viewMatrix*worldPosition;}`,
@@ -90,7 +90,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         scene.add(atmosphere);
 
         const createStarField = () => {
-          const count = 4200;
+          const count = mobile < 1 ? 1800 : 2800;
           const positions = new Float32Array(count * 3);
           const sizes = new Float32Array(count);
           const phases = new Float32Array(count);
@@ -130,7 +130,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         };
 
         const createMilkyWay = () => {
-          const count = 3200;
+          const count = mobile < 1 ? 900 : 1600;
           const positions = new Float32Array(count * 3);
           const sizes = new Float32Array(count);
           const phases = new Float32Array(count);
