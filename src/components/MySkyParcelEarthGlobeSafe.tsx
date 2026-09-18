@@ -38,7 +38,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
 
         const mobile = window.matchMedia("(max-width:767px)").matches ? 0.7 : 1;
         const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "high-performance" });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile === 1 ? 0.85 : 1));
         renderer.setClearColor(0, 0);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.domElement.style.cssText = "position:absolute;inset:0;display:block;width:100%;height:100%;max-width:100%;max-height:100%;touch-action:none;pointer-events:auto;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;cursor:grab";
@@ -111,6 +111,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         const stars = createStarField();
         const pointers = new Map<number, { x: number; y: number }>();
         let frame = 0;
+        let lastRender = 0;
         let dragging = false;
         let lastX = 0;
         let lastY = 0;
@@ -182,17 +183,32 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         renderer.domElement.addEventListener("lostpointercapture", up);
 
         const clock = new THREE.Clock();
-        const animate = () => {
+        const animate = (time = performance.now()) => {
           if (cancelled) return;
           frame = requestAnimationFrame(animate);
           const delta = clock.getDelta();
-          if (!dragging && !pointers.size) { earth.rotation.y += delta * 0.018; clouds.rotation.y += delta * 0.004; syncStarsToEarth(); }
-          renderer.render(scene, camera);
+          const interacting = dragging || pointers.size > 0;
+          if (!interacting) { earth.rotation.y += delta * 0.018; clouds.rotation.y += delta * 0.004; syncStarsToEarth(); }
+          const interval = interacting ? 1000 / 60 : 1000 / 30;
+          if (time - lastRender >= interval) {
+            lastRender = time;
+            renderer.render(scene, camera);
+          }
         };
         animate();
 
+        const visibility = () => {
+          if (document.hidden) {
+            cancelAnimationFrame(frame);
+          } else if (!cancelled) {
+            lastRender = 0;
+            frame = requestAnimationFrame(animate);
+          }
+        };
+        document.addEventListener("visibilitychange", visibility);
+
         cleanup = () => {
-          cancelled = true; cancelAnimationFrame(frame); resizeObserver?.disconnect(); window.removeEventListener("resize", resize);
+          cancelled = true; cancelAnimationFrame(frame); document.removeEventListener("visibilitychange", visibility); resizeObserver?.disconnect(); window.removeEventListener("resize", resize);
           renderer.domElement.removeEventListener("wheel", wheel); renderer.domElement.removeEventListener("pointerdown", down); renderer.domElement.removeEventListener("pointermove", move); renderer.domElement.removeEventListener("pointerup", up); renderer.domElement.removeEventListener("pointercancel", up); renderer.domElement.removeEventListener("lostpointercapture", up);
           earthTexture.dispose(); cloudTexture.dispose(); earthGeometry.dispose(); earthMaterial.dispose(); cloudGeometry.dispose(); cloudMaterial.dispose(); atmosphereGeometry.dispose(); atmosphereMaterial.dispose(); stars.geometry.dispose(); stars.material.dispose(); renderer.dispose(); renderer.domElement.remove();
         };
