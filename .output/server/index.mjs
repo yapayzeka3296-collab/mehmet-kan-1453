@@ -353,13 +353,7 @@ var public_assets_data_default = {
 		"size": 2588,
 		"path": "../public/assets/gokyuzu-haritasi-BQDqoC0o.js"
 	},
-	"/assets/gokyuzunu-tara-Bh0fieVY.js": {
-		"type": "text/javascript; charset=utf-8",
-		"etag": "\"28b1-z5CgB4vqVge2678sCUqI3S4jenI\"",
-		"mtime": "2026-09-18T14:55:32.947Z",
-		"size": 10417,
-		"path": "../public/assets/gokyuzunu-tara-Bh0fieVY.js"
-	},
+
 	"/assets/guvenlik-ayarlari-BmV-EgH-.js": {
 		"type": "text/javascript; charset=utf-8",
 		"etag": "\"23f5-ntCjJSQkrsvIpgFzaQdVOv3CmdQ\"",
