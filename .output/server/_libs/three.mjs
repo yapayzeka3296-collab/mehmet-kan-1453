@@ -15558,6 +15558,48 @@ function checkIntersection(object, raycaster, ray, thresholdSq, a, b, i) {
 		object
 	};
 }
+var _start = /*@__PURE__*/ new Vector3();
+var _end = /*@__PURE__*/ new Vector3();
+/**
+* A series of lines drawn between pairs of vertices.
+*
+* @augments Line
+*/
+var LineSegments = class extends Line {
+	/**
+	* Constructs a new line segments.
+	*
+	* @param {BufferGeometry} [geometry] - The line geometry.
+	* @param {Material|Array<Material>} [material] - The line material.
+	*/
+	constructor(geometry, material) {
+		super(geometry, material);
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isLineSegments = true;
+		this.type = "LineSegments";
+	}
+	computeLineDistances() {
+		const geometry = this.geometry;
+		if (geometry.index === null) {
+			const positionAttribute = geometry.attributes.position;
+			const lineDistances = [];
+			for (let i = 0, l = positionAttribute.count; i < l; i += 2) {
+				_start.fromBufferAttribute(positionAttribute, i);
+				_end.fromBufferAttribute(positionAttribute, i + 1);
+				lineDistances[i] = i === 0 ? 0 : lineDistances[i - 1];
+				lineDistances[i + 1] = lineDistances[i] + _start.distanceTo(_end);
+			}
+			geometry.setAttribute("lineDistance", new Float32BufferAttribute(lineDistances, 1));
+		} else warn("LineSegments.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.");
+		return this;
+	}
+};
 /**
 * A continuous line. This is nearly the same as {@link Line} the only difference
 * is that the last vertex is connected with the first vertex in order to close
@@ -21091,6 +21133,68 @@ var Clock = class {
 		return this;
 	}
 });
+/**
+* The helper is an object to define grids. Grids are two-dimensional
+* arrays of lines.
+*
+* ```js
+* const size = 10;
+* const divisions = 10;
+*
+* const gridHelper = new THREE.GridHelper( size, divisions );
+* scene.add( gridHelper );
+* ```
+*
+* @augments LineSegments
+*/
+var GridHelper = class extends LineSegments {
+	/**
+	* Constructs a new grid helper.
+	*
+	* @param {number} [size=10] - The size of the grid.
+	* @param {number} [divisions=10] - The number of divisions across the grid.
+	* @param {number|Color|string} [color1=0x444444] - The color of the center line.
+	* @param {number|Color|string} [color2=0x888888] - The color of the lines of the grid.
+	*/
+	constructor(size = 10, divisions = 10, color1 = 4473924, color2 = 8947848) {
+		color1 = new Color(color1);
+		color2 = new Color(color2);
+		const center = divisions / 2;
+		const step = size / divisions;
+		const halfSize = size / 2;
+		const vertices = [], colors = [];
+		for (let i = 0, j = 0, k = -halfSize; i <= divisions; i++, k += step) {
+			vertices.push(-halfSize, 0, k, halfSize, 0, k);
+			vertices.push(k, 0, -halfSize, k, 0, halfSize);
+			const color = i === center ? color1 : color2;
+			color.toArray(colors, j);
+			j += 3;
+			color.toArray(colors, j);
+			j += 3;
+			color.toArray(colors, j);
+			j += 3;
+			color.toArray(colors, j);
+			j += 3;
+		}
+		const geometry = new BufferGeometry();
+		geometry.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+		geometry.setAttribute("color", new Float32BufferAttribute(colors, 3));
+		const material = new LineBasicMaterial({
+			vertexColors: true,
+			toneMapped: false
+		});
+		super(geometry, material);
+		this.type = "GridHelper";
+	}
+	/**
+	* Frees the GPU-related resources allocated by this instance. Call this
+	* method whenever this instance is no longer used in your app.
+	*/
+	dispose() {
+		this.geometry.dispose();
+		this.material.dispose();
+	}
+};
 /**
 * Determines how many bytes must be used to represent the texture.
 *
@@ -32318,4 +32422,4 @@ var WebGLRenderer = class {
 	}
 };
 //#endregion
-export { TextureLoader as _, Group as a, MathUtils as c, PerspectiveCamera as d, PlaneGeometry as f, SphereGeometry as g, Scene as h, BufferGeometry as i, Mesh as l, SRGBColorSpace as m, three_module_exports as n, LineBasicMaterial as o, Raycaster as p, BackSide as r, LineLoop as s, WebGLRenderer as t, MeshBasicMaterial as u, Vector2 as v, Vector3 as y };
+export { SphereGeometry as _, GridHelper as a, Vector3 as b, LineLoop as c, MeshBasicMaterial as d, PerspectiveCamera as f, Scene as g, SRGBColorSpace as h, BufferGeometry as i, MathUtils as l, Raycaster as m, three_module_exports as n, Group as o, PlaneGeometry as p, BackSide as r, LineBasicMaterial as s, WebGLRenderer as t, Mesh as u, TextureLoader as v, Vector2 as y };
