@@ -15,7 +15,6 @@ var tsrStartManifest = () => ({ routes: {
 			"/gizlilik-politikasi",
 			"/gokyuzu",
 			"/gokyuzu-haritasi",
-			"/gokyuzunu-tara",
 			"/guvenlik-ayarlari",
 			"/hakkimizda",
 			"/hediye-kabul",
@@ -200,11 +199,6 @@ var tsrStartManifest = () => ({ routes: {
 			"/assets/package-check-CAAoi8ax.js",
 			"/assets/CityParcelLivePage-C8JCO6O0.js"
 		]
-	},
-	"/gokyuzunu-tara": {
-		filePath: "/home/runner/work/mehmet-kan-1453/mehmet-kan-1453/src/routes/gokyuzunu-tara.tsx",
-		children: void 0,
-		preloads: ["/assets/gokyuzunu-tara-Bh0fieVY.js"]
 	},
 	"/guvenlik-ayarlari": {
 		filePath: "/home/runner/work/mehmet-kan-1453/mehmet-kan-1453/src/routes/guvenlik-ayarlari.tsx",
