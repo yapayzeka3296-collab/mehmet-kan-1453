@@ -360,8 +360,8 @@ function GokyuzuPage() {
           <div className="gokyuzu-kicker">MYSKYPARCEL · PARSEL DÜNYASI</div>
           <h1>Gökyüzü</h1>
           <p>
-            81.000 parseli gökyüzünde keşfet. Parmağınla veya farenle
-            sürükledikçe yeni parseller görünür.
+            81 milyonluk sanal gökyüzünde gerçek MySkyParcel parsellerini keşfet. Parmağınla veya farenle
+            sürükledikçe yalnızca gerekli bölge yüklenir.
           </p>
         </div>
 
