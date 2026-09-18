@@ -25,6 +25,13 @@
   background-repeat:no-repeat;
 }
 
+.gokyuzu-canvas.gokyuzu-sky-ready{
+  /* Once Three.js has the real panorama, hide the static CSS photo.
+     Otherwise the static layer would make the rotating sky appear frozen. */
+  background-image:none;
+  background:#58aee0;
+}
+
 .gokyuzu-canvas.gokyuzu-sky-fallback{
   background-image:
     radial-gradient(circle at 74% 22%,rgba(255,255,255,.92) 0 2%,rgba(255,255,255,.34) 10%,transparent 24%),
