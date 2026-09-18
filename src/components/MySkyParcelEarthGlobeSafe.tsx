@@ -37,8 +37,8 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         if (cancelled) return;
 
         const mobile = window.matchMedia("(max-width:767px)").matches ? 0.7 : 1;
-        const renderer = new THREE.WebGLRenderer({ antialias: mobile === 1, alpha: true, powerPreference: "high-performance" });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile === 1 ? 1.25 : 1));
+        const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "high-performance" });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1));
         renderer.setClearColor(0, 0);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.domElement.style.cssText = "position:absolute;inset:0;display:block;width:100%;height:100%;max-width:100%;max-height:100%;touch-action:none;pointer-events:auto;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;cursor:grab";
@@ -77,25 +77,20 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         scene.add(clouds);
 
         const atmosphereGeometry = new THREE.SphereGeometry(radius * 1.09, 64, 64);
-        const atmosphereMaterial = new THREE.ShaderMaterial({
-          uniforms: { glowColor: { value: new THREE.Color(0x536b80) }, glowPower: { value: 2.9 }, glowStrength: { value: 0.34 } },
-          vertexShader: `varying vec3 vWorldNormal; varying vec3 vWorldPosition; void main(){vec4 worldPosition=modelMatrix*vec4(position,1.0);vWorldPosition=worldPosition.xyz;vWorldNormal=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*viewMatrix*worldPosition;}`,
-          fragmentShader: `uniform vec3 glowColor; uniform float glowPower; uniform float glowStrength; varying vec3 vWorldNormal; varying vec3 vWorldPosition; void main(){vec3 viewDirection=normalize(cameraPosition-vWorldPosition);float fresnel=pow(1.0-max(dot(vWorldNormal,viewDirection),0.0),glowPower);gl_FragColor=vec4(glowColor,fresnel*glowStrength);}`,
+        const atmosphereMaterial = new THREE.MeshBasicMaterial({
+          color: 0x4da6ff,
+          transparent: true,
+          opacity: 0.12,
           side: THREE.BackSide,
           blending: THREE.AdditiveBlending,
-          transparent: true,
           depthWrite: false,
         });
         const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
         scene.add(atmosphere);
 
         const createStarField = () => {
-          const count = mobile < 1 ? 1800 : 2800;
+          const count = mobile < 1 ? 700 : 1200;
           const positions = new Float32Array(count * 3);
-          const sizes = new Float32Array(count);
-          const phases = new Float32Array(count);
-          const colors = new Float32Array(count * 3);
-          const palette = [new THREE.Color(0xffffff), new THREE.Color(0xbfd8ff), new THREE.Color(0xfff0c2), new THREE.Color(0xd7e7ff)];
           for (let i = 0; i < count; i++) {
             const distance = 12 + Math.random() * 29;
             const theta = Math.random() * Math.PI * 2;
@@ -104,75 +99,16 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
             positions[i * 3] = distance * xy * Math.cos(theta);
             positions[i * 3 + 1] = distance * z;
             positions[i * 3 + 2] = distance * xy * Math.sin(theta);
-            sizes[i] = 0.025 + Math.pow(Math.random(), 2.8) * 0.085;
-            phases[i] = Math.random() * Math.PI * 2;
-            const color = palette[Math.floor(Math.random() * palette.length)];
-            colors[i * 3] = color.r;
-            colors[i * 3 + 1] = color.g;
-            colors[i * 3 + 2] = color.b;
           }
           const geometry = new THREE.BufferGeometry();
           geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-          geometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
-          geometry.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
-          geometry.setAttribute("aColor", new THREE.BufferAttribute(colors, 3));
-          const material = new THREE.ShaderMaterial({
-            uniforms: { uTime: { value: 0 } },
-            vertexShader: `attribute float aSize; attribute float aPhase; attribute vec3 aColor; varying vec3 vColor; varying float vTwinkle; uniform float uTime; void main(){vColor=aColor;vTwinkle=0.72+0.28*sin(uTime*(0.55+aPhase*0.08)+aPhase);vec4 mvPosition=modelViewMatrix*vec4(position,1.0);gl_PointSize=aSize*92.0*vTwinkle/max(1.0,-mvPosition.z*0.035);gl_Position=projectionMatrix*mvPosition;}`,
-            fragmentShader: `varying vec3 vColor; varying float vTwinkle; void main(){vec2 uv=gl_PointCoord-0.5;float d=length(uv);float core=smoothstep(0.16,0.0,d);float glow=smoothstep(0.5,0.05,d);float alpha=(core*0.95+glow*0.38)*vTwinkle;if(alpha<0.01)discard;gl_FragColor=vec4(vColor,alpha);}`,
-            transparent: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-          });
+          const material = new THREE.PointsMaterial({ color: 0xffffff, size: 0.042, sizeAttenuation: true });
           const points = new THREE.Points(geometry, material);
-          scene.add(points);
-          return { geometry, material, points };
-        };
-
-        const createMilkyWay = () => {
-          const count = mobile < 1 ? 900 : 1600;
-          const positions = new Float32Array(count * 3);
-          const sizes = new Float32Array(count);
-          const phases = new Float32Array(count);
-          const colors = new Float32Array(count * 3);
-          const colorA = new THREE.Color(0xc8dcff);
-          const colorB = new THREE.Color(0xffe5c4);
-          for (let i = 0; i < count; i++) {
-            const radiusDistance = 15 + Math.random() * 17;
-            const angle = Math.random() * Math.PI * 2;
-            const band = (Math.random() - 0.5) * 4.2;
-            const arm = Math.sin(angle * 3.0) * 0.8 + Math.sin(angle * 7.0) * 0.35;
-            positions[i * 3] = Math.cos(angle) * radiusDistance;
-            positions[i * 3 + 1] = band + arm * 0.22;
-            positions[i * 3 + 2] = Math.sin(angle) * radiusDistance;
-            sizes[i] = 0.018 + Math.random() * 0.045;
-            phases[i] = Math.random() * Math.PI * 2;
-            const mixed = colorA.clone().lerp(colorB, Math.random());
-            colors[i * 3] = mixed.r;
-            colors[i * 3 + 1] = mixed.g;
-            colors[i * 3 + 2] = mixed.b;
-          }
-          const geometry = new THREE.BufferGeometry();
-          geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-          geometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
-          geometry.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
-          geometry.setAttribute("aColor", new THREE.BufferAttribute(colors, 3));
-          const material = new THREE.ShaderMaterial({
-            uniforms: { uTime: { value: 0 } },
-            vertexShader: `attribute float aSize; attribute float aPhase; attribute vec3 aColor; varying vec3 vColor; varying float vTwinkle; uniform float uTime; void main(){vColor=aColor;vTwinkle=0.68+0.22*sin(uTime*0.45+aPhase);vec4 mvPosition=modelViewMatrix*vec4(position,1.0);gl_PointSize=aSize*82.0*vTwinkle/max(1.0,-mvPosition.z*0.035);gl_Position=projectionMatrix*mvPosition;}`,
-            fragmentShader: `varying vec3 vColor; varying float vTwinkle; void main(){vec2 uv=gl_PointCoord-0.5;float d=length(uv);float alpha=smoothstep(0.5,0.02,d)*0.18*vTwinkle;if(alpha<0.005)discard;gl_FragColor=vec4(vColor,alpha);}`,
-            transparent: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-          });
-          const points = new THREE.Points(geometry, material);
-          points.rotation.z = 0.28;
           scene.add(points);
           return { geometry, material, points };
         };
 
         const stars = createStarField();
-        const milkyWay = createMilkyWay();
         const pointers = new Map<number, { x: number; y: number }>();
         let frame = 0;
         let dragging = false;
@@ -251,9 +187,6 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
           frame = requestAnimationFrame(animate);
           const delta = clock.getDelta(); const elapsed = clock.elapsedTime;
           if (!dragging && !pointers.size) { earth.rotation.y += delta * 0.018; clouds.rotation.y += delta * 0.004; syncStarsToEarth(); }
-          stars.material.uniforms.uTime.value = elapsed;
-          milkyWay.material.uniforms.uTime.value = elapsed * 0.7;
-          milkyWay.points.rotation.y += delta * 0.0007;
           renderer.render(scene, camera);
         };
         animate();
@@ -261,7 +194,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         cleanup = () => {
           cancelled = true; cancelAnimationFrame(frame); resizeObserver?.disconnect(); window.removeEventListener("resize", resize);
           renderer.domElement.removeEventListener("wheel", wheel); renderer.domElement.removeEventListener("pointerdown", down); renderer.domElement.removeEventListener("pointermove", move); renderer.domElement.removeEventListener("pointerup", up); renderer.domElement.removeEventListener("pointercancel", up); renderer.domElement.removeEventListener("lostpointercapture", up);
-          earthTexture.dispose(); cloudTexture.dispose(); earthGeometry.dispose(); earthMaterial.dispose(); cloudGeometry.dispose(); cloudMaterial.dispose(); atmosphereGeometry.dispose(); atmosphereMaterial.dispose(); stars.geometry.dispose(); stars.material.dispose(); milkyWay.geometry.dispose(); milkyWay.material.dispose(); renderer.dispose(); renderer.domElement.remove();
+          earthTexture.dispose(); cloudTexture.dispose(); earthGeometry.dispose(); earthMaterial.dispose(); cloudGeometry.dispose(); cloudMaterial.dispose(); atmosphereGeometry.dispose(); atmosphereMaterial.dispose(); stars.geometry.dispose(); stars.material.dispose(); renderer.dispose(); renderer.domElement.remove();
         };
       } catch (error) {
         console.error("MySkyParcel globe fallback", error);
