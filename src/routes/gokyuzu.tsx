@@ -95,21 +95,13 @@ function GokyuzuPage() {
     // The parcel world is a real finite 81,000-cell coordinate system.
     // MapControls is intentionally used instead of custom touch handlers:
     // Three.js supports one-finger pan and left-mouse pan natively.
+    // The camera stays fixed; the parcel grid itself is the draggable surface.
+    // A hidden MapControls instance is kept only for its camera target/distance helpers.
     const controls = new MapControls(camera, renderer.domElement);
     controls.enableRotate = false;
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.enableZoom = true;
-    controls.minDistance = 18;
-    controls.maxDistance = 150;
-    controls.zoomSpeed = 1.15;
-    controls.enablePan = true;
-    controls.screenSpacePanning = true;
-    controls.panSpeed = 2.0;
-    controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
-    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
-    controls.touches.ONE = THREE.TOUCH.PAN;
-    controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+    controls.enableZoom = false;
+    controls.enablePan = false;
+    controls.enableDamping = false;
     controls.target.set(initialWorldX, 2.5, initialWorldZ);
     controls.update();
 
@@ -218,8 +210,10 @@ function GokyuzuPage() {
     let visibleUpdateId = 0;
 
     const updateVisibleParcels = async () => {
-      const centerColumn = Math.floor(controls.target.x / TILE_SIZE);
-      const centerRow = Math.floor(controls.target.z / TILE_SIZE);
+      // The grid moves under the pointer. The parcel at the camera target is
+      // determined from the grid's current translation, so data follows the drag.
+      const centerColumn = Math.floor((controls.target.x - parcelGroup.position.x) / TILE_SIZE);
+      const centerRow = Math.floor((controls.target.z - parcelGroup.position.z) / TILE_SIZE);
 
       if (
         centerColumn === lastCenterColumn &&
@@ -373,32 +367,19 @@ function GokyuzuPage() {
 
     void updateVisibleParcels();
 
-    const clampTarget = () => {
-      const halfX = TILE_SIZE / 2;
-      const halfZ = TILE_SIZE / 2;
-      const minX = halfX;
-      const maxX = (PARCEL_COLUMNS - 1) * TILE_SIZE + halfX;
-      const minZ = halfZ;
-      const maxZ = (PARCEL_ROWS - 1) * TILE_SIZE + halfZ;
+    const clampGrid = () => {
+      // Keep the draggable grid inside the finite 360 × 225 parcel world.
+      const minX = controls.target.x - (PARCEL_COLUMNS - 1) * TILE_SIZE;
+      const maxX = controls.target.x;
+      const minZ = controls.target.z - (PARCEL_ROWS - 1) * TILE_SIZE;
+      const maxZ = controls.target.z;
 
-      const oldX = controls.target.x;
-      const oldZ = controls.target.z;
-
-      controls.target.x = THREE.MathUtils.clamp(controls.target.x, minX, maxX);
-      controls.target.z = THREE.MathUtils.clamp(controls.target.z, minZ, maxZ);
-      controls.target.y = 2.5;
-
-      const dx = controls.target.x - oldX;
-      const dz = controls.target.z - oldZ;
-
-      if (dx !== 0 || dz !== 0) {
-        camera.position.x += dx;
-        camera.position.z += dz;
-      }
+      parcelGroup.position.x = THREE.MathUtils.clamp(parcelGroup.position.x, minX, maxX);
+      parcelGroup.position.z = THREE.MathUtils.clamp(parcelGroup.position.z, minZ, maxZ);
     };
 
-    // Use an explicit pointer drag layer. This avoids browser/MapControls gesture
-    // differences on Android and makes one-finger/touch dragging deterministic.
+    // Drag the actual parcel world, not the camera. A pointer started anywhere
+    // on the canvas immediately moves the whole grid, on mouse and touch.
     controls.enabled = false;
     let dragging = false;
     let dragPointerId = -1;
@@ -412,21 +393,24 @@ function GokyuzuPage() {
       lastPointerY = event.clientY;
       renderer.domElement.setPointerCapture(event.pointerId);
       renderer.domElement.style.cursor = 'grabbing';
+      event.preventDefault();
     };
     const onDragMove = (event: PointerEvent) => {
       if (!dragging || event.pointerId !== dragPointerId) return;
       event.preventDefault();
+
       const dx = event.clientX - lastPointerX;
       const dy = event.clientY - lastPointerY;
       lastPointerX = event.clientX;
       lastPointerY = event.clientY;
 
-      const speed = Math.max(0.16, controls.target.distanceTo(camera.position) * 0.012);
-      controls.target.x -= dx * speed;
-      controls.target.z += dy * speed;
-      camera.position.x -= dx * speed;
-      camera.position.z += dy * speed;
-      clampTarget();
+      const distance = controls.target.distanceTo(camera.position);
+      const speed = THREE.MathUtils.clamp(distance * 0.012, 0.18, 2.2);
+
+      // The grid follows the finger/mouse directly.
+      parcelGroup.position.x += dx * speed;
+      parcelGroup.position.z += dy * speed;
+      clampGrid();
       void updateVisibleParcels();
     };
     const onDragEnd = (event: PointerEvent) => {
@@ -434,7 +418,9 @@ function GokyuzuPage() {
       dragging = false;
       dragPointerId = -1;
       renderer.domElement.style.cursor = 'grab';
+      try { renderer.domElement.releasePointerCapture(event.pointerId); } catch {}
     };
+
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       const direction = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
@@ -443,6 +429,7 @@ function GokyuzuPage() {
       const delta = nextDistance - distance;
       camera.position.addScaledVector(direction, delta);
     };
+
     renderer.domElement.addEventListener('pointerdown', onDragStart);
     renderer.domElement.addEventListener('pointermove', onDragMove, { passive: false });
     renderer.domElement.addEventListener('pointerup', onDragEnd);
@@ -488,22 +475,8 @@ function GokyuzuPage() {
       frame = requestAnimationFrame(animate);
       motionTime += 0.012;
 
-      // The parcel plane has a subtle living 3D motion so the grid never
-      // feels like a flat, static overlay while the camera moves through it.
-      // Keep the grid anchored to its real world coordinates. The 3D feeling
-      // comes from perspective + a small per-parcel vertical wave, rather
-      // than rotating the whole world around (0,0,0) and moving it off-screen.
+      // The grid itself moves during drag; keep parcel geometry stable.
       parcelGroup.rotation.set(0, 0, 0);
-      parcelGroup.position.set(0, 0, 0);
-
-      for (const line of parcelLines) {
-        if (!line.visible) continue;
-        const column = Number(line.userData.column ?? 0);
-        const row = Number(line.userData.row ?? 0);
-        const wave = Math.sin(motionTime * 0.9 + column * 0.07 + row * 0.05) * 0.65;
-        const secondaryWave = Math.sin(motionTime * 0.45 + column * 0.025 - row * 0.035) * 0.18;
-        line.position.y = wave + secondaryWave;
-      }
 
       renderer.render(scene, camera);
     };
