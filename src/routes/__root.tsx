@@ -26,10 +26,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   ], links: [
     { rel: "preconnect", href: "https://fonts.googleapis.com" }, { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
     { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Jost:wght@300;400;500;600&display=swap" },
-  ], scripts: [{ type: "application/ld+json", children: JSON.stringify({ "@context": "https://schema.org", "@graph": [
-    { "@type": "WebSite", "@id": "https://myskyparcel.com/#website", "url": "https://myskyparcel.com/", "name": "MySkyParcel", "description": "Kişiye özel dijital hediye, sembolik gökyüzü parseli ve dijital sertifika platformu.", "inLanguage": "tr-TR" },
-    { "@type": "Organization", "@id": "https://myskyparcel.com/#organization", "name": "MySkyParcel", "url": "https://myskyparcel.com/" }
-  ] }) }]}), shellComponent: RootShell, component: RootComponent, notFoundComponent: NotFoundComponent, errorComponent: ErrorComponent,
+  ], scripts: [
+    { async: true, src: "https://www.googletagmanager.com/gtag/js?id=G-FC8Y1KFEE1" },
+    { children: "window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'G-FC8Y1KFEE1');" },
+    { type: "application/ld+json", children: JSON.stringify({ "@context": "https://schema.org", "@graph": [
+      { "@type": "WebSite", "@id": "https://myskyparcel.com/#website", "url": "https://myskyparcel.com/", "name": "MySkyParcel", "description": "Kişiye özel dijital hediye, sembolik gökyüzü parseli ve dijital sertifika platformu.", "inLanguage": "tr-TR" },
+      { "@type": "Organization", "@id": "https://myskyparcel.com/#organization", "name": "MySkyParcel", "url": "https://myskyparcel.com/" }
+    ] })
+  }]}), shellComponent: RootShell, component: RootComponent, notFoundComponent: NotFoundComponent, errorComponent: ErrorComponent,
 });
 function RootShell({ children }: { children: ReactNode }) { return <html lang="tr" translate="no"><head><HeadContent /><meta name="google-site-verification" content="FnBKvdIxURn7yQQY7YNxhbM-sxPfNEjJf4GgmZKh0ec" /></head><body>{children}<Scripts /></body></html>; }
 function RootComponent() { const { queryClient } = Route.useRouteContext(); return <QueryClientProvider client={queryClient}><AuthProvider><SiteVisitTracker /><Outlet /></AuthProvider></QueryClientProvider>; }
