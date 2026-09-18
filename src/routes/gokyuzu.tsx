@@ -245,15 +245,38 @@ function GokyuzuPage() {
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
 
-      const realMeshes = parcelMeshes.filter((mesh) => mesh.visible && mesh.userData.parcel);
-      const hit = raycaster.intersectObjects(realMeshes, false)[0];
-      const next = (hit?.object as THREE.Mesh | undefined) ?? null;
+      // Raycast recursively through the parcel group. The visible parcel may
+      // be represented by a child object, so never depend on a flat mesh list.
+      const hit = raycaster.intersectObject(parcelGroup, true).find((entry) => {
+        let object: THREE.Object3D | null = entry.object;
+        while (object && object !== parcelGroup) {
+          if (object.userData?.parcel) return true;
+          object = object.parent;
+        }
+        return false;
+      });
+
+      let next: THREE.Mesh | null = null;
+      if (hit) {
+        let object: THREE.Object3D | null = hit.object;
+        while (object && object !== parcelGroup) {
+          if (object.userData?.parcel && object instanceof THREE.Mesh) {
+            next = object;
+            break;
+          }
+          object = object.parent;
+        }
+      }
 
       if (next !== hoveredParcelMesh) {
-        if (hoveredParcelMesh) hoveredParcelMesh.scale.set(1, 1, 1);
+        if (hoveredParcelMesh) {
+          hoveredParcelMesh.scale.set(1, 1, 1);
+          hoveredParcelMesh.renderOrder = 0;
+        }
         hoveredParcelMesh = next;
         if (hoveredParcelMesh) {
-          hoveredParcelMesh.scale.set(1.08, 1.08, 1.08);
+          hoveredParcelMesh.scale.set(1.12, 1.12, 1.12);
+          hoveredParcelMesh.renderOrder = 20;
           renderer.domElement.style.cursor = 'pointer';
         } else {
           renderer.domElement.style.cursor = 'grab';
@@ -556,9 +579,26 @@ function GokyuzuPage() {
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
 
-      const realMeshes = parcelMeshes.filter((mesh) => mesh.visible && mesh.userData.parcel);
-      const hit = raycaster.intersectObjects(realMeshes, false)[0];
-      const parcel = hit?.object?.userData?.parcel as RealSkyParcel | null | undefined;
+      const hit = raycaster.intersectObject(parcelGroup, true).find((entry) => {
+        let object: THREE.Object3D | null = entry.object;
+        while (object && object !== parcelGroup) {
+          if (object.userData?.parcel) return true;
+          object = object.parent;
+        }
+        return false;
+      });
+
+      let parcel: RealSkyParcel | null = null;
+      if (hit) {
+        let object: THREE.Object3D | null = hit.object;
+        while (object && object !== parcelGroup) {
+          if (object.userData?.parcel) {
+            parcel = object.userData.parcel as RealSkyParcel;
+            break;
+          }
+          object = object.parent;
+        }
+      }
       if (parcel) setSelectedParcel(parcel);
       dragMoved = false;
     };
