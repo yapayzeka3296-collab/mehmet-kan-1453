@@ -15263,6 +15263,344 @@ var Frustum = class {
 	}
 };
 /**
+* A material for rendering line primitives.
+*
+* Materials define the appearance of renderable 3D objects.
+*
+* ```js
+* const material = new THREE.LineBasicMaterial( { color: 0xffffff } );
+* ```
+*
+* @augments Material
+*/
+var LineBasicMaterial = class extends Material {
+	/**
+	* Constructs a new line basic material.
+	*
+	* @param {Object} [parameters] - An object with one or more properties
+	* defining the material's appearance. Any property of the material
+	* (including any property from inherited materials) can be passed
+	* in here. Color values can be passed any type of value accepted
+	* by {@link Color#set}.
+	*/
+	constructor(parameters) {
+		super();
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isLineBasicMaterial = true;
+		this.type = "LineBasicMaterial";
+		/**
+		* Color of the material.
+		*
+		* @type {Color}
+		* @default (1,1,1)
+		*/
+		this.color = new Color(16777215);
+		/**
+		* Sets the color of the lines using data from a texture. The texture map
+		* color is modulated by the diffuse `color`.
+		*
+		* `map` represents color data, and the texture must be assigned a
+		* {@link Texture#colorSpace}. Most `map` textures set
+		* `texture.colorSpace = SRGBColorSpace`.
+		*
+		* @type {?Texture}
+		* @default null
+		*/
+		this.map = null;
+		/**
+		* Controls line thickness or lines.
+		*
+		* Can only be used with {@link SVGRenderer}. WebGL and WebGPU
+		* ignore this setting and always render line primitives with a
+		* width of one pixel.
+		*
+		* @type {number}
+		* @default 1
+		*/
+		this.linewidth = 1;
+		/**
+		* Defines appearance of line ends.
+		*
+		* Can only be used with {@link SVGRenderer}.
+		*
+		* @type {('butt'|'round'|'square')}
+		* @default 'round'
+		*/
+		this.linecap = "round";
+		/**
+		* Defines appearance of line joints.
+		*
+		* Can only be used with {@link SVGRenderer}.
+		*
+		* @type {('round'|'bevel'|'miter')}
+		* @default 'round'
+		*/
+		this.linejoin = "round";
+		/**
+		* Whether the material is affected by fog or not.
+		*
+		* @type {boolean}
+		* @default true
+		*/
+		this.fog = true;
+		this.setValues(parameters);
+	}
+	copy(source) {
+		super.copy(source);
+		this.color.copy(source.color);
+		this.map = source.map;
+		this.linewidth = source.linewidth;
+		this.linecap = source.linecap;
+		this.linejoin = source.linejoin;
+		this.fog = source.fog;
+		return this;
+	}
+};
+var _vStart = /*@__PURE__*/ new Vector3();
+var _vEnd = /*@__PURE__*/ new Vector3();
+var _inverseMatrix$1 = /*@__PURE__*/ new Matrix4();
+var _ray$1 = /*@__PURE__*/ new Ray();
+var _sphere$1 = /*@__PURE__*/ new Sphere();
+var _intersectPointOnRay = /*@__PURE__*/ new Vector3();
+var _intersectPointOnSegment = /*@__PURE__*/ new Vector3();
+/**
+* A continuous line. The line are rendered by connecting consecutive
+* vertices with straight lines.
+*
+* ```js
+* const material = new THREE.LineBasicMaterial( { color: 0x0000ff } );
+*
+* const points = [];
+* points.push( new THREE.Vector3( - 10, 0, 0 ) );
+* points.push( new THREE.Vector3( 0, 10, 0 ) );
+* points.push( new THREE.Vector3( 10, 0, 0 ) );
+*
+* const geometry = new THREE.BufferGeometry().setFromPoints( points );
+*
+* const line = new THREE.Line( geometry, material );
+* scene.add( line );
+* ```
+*
+* @augments Object3D
+*/
+var Line = class extends Object3D {
+	/**
+	* Constructs a new line.
+	*
+	* @param {BufferGeometry} [geometry] - The line geometry.
+	* @param {Material|Array<Material>} [material] - The line material.
+	*/
+	constructor(geometry = new BufferGeometry(), material = new LineBasicMaterial()) {
+		super();
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isLine = true;
+		this.type = "Line";
+		/**
+		* The line geometry.
+		*
+		* @type {BufferGeometry}
+		*/
+		this.geometry = geometry;
+		/**
+		* The line material.
+		*
+		* @type {Material|Array<Material>}
+		* @default LineBasicMaterial
+		*/
+		this.material = material;
+		/**
+		* A dictionary representing the morph targets in the geometry. The key is the
+		* morph targets name, the value its attribute index. This member is `undefined`
+		* by default and only set when morph targets are detected in the geometry.
+		*
+		* @type {Object<string,number>|undefined}
+		* @default undefined
+		*/
+		this.morphTargetDictionary = void 0;
+		/**
+		* An array of weights typically in the range `[0,1]` that specify how much of the morph
+		* is applied. This member is `undefined` by default and only set when morph targets are
+		* detected in the geometry.
+		*
+		* @type {Array<number>|undefined}
+		* @default undefined
+		*/
+		this.morphTargetInfluences = void 0;
+		this.updateMorphTargets();
+	}
+	copy(source, recursive) {
+		super.copy(source, recursive);
+		this.material = Array.isArray(source.material) ? source.material.slice() : source.material;
+		this.geometry = source.geometry;
+		return this;
+	}
+	/**
+	* Computes an array of distance values which are necessary for rendering dashed lines.
+	* For each vertex in the geometry, the method calculates the cumulative length from the
+	* current point to the very beginning of the line.
+	*
+	* @return {Line} A reference to this line.
+	*/
+	computeLineDistances() {
+		const geometry = this.geometry;
+		if (geometry.index === null) {
+			const positionAttribute = geometry.attributes.position;
+			const lineDistances = [0];
+			for (let i = 1, l = positionAttribute.count; i < l; i++) {
+				_vStart.fromBufferAttribute(positionAttribute, i - 1);
+				_vEnd.fromBufferAttribute(positionAttribute, i);
+				lineDistances[i] = lineDistances[i - 1];
+				lineDistances[i] += _vStart.distanceTo(_vEnd);
+			}
+			geometry.setAttribute("lineDistance", new Float32BufferAttribute(lineDistances, 1));
+		} else warn("Line.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.");
+		return this;
+	}
+	/**
+	* Computes intersection points between a casted ray and this line.
+	*
+	* @param {Raycaster} raycaster - The raycaster.
+	* @param {Array<Object>} intersects - The target array that holds the intersection points.
+	*/
+	raycast(raycaster, intersects) {
+		const geometry = this.geometry;
+		const matrixWorld = this.matrixWorld;
+		const threshold = raycaster.params.Line.threshold;
+		const drawRange = geometry.drawRange;
+		if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
+		_sphere$1.copy(geometry.boundingSphere);
+		_sphere$1.applyMatrix4(matrixWorld);
+		_sphere$1.radius += threshold;
+		if (raycaster.ray.intersectsSphere(_sphere$1) === false) return;
+		_inverseMatrix$1.copy(matrixWorld).invert();
+		_ray$1.copy(raycaster.ray).applyMatrix4(_inverseMatrix$1);
+		const localThreshold = threshold / ((this.scale.x + this.scale.y + this.scale.z) / 3);
+		const localThresholdSq = localThreshold * localThreshold;
+		const step = this.isLineSegments ? 2 : 1;
+		const index = geometry.index;
+		const positionAttribute = geometry.attributes.position;
+		if (index !== null) {
+			const start = Math.max(0, drawRange.start);
+			const end = Math.min(index.count, drawRange.start + drawRange.count);
+			for (let i = start, l = end - 1; i < l; i += step) {
+				const a = index.getX(i);
+				const b = index.getX(i + 1);
+				const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, a, b, i);
+				if (intersect) intersects.push(intersect);
+			}
+			if (this.isLineLoop) {
+				const a = index.getX(end - 1);
+				const b = index.getX(start);
+				const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, a, b, end - 1);
+				if (intersect) intersects.push(intersect);
+			}
+		} else {
+			const start = Math.max(0, drawRange.start);
+			const end = Math.min(positionAttribute.count, drawRange.start + drawRange.count);
+			for (let i = start, l = end - 1; i < l; i += step) {
+				const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, i, i + 1, i);
+				if (intersect) intersects.push(intersect);
+			}
+			if (this.isLineLoop) {
+				const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, end - 1, start, end - 1);
+				if (intersect) intersects.push(intersect);
+			}
+		}
+	}
+	/**
+	* Sets the values of {@link Line#morphTargetDictionary} and {@link Line#morphTargetInfluences}
+	* to make sure existing morph targets can influence this 3D object.
+	*/
+	updateMorphTargets() {
+		const morphAttributes = this.geometry.morphAttributes;
+		const keys = Object.keys(morphAttributes);
+		if (keys.length > 0) {
+			const morphAttribute = morphAttributes[keys[0]];
+			if (morphAttribute !== void 0) {
+				this.morphTargetInfluences = [];
+				this.morphTargetDictionary = {};
+				for (let m = 0, ml = morphAttribute.length; m < ml; m++) {
+					const name = morphAttribute[m].name || String(m);
+					this.morphTargetInfluences.push(0);
+					this.morphTargetDictionary[name] = m;
+				}
+			}
+		}
+	}
+};
+function checkIntersection(object, raycaster, ray, thresholdSq, a, b, i) {
+	const positionAttribute = object.geometry.attributes.position;
+	_vStart.fromBufferAttribute(positionAttribute, a);
+	_vEnd.fromBufferAttribute(positionAttribute, b);
+	if (ray.distanceSqToSegment(_vStart, _vEnd, _intersectPointOnRay, _intersectPointOnSegment) > thresholdSq) return;
+	_intersectPointOnRay.applyMatrix4(object.matrixWorld);
+	const distance = raycaster.ray.origin.distanceTo(_intersectPointOnRay);
+	if (distance < raycaster.near || distance > raycaster.far) return;
+	return {
+		distance,
+		point: _intersectPointOnSegment.clone().applyMatrix4(object.matrixWorld),
+		index: i,
+		face: null,
+		faceIndex: null,
+		barycoord: null,
+		object
+	};
+}
+var _start = /*@__PURE__*/ new Vector3();
+var _end = /*@__PURE__*/ new Vector3();
+/**
+* A series of lines drawn between pairs of vertices.
+*
+* @augments Line
+*/
+var LineSegments = class extends Line {
+	/**
+	* Constructs a new line segments.
+	*
+	* @param {BufferGeometry} [geometry] - The line geometry.
+	* @param {Material|Array<Material>} [material] - The line material.
+	*/
+	constructor(geometry, material) {
+		super(geometry, material);
+		/**
+		* This flag can be used for type testing.
+		*
+		* @type {boolean}
+		* @readonly
+		* @default true
+		*/
+		this.isLineSegments = true;
+		this.type = "LineSegments";
+	}
+	computeLineDistances() {
+		const geometry = this.geometry;
+		if (geometry.index === null) {
+			const positionAttribute = geometry.attributes.position;
+			const lineDistances = [];
+			for (let i = 0, l = positionAttribute.count; i < l; i += 2) {
+				_start.fromBufferAttribute(positionAttribute, i);
+				_end.fromBufferAttribute(positionAttribute, i + 1);
+				lineDistances[i] = i === 0 ? 0 : lineDistances[i - 1];
+				lineDistances[i + 1] = lineDistances[i] + _start.distanceTo(_end);
+			}
+			geometry.setAttribute("lineDistance", new Float32BufferAttribute(lineDistances, 1));
+		} else warn("LineSegments.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.");
+		return this;
+	}
+};
+/**
 * A material for rendering point primitives.
 *
 * Materials define the appearance of renderable 3D objects.
@@ -20579,6 +20917,68 @@ var Clock = class {
 		return this;
 	}
 });
+/**
+* The helper is an object to define grids. Grids are two-dimensional
+* arrays of lines.
+*
+* ```js
+* const size = 10;
+* const divisions = 10;
+*
+* const gridHelper = new THREE.GridHelper( size, divisions );
+* scene.add( gridHelper );
+* ```
+*
+* @augments LineSegments
+*/
+var GridHelper = class extends LineSegments {
+	/**
+	* Constructs a new grid helper.
+	*
+	* @param {number} [size=10] - The size of the grid.
+	* @param {number} [divisions=10] - The number of divisions across the grid.
+	* @param {number|Color|string} [color1=0x444444] - The color of the center line.
+	* @param {number|Color|string} [color2=0x888888] - The color of the lines of the grid.
+	*/
+	constructor(size = 10, divisions = 10, color1 = 4473924, color2 = 8947848) {
+		color1 = new Color(color1);
+		color2 = new Color(color2);
+		const center = divisions / 2;
+		const step = size / divisions;
+		const halfSize = size / 2;
+		const vertices = [], colors = [];
+		for (let i = 0, j = 0, k = -halfSize; i <= divisions; i++, k += step) {
+			vertices.push(-halfSize, 0, k, halfSize, 0, k);
+			vertices.push(k, 0, -halfSize, k, 0, halfSize);
+			const color = i === center ? color1 : color2;
+			color.toArray(colors, j);
+			j += 3;
+			color.toArray(colors, j);
+			j += 3;
+			color.toArray(colors, j);
+			j += 3;
+			color.toArray(colors, j);
+			j += 3;
+		}
+		const geometry = new BufferGeometry();
+		geometry.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+		geometry.setAttribute("color", new Float32BufferAttribute(colors, 3));
+		const material = new LineBasicMaterial({
+			vertexColors: true,
+			toneMapped: false
+		});
+		super(geometry, material);
+		this.type = "GridHelper";
+	}
+	/**
+	* Frees the GPU-related resources allocated by this instance. Call this
+	* method whenever this instance is no longer used in your app.
+	*/
+	dispose() {
+		this.geometry.dispose();
+		this.material.dispose();
+	}
+};
 /**
 * Determines how many bytes must be used to represent the texture.
 *
@@ -31806,4 +32206,4 @@ var WebGLRenderer = class {
 	}
 };
 //#endregion
-export { LoadingManager as a, PerspectiveCamera as c, Scene as d, SphereGeometry as f, ClampToEdgeWrapping as i, RepeatWrapping as l, three_module_exports as n, Mesh as o, TextureLoader as p, BackSide as r, MeshBasicMaterial as s, WebGLRenderer as t, SRGBColorSpace as u };
+export { GridHelper as a, LineBasicMaterial as c, PerspectiveCamera as d, SRGBColorSpace as f, Vector3 as g, TextureLoader as h, BufferGeometry as i, Mesh as l, SphereGeometry as m, three_module_exports as n, Group as o, Scene as p, BackSide as r, Line as s, WebGLRenderer as t, MeshBasicMaterial as u };
