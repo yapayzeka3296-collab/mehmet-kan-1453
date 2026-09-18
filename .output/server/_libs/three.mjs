@@ -31,6 +31,13 @@ var TOUCH = {
 	DOLLY_ROTATE: 3
 };
 /**
+* Only back faces are rendered.
+*
+* @type {number}
+* @constant
+*/
+var BackSide = 1;
+/**
 * The texture will simply repeat to infinity.
 *
 * @type {number}
@@ -33148,4 +33155,4 @@ function interceptControlUp(event) {
 	}
 }
 //#endregion
-export { LoadingManager as a, RepeatWrapping as c, TOUCH as d, TextureLoader as f, ClampToEdgeWrapping as i, SRGBColorSpace as l, WebGLRenderer as n, MOUSE as o, three_module_exports as r, PerspectiveCamera as s, OrbitControls as t, Scene as u };
+export { ClampToEdgeWrapping as a, Mesh as c, RepeatWrapping as d, SRGBColorSpace as f, TextureLoader as g, TOUCH as h, BackSide as i, MeshBasicMaterial as l, SphereGeometry as m, WebGLRenderer as n, LoadingManager as o, Scene as p, three_module_exports as r, MOUSE as s, OrbitControls as t, PerspectiveCamera as u };
