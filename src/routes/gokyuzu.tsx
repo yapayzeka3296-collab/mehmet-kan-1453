@@ -269,7 +269,7 @@ function GokyuzuPage() {
           hoveredParcelObject.renderOrder = 0;
         }
 
-        hoveredParcelObject = hit;
+        hoveredParcelObject = hit ?? null;
 
         if (hoveredParcelObject) {
           hoveredParcelObject.scale.set(1.08, 1.08, 1.08);
