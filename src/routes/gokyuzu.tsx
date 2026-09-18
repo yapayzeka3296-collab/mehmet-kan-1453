@@ -76,14 +76,17 @@ function GokyuzuPage() {
     // Three.js supports one-finger pan and left-mouse pan natively.
     const controls = new MapControls(camera, renderer.domElement);
     controls.enableRotate = false;
-    controls.enableZoom = false;
+    controls.enableZoom = true;
+    controls.minDistance = 18;
+    controls.maxDistance = 150;
+    controls.zoomSpeed = 1.15;
     controls.enablePan = true;
     controls.screenSpacePanning = false;
     controls.panSpeed = 1.15;
     controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
     controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
     controls.touches.ONE = THREE.TOUCH.PAN;
-    controls.touches.TWO = THREE.TOUCH.PAN;
+    controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
     controls.target.set(worldCenterX, 0, worldCenterZ);
     controls.update();
 
@@ -207,8 +210,24 @@ function GokyuzuPage() {
     resize();
 
     let frame = 0;
+    let motionTime = 0;
     const animate = () => {
       frame = requestAnimationFrame(animate);
+      motionTime += 0.012;
+
+      // The parcel plane has a subtle living 3D motion so the grid never
+      // feels like a flat, static overlay while the camera moves through it.
+      parcelGroup.rotation.x = -0.035 + Math.sin(motionTime * 0.55) * 0.008;
+      parcelGroup.position.y = Math.sin(motionTime * 0.8) * 0.35;
+
+      for (const line of parcelLines) {
+        if (!line.visible) continue;
+        const column = Number(line.userData.column ?? 0);
+        const row = Number(line.userData.row ?? 0);
+        const wave = Math.sin(motionTime * 0.9 + column * 0.07 + row * 0.05) * 0.035;
+        line.position.y = wave;
+      }
+
       renderer.render(scene, camera);
     };
     animate();
@@ -257,7 +276,8 @@ function GokyuzuPage() {
       <div className="gokyuzu-controls">
         <span>👆 Parmağınla sürükle</span>
         <span>🖱️ Fareyle sürükle</span>
-        <span>▦ Yeni parseller yüklenir</span>
+        <span>↕️ Yakınlaştır / uzaklaştır</span>
+        <span>▦ Sürükledikçe yeni parseller</span>
       </div>
     </main>
   );
