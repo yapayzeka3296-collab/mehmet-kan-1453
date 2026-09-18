@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { useEffect, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import './gokyuzu.css';
@@ -444,8 +443,8 @@ function GokyuzuPage() {
     const pointer = new THREE.Vector2();
     let pointerDownX = 0;
     let pointerDownY = 0;
-    const onPointerDown = (event: PointerEvent) => { pointerDownX = event.clientX; pointerDownY = event.clientY; };
-    const onPointerUp = (event: PointerEvent) => {
+    const onSelectPointerDown = (event: PointerEvent) => { pointerDownX = event.clientX; pointerDownY = event.clientY; };
+    const onSelectPointerUp = (event: PointerEvent) => {
       if (Math.hypot(event.clientX - pointerDownX, event.clientY - pointerDownY) > 8) return;
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -458,8 +457,8 @@ function GokyuzuPage() {
       const parcel = hit?.object?.userData?.parcel as RealSkyParcel | null | undefined;
       if (parcel) setSelectedParcel(parcel);
     };
-    renderer.domElement.addEventListener('pointerdown', onPointerDown);
-    renderer.domElement.addEventListener('pointerup', onPointerUp);
+    renderer.domElement.addEventListener('pointerdown', onSelectPointerDown);
+    renderer.domElement.addEventListener('pointerup', onSelectPointerUp);
 
     const resize = () => {
       const width = Math.max(mount.clientWidth, 1);
@@ -475,7 +474,6 @@ function GokyuzuPage() {
     let frame = 0;
     const animate = () => {
       frame = requestAnimationFrame(animate);
-      controls.update();
       renderer.render(scene, camera);
     };
     animate();
@@ -487,6 +485,8 @@ function GokyuzuPage() {
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       renderer.domElement.removeEventListener('pointermove', onPointerMove);
       renderer.domElement.removeEventListener('pointerup', onPointerUp);
+      renderer.domElement.removeEventListener('pointerdown', onSelectPointerDown);
+      renderer.domElement.removeEventListener('pointerup', onSelectPointerUp);
       renderer.domElement.removeEventListener('pointercancel', onPointerUp);
       window.removeEventListener('resize', resize);
 
