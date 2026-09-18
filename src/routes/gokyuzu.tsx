@@ -2,6 +2,8 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import * as THREE from 'three';
 import { useEffect, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
+import { useAuth } from '@/hooks/useAuth';
+import { SiteHeader } from '@/components/SiteHeader';
 import './gokyuzu.css';
 
 export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
@@ -9,9 +11,6 @@ export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
 const SKY_IMAGE_URL =
   'https://cdn.polyhaven.com/asset_img/primary/kloppenheim_03_puresky.png?height=2048';
 
-// Current live world: 81 provinces × 1,000 real Supabase parcels = 81,000.
-// Each province is a 40 × 25 grid, so every current world square has one
-// deterministic city/grid coordinate and one unique real parcel record.
 const CITY_COUNT = 81;
 const REAL_PARCELS_PER_CITY = 1_000;
 const CITY_GRID_WIDTH = 40;
@@ -21,10 +20,7 @@ const PARCEL_COLUMNS = CITY_BLOCKS * CITY_GRID_WIDTH;
 const PARCEL_ROWS = CITY_BLOCKS * CITY_GRID_HEIGHT;
 const REAL_PARCEL_COUNT = CITY_COUNT * REAL_PARCELS_PER_CITY;
 const TOTAL_PARCELS = 81_000_000;
-
 const TILE_SIZE = 10;
-const VISIBLE_X = 18;
-const VISIBLE_Z = 14;
 
 type RealSkyParcel = {
   id: string;
@@ -40,9 +36,148 @@ type RealSkyParcel = {
   grid_y: number | null;
 };
 
+type ParcelAd = {
+  id: string;
+  parcel_id: string;
+  title: string;
+  image_path: string;
+  link_url: string | null;
+  is_active: boolean;
+};
+
+const specialProvinceNumbers: Record<string, number> = {
+  ANK: 6,
+  ANT: 7,
+  BUR: 16,
+  GZT: 27,
+  IST: 34,
+  IZM: 35,
+  KAY: 38,
+};
+
 function GokyuzuPage() {
+  const { user } = useAuth();
   const mountRef = useRef<HTMLDivElement>(null);
   const [selectedParcel, setSelectedParcel] = useState<RealSkyParcel | null>(null);
+  const [selectedAd, setSelectedAd] = useState<ParcelAd | null>(null);
+  const [selectedIsOwner, setSelectedIsOwner] = useState(false);
+  const [adTitle, setAdTitle] = useState('');
+  const [adLink, setAdLink] = useState('');
+  const [adFile, setAdFile] = useState<File | null>(null);
+  const [adSaving, setAdSaving] = useState(false);
+  const [adMessage, setAdMessage] = useState('');
+  const [worldLoading, setWorldLoading] = useState(true);
+  const [worldLoaded, setWorldLoaded] = useState(0);
+
+  useEffect(() => {
+    if (!selectedParcel) {
+      setSelectedAd(null);
+      setSelectedIsOwner(false);
+      setAdMessage('');
+      return;
+    }
+
+    let cancelled = false;
+    const loadParcelAd = async () => {
+      setAdMessage('');
+      const [{ data: ownerData }, { data: adData }] = await Promise.all([
+        user
+          ? supabaseBrowser.rpc('is_parcel_owner', { p_parcel_id: selectedParcel.id })
+          : Promise.resolve({ data: false }),
+        supabaseBrowser
+          .from('parcel_advertisements')
+          .select('id,parcel_id,title,image_path,link_url,is_active')
+          .eq('parcel_id', selectedParcel.id)
+          .maybeSingle(),
+      ]);
+      if (cancelled) return;
+      setSelectedIsOwner(Boolean(ownerData));
+      setSelectedAd((adData as ParcelAd | null) ?? null);
+      setAdTitle((adData as ParcelAd | null)?.title ?? '');
+      setAdLink((adData as ParcelAd | null)?.link_url ?? '');
+    };
+
+    void loadParcelAd();
+    return () => { cancelled = true; };
+  }, [selectedParcel, user]);
+
+  const saveAdvertisement = async () => {
+    if (!selectedParcel || !user || !selectedIsOwner) return;
+    if (!adFile && !selectedAd) {
+      setAdMessage('Bir reklam görseli seçin.');
+      return;
+    }
+    if (adFile && (!adFile.type.startsWith('image/') || adFile.size > 5 * 1024 * 1024)) {
+      setAdMessage('Görsel JPG, PNG, WEBP veya GIF olmalı ve 5 MB altında olmalı.');
+      return;
+    }
+
+    setAdSaving(true);
+    setAdMessage('');
+
+    try {
+      let imagePath = selectedAd?.image_path ?? '';
+      if (adFile) {
+        const extension = adFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+        const nextPath = user.id + '/' + selectedParcel.id + '/' + crypto.randomUUID() + '.' + extension;
+        const upload = await supabaseBrowser.storage
+          .from('parcel-ads')
+          .upload(nextPath, adFile, { contentType: adFile.type, upsert: false });
+        if (upload.error) throw upload.error;
+        imagePath = nextPath;
+      }
+
+      const payload = {
+        parcel_id: selectedParcel.id,
+        title: adTitle.trim() || 'Parsel Reklamı',
+        image_path: imagePath,
+        link_url: adLink.trim() || null,
+        is_active: true,
+      };
+
+      const { data, error } = await supabaseBrowser
+        .from('parcel_advertisements')
+        .upsert(payload, { onConflict: 'parcel_id' })
+        .select('id,parcel_id,title,image_path,link_url,is_active')
+        .single();
+
+      if (error) throw error;
+      setSelectedAd(data as ParcelAd);
+      setAdFile(null);
+      setAdMessage('Reklam bu parsele yayınlandı.');
+    } catch (error) {
+      console.error('Parsel reklamı kaydedilemedi:', error);
+      setAdMessage(error instanceof Error ? error.message : 'Reklam kaydedilemedi.');
+    } finally {
+      setAdSaving(false);
+    }
+  };
+
+  const removeAdvertisement = async () => {
+    if (!selectedParcel || !selectedIsOwner || !selectedAd) return;
+    setAdSaving(true);
+    setAdMessage('');
+    try {
+      const { error } = await supabaseBrowser
+        .from('parcel_advertisements')
+        .delete()
+        .eq('parcel_id', selectedParcel.id);
+      if (error) throw error;
+      await supabaseBrowser.storage.from('parcel-ads').remove([selectedAd.image_path]);
+      setSelectedAd(null);
+      setAdTitle('');
+      setAdLink('');
+      setAdMessage('Reklam kaldırıldı.');
+    } catch (error) {
+      console.error('Parsel reklamı kaldırılamadı:', error);
+      setAdMessage(error instanceof Error ? error.message : 'Reklam kaldırılamadı.');
+    } finally {
+      setAdSaving(false);
+    }
+  };
+
+  const getAdUrl = (ad: ParcelAd) =>
+    supabaseBrowser.storage.from('parcel-ads').getPublicUrl(ad.image_path).data.publicUrl;
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -55,7 +190,6 @@ function GokyuzuPage() {
       0.1,
       20000,
     );
-
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true,
@@ -73,7 +207,6 @@ function GokyuzuPage() {
     const skyTexture = loader.load(SKY_IMAGE_URL);
     skyTexture.colorSpace = THREE.SRGBColorSpace;
     skyTexture.mapping = THREE.EquirectangularReflectionMapping;
-
     const skyGeometry = new THREE.SphereGeometry(8000, 48, 24);
     skyGeometry.scale(-1, 1, 1);
     const skyMaterial = new THREE.MeshBasicMaterial({
@@ -87,70 +220,25 @@ function GokyuzuPage() {
     camera.position.set(0, 32, 34);
     camera.lookAt(cameraTarget);
 
-    // The parcel world is centered on its own pivot. Logical parcel coordinates
-    // are translated into local coordinates around the current center, so
-    // visual movement and Supabase data use the same coordinate system.
     const parcelGroup = new THREE.Group();
     scene.add(parcelGroup);
 
-    const specialProvinceNumbers: Record<string, number> = {
-      ANK: 6,
-      ANT: 7,
-      BUR: 16,
-      GZT: 27,
-      IST: 34,
-      IZM: 35,
-      KAY: 38,
-    };
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    raycaster.params.Line.threshold = 2.5;
 
-    type CityDefinition = { name: string; code: string; provinceNumber: number };
-    let cities: CityDefinition[] = [];
-    let citiesLoaded = false;
-
-    const loadCities = async () => {
-      if (citiesLoaded) return cities;
-      const result = await supabaseBrowser
-        .from('cities')
-        .select('name,code')
-        .eq('is_active', true);
-
-      if (result.error) throw new Error('İller yüklenemedi: ' + result.error.message);
-
-      cities = (result.data ?? [])
-        .map((city) => {
-          const numericCode = Number(city.code);
-          const provinceNumber = specialProvinceNumbers[city.code] ?? (
-            Number.isFinite(numericCode) ? numericCode : Number.NaN
-          );
-          return {
-            name: city.name,
-            code: city.code,
-            provinceNumber,
-          };
-        })
-        .filter((city) => Number.isInteger(city.provinceNumber) && city.provinceNumber >= 1 && city.provinceNumber <= CITY_COUNT)
-        .sort((a, b) => a.provinceNumber - b.provinceNumber);
-
-      const provinceNumbers = new Set(cities.map((city) => city.provinceNumber));
-      if (cities.length !== CITY_COUNT || provinceNumbers.size !== CITY_COUNT) {
-        throw new Error(`81 il eşleştirmesi tamamlanamadı: ${cities.length} aktif il bulundu.`);
-      }
-
-      citiesLoaded = true;
-      return cities;
-    };
-
-    const getCityDefinition = (cityIndex: number) => cities[cityIndex];
-
-    // Current logical center is an integer parcel coordinate. visualOffset keeps
-    // the drag continuous between tile boundaries; when a full tile is crossed,
-    // the logical center changes and only the affected Supabase window is fetched.
-    let centerColumn = 20;
-    let centerRow = 12;
-    let visualOffsetX = 0;
-    let visualOffsetZ = 0;
+    let panX = 0;
+    let panZ = 0;
     let rotationY = 0;
     let rotationX = 0;
+    let dragging = false;
+    let dragMoved = false;
+    let lastPointerX = 0;
+    let lastPointerY = 0;
+    let pointerDownX = 0;
+    let pointerDownY = 0;
+    const pointers = new Map<number, { x: number; y: number }>();
+    let pinchDistance: number | null = null;
 
     const setZoom = (distance: number) => {
       const clamped = THREE.MathUtils.clamp(distance, 18, 120);
@@ -159,43 +247,16 @@ function GokyuzuPage() {
       camera.lookAt(cameraTarget);
     };
 
-    let dragging = false;
-    let lastPointerX = 0;
-    let lastPointerY = 0;
-    let dragMoved = false;
-    const pointers = new Map<number, { x: number; y: number }>();
-    let pinchDistance: number | null = null;
-
-    const shiftLogicalCenter = (axis: 'x' | 'z', delta: number) => {
-      if (axis === 'x') {
-        centerColumn = THREE.MathUtils.clamp(centerColumn + delta, 0, PARCEL_COLUMNS - 1);
-      } else {
-        centerRow = THREE.MathUtils.clamp(centerRow + delta, 0, PARCEL_ROWS - 1);
-      }
-    };
-
-    const applyVisualDrag = (dx: number, dy: number) => {
-      visualOffsetX += dx * 0.08;
-      visualOffsetZ += dy * 0.08;
-
-      while (Math.abs(visualOffsetX) >= TILE_SIZE) {
-        const step = visualOffsetX > 0 ? -1 : 1;
-        shiftLogicalCenter('x', step);
-        visualOffsetX += step * TILE_SIZE;
-      }
-      while (Math.abs(visualOffsetZ) >= TILE_SIZE) {
-        const step = visualOffsetZ > 0 ? -1 : 1;
-        shiftLogicalCenter('z', step);
-        visualOffsetZ += step * TILE_SIZE;
-      }
-
-      // Small controlled pitch/yaw gives the centered grid a globe-like feel
-      // without moving the camera or disconnecting parcel data from the world.
+    const applyDrag = (dx: number, dy: number) => {
+      const maxPanX = (PARCEL_COLUMNS * TILE_SIZE) * 0.5 - 90;
+      const maxPanZ = (PARCEL_ROWS * TILE_SIZE) * 0.5 - 70;
+      panX = THREE.MathUtils.clamp(panX + dx * 0.08, -maxPanX, maxPanX);
+      panZ = THREE.MathUtils.clamp(panZ + dy * 0.08, -maxPanZ, maxPanZ);
       rotationY = THREE.MathUtils.clamp(rotationY + dx * 0.0025, -0.65, 0.65);
       rotationX = THREE.MathUtils.clamp(rotationX + dy * 0.0018, -0.38, 0.38);
+      parcelGroup.position.set(panX, 0, panZ);
       parcelGroup.rotation.y = rotationY;
       parcelGroup.rotation.x = rotationX;
-      void updateVisibleParcels();
     };
 
     const onWheel = (event: WheelEvent) => {
@@ -209,6 +270,8 @@ function GokyuzuPage() {
       event.preventDefault();
       event.stopPropagation();
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      pointerDownX = event.clientX;
+      pointerDownY = event.clientY;
       try { renderer.domElement.setPointerCapture(event.pointerId); } catch { /* unsupported */ }
 
       if (pointers.size === 2) {
@@ -225,71 +288,13 @@ function GokyuzuPage() {
       renderer.domElement.style.cursor = 'grabbing';
     };
 
-    let hoveredParcelMesh: THREE.Mesh | null = null;
-
-    const clearHover = () => {
-      if (!hoveredParcelMesh) return;
-      hoveredParcelMesh.scale.set(1, 1, 1);
-      hoveredParcelMesh = null;
-      renderer.domElement.style.cursor = dragging ? 'grabbing' : 'grab';
-    };
-
-    const updateHover = (event: PointerEvent) => {
-      if (dragging || pointers.size > 1) {
-        clearHover();
-        return;
-      }
-
-      const rect = renderer.domElement.getBoundingClientRect();
-      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(pointer, camera);
-
-      // Raycast recursively through the parcel group. The visible parcel may
-      // be represented by a child object, so never depend on a flat mesh list.
-      const hit = raycaster.intersectObject(parcelGroup, true).find((entry) => {
-        let object: THREE.Object3D | null = entry.object;
-        while (object && object !== parcelGroup) {
-          if (object.userData?.parcel) return true;
-          object = object.parent;
-        }
-        return false;
-      });
-
-      let next: THREE.Mesh | null = null;
-      if (hit) {
-        let object: THREE.Object3D | null = hit.object;
-        while (object && object !== parcelGroup) {
-          if (object.userData?.parcel && object instanceof THREE.Mesh) {
-            next = object;
-            break;
-          }
-          object = object.parent;
-        }
-      }
-
-      if (next !== hoveredParcelMesh) {
-        if (hoveredParcelMesh) {
-          hoveredParcelMesh.scale.set(1, 1, 1);
-          hoveredParcelMesh.renderOrder = 0;
-        }
-        hoveredParcelMesh = next;
-        if (hoveredParcelMesh) {
-          hoveredParcelMesh.scale.set(1.12, 1.12, 1.12);
-          hoveredParcelMesh.renderOrder = 20;
-          renderer.domElement.style.cursor = 'pointer';
-        } else {
-          renderer.domElement.style.cursor = 'grab';
-        }
-      }
-    };
-
     const onPointerMove = (event: PointerEvent) => {
       const previous = pointers.get(event.pointerId);
       if (!previous) {
         updateHover(event);
         return;
       }
+
       event.preventDefault();
       event.stopPropagation();
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -300,8 +305,7 @@ function GokyuzuPage() {
         const current = Math.max(18, camera.position.z);
         setZoom(current / (distance / pinchDistance));
         pinchDistance = distance;
-        clearHover();
-        pinchDistance = distance;
+        renderer.domElement.style.cursor = 'grab';
         return;
       }
 
@@ -310,13 +314,13 @@ function GokyuzuPage() {
         return;
       }
 
-      clearHover();
       const dx = event.clientX - lastPointerX;
       const dy = event.clientY - lastPointerY;
       if (Math.hypot(dx, dy) > 1) dragMoved = true;
       lastPointerX = event.clientX;
       lastPointerY = event.clientY;
-      applyVisualDrag(dx, dy);
+      clearHover();
+      applyDrag(dx, dy);
     };
 
     const onPointerUp = (event: PointerEvent) => {
@@ -333,236 +337,202 @@ function GokyuzuPage() {
       try { renderer.domElement.releasePointerCapture(event.pointerId); } catch { /* unsupported */ }
     };
 
-    renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
-    renderer.domElement.addEventListener('pointerdown', onPointerDown);
-    renderer.domElement.addEventListener('pointermove', onPointerMove);
-    renderer.domElement.addEventListener('pointerup', onPointerUp);
-    renderer.domElement.addEventListener('pointercancel', onPointerUp);
+    let hoveredIndex: number | null = null;
+    let parcelMesh: THREE.InstancedMesh | null = null;
+    const parcelBaseColors: THREE.Color[] = [];
 
-    const parcelCache = new Map<number, Map<string, RealSkyParcel>>();
-    const loadedRanges = new Set<string>();
-    const loadingRanges = new Set<string>();
-
-    const loadCityParcels = async (
-      cityIndex: number,
-      minX: number,
-      maxX: number,
-      minY: number,
-      maxY: number,
-    ) => {
-      const city = getCityDefinition(cityIndex);
-      if (!city) return;
-
-      const key = [
-        cityIndex,
-        THREE.MathUtils.clamp(Math.floor(minX), 0, CITY_GRID_WIDTH - 1),
-        THREE.MathUtils.clamp(Math.floor(maxX), 0, CITY_GRID_WIDTH - 1),
-        THREE.MathUtils.clamp(Math.floor(minY), 0, CITY_GRID_HEIGHT - 1),
-        THREE.MathUtils.clamp(Math.floor(maxY), 0, CITY_GRID_HEIGHT - 1),
-      ].join(':');
-
-      if (loadedRanges.has(key) || loadingRanges.has(key)) return;
-      loadingRanges.add(key);
-
-      try {
-        const safeMinX = THREE.MathUtils.clamp(Math.floor(minX), 0, CITY_GRID_WIDTH - 1);
-        const safeMaxX = THREE.MathUtils.clamp(Math.floor(maxX), 0, CITY_GRID_WIDTH - 1);
-        const safeMinY = THREE.MathUtils.clamp(Math.floor(minY), 0, CITY_GRID_HEIGHT - 1);
-        const safeMaxY = THREE.MathUtils.clamp(Math.floor(maxY), 0, CITY_GRID_HEIGHT - 1);
-
-        const result = await supabaseBrowser
-          .from('parcel_map_public')
-          .select('id,parcel_number,status,price,tier,city_name,city_code,layer_number,sector_number,grid_x,grid_y')
-          .eq('city_name', city.name)
-          .gte('grid_x', safeMinX)
-          .lte('grid_x', safeMaxX)
-          .gte('grid_y', safeMinY)
-          .lte('grid_y', safeMaxY)
-          .order('grid_y', { ascending: true })
-          .order('grid_x', { ascending: true });
-
-        if (result.error) {
-          throw new Error(`Şehir ${city.name} parselleri yüklenemedi: ${result.error.message}`);
-        }
-
-        const cityCache = parcelCache.get(cityIndex) ?? new Map<string, RealSkyParcel>();
-        for (const parcel of (result.data ?? []) as RealSkyParcel[]) {
-          if (parcel.grid_x == null || parcel.grid_y == null) continue;
-          cityCache.set(parcel.grid_x + ':' + parcel.grid_y, parcel);
-        }
-        parcelCache.set(cityIndex, cityCache);
-        loadedRanges.add(key);
-      } finally {
-        loadingRanges.delete(key);
-      }
+    const clearHover = () => {
+      if (hoveredIndex == null || !parcelMesh) return;
+      const color = parcelBaseColors[hoveredIndex];
+      if (color) parcelMesh.setColorAt(hoveredIndex, color);
+      parcelMesh.instanceColor!.needsUpdate = true;
+      hoveredIndex = null;
+      renderer.domElement.style.cursor = dragging ? 'grabbing' : 'grab';
     };
 
-    const lineMaterial = new THREE.LineBasicMaterial({
-      color: 0xffd166,
-      transparent: true,
-      opacity: 1,
-      depthWrite: false,
-      depthTest: false,
-    });
-
-    const parcelLines: THREE.LineLoop[] = [];
-    const parcelMeshes: THREE.Mesh[] = [];
-    const realParcelMaterials = {
-      available: new THREE.MeshBasicMaterial({ color: 0x2ee6a6, transparent: true, opacity: 0.72, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
-      sold: new THREE.MeshBasicMaterial({ color: 0xff5c7a, transparent: true, opacity: 0.48, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
-      reserved: new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.76, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
-      other: new THREE.MeshBasicMaterial({ color: 0x8ea0b8, transparent: true, opacity: 0.58, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
-    };
-
-    const visibleWidth = VISIBLE_X * 2 + 1;
-    const visibleDepth = VISIBLE_Z * 2 + 1;
-    const pooledCount = visibleWidth * visibleDepth;
-
-    for (let i = 0; i < pooledCount; i += 1) {
-      const geometry = new THREE.BufferGeometry();
-      const line = new THREE.LineLoop(geometry, lineMaterial);
-      parcelGroup.add(line);
-      parcelLines.push(line);
-
-      const mesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(TILE_SIZE * 0.92, TILE_SIZE * 0.92),
-        realParcelMaterials.other,
-      );
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.y = 2.65;
-      mesh.visible = false;
-      parcelGroup.add(mesh);
-      parcelMeshes.push(mesh);
-    }
-
-    let visibleUpdateId = 0;
-    let lastRenderedCenter = '';
-    let updateQueued = false;
-
-    const renderVisibleWindow = () => {
-      const center = centerColumn + ':' + centerRow;
-      if (center === lastRenderedCenter) {
-        // Still update smooth visual offset without rebuilding geometries.
-        parcelGroup.position.x = visualOffsetX;
-        parcelGroup.position.z = visualOffsetZ;
+    const updateHover = (event: PointerEvent) => {
+      if (!parcelMesh || dragging || pointers.size > 1) {
+        clearHover();
         return;
       }
-      lastRenderedCenter = center;
-      parcelGroup.position.x = visualOffsetX;
-      parcelGroup.position.z = visualOffsetZ;
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObject(parcelMesh, false)[0];
+      const nextIndex = hit?.instanceId ?? null;
+      if (nextIndex === hoveredIndex) return;
+      clearHover();
+      if (nextIndex == null || !parcelBaseColors[nextIndex]) return;
+      hoveredIndex = nextIndex;
+      parcelMesh.setColorAt(nextIndex, new THREE.Color(0xffd166));
+      parcelMesh.instanceColor!.needsUpdate = true;
+      renderer.domElement.style.cursor = 'pointer';
+    };
 
-      let index = 0;
-      for (let dz = -VISIBLE_Z; dz <= VISIBLE_Z; dz += 1) {
-        for (let dx = -VISIBLE_X; dx <= VISIBLE_X; dx += 1) {
-          const column = centerColumn + dx;
-          const row = centerRow + dz;
-          const line = parcelLines[index];
-          const mesh = parcelMeshes[index];
-          index += 1;
+    const loadAllWorldData = async () => {
+      setWorldLoading(true);
+      setWorldLoaded(0);
 
-          if (
-            column < 0 ||
-            column >= PARCEL_COLUMNS ||
-            row < 0 ||
-            row >= PARCEL_ROWS
-          ) {
-            line.visible = false;
-            mesh.visible = false;
-            continue;
-          }
+      const citiesResult = await supabaseBrowser
+        .from('cities')
+        .select('name,code')
+        .eq('is_active', true);
 
-          const x = dx * TILE_SIZE;
-          const z = dz * TILE_SIZE;
-          const cityX = Math.floor(column / CITY_GRID_WIDTH);
-          const cityZ = Math.floor(row / CITY_GRID_HEIGHT);
-          const cityIndex = cityZ * CITY_BLOCKS + cityX;
-          const localX = column - cityX * CITY_GRID_WIDTH;
-          const localZ = row - cityZ * CITY_GRID_HEIGHT;
-          const realParcel = parcelCache.get(cityIndex)?.get(localX + ':' + localZ);
-          const y = realParcel ? 2.5 : 2.15;
+      if (citiesResult.error) throw citiesResult.error;
 
-          line.geometry.dispose();
-          line.geometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(x, y, z),
-            new THREE.Vector3(x + TILE_SIZE, y, z),
-            new THREE.Vector3(x + TILE_SIZE, y, z + TILE_SIZE),
-            new THREE.Vector3(x, y, z + TILE_SIZE),
-          ]);
-          line.visible = true;
-          line.userData.parcel = realParcel ?? null;
-          line.userData.parcelNumber = realParcel?.parcel_number ?? null;
-          line.userData.worldColumn = column;
-          line.userData.worldRow = row;
+      const cities = (citiesResult.data ?? [])
+        .map((city) => {
+          const numericCode = Number(city.code);
+          const provinceNumber = specialProvinceNumbers[city.code] ?? (
+            Number.isFinite(numericCode) ? numericCode : Number.NaN
+          );
+          return {
+            name: city.name,
+            code: city.code,
+            provinceNumber,
+          };
+        })
+        .filter((city) => Number.isInteger(city.provinceNumber) && city.provinceNumber >= 1 && city.provinceNumber <= CITY_COUNT)
+        .sort((a, b) => a.provinceNumber - b.provinceNumber);
 
-          mesh.position.set(x + TILE_SIZE / 2, y + 0.42, z + TILE_SIZE / 2);
-          mesh.visible = Boolean(realParcel);
-          mesh.userData.parcel = realParcel ?? null;
-          if (realParcel) {
-            const status = realParcel.status === 'sold'
-              ? 'sold'
-              : realParcel.status === 'reserved'
-                ? 'reserved'
-                : realParcel.status === 'available'
-                  ? 'available'
-                  : 'other';
-            mesh.material = realParcelMaterials[status];
+      if (cities.length !== CITY_COUNT) {
+        throw new Error('81 il eşleştirmesi tamamlanamadı.');
+      }
+
+      const cityIndexByCode = new Map(cities.map((city, index) => [city.code, index]));
+      const allParcels: RealSkyParcel[] = [];
+      const batchSize = 9;
+
+      for (let start = 0; start < cities.length; start += batchSize) {
+        const batch = cities.slice(start, start + batchSize);
+        const results = await Promise.all(
+          batch.map((city) =>
+            supabaseBrowser
+              .from('parcel_map_public')
+              .select('id,parcel_number,status,price,tier,city_name,city_code,layer_number,sector_number,grid_x,grid_y')
+              .eq('city_name', city.name)
+              .order('grid_y', { ascending: true })
+              .order('grid_x', { ascending: true })
+              .range(0, REAL_PARCELS_PER_CITY - 1),
+          ),
+        );
+
+        for (let i = 0; i < results.length; i += 1) {
+          const result = results[i];
+          if (result.error) throw result.error;
+          allParcels.push(...((result.data ?? []) as RealSkyParcel[]));
+        }
+        setWorldLoaded(Math.min(allParcels.length, REAL_PARCEL_COUNT));
+      }
+
+      if (allParcels.length !== REAL_PARCEL_COUNT) {
+        throw new Error('81.000 gerçek parselin tamamı yüklenemedi. Yüklenen: ' + allParcels.length);
+      }
+
+      const adsResult = await supabaseBrowser
+        .from('parcel_advertisements')
+        .select('id,parcel_id,title,image_path,link_url,is_active')
+        .eq('is_active', true);
+
+      if (adsResult.error) throw adsResult.error;
+
+      const gridPositions = new Float32Array(REAL_PARCEL_COUNT * 4 * 2 * 3);
+      let gridCursor = 0;
+      const halfWorldX = (PARCEL_COLUMNS * TILE_SIZE) / 2;
+      const halfWorldZ = (PARCEL_ROWS * TILE_SIZE) / 2;
+
+      for (let globalZ = 0; globalZ < PARCEL_ROWS; globalZ += 1) {
+        for (let globalX = 0; globalX < PARCEL_COLUMNS; globalX += 1) {
+          const x = globalX * TILE_SIZE - halfWorldX;
+          const z = globalZ * TILE_SIZE - halfWorldZ;
+          const x2 = x + TILE_SIZE;
+          const z2 = z + TILE_SIZE;
+          const values = [
+            [x, 2.15, z], [x2, 2.15, z],
+            [x2, 2.15, z], [x2, 2.15, z2],
+            [x2, 2.15, z2], [x, 2.15, z2],
+            [x, 2.15, z2], [x, 2.15, z],
+          ];
+          for (const point of values) {
+            gridPositions[gridCursor++] = point[0];
+            gridPositions[gridCursor++] = point[1];
+            gridPositions[gridCursor++] = point[2];
           }
         }
       }
-    };
 
-    const updateVisibleParcels = async () => {
-      if (updateQueued) return;
-      updateQueued = true;
-      updateQueued = false;
+      const gridGeometry = new THREE.BufferGeometry();
+      gridGeometry.setAttribute('position', new THREE.BufferAttribute(gridPositions, 3));
+      const gridMaterial = new THREE.LineBasicMaterial({
+        color: 0xffd166,
+        transparent: true,
+        opacity: 1,
+        depthWrite: false,
+        depthTest: false,
+      });
+      const gridLines = new THREE.LineSegments(gridGeometry, gridMaterial);
+      parcelGroup.add(gridLines);
 
-      renderVisibleWindow();
-      const updateId = ++visibleUpdateId;
+      const parcelGeometry = new THREE.PlaneGeometry(TILE_SIZE * 0.92, TILE_SIZE * 0.92);
+      parcelMesh = new THREE.InstancedMesh(
+        parcelGeometry,
+        new THREE.MeshBasicMaterial({
+          transparent: true,
+          opacity: 0.72,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          depthTest: false,
+          vertexColors: true,
+        }),
+        REAL_PARCEL_COUNT,
+      );
+      parcelMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
 
-      try {
-        const definitions = await loadCities();
-        const minColumn = THREE.MathUtils.clamp(centerColumn - VISIBLE_X, 0, PARCEL_COLUMNS - 1);
-        const maxColumn = THREE.MathUtils.clamp(centerColumn + VISIBLE_X, 0, PARCEL_COLUMNS - 1);
-        const minRow = THREE.MathUtils.clamp(centerRow - VISIBLE_Z, 0, PARCEL_ROWS - 1);
-        const maxRow = THREE.MathUtils.clamp(centerRow + VISIBLE_Z, 0, PARCEL_ROWS - 1);
-        const tasks: Promise<void>[] = [];
+      const baseColor = new THREE.Color();
+      const matrix = new THREE.Matrix4();
+      const adMap = new Map((adsResult.data ?? []).map((ad) => [ad.parcel_id, ad as ParcelAd]));
 
-        const minCityX = Math.floor(minColumn / CITY_GRID_WIDTH);
-        const maxCityX = Math.floor(maxColumn / CITY_GRID_WIDTH);
-        const minCityZ = Math.floor(minRow / CITY_GRID_HEIGHT);
-        const maxCityZ = Math.floor(maxRow / CITY_GRID_HEIGHT);
+      for (let i = 0; i < allParcels.length; i += 1) {
+        const parcel = allParcels[i];
+        const cityIndex = cityIndexByCode.get(parcel.city_code ?? '');
+        if (cityIndex == null || parcel.grid_x == null || parcel.grid_y == null) continue;
 
-        for (let cityZ = minCityZ; cityZ <= maxCityZ; cityZ += 1) {
-          for (let cityX = minCityX; cityX <= maxCityX; cityX += 1) {
-            const cityIndex = cityZ * CITY_BLOCKS + cityX;
-            const city = definitions[cityIndex];
-            if (!city) continue;
+        const cityX = cityIndex % CITY_BLOCKS;
+        const cityZ = Math.floor(cityIndex / CITY_BLOCKS);
+        const globalX = cityX * CITY_GRID_WIDTH + parcel.grid_x;
+        const globalZ = cityZ * CITY_GRID_HEIGHT + parcel.grid_y;
+        const x = globalX * TILE_SIZE - halfWorldX + TILE_SIZE / 2;
+        const z = globalZ * TILE_SIZE - halfWorldZ + TILE_SIZE / 2;
 
-            const cityMinColumn = cityX * CITY_GRID_WIDTH;
-            const cityMinRow = cityZ * CITY_GRID_HEIGHT;
-            const localMinX = Math.max(0, minColumn - cityMinColumn);
-            const localMaxX = Math.min(CITY_GRID_WIDTH - 1, maxColumn - cityMinColumn);
-            const localMinY = Math.max(0, minRow - cityMinRow);
-            const localMaxY = Math.min(CITY_GRID_HEIGHT - 1, maxRow - cityMinRow);
-            tasks.push(loadCityParcels(cityIndex, localMinX, localMaxX, localMinY, localMaxY));
-          }
-        }
+        matrix.makeTranslation(x, 2.58, z);
+        matrix.multiply(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+        parcelMesh.setMatrixAt(i, matrix);
 
-        await Promise.all(tasks);
-        if (updateId !== visibleUpdateId) return;
-        renderVisibleWindow();
-      } catch (error) {
-        console.error('Gökyüzü parselleri yüklenemedi:', error);
+        if (parcel.status === 'sold') baseColor.set(0xff5c7a);
+        else if (parcel.status === 'reserved') baseColor.set(0xffc857);
+        else if (parcel.status === 'available') baseColor.set(0x2ee6a6);
+        else baseColor.set(0x8ea0b8);
+
+        const color = baseColor.clone();
+        parcelBaseColors[i] = color;
+        parcelMesh.setColorAt(i, color);
+        parcelMesh.userData.parcels = allParcels;
+        parcelMesh.userData.ads = adMap;
       }
+
+      parcelMesh.instanceMatrix.needsUpdate = true;
+      if (parcelMesh.instanceColor) parcelMesh.instanceColor.needsUpdate = true;
+      parcelGroup.add(parcelMesh);
+
+      setWorldLoading(false);
+      setWorldLoaded(allParcels.length);
     };
 
-    void updateVisibleParcels();
-
-    const raycaster = new THREE.Raycaster();
-    raycaster.params.Line.threshold = 2.5;
-    const pointer = new THREE.Vector2();
-    let pointerDownX = 0;
-    let pointerDownY = 0;
+    void loadAllWorldData().catch((error) => {
+      console.error('Parsel Dünyası yüklenemedi:', error);
+      setWorldLoading(false);
+    });
 
     const onSelectPointerDown = (event: PointerEvent) => {
       pointerDownX = event.clientX;
@@ -570,39 +540,30 @@ function GokyuzuPage() {
     };
 
     const onSelectPointerUp = (event: PointerEvent) => {
+      if (!parcelMesh) return;
       if (dragMoved || Math.hypot(event.clientX - pointerDownX, event.clientY - pointerDownY) > 8) {
         dragMoved = false;
         return;
       }
+
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObject(parcelMesh, false)[0];
+      if (hit?.instanceId == null) return;
 
-      const hit = raycaster.intersectObject(parcelGroup, true).find((entry) => {
-        let object: THREE.Object3D | null = entry.object;
-        while (object && object !== parcelGroup) {
-          if (object.userData?.parcel) return true;
-          object = object.parent;
-        }
-        return false;
-      });
-
-      let parcel: RealSkyParcel | null = null;
-      if (hit) {
-        let object: THREE.Object3D | null = hit.object;
-        while (object && object !== parcelGroup) {
-          if (object.userData?.parcel) {
-            parcel = object.userData.parcel as RealSkyParcel;
-            break;
-          }
-          object = object.parent;
-        }
-      }
+      const parcels = parcelMesh.userData.parcels as RealSkyParcel[] | undefined;
+      const parcel = parcels?.[hit.instanceId];
       if (parcel) setSelectedParcel(parcel);
       dragMoved = false;
     };
 
+    renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    renderer.domElement.addEventListener('pointermove', onPointerMove);
+    renderer.domElement.addEventListener('pointerup', onPointerUp);
+    renderer.domElement.addEventListener('pointercancel', onPointerUp);
     renderer.domElement.addEventListener('pointerdown', onSelectPointerDown);
     renderer.domElement.addEventListener('pointerup', onSelectPointerUp);
 
@@ -613,7 +574,6 @@ function GokyuzuPage() {
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
     };
-
     window.addEventListener('resize', resize);
     resize();
 
@@ -638,10 +598,16 @@ function GokyuzuPage() {
       skyTexture.dispose();
       skyGeometry.dispose();
       skyMaterial.dispose();
-      lineMaterial.dispose();
-      Object.values(realParcelMaterials).forEach((material) => material.dispose());
-      parcelLines.forEach((line) => line.geometry.dispose());
-      parcelMeshes.forEach((mesh) => mesh.geometry.dispose());
+      if (parcelMesh) {
+        parcelMesh.geometry.dispose();
+        (parcelMesh.material as THREE.Material).dispose();
+      }
+      parcelGroup.traverse((object) => {
+        if (object instanceof THREE.LineSegments && object.geometry !== skyGeometry) {
+          object.geometry.dispose();
+          (object.material as THREE.Material).dispose();
+        }
+      });
       renderer.dispose();
       renderer.domElement.remove();
     };
@@ -649,10 +615,12 @@ function GokyuzuPage() {
 
   return (
     <main className="gokyuzu-page">
+      <SiteHeader variant="light-bg" />
+
       <div
         ref={mountRef}
         className="gokyuzu-canvas"
-        aria-label="81 bin gökyüzü parselinden oluşan sürüklenebilir parsel dünyası"
+        aria-label="81 bin gerçek gökyüzü parselinden oluşan sürüklenebilir parsel dünyası"
       />
 
       <header className="gokyuzu-header">
@@ -661,21 +629,28 @@ function GokyuzuPage() {
           <h1>Gökyüzü</h1>
           <p>
             81 milyonluk MySkyParcel evreninin şu anki 81.000 gerçek parselini keşfet.
-            Her kare, Supabase'deki tekil bir gerçek parsele bağlanır.
+            Açılışta tüm gerçek parseller yüklenir; sürüklediğinde yeni veri beklemezsin.
           </p>
         </div>
 
         <div className="gokyuzu-badge">
           <span className="sun-dot" />
-          <span>{REAL_PARCEL_COUNT.toLocaleString('tr-TR')} GERÇEK PARSEL · {TOTAL_PARCELS.toLocaleString('tr-TR')} HEDEF</span>
+          <span>{worldLoading ? worldLoaded.toLocaleString('tr-TR') + ' / ' + REAL_PARCEL_COUNT.toLocaleString('tr-TR') + ' YÜKLENİYOR' : REAL_PARCEL_COUNT.toLocaleString('tr-TR') + ' GERÇEK PARSEL · ' + TOTAL_PARCELS.toLocaleString('tr-TR') + ' HEDEF'}</span>
         </div>
       </header>
+
+      {worldLoading && (
+        <div className="gokyuzu-loading" role="status">
+          <strong>Parsel Dünyası hazırlanıyor</strong>
+          <span>{worldLoaded.toLocaleString('tr-TR')} / {REAL_PARCEL_COUNT.toLocaleString('tr-TR')} gerçek parsel yükleniyor…</span>
+        </div>
+      )}
 
       <div className="gokyuzu-controls">
         <span>👆 Parmağınla sürükle</span>
         <span>🖱️ Fareyle sürükle</span>
         <span>↕️ Yakınlaştır / uzaklaştır</span>
-        <span>▦ Gerçek Supabase parselleri</span>
+        <span>▦ Açılışta tüm 81.000 gerçek parsel</span>
       </div>
 
       {selectedParcel && (
@@ -687,11 +662,61 @@ function GokyuzuPage() {
             <span>{selectedParcel.status === 'available' ? 'Satın alınabilir' : selectedParcel.status === 'sold' ? 'Satıldı' : 'Rezerve'}</span>
             {selectedParcel.price != null && <strong>{selectedParcel.price.toLocaleString('tr-TR')} TL</strong>}
           </div>
+
+          {selectedAd && (
+            <div className="gokyuzu-ad-card">
+              <div className="gokyuzu-ad-label">PARSEL REKLAMI</div>
+              <img src={getAdUrl(selectedAd)} alt={selectedAd.title} />
+              <strong>{selectedAd.title}</strong>
+              {selectedAd.link_url && (
+                <a href={selectedAd.link_url} target="_blank" rel="noreferrer">Reklamı ziyaret et</a>
+              )}
+            </div>
+          )}
+
           {selectedParcel.status === 'available' && (
             <Link to="/parsel-satin-al" search={{ parcels: selectedParcel.id }} className="gokyuzu-buy-button">Bu parseli satın al</Link>
+          )}
+
+          {selectedIsOwner && selectedParcel.status === 'sold' && (
+            <div className="gokyuzu-ad-editor">
+              <div className="gokyuzu-ad-editor-title">Bu parsele reklam ver</div>
+              <input
+                value={adTitle}
+                onChange={(event) => setAdTitle(event.target.value)}
+                maxLength={120}
+                placeholder="Mağaza / işletme adı"
+                aria-label="Reklam başlığı"
+              />
+              <input
+                value={adLink}
+                onChange={(event) => setAdLink(event.target.value)}
+                maxLength={500}
+                placeholder="Web sitesi (isteğe bağlı)"
+                aria-label="Reklam bağlantısı"
+              />
+              <label className="gokyuzu-ad-file">
+                <span>{adFile?.name ?? (selectedAd ? 'Yeni görsel seç' : 'Mağaza görseli seç')}</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={(event) => setAdFile(event.target.files?.[0] ?? null)}
+                />
+              </label>
+              <button type="button" onClick={() => void saveAdvertisement()} disabled={adSaving} className="gokyuzu-ad-save">
+                {adSaving ? 'YAYINLANIYOR…' : selectedAd ? 'REKLAMI GÜNCELLE' : 'REKLAMI YAYINLA'}
+              </button>
+              {selectedAd && (
+                <button type="button" onClick={() => void removeAdvertisement()} disabled={adSaving} className="gokyuzu-ad-remove">
+                  Reklamı kaldır
+                </button>
+              )}
+              {adMessage && <p className="gokyuzu-ad-message">{adMessage}</p>}
+            </div>
           )}
         </aside>
       )}
     </main>
   );
 }
+
