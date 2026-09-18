@@ -21452,6 +21452,7 @@ var three_module_exports = /* @__PURE__ */ __exportAll({
 	Plane: () => Plane,
 	PlaneGeometry: () => PlaneGeometry,
 	Points: () => Points,
+	PointsMaterial: () => PointsMaterial,
 	R11_EAC_Format: () => R11_EAC_Format,
 	RED_GREEN_RGTC2_Format: () => RED_GREEN_RGTC2_Format,
 	RED_RGTC1_Format: () => RED_RGTC1_Format,
