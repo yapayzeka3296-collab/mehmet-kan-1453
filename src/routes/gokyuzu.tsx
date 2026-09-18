@@ -6,6 +6,9 @@ import './gokyuzu.css';
 
 export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
 
+// Poly Haven CDN preview: same photographic sky family, served from a web CDN.
+// The CSS background is also used as a visible fallback so a texture/network
+// failure can never leave the Three.js canvas black.
 const SKY_IMAGE_URL =
   'https://cdn.polyhaven.com/asset_img/primary/kloppenheim_03_puresky.png?height=2048';
 
@@ -34,15 +37,12 @@ function GokyuzuPage() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.setClearColor(0x58aee0, 0);
+    renderer.setClearColor(0x000000, 0);
     mount.appendChild(renderer.domElement);
 
     const loadingManager = new THREE.LoadingManager();
     loadingManager.onLoad = () => mount.classList.add('gokyuzu-sky-ready');
-    loadingManager.onError = () => {
-      mount.classList.remove('gokyuzu-sky-ready');
-      mount.classList.add('gokyuzu-sky-fallback');
-    };
+    loadingManager.onError = () => mount.classList.add('gokyuzu-sky-fallback');
 
     const loader = new THREE.TextureLoader(loadingManager);
     loader.setCrossOrigin('anonymous');
@@ -55,22 +55,33 @@ function GokyuzuPage() {
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
         texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-
-        // Important: render the photographic panorama as the actual
-        // Three.js scene background. The CSS image stays only as fallback.
-        // This makes the visible sky rotate with the camera on touch/mouse.
-        scene.background = texture;
         mount.classList.add('gokyuzu-sky-ready');
       },
       undefined,
       () => {
-        mount.classList.remove('gokyuzu-sky-ready');
         mount.classList.add('gokyuzu-sky-fallback');
       },
     );
 
+    const skyGeometry = new THREE.SphereGeometry(8000, 64, 40);
+    skyGeometry.scale(-1, 1, 1);
+
+    const skyMaterial = new THREE.MeshBasicMaterial({
+      map: skyTexture,
+      side: THREE.BackSide,
+      depthWrite: false,
+      transparent: true,
+      opacity: 1,
+      fog: false,
+    });
+
+    const skyDome = new THREE.Mesh(skyGeometry, skyMaterial);
+    scene.add(skyDome);
+
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enabled = true;
+
+    // Full 360° panorama navigation: one-finger drag on mobile and
+    // left-mouse drag on desktop rotate the view without panning or zooming.
     controls.enableRotate = true;
     controls.enablePan = false;
     controls.enableZoom = false;
@@ -78,13 +89,10 @@ function GokyuzuPage() {
     controls.maxAzimuthAngle = Infinity;
     controls.minPolarAngle = 0.001;
     controls.maxPolarAngle = Math.PI - 0.001;
-    controls.rotateSpeed = 0.7;
+    controls.rotateSpeed = 0.55;
     controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-
-    // One-finger touch = rotate. No two-finger pan/zoom is needed here.
+    controls.dampingFactor = 0.045;
     controls.touches.ONE = THREE.TOUCH.ROTATE;
-    controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
     controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
     controls.target.set(0, 0, -1);
 
@@ -112,6 +120,8 @@ function GokyuzuPage() {
       window.removeEventListener('resize', resize);
       controls.dispose();
       skyTexture.dispose();
+      skyGeometry.dispose();
+      skyMaterial.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     };
