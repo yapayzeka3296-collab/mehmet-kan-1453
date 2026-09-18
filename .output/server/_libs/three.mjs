@@ -33756,4 +33756,4 @@ var MapControls = class extends OrbitControls {
 	}
 };
 //#endregion
-export { TOUCH as _, BufferGeometry as a, LineLoop as c, Mesh as d, MeshBasicMaterial as f, SphereGeometry as g, Scene as h, BackSide as i, MOUSE as l, SRGBColorSpace as m, WebGLRenderer as n, Group as o, PerspectiveCamera as p, three_module_exports as r, LineBasicMaterial as s, MapControls as t, MathUtils as u, TextureLoader as v, Vector3 as y };
+export { SphereGeometry as _, BufferGeometry as a, Vector2 as b, LineLoop as c, Mesh as d, MeshBasicMaterial as f, Scene as g, SRGBColorSpace as h, BackSide as i, MOUSE as l, Raycaster as m, WebGLRenderer as n, Group as o, PerspectiveCamera as p, three_module_exports as r, LineBasicMaterial as s, MapControls as t, MathUtils as u, TOUCH as v, Vector3 as x, TextureLoader as y };
