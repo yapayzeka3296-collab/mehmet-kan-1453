@@ -258,7 +258,7 @@ function GokyuzuPage() {
     const clearHover = () => {
       if (!hoveredParcelObject) return;
       hoveredParcelObject.scale.set(1, 1, 1);
-      hoveredParcelObject.renderOrder = 0;
+      hoveredParcelObject.renderOrder = 10;
       hoveredParcelObject = null;
       renderer.domElement.style.cursor = dragging ? 'grabbing' : 'grab';
     };
@@ -286,7 +286,8 @@ function GokyuzuPage() {
       raycaster.setFromCamera(pointer, camera);
 
       const hit = raycaster.intersectObject(parcelGroup, true)
-        .map((entry) => findParcelObject(entry.object))
+        .map((entry) => entry.object)
+        .map((object) => findParcelObject(object) ?? (Number.isInteger(object.userData?.worldColumn) && Number.isInteger(object.userData?.worldRow) ? object : null))
         .find((object): object is THREE.Object3D => Boolean(object));
 
       if (hit !== hoveredParcelObject) {
@@ -299,7 +300,7 @@ function GokyuzuPage() {
 
         if (hoveredParcelObject) {
           hoveredParcelObject.scale.set(1.08, 1.08, 1.08);
-          hoveredParcelObject.renderOrder = 50;
+          hoveredParcelObject.renderOrder = 60;
           renderer.domElement.style.cursor = 'pointer';
         } else {
           renderer.domElement.style.cursor = 'grab';
@@ -433,7 +434,7 @@ function GokyuzuPage() {
       available: new THREE.MeshBasicMaterial({ color: 0x2ee6a6, transparent: true, opacity: 0.72, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
       sold: new THREE.MeshBasicMaterial({ color: 0xff5c7a, transparent: true, opacity: 0.48, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
       reserved: new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.76, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
-      other: new THREE.MeshBasicMaterial({ color: 0x8ea0b8, transparent: true, opacity: 0.58, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
+      other: new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
     };
 
     const visibleWidth = VISIBLE_X * 2 + 1;
@@ -537,7 +538,7 @@ function GokyuzuPage() {
                   : 'other'
             : 'other';
           mesh.material = realParcelMaterials[status];
-          mesh.renderOrder = realParcel ? 7 : 6;
+          mesh.renderOrder = realParcel ? 12 : 10;
         }
       }
     };
@@ -617,8 +618,8 @@ function GokyuzuPage() {
       raycaster.setFromCamera(pointer, camera);
 
       const intersections = raycaster.intersectObject(parcelGroup, true);
-      const parcelHit = intersections.find((entry) => Boolean(findParcelObject(entry.object)));
-      const parcelObject = parcelHit ? findParcelObject(parcelHit.object) : null;
+      const parcelHit = intersections.find((entry) => Boolean(findParcelObject(entry.object)) || (Number.isInteger(entry.object.userData?.worldColumn) && Number.isInteger(entry.object.userData?.worldRow)));
+      const parcelObject = parcelHit ? (findParcelObject(parcelHit.object) ?? parcelHit.object) : null;
       const loadedParcel = parcelObject?.userData?.parcel as RealSkyParcel | null | undefined;
 
       if (loadedParcel) {
