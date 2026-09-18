@@ -6,8 +6,11 @@ import './gokyuzu.css';
 
 export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
 
+// Poly Haven CDN preview: same photographic sky family, served from a web CDN.
+// The CSS background is also used as a visible fallback so a texture/network
+// failure can never leave the Three.js canvas black.
 const SKY_IMAGE_URL =
-  'https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/kloppenheim_03_puresky.jpg';
+  'https://cdn.polyhaven.com/asset_img/primary/kloppenheim_03_puresky.png?height=2048';
 
 function GokyuzuPage() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -17,54 +20,66 @@ function GokyuzuPage() {
     if (!mount) return;
 
     const scene = new THREE.Scene();
+
     const camera = new THREE.PerspectiveCamera(
       68,
-      mount.clientWidth / mount.clientHeight,
+      Math.max(mount.clientWidth, 1) / Math.max(mount.clientHeight, 1),
       0.01,
       20000,
     );
-    camera.position.set(0, 1.2, 0.01);
+    camera.position.set(0, 0, 0.01);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
-      alpha: false,
+      alpha: true,
       powerPreference: 'high-performance',
     });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1;
+    renderer.setClearColor(0x000000, 0);
     mount.appendChild(renderer.domElement);
 
-    // Real photographic daytime sky from Poly Haven, mapped around the camera.
-    // The image is CC0 and contains real, static cloud formations.
-    const loader = new THREE.TextureLoader();
+    const loadingManager = new THREE.LoadingManager();
+    loadingManager.onLoad = () => mount.classList.add('gokyuzu-sky-ready');
+    loadingManager.onError = () => mount.classList.add('gokyuzu-sky-fallback');
+
+    const loader = new THREE.TextureLoader(loadingManager);
+    loader.setCrossOrigin('anonymous');
+
     const skyTexture = loader.load(
       SKY_IMAGE_URL,
-      undefined,
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+        // Keep the real photographic sky visible behind the UI.
+        mount.classList.add('gokyuzu-sky-ready');
+      },
       undefined,
       () => {
-        mount.classList.add('gokyuzu-sky-error');
+        // Never leave a black canvas if the remote image is unavailable.
+        mount.classList.add('gokyuzu-sky-fallback');
       },
     );
-    skyTexture.colorSpace = THREE.SRGBColorSpace;
-    skyTexture.mapping = THREE.EquirectangularReflectionMapping;
-    skyTexture.wrapS = THREE.RepeatWrapping;
 
-    const skyGeometry = new THREE.SphereGeometry(8000, 64, 32);
+    const skyGeometry = new THREE.SphereGeometry(8000, 64, 40);
     skyGeometry.scale(-1, 1, 1);
+
     const skyMaterial = new THREE.MeshBasicMaterial({
       map: skyTexture,
       side: THREE.BackSide,
       depthWrite: false,
+      transparent: true,
+      opacity: 1,
       fog: false,
     });
+
     const skyDome = new THREE.Mesh(skyGeometry, skyMaterial);
     scene.add(skyDome);
-
-    // Very subtle atmospheric fill; the photograph remains the visible sky.
-    scene.add(new THREE.HemisphereLight(0xdff4ff, 0x86b7d8, 0.55));
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -72,23 +87,26 @@ function GokyuzuPage() {
     controls.enablePan = false;
     controls.minDistance = 0.01;
     controls.maxDistance = 0.01;
-    controls.minPolarAngle = 0.06;
-    controls.maxPolarAngle = Math.PI - 0.06;
-    controls.target.set(0, 1.2, -1);
-    controls.rotateSpeed = 0.18;
+    controls.minPolarAngle = 0.08;
+    controls.maxPolarAngle = Math.PI - 0.08;
+    controls.target.set(0, 0, -1);
+    controls.rotateSpeed = 0.2;
     controls.zoomToCursor = false;
 
     const resize = () => {
-      camera.aspect = mount.clientWidth / mount.clientHeight;
+      const width = Math.max(mount.clientWidth, 1);
+      const height = Math.max(mount.clientHeight, 1);
+      camera.aspect = width / height;
       camera.updateProjectionMatrix();
-      renderer.setSize(mount.clientWidth, mount.clientHeight);
+      renderer.setSize(width, height);
     };
+
     window.addEventListener('resize', resize);
+    resize();
 
     let frame = 0;
     const animate = () => {
       frame = requestAnimationFrame(animate);
-      // The clouds/photo never move independently. Only the user's view rotates.
       controls.update();
       renderer.render(scene, camera);
     };
@@ -118,8 +136,9 @@ function GokyuzuPage() {
         <div>
           <div className="gokyuzu-kicker">MYSKYPARCEL · PARSEL DÜNYASI</div>
           <h1>Gökyüzü</h1>
-          <p>Gerçek gökyüzü görüntüsünün içinde 3D olarak keşfet.</p>
+          <p>Gerçek gündüz gökyüzünü 3D olarak keşfet.</p>
         </div>
+
         <div className="gokyuzu-badge">
           <span className="sun-dot" />
           <span>Gerçek gündüz gökyüzü</span>
