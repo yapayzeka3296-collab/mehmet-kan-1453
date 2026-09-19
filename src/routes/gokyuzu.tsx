@@ -849,15 +849,11 @@ function GokyuzuPage() {
         parcelMesh.geometry.dispose();
         (parcelMesh.material as THREE.Material).dispose();
       }
-      soldLabelTexture.dispose();
-      soldLabelMaterial.dispose();
       parcelGroup.traverse((object) => {
         if (object instanceof THREE.Sprite) {
           const material = object.material as THREE.SpriteMaterial;
-          if (material !== soldLabelMaterial) {
-            material.map?.dispose();
-            material.dispose();
-          }
+          material.map?.dispose();
+          material.dispose();
         }
         if (object instanceof THREE.LineSegments && object.geometry !== skyGeometry) {
           object.geometry.dispose();
