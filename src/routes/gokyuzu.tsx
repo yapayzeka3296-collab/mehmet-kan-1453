@@ -131,6 +131,7 @@ function GokyuzuPage() {
   const [selectedParcel, setSelectedParcel] = useState<RealSkyParcel | null>(null);
   const [selectedAd, setSelectedAd] = useState<ParcelAd | null>(null);
   const [selectedIsOwner, setSelectedIsOwner] = useState(false);
+  const [showAdInfo, setShowAdInfo] = useState(false);
   const [adTitle, setAdTitle] = useState('');
   const [adLink, setAdLink] = useState('');
   const [adFile, setAdFile] = useState<File | null>(null);
@@ -145,6 +146,7 @@ function GokyuzuPage() {
   useEffect(() => {
     if (!selectedParcel) {
       setSelectedAd(null);
+      setShowAdInfo(false);
       setSelectedIsOwner(false);
       setAdMessage('');
       return;
@@ -166,6 +168,7 @@ function GokyuzuPage() {
       if (cancelled) return;
       setSelectedIsOwner(Boolean(ownerData));
       setSelectedAd((adData as ParcelAd | null) ?? null);
+      setShowAdInfo(false);
       setAdTitle((adData as ParcelAd | null)?.title ?? '');
       setAdLink((adData as ParcelAd | null)?.link_url ?? '');
     };
@@ -677,8 +680,12 @@ function GokyuzuPage() {
         const x = globalX * TILE_SIZE - halfWorldX + TILE_SIZE / 2;
         const z = globalZ * TILE_SIZE - halfWorldZ + TILE_SIZE / 2;
 
-        matrix.makeTranslation(x, 2.58, z);
-        matrix.multiply(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+        const hasAd = adMap.has(parcel.id);
+        matrix.compose(
+          new THREE.Vector3(x, 2.58, z),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)),
+          new THREE.Vector3(hasAd ? 0 : 1, hasAd ? 0 : 1, hasAd ? 0 : 1),
+        );
         parcelMesh.setMatrixAt(i, matrix);
 
         if (parcel.status === 'sold') baseColor.set(0xdc2626);
@@ -790,12 +797,26 @@ function GokyuzuPage() {
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObject(parcelMesh, false)[0];
-      if (hit?.instanceId == null) return;
+      const parcelHit = raycaster.intersectObject(parcelMesh, false)[0];
+      if (parcelHit?.instanceId != null) {
+        const parcels = parcelMesh.userData.parcels as RealSkyParcel[] | undefined;
+        const parcel = parcels?.[parcelHit.instanceId];
+        if (parcel) setSelectedParcel(parcel);
+        dragMoved = false;
+        return;
+      }
 
-      const parcels = parcelMesh.userData.parcels as RealSkyParcel[] | undefined;
-      const parcel = parcels?.[hit.instanceId];
-      if (parcel) setSelectedParcel(parcel);
+      const adHit = adGroup.children.length
+        ? raycaster
+            .intersectObjects(adGroup.children, true)
+            .find((item) => item.object.userData.kind === 'parcel-ad-tile')
+        : undefined;
+      if (adHit) {
+        const parcelId = adHit.object.userData.parcelId as string | undefined;
+        const parcels = parcelMesh.userData.parcels as RealSkyParcel[] | undefined;
+        const parcel = parcels?.find((item) => item.id === parcelId);
+        if (parcel) setSelectedParcel(parcel);
+      }
       dragMoved = false;
     };
 
@@ -929,10 +950,22 @@ function GokyuzuPage() {
           {selectedAd && (
             <div className="gokyuzu-ad-card">
               <div className="gokyuzu-ad-label">PARSEL REKLAMI</div>
-              <img src={getAdUrl(selectedAd)} alt={selectedAd.title} />
-              <strong>{selectedAd.title}</strong>
-              {selectedAd.link_url && (
-                <a href={selectedAd.link_url} target="_blank" rel="noreferrer">Reklamı ziyaret et</a>
+              <button
+                type="button"
+                className="gokyuzu-ad-save"
+                onClick={() => setShowAdInfo((visible) => !visible)}
+              >
+                {showAdInfo ? 'REKLAM BİLGİLERİNİ GİZLE' : 'REKLAMA GİT'}
+              </button>
+              {showAdInfo && (
+                <>
+                  <img src={getAdUrl(selectedAd)} alt={selectedAd.title} />
+                  <strong>{selectedAd.title}</strong>
+                  <span>Bu reklam parsele gömülü olarak yayınlanıyor.</span>
+                  {selectedAd.link_url && (
+                    <a href={selectedAd.link_url} target="_blank" rel="noreferrer">WEB SİTESİNE GİT →</a>
+                  )}
+                </>
               )}
             </div>
           )}
