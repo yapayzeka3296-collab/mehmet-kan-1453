@@ -138,13 +138,25 @@ jobs:
           done
           code="$(curl -sS -o /tmp/route-response -w '%{http_code}' --max-time 20 'http://127.0.0.1:4173/admin-check')"
           case "$code" in 401|403) echo "PASS $code /admin-check";; *) echo "FAIL $code /admin-check"; exit 1;; esac
+      - name: Mark build provenance for cPanel deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_COMMIT="$(git rev-parse HEAD)"
+          printf '%s\n' "$SOURCE_COMMIT" > .output/.build-source-commit
+          # /ana-sayfa must remain SSR-only; a physical static copy would shadow Passenger.
+          rm -rf .output/public/ana-sayfa .output/public/ana-sayfa.html
+          test ! -e .output/public/ana-sayfa
+          test ! -e .output/public/ana-sayfa.html
+          git add -f .output/.build-source-commit
+          git add -f .output src/routeTree.gen.ts
+
       - name: Commit prebuilt Nitro output and generated route tree for cPanel
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f .output src/routeTree.gen.ts
           if git diff --cached --quiet -- .output src/routeTree.gen.ts; then
             echo "Production output and route tree unchanged."
           else
