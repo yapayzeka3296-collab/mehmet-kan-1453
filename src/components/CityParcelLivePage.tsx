@@ -12,6 +12,7 @@ type OwnedParcelRow = { id: string; parcel_number: string; tier: ParcelTier; tie
 
 const TIER_ORDER: ParcelTier[] = ["digital", "elite", "premium"];
 const TIER_LIMITS: Record<ParcelTier, number> = { digital: 30, elite: 22, premium: 8 };
+const SOLD_TIER_COUNTS: Record<ParcelTier, number> = { digital: 12, elite: 8, premium: 3 };
 const VISIBLE_COUNT = 60;
 const COLS = 12;
 const ROWS = 5;
@@ -26,7 +27,50 @@ function toCartItem(p: MapParcel): ParcelCartItem { return { id: p.id, parcel_nu
 function toDetailParcel(p: MapParcel): Parcel { const now = new Date().toISOString(); return { id: p.id, parcel_number: p.parcel_number, status: p.status, owner_id: null, price: Number(p.tier_price ?? PRICES[p.tier]), tier: p.tier, tier_price: Number(p.tier_price ?? PRICES[p.tier]), city_id: null, city_name: p.city_name, city_slug: p.city_slug, latitude: 0, longitude: 0, created_at: now, updated_at: now }; }
 async function loadPublicParcels(citySlug: string): Promise<MapParcel[]> { if (!supabaseBrowser) throw new Error("Supabase bağlantısı bulunamadı."); const { data, error } = await supabaseBrowser.rpc("parcels_in_view", { p_city_slug: citySlug, p_min_lat: -90, p_min_lng: -180, p_max_lat: 90, p_max_lng: 180 }); if (error) throw error; return (data ?? []) as MapParcel[]; }
 const GRID_TIERS: ParcelTier[] = (() => { const cells = Array.from({ length: VISIBLE_COUNT }, (_, index) => { const x = index % COLS; const y = Math.floor(index / COLS); const cx = (COLS - 1) / 2; const cy = (ROWS - 1) / 2; return { index, distance: (x - cx) ** 2 + (y - cy) ** 2 }; }).sort((a, b) => a.distance - b.distance); const result = Array<ParcelTier>(VISIBLE_COUNT); let offset = 0; for (const tier of ["premium", "elite", "digital"] as ParcelTier[]) { for (const cell of cells.slice(offset, offset + TIER_LIMITS[tier])) result[cell.index] = tier; offset += TIER_LIMITS[tier]; } return result; })();
-function buildSlots(rows: MapParcel[]): Array<MapParcel | null> { const result: Array<MapParcel | null> = Array.from({ length: VISIBLE_COUNT }, () => null); for (const tier of TIER_ORDER) { const tierRows = rows.filter((p) => p.tier === tier).slice(0, TIER_LIMITS[tier]); const indexes = GRID_TIERS.map((slotTier, index) => slotTier === tier ? index : -1).filter((index) => index >= 0); indexes.forEach((index, position) => { result[index] = tierRows[position] ?? null; }); } return result; }
+function spreadSlotIndexes(indexes: number[], count: number): number[] {
+  if (count <= 0 || indexes.length === 0) return [];
+  if (count >= indexes.length) return [...indexes];
+  const selected: number[] = [];
+  const remaining = new Set(indexes);
+  while (selected.length < count && remaining.size) {
+    let best = indexes[0];
+    let bestScore = -1;
+    for (const candidate of remaining) {
+      const x = candidate % COLS;
+      const y = Math.floor(candidate / COLS);
+      const minDistance = selected.length === 0
+        ? (x - (COLS - 1) / 2) ** 2 + (y - (ROWS - 1) / 2) ** 2
+        : Math.min(...selected.map((slot) => {
+            const sx = slot % COLS;
+            const sy = Math.floor(slot / COLS);
+            return (x - sx) ** 2 + (y - sy) ** 2;
+          }));
+      if (minDistance > bestScore) {
+        bestScore = minDistance;
+        best = candidate;
+      }
+    }
+    selected.push(best);
+    remaining.delete(best);
+  }
+  return selected;
+}
+function buildSlots(rows: MapParcel[]): Array<MapParcel | null> {
+  const result: Array<MapParcel | null> = Array.from({ length: VISIBLE_COUNT }, () => null);
+  for (const tier of TIER_ORDER) {
+    const tierRows = rows.filter((p) => p.tier === tier).slice(0, TIER_LIMITS[tier]);
+    const indexes = GRID_TIERS.map((slotTier, index) => slotTier === tier ? index : -1).filter((index) => index >= 0);
+    const soldRows = tierRows.filter((p) => p.status === "sold").slice(0, SOLD_TIER_COUNTS[tier]);
+    const availableRows = tierRows.filter((p) => p.status !== "sold");
+    const soldIndexes = spreadSlotIndexes(indexes, soldRows.length);
+    const soldIndexSet = new Set(soldIndexes);
+    soldIndexes.forEach((index, position) => { result[index] = soldRows[position] ?? null; });
+    indexes.filter((index) => !soldIndexSet.has(index)).forEach((index, position) => {
+      result[index] = availableRows[position] ?? null;
+    });
+  }
+  return result;
+}
 
 export function CityParcelLivePage({ slug }: { slug: string }) {
   const { user, loading: authLoading } = useAuth();
