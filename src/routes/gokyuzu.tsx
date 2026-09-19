@@ -665,7 +665,7 @@ function GokyuzuPage() {
       const gridGeometry = new THREE.BufferGeometry();
       gridGeometry.setAttribute('position', new THREE.BufferAttribute(gridPositions, 3));
       const gridMaterial = new THREE.LineBasicMaterial({
-        color: 0xffd166,
+        color: 0x90ee90,
         transparent: true,
         opacity: 1,
         depthWrite: false,
