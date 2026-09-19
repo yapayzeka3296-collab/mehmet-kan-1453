@@ -22,6 +22,10 @@ deployment:
     - /bin/test -d "$APPROOT/.git"
     - /bin/test -f "$APPROOT/app.js"
     - /bin/test -f "$APPROOT/.output/server/index.mjs"
+    # Never deploy the previous .output when cPanel receives a source commit
+    # before GitHub Actions publishes the matching prebuilt-output commit.
+    - /bin/test -f "$APPROOT/.output/.build-source-commit"
+    - /bin/sh -c 'cd "$APPROOT" && test "$(git rev-parse HEAD^)" = "$(/bin/cat "$APPROOT/.output/.build-source-commit")"'
     - /bin/test -f "$APPROOT/.output/nitro.json"
     - /bin/test -d "$APPROOT/.output/public"
     - /bin/test -f "$APPROOT/public/.htaccess"
