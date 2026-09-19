@@ -741,17 +741,23 @@ function GokyuzuPage() {
           const adUrl = getAdUrl(ad);
           loader.load(adUrl, (texture) => {
             texture.colorSpace = THREE.SRGBColorSpace;
-            const material = new THREE.SpriteMaterial({
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            const adGeometry = new THREE.PlaneGeometry(TILE_SIZE * 0.92, TILE_SIZE * 0.92);
+            const adMaterial = new THREE.MeshBasicMaterial({
               map: texture,
               transparent: true,
+              opacity: 1,
+              side: THREE.DoubleSide,
               depthWrite: false,
               depthTest: false,
             });
-            const logo = new THREE.Sprite(material);
-            logo.position.set(x, 6.8, z);
-            logo.scale.set(6.2, 4.2, 1);
-            logo.userData.kind = 'parcel-ad-logo';
-            adGroup.add(logo);
+            const adTile = new THREE.Mesh(adGeometry, adMaterial);
+            adTile.position.set(x, 2.66, z);
+            adTile.rotation.x = -Math.PI / 2;
+            adTile.userData.kind = 'parcel-ad-tile';
+            adTile.userData.parcelId = parcel.id;
+            adGroup.add(adTile);
           });
         }
       }
