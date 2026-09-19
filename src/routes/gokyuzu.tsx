@@ -710,10 +710,7 @@ function GokyuzuPage() {
         );
         parcelMesh.setMatrixAt(i, matrix);
 
-        if (parcel.status === 'sold') baseColor.set(0xdc2626);
-        else if (parcel.status === 'reserved') baseColor.set(0xffc857);
-        else if (parcel.status === 'available') baseColor.set(0x2ee6a6);
-        else baseColor.set(0x8ea0b8);
+        baseColor.set(0x90ee90);
 
         const color = baseColor.clone();
         parcelBaseColors[i] = color;
