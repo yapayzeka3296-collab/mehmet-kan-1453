@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { Logo } from "@/components/Logo";
+import { SiteHeader } from "@/components/SiteHeader";
 const MySkyParcelEarthGlobeSafe = lazy(() => import("@/components/MySkyParcelEarthGlobeSafe").then((module) => ({ default: module.MySkyParcelEarthGlobeSafe })));
 
 export const Route = createFileRoute("/")({
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/")({
 function Landing() {
   return (
     <main className="relative z-0 min-h-screen overflow-hidden bg-background text-foreground">
+      <SiteHeader />
       <Suspense fallback={<div className="absolute inset-0 bg-background" aria-label="Küre yükleniyor" />}>
         <MySkyParcelEarthGlobeSafe className="h-screen rounded-none border-0 bg-transparent shadow-none" />
       </Suspense>
