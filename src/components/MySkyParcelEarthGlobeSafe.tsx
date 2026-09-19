@@ -7,7 +7,7 @@ const CLOUD_TEXTURE = "/api/earth-assets?type=clouds";
 const RADIUS = 1.5;
 const MIN_ZOOM = 3;
 const MAX_ZOOM = 7;
-const DEFAULT_ZOOM = 5.35;
+const DEFAULT_ZOOM = 6.0;
 
 export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -69,11 +69,13 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
         const earthGeometry = new THREE.SphereGeometry(radius, 64, 64);
         const earthMaterial = new THREE.MeshPhongMaterial({ map: earthTexture, shininess: 10, specular: new THREE.Color(0x28476a) });
         const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+        earth.position.y = 0.25;
         scene.add(earth);
 
         const cloudGeometry = new THREE.SphereGeometry(radius * 1.014, 48, 48);
         const cloudMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, alphaMap: cloudTexture, transparent: true, opacity: 0.43, depthWrite: false });
         const clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
+        clouds.position.y = 0.25;
         scene.add(clouds);
 
         const atmosphereGeometry = new THREE.SphereGeometry(radius * 1.09, 48, 48);
@@ -86,6 +88,7 @@ export function MySkyParcelEarthGlobeSafe({ className = "" }: Props) {
           depthWrite: false,
         });
         const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+        atmosphere.position.y = 0.25;
         scene.add(atmosphere);
 
         const createStarField = () => {
