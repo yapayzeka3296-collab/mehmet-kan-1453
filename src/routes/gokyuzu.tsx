@@ -302,8 +302,8 @@ function GokyuzuPage() {
 
     let panX = 0;
     let panZ = 0;
-    let rotationY = 0;
-    let rotationX = 0;
+    let velocityX = 0;
+    let velocityZ = 0;
     let dragging = false;
     let dragMoved = false;
     let lastPointerX = 0;
@@ -320,16 +320,33 @@ function GokyuzuPage() {
       camera.lookAt(cameraTarget);
     };
 
-    const applyDrag = (dx: number, dy: number) => {
-      const maxPanX = (PARCEL_COLUMNS * TILE_SIZE) * 0.5 - 90;
-      const maxPanZ = (PARCEL_ROWS * TILE_SIZE) * 0.5 - 70;
-      panX = THREE.MathUtils.clamp(panX + dx * 0.08, -maxPanX, maxPanX);
-      panZ = THREE.MathUtils.clamp(panZ + dy * 0.08, -maxPanZ, maxPanZ);
-      rotationY = THREE.MathUtils.clamp(rotationY + dx * 0.0025, -0.65, 0.65);
-      rotationX = THREE.MathUtils.clamp(rotationX + dy * 0.0018, -0.38, 0.38);
+    const maxPanX = (PARCEL_COLUMNS * TILE_SIZE) * 0.5 - 90;
+    const maxPanZ = (PARCEL_ROWS * TILE_SIZE) * 0.5 - 70;
+    const dragScale = 0.1;
+    const friction = 0.9;
+    const inertiaStop = 0.015;
+
+    const applyPan = (x: number, z: number) => {
+      panX = x;
+      panZ = z;
       parcelGroup.position.set(panX, 0, panZ);
-      parcelGroup.rotation.y = rotationY;
-      parcelGroup.rotation.x = rotationX;
+    };
+
+    const applyDrag = (dx: number, dy: number) => {
+      const nextX = THREE.MathUtils.clamp(panX + dx * dragScale, -maxPanX, maxPanX);
+      const nextZ = THREE.MathUtils.clamp(panZ + dy * dragScale, -maxPanZ, maxPanZ);
+      const movementX = nextX - panX;
+      const movementZ = nextZ - panZ;
+      velocityX = velocityX * 0.65 + movementX * 0.35;
+      velocityZ = velocityZ * 0.65 + movementZ * 0.35;
+      if (nextX === -maxPanX || nextX === maxPanX) velocityX = 0;
+      if (nextZ === -maxPanZ || nextZ === maxPanZ) velocityZ = 0;
+      applyPan(nextX, nextZ);
+    };
+
+    const stopInertia = () => {
+      velocityX = 0;
+      velocityZ = 0;
     };
 
     const onWheel = (event: WheelEvent) => {
@@ -351,11 +368,13 @@ function GokyuzuPage() {
         const [a, b] = [...pointers.values()];
         pinchDistance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
         dragging = false;
+        stopInertia();
         return;
       }
 
       dragging = true;
       dragMoved = false;
+      stopInertia();
       lastPointerX = event.clientX;
       lastPointerY = event.clientY;
       renderer.domElement.style.cursor = 'grabbing';
@@ -400,6 +419,9 @@ function GokyuzuPage() {
       pointers.delete(event.pointerId);
       if (pointers.size < 2) pinchDistance = null;
       dragging = pointers.size === 1;
+      if (pointers.size === 0 && dragMoved) {
+        dragMoved = true;
+      }
       if (dragging) {
         const remaining = [...pointers.values()][0];
         lastPointerX = remaining.x;
@@ -665,6 +687,19 @@ function GokyuzuPage() {
     let frame = 0;
     const animate = () => {
       frame = requestAnimationFrame(animate);
+
+      if (!dragging && pointers.size === 0 && (Math.abs(velocityX) > inertiaStop || Math.abs(velocityZ) > inertiaStop)) {
+        const nextX = THREE.MathUtils.clamp(panX + velocityX, -maxPanX, maxPanX);
+        const nextZ = THREE.MathUtils.clamp(panZ + velocityZ, -maxPanZ, maxPanZ);
+        if (nextX === -maxPanX || nextX === maxPanX) velocityX = 0;
+        if (nextZ === -maxPanZ || nextZ === maxPanZ) velocityZ = 0;
+        applyPan(nextX, nextZ);
+        velocityX *= friction;
+        velocityZ *= friction;
+        if (Math.abs(velocityX) <= inertiaStop) velocityX = 0;
+        if (Math.abs(velocityZ) <= inertiaStop) velocityZ = 0;
+      }
+
       renderer.render(scene, camera);
     };
     animate();
