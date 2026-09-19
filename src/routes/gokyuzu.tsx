@@ -258,8 +258,8 @@ function GokyuzuPage() {
   const getExternalAdUrl = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return null;
-    if (/^(https?:\\/\\/|mailto:|tel:)/i.test(trimmed)) return trimmed;
-    return 'https://' + trimmed.replace(/^\\/\\//, '');
+    if (/^(https?:\/\/|mailto:|tel:)/i.test(trimmed)) return trimmed;
+    return 'https://' + trimmed.replace(/^\/\//, '');
   };
 
   useEffect(() => {
