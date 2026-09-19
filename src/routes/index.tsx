@@ -5,6 +5,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 const MySkyParcelEarthGlobeSafe = lazy(() => import("@/components/MySkyParcelEarthGlobeSafe").then((module) => ({ default: module.MySkyParcelEarthGlobeSafe })));
 
 export const Route = createFileRoute("/")({
+  headers: () => ({ "Cache-Control": "no-store, no-cache, must-revalidate" }),
   head: () => ({
     meta: [
       { title: "MySkyParcel — Gökyüzünde Kendi Parselini Seç" },
