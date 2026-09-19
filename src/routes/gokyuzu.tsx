@@ -302,6 +302,8 @@ function GokyuzuPage() {
 
     const parcelGroup = new THREE.Group();
     scene.add(parcelGroup);
+    const adGroup = new THREE.Group();
+    parcelGroup.add(adGroup);
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
@@ -726,9 +728,6 @@ function GokyuzuPage() {
         depthWrite: false,
         depthTest: false,
       });
-      const adGroup = new THREE.Group();
-      parcelGroup.add(adGroup);
-
       for (let i = 0; i < allParcels.length; i += 1) {
         const parcel = allParcels[i];
         if (parcel.grid_x == null || parcel.grid_y == null) continue;
