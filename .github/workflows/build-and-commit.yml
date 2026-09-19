@@ -79,7 +79,7 @@ jobs:
         run: |
           set -euo pipefail
           routes=(
-            ana-sayfa turkiye-haritasi nasil-calisir paketler hakkimizda
+            turkiye-haritasi nasil-calisir paketler hakkimizda
             iletisim destek pazar-yeri
             uyelik-sozlesmesi mesafeli-satis-sozlesmesi on-bilgilendirme-formu
             iade-iptal-politikasi kvkk gizlilik-politikasi kullanim-sartlari
@@ -101,7 +101,7 @@ jobs:
           test -f public/.htaccess
           test "$(find .output/public -type f | wc -l)" -gt 0
           for route in \
-            ana-sayfa turkiye-haritasi nasil-calisir paketler hakkimizda iletisim destek pazar-yeri \
+            turkiye-haritasi nasil-calisir paketler hakkimizda iletisim destek pazar-yeri \
             uyelik-sozlesmesi mesafeli-satis-sozlesmesi on-bilgilendirme-formu \
             iade-iptal-politikasi kvkk gizlilik-politikasi kullanim-sartlari cerez-politikasi \
             sevgiliye-hediye dogum-gunu-hediyesi kisiye-ozel-hediye; do
