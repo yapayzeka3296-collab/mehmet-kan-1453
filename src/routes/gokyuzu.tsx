@@ -681,7 +681,7 @@ function GokyuzuPage() {
         matrix.multiply(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
         parcelMesh.setMatrixAt(i, matrix);
 
-        if (parcel.status === 'sold') baseColor.set(0xff5c7a);
+        if (parcel.status === 'sold') baseColor.set(0xdc2626);
         else if (parcel.status === 'reserved') baseColor.set(0xffc857);
         else if (parcel.status === 'available') baseColor.set(0x2ee6a6);
         else baseColor.set(0x8ea0b8);
@@ -852,6 +852,13 @@ function GokyuzuPage() {
       soldLabelTexture.dispose();
       soldLabelMaterial.dispose();
       parcelGroup.traverse((object) => {
+        if (object instanceof THREE.Sprite) {
+          const material = object.material as THREE.SpriteMaterial;
+          if (material !== soldLabelMaterial) {
+            material.map?.dispose();
+            material.dispose();
+          }
+        }
         if (object instanceof THREE.LineSegments && object.geometry !== skyGeometry) {
           object.geometry.dispose();
           (object.material as THREE.Material).dispose();
