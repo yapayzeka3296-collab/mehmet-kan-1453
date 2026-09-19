@@ -255,6 +255,13 @@ function GokyuzuPage() {
   const getAdUrl = (ad: ParcelAd) =>
     supabaseBrowser.storage.from('parcel-ads').getPublicUrl(ad.image_path).data.publicUrl;
 
+  const getExternalAdUrl = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^(https?:\\/\\/|mailto:|tel:)/i.test(trimmed)) return trimmed;
+    return 'https://' + trimmed.replace(/^\\/\\//, '');
+  };
+
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
@@ -321,6 +328,8 @@ function GokyuzuPage() {
     let pointerDownY = 0;
     const pointers = new Map<number, { x: number; y: number }>();
     let pinchDistance: number | null = null;
+    let twoFingerCenterX: number | null = null;
+    let twoFingerCenterY: number | null = null;
 
     const getFitDistance = () => {
       const verticalFov = THREE.MathUtils.degToRad(camera.fov);
@@ -410,6 +419,8 @@ function GokyuzuPage() {
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
         pinchDistance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+        twoFingerCenterX = (a.x + b.x) / 2;
+        twoFingerCenterY = (a.y + b.y) / 2;
         dragging = false;
         stopInertia();
         return;
@@ -434,20 +445,25 @@ function GokyuzuPage() {
       event.stopPropagation();
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
-      if (pointers.size === 2 && pinchDistance) {
+      if (pointers.size === 2 && pinchDistance != null) {
         const [a, b] = [...pointers.values()];
         const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
-        const current = Math.max(18, camera.position.z);
-        const rect = renderer.domElement.getBoundingClientRect();
         const focusX = (a.x + b.x) / 2;
         const focusY = (a.y + b.y) / 2;
-        pointer.x = ((focusX - rect.left) / rect.width) * 2 - 1;
-        pointer.y = -((focusY - rect.top) / rect.height) * 2 + 1;
-        raycaster.setFromCamera(pointer, camera);
-        if (raycaster.ray.intersectPlane(zoomPlane, zoomWorldBefore)) {
-          setZoom(current / (distance / pinchDistance), focusX, focusY);
-        } else {
-          setZoom(current / (distance / pinchDistance));
+        if (twoFingerCenterX != null && twoFingerCenterY != null) {
+          const rotateScale = 0.008;
+          parcelGroup.rotation.y += (focusX - twoFingerCenterX) * rotateScale;
+          parcelGroup.rotation.x = THREE.MathUtils.clamp(
+            parcelGroup.rotation.x + (focusY - twoFingerCenterY) * rotateScale,
+            -Math.PI / 2,
+            Math.PI / 2,
+          );
+        }
+        twoFingerCenterX = focusX;
+        twoFingerCenterY = focusY;
+        const zoomRatio = distance / pinchDistance;
+        if (Math.abs(zoomRatio - 1) > 0.002) {
+          setZoom(Math.max(18, camera.position.z / zoomRatio));
         }
         pinchDistance = distance;
         renderer.domElement.style.cursor = 'grab';
@@ -470,7 +486,11 @@ function GokyuzuPage() {
 
     const onPointerUp = (event: PointerEvent) => {
       pointers.delete(event.pointerId);
-      if (pointers.size < 2) pinchDistance = null;
+      if (pointers.size < 2) {
+        pinchDistance = null;
+        twoFingerCenterX = null;
+        twoFingerCenterY = null;
+      }
       dragging = pointers.size === 1;
       if (pointers.size === 0 && dragMoved) {
         dragMoved = true;
@@ -961,8 +981,8 @@ function GokyuzuPage() {
                   <img src={getAdUrl(selectedAd)} alt={selectedAd.title} />
                   <strong>{selectedAd.title}</strong>
                   <span>Bu reklam parsele gömülü olarak yayınlanıyor.</span>
-                  {selectedAd.link_url && (
-                    <a href={selectedAd.link_url} target="_blank" rel="noreferrer">WEB SİTESİNE GİT →</a>
+                  {getExternalAdUrl(selectedAd.link_url ?? '') && (
+                    <a href={getExternalAdUrl(selectedAd.link_url ?? '') ?? undefined} target="_blank" rel="noopener noreferrer">WEB SİTESİNE GİT →</a>
                   )}
                 </>
               )}
