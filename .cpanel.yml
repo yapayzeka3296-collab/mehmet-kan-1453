@@ -1,6 +1,9 @@
 ---
 # MySkyParcel — cPanel / CloudLinux Passenger deployment
 #
+# Deployment trigger: keep this file tracked so cPanel can pull a fresh HEAD
+# and execute the production deployment after GitHub Actions rebuilds output.
+#
 # Core runtime:
 #   cPanel Git repository (/home/myskypar/repositories/mehmet-kan-1453)
 #        ├─ app.js + .output/server  -> Passenger / Nitro SSR
