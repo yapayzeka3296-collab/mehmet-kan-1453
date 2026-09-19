@@ -3,10 +3,9 @@ import * as THREE from 'three';
 import { useEffect, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { useAuth } from '@/hooks/useAuth';
-import { SiteHeader } from '@/components/SiteHeader';
 import './gokyuzu.css';
 
-export const Route = createFileRoute('/gokyuzu')({ component: GokyuzuPage });
+export const Route = createFileRoute('/gokyuzu')({ ssr: false, component: GokyuzuPage });
 
 const SKY_IMAGE_URL =
   'https://cdn.polyhaven.com/asset_img/primary/kloppenheim_03_puresky.png?height=2048';
@@ -141,6 +140,7 @@ function GokyuzuPage() {
   const [worldLoaded, setWorldLoaded] = useState(0);
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
   const [locationMessage, setLocationMessage] = useState('Konumunuz alınıyor…');
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedParcel) {
@@ -290,6 +290,10 @@ function GokyuzuPage() {
     scene.add(new THREE.Mesh(skyGeometry, skyMaterial));
 
     const cameraTarget = new THREE.Vector3(0, 2.5, 0);
+    const zoomPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -2.58);
+    const zoomWorldBefore = new THREE.Vector3();
+    const zoomWorldAfter = new THREE.Vector3();
+    const zoomRay = new THREE.Ray();
     camera.position.set(0, 32, 34);
     camera.lookAt(cameraTarget);
 
@@ -313,15 +317,37 @@ function GokyuzuPage() {
     const pointers = new Map<number, { x: number; y: number }>();
     let pinchDistance: number | null = null;
 
-    const setZoom = (distance: number) => {
-      const clamped = THREE.MathUtils.clamp(distance, 18, 120);
-      camera.position.y = THREE.MathUtils.clamp(clamped * 0.9, 14, 90);
-      camera.position.z = clamped;
-      camera.lookAt(cameraTarget);
+    const getFitDistance = () => {
+      const verticalFov = THREE.MathUtils.degToRad(camera.fov);
+      const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * Math.max(camera.aspect, 0.1));
+      const fitWidth = (PARCEL_COLUMNS * TILE_SIZE) / (2 * Math.tan(horizontalFov / 2));
+      const fitDepth = (PARCEL_ROWS * TILE_SIZE) / (2 * Math.tan(verticalFov / 2));
+      return Math.ceil(Math.max(fitWidth, fitDepth) * 1.18);
     };
 
-    const maxPanX = (PARCEL_COLUMNS * TILE_SIZE) * 0.5 - 90;
-    const maxPanZ = (PARCEL_ROWS * TILE_SIZE) * 0.5 - 70;
+    const setZoom = (distance: number, focusX?: number, focusY?: number) => {
+      const maxZoomDistance = Math.max(120, getFitDistance());
+      const clamped = THREE.MathUtils.clamp(distance, 18, maxZoomDistance);
+      camera.position.y = THREE.MathUtils.clamp(clamped * 0.9, 14, 520);
+      camera.position.z = clamped;
+      camera.lookAt(cameraTarget);
+      if (focusX == null || focusY == null) return;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((focusX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((focusY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      if (!raycaster.ray.intersectPlane(zoomPlane, zoomWorldAfter)) return;
+      const shiftX = zoomWorldBefore.x - zoomWorldAfter.x;
+      const shiftZ = zoomWorldBefore.z - zoomWorldAfter.z;
+      applyPan(
+        THREE.MathUtils.clamp(panX + shiftX, -maxPanX, maxPanX),
+        THREE.MathUtils.clamp(panZ + shiftZ, -maxPanZ, maxPanZ),
+      );
+    };
+
+    const maxPanX = (PARCEL_COLUMNS * TILE_SIZE) * 0.5 - 20;
+    const maxPanZ = (PARCEL_ROWS * TILE_SIZE) * 0.5 - 20;
     const dragScale = 0.1;
     const friction = 0.9;
     const inertiaStop = 0.015;
@@ -353,7 +379,19 @@ function GokyuzuPage() {
       event.preventDefault();
       event.stopPropagation();
       const current = Math.max(18, camera.position.z);
-      setZoom(current + THREE.MathUtils.clamp(event.deltaY, -160, 160) * 0.08);
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      if (raycaster.ray.intersectPlane(zoomPlane, zoomWorldBefore)) {
+        setZoom(
+          current + THREE.MathUtils.clamp(event.deltaY, -160, 160) * 0.12,
+          event.clientX,
+          event.clientY,
+        );
+      } else {
+        setZoom(current + THREE.MathUtils.clamp(event.deltaY, -160, 160) * 0.12);
+      }
     };
 
     const onPointerDown = (event: PointerEvent) => {
@@ -395,7 +433,17 @@ function GokyuzuPage() {
         const [a, b] = [...pointers.values()];
         const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
         const current = Math.max(18, camera.position.z);
-        setZoom(current / (distance / pinchDistance));
+        const rect = renderer.domElement.getBoundingClientRect();
+        const focusX = (a.x + b.x) / 2;
+        const focusY = (a.y + b.y) / 2;
+        pointer.x = ((focusX - rect.left) / rect.width) * 2 - 1;
+        pointer.y = -((focusY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera);
+        if (raycaster.ray.intersectPlane(zoomPlane, zoomWorldBefore)) {
+          setZoom(current / (distance / pinchDistance), focusX, focusY);
+        } else {
+          setZoom(current / (distance / pinchDistance));
+        }
         pinchDistance = distance;
         renderer.domElement.style.cursor = 'grab';
         return;
@@ -469,6 +517,7 @@ function GokyuzuPage() {
       setWorldLoading(true);
       setWorldLoaded(0);
       setDetectedCity(null);
+      setLocationError(null);
       setLocationMessage('Konumunuz alınıyor…');
 
       if (!navigator.geolocation) {
@@ -491,13 +540,30 @@ function GokyuzuPage() {
         throw new Error('Aktif il kaydı bulunamadı.');
       }
 
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
+      const getPosition = (options: PositionOptions) =>
+        new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, options);
+        });
+
+      let position: GeolocationPosition;
+      try {
+        position = await getPosition({
           enableHighAccuracy: true,
           timeout: 12_000,
           maximumAge: 5 * 60_000,
         });
-      });
+      } catch (firstError) {
+        const code = (firstError as GeolocationPositionError)?.code;
+        if (code === GeolocationPositionError.PERMISSION_DENIED) {
+          throw new Error('Konum izni verilmedi. Tarayıcıdan konum iznini açıp sayfayı yenileyin.');
+        }
+        setLocationMessage('GPS sinyali bekleniyor, ikinci konum denemesi yapılıyor…');
+        position = await getPosition({
+          enableHighAccuracy: false,
+          timeout: 10_000,
+          maximumAge: 10 * 60_000,
+        });
+      }
 
       const { latitude, longitude } = position.coords;
       setLocationMessage('Bulunduğunuz il belirleniyor…');
@@ -631,6 +697,65 @@ function GokyuzuPage() {
       if (parcelMesh.instanceColor) parcelMesh.instanceColor.needsUpdate = true;
       parcelGroup.add(parcelMesh);
 
+      const soldLabelCanvas = document.createElement('canvas');
+      soldLabelCanvas.width = 256;
+      soldLabelCanvas.height = 64;
+      const soldLabelContext = soldLabelCanvas.getContext('2d');
+      if (soldLabelContext) {
+        soldLabelContext.fillStyle = '#b91c1c';
+        soldLabelContext.roundRect(4, 8, 248, 48, 12);
+        soldLabelContext.fill();
+        soldLabelContext.font = '700 30px Arial';
+        soldLabelContext.textAlign = 'center';
+        soldLabelContext.textBaseline = 'middle';
+        soldLabelContext.fillStyle = '#ffffff';
+        soldLabelContext.fillText('SATILDI', 128, 32);
+      }
+      const soldLabelTexture = new THREE.CanvasTexture(soldLabelCanvas);
+      soldLabelTexture.colorSpace = THREE.SRGBColorSpace;
+      const soldLabelMaterial = new THREE.SpriteMaterial({
+        map: soldLabelTexture,
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+      });
+      const adGroup = new THREE.Group();
+      parcelGroup.add(adGroup);
+
+      for (let i = 0; i < allParcels.length; i += 1) {
+        const parcel = allParcels[i];
+        if (parcel.grid_x == null || parcel.grid_y == null) continue;
+        const x = parcel.grid_x * TILE_SIZE - halfWorldX + TILE_SIZE / 2;
+        const z = parcel.grid_y * TILE_SIZE - halfWorldZ + TILE_SIZE / 2;
+
+        if (parcel.status === 'sold') {
+          const label = new THREE.Sprite(soldLabelMaterial);
+          label.position.set(x, 5.2, z);
+          label.scale.set(7.2, 1.8, 1);
+          label.userData.kind = 'sold-label';
+          adGroup.add(label);
+        }
+
+        const ad = adMap.get(parcel.id);
+        if (ad?.is_active && ad.image_path) {
+          const adUrl = getAdUrl(ad);
+          loader.load(adUrl, (texture) => {
+            texture.colorSpace = THREE.SRGBColorSpace;
+            const material = new THREE.SpriteMaterial({
+              map: texture,
+              transparent: true,
+              depthWrite: false,
+              depthTest: false,
+            });
+            const logo = new THREE.Sprite(material);
+            logo.position.set(x, 6.8, z);
+            logo.scale.set(6.2, 4.2, 1);
+            logo.userData.kind = 'parcel-ad-logo';
+            adGroup.add(logo);
+          });
+        }
+      }
+
       setWorldLoading(false);
       setWorldLoaded(allParcels.length);
       setLocationMessage(city.name + ' · 1.000 parsel yüklendi');
@@ -639,6 +764,8 @@ function GokyuzuPage() {
     void loadAllWorldData().catch((error) => {
       console.error('Parsel Dünyası yüklenemedi:', error);
       setWorldLoading(false);
+      setLocationError(error instanceof Error ? error.message : 'Parsel Dünyası yüklenemedi.');
+      setLocationMessage('Konum/parsel yükleme işlemi tamamlanamadı.');
     });
 
     const onSelectPointerDown = (event: PointerEvent) => {
@@ -722,6 +849,8 @@ function GokyuzuPage() {
         parcelMesh.geometry.dispose();
         (parcelMesh.material as THREE.Material).dispose();
       }
+      soldLabelTexture.dispose();
+      soldLabelMaterial.dispose();
       parcelGroup.traverse((object) => {
         if (object instanceof THREE.LineSegments && object.geometry !== skyGeometry) {
           object.geometry.dispose();
@@ -735,8 +864,6 @@ function GokyuzuPage() {
 
   return (
     <main className="gokyuzu-page">
-      <SiteHeader variant="light-bg" />
-
       <div
         ref={mountRef}
         className="gokyuzu-canvas"
@@ -758,6 +885,13 @@ function GokyuzuPage() {
           <span>{worldLoading ? worldLoaded.toLocaleString('tr-TR') + ' / ' + REAL_PARCELS_PER_CITY.toLocaleString('tr-TR') + ' YÜKLENİYOR' : detectedCity ? detectedCity.toLocaleUpperCase('tr-TR') + ' · ' + REAL_PARCELS_PER_CITY.toLocaleString('tr-TR') + ' GERÇEK PARSEL' : locationMessage}</span>
         </div>
       </header>
+
+      {locationError && !worldLoading && (
+        <div className="gokyuzu-loading" role="alert">
+          <strong>Konum alınamadı</strong>
+          <span>{locationError}</span>
+        </div>
+      )}
 
       {worldLoading && (
         <div className="gokyuzu-loading" role="status">
