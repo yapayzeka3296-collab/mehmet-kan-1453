@@ -452,9 +452,9 @@ function GokyuzuPage() {
         const focusY = (a.y + b.y) / 2;
         if (twoFingerCenterX != null && twoFingerCenterY != null) {
           const rotateScale = 0.008;
-          parcelGroup.rotation.y += (focusX - twoFingerCenterX) * rotateScale;
+          parcelGroup.rotation.y -= (focusX - twoFingerCenterX) * rotateScale;
           parcelGroup.rotation.x = THREE.MathUtils.clamp(
-            parcelGroup.rotation.x + (focusY - twoFingerCenterY) * rotateScale,
+            parcelGroup.rotation.x - (focusY - twoFingerCenterY) * rotateScale,
             -Math.PI / 2,
             Math.PI / 2,
           );
