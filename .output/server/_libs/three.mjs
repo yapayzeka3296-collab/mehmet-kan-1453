@@ -33513,4 +33513,4 @@ var WebGLRenderer = class {
 	}
 };
 //#endregion
-export { SphereGeometry as C, TextureLoader as D, StaticDrawUsage as E, Vector2 as O, Scene as S, SpriteMaterial as T, Plane as _, BufferGeometry as a, Raycaster as b, Group as c, LineSegments as d, MathUtils as f, PerspectiveCamera as g, MeshBasicMaterial as h, BufferAttribute as i, Vector3 as k, InstancedMesh as l, Mesh as m, three_module_exports as n, CanvasTexture as o, Matrix4 as p, BackSide as r, Color as s, WebGLRenderer as t, LineBasicMaterial as u, PlaneGeometry as v, Sprite as w, SRGBColorSpace as x, Ray as y };
+export { Vector3 as A, Scene as C, StaticDrawUsage as D, SpriteMaterial as E, TextureLoader as O, SRGBColorSpace as S, Sprite as T, PerspectiveCamera as _, BufferGeometry as a, Ray as b, Color as c, LineBasicMaterial as d, LineSegments as f, MeshBasicMaterial as g, Mesh as h, BufferAttribute as i, Vector2 as k, Group as l, Matrix4 as m, three_module_exports as n, CanvasTexture as o, MathUtils as p, BackSide as r, ClampToEdgeWrapping as s, WebGLRenderer as t, InstancedMesh as u, Plane as v, SphereGeometry as w, Raycaster as x, PlaneGeometry as y };
