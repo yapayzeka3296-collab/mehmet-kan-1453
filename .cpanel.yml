@@ -52,3 +52,5 @@ deployment:
     - /bin/test -f "$DEPLOYPATH/__cpanel_build.txt"
     - /bin/test -d "$DEPLOYPATH/assets"
     - echo MySkyParcel cPanel deployment completed
+
+# Production sync trigger: keep cPanel Git updates moving to the latest verified main output.
